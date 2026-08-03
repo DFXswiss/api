@@ -156,13 +156,17 @@ export class BankService implements OnModuleInit {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
-    if (asset.bank?.iban) return BankService.normalizeIban(asset.bank.iban) === BankService.normalizeIban(accountIban);
+    const normalizedAccountIban = BankService.normalizeIban(accountIban);
+    if (!normalizedAccountIban) return false;
+
+    if (asset.bank?.iban) return BankService.normalizeIban(asset.bank.iban) === normalizedAccountIban;
 
     const bankName = this.blockchainToBankName(asset.blockchain);
     if (!bankName) return false;
 
     const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
-    return BankService.normalizeIban(expectedIban) === BankService.normalizeIban(accountIban);
+    const normalizedExpectedIban = BankService.normalizeIban(expectedIban);
+    return Boolean(normalizedExpectedIban && normalizedExpectedIban === normalizedAccountIban);
   }
 
   static isInternalBankMatching(asset: Asset, accountIban: string): boolean {
@@ -285,7 +289,8 @@ export class BankService implements OnModuleInit {
       // A loaded asset relation makes the IBAN attributable only to that exact asset.bank IBAN.
       // The name/currency fallback is reserved for bank rows that are genuinely unbound, otherwise
       // two asset-bound accounts of the same bank/currency would both count the same transfer.
-      if (ibanBanks.every((bank) => bank.asset == null)) BankService.unboundIbanCache.set(normalizedIban, keys);
+      if (ibanBanks.every((bank) => bank.asset === null || bank.asset === undefined))
+        BankService.unboundIbanCache.set(normalizedIban, keys);
     }
   }
 

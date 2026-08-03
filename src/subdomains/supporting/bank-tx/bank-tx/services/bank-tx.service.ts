@@ -280,7 +280,13 @@ export class BankTxService implements OnModuleInit {
         where: { id: bankTx.id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!currentBankTx || currentBankTx.type != null || !currentBankTx.transactionId) return;
+      if (
+        !currentBankTx ||
+        (currentBankTx.type !== null && currentBankTx.type !== undefined) ||
+        !currentBankTx.transactionId
+      )
+        return;
+      if ((await this.getType(currentBankTx)) !== BankTxType.INTERNAL) return;
 
       const currentTransaction = await manager.findOne(Transaction, {
         where: { id: currentBankTx.transactionId },
@@ -288,7 +294,9 @@ export class BankTxService implements OnModuleInit {
       });
       if (
         !currentTransaction ||
-        (currentTransaction.type != null && currentTransaction.type !== TransactionTypeInternal.INTERNAL)
+        (currentTransaction.type !== null &&
+          currentTransaction.type !== undefined &&
+          currentTransaction.type !== TransactionTypeInternal.INTERNAL)
       )
         return;
 

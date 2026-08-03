@@ -2134,6 +2134,39 @@ describe('LogJobService', () => {
       expect(service['getUnsettledInternalBankTx']([firstDebit, secondDebit, credit])).toEqual([firstDebit]);
     });
 
+    it('keeps unequal FX debits pending when the same optional target amount is ambiguous', () => {
+      const createDebit = (id: number, amount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          instructedAmount: 95000,
+          instructedCurrency: 'CHF',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const firstDebit = createDebit(208765, 100000, 8);
+      const secondDebit = createDebit(208766, 200000, 9);
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 95000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([firstDebit, secondDebit, credit])).toEqual([
+        firstDebit,
+        secondDebit,
+      ]);
+    });
+
     it('settles a late credit when a unique end-to-end ID still proves the pair', () => {
       const debit = createCustomBankTx({
         id: 208765,

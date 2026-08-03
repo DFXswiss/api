@@ -301,6 +301,37 @@ describe('BankTxService', () => {
       expect(manager.update).not.toHaveBeenCalled();
     });
 
+    it('does not assign internal after the locked transfer IBAN was corrected to an external IBAN', async () => {
+      const staleBankTx = createCustomBankTx({
+        id: 208765,
+        type: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'FRICK-IBAN',
+        transaction: { id: 77 } as never,
+      });
+      const currentBankTx = createCustomBankTx({
+        id: 208765,
+        type: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'EXTERNAL-IBAN',
+        transactionId: 77,
+      });
+      const manager = { findOne: jest.fn().mockResolvedValue(currentBankTx), update: jest.fn() };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await service['assignInternalIfUnassigned'](staleBankTx);
+
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
+      expect(manager.findOne).toHaveBeenCalledTimes(1);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
     it('locks both records and assigns the internal type atomically', async () => {
       const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
       const currentBankTx = createCustomBankTx({ id: 208765, type: null, transactionId: 77 });
@@ -315,6 +346,7 @@ describe('BankTxService', () => {
           transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
         },
       });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
 
       await service['assignInternalIfUnassigned'](staleBankTx);
 

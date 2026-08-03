@@ -404,6 +404,13 @@ describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
     expect(BankService.isBankMatching(asset, 'OTHER-IBAN')).toBe(false);
   });
 
+  it('does not match missing or invalid IBANs when no cache entry exists', () => {
+    const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+    expect(BankService.isBankMatching(asset, undefined as unknown as string)).toBe(false);
+    expect(BankService.isBankMatching(asset, '---')).toBe(false);
+  });
+
   it('prefers the related bank IBAN when the asset relation is loaded', () => {
     const asset = createCustomAsset({ bank: frickEUR });
 

@@ -1429,82 +1429,82 @@ export class LogJobService {
       availableCredits.delete(credit);
     }
 
-    // Optional ISO amount details can identify a partial FX arrival without being used for
-    // per-account attribution. Match them to the target account's actually booked amount.
-    const fxAmountMatches = this.getMaximumInternalTransferMatches(
-      [...unsettled],
-      [...availableCredits],
-      (debit, credit) => {
-        if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
-        if (!debit.currency || !credit.currency || debit.currency === credit.currency) return false;
-        const creditAmount = credit.internalTransferAmount();
-        if (typeof creditAmount !== 'number' || !Number.isFinite(creditAmount)) return false;
+    const settleSafeFxGroups = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
+      const visitedDebits = new Set<BankTx>();
+      const visitedCredits = new Set<BankTx>();
 
-        return this.getInternalTargetAmounts(debit).some(
-          ({ amount, currency }) => currency === credit.currency && Math.abs(amount - creditAmount) < 0.005,
-        );
-      },
-    );
-    for (const [credit, debit] of fxAmountMatches) {
-      unsettled.delete(debit);
-      availableCredits.delete(credit);
-    }
+      for (const startDebit of [...unsettled]) {
+        if (visitedDebits.has(startDebit)) continue;
+
+        const componentDebits = new Set<BankTx>();
+        const componentCredits = new Set<BankTx>();
+        const debitQueue = [startDebit];
+
+        while (debitQueue.length) {
+          const debit = debitQueue.shift();
+          if (!debit || visitedDebits.has(debit)) continue;
+          visitedDebits.add(debit);
+          componentDebits.add(debit);
+
+          for (const credit of availableCredits) {
+            if (!this.isInternalTransferCounterEntry(debit, credit) || !predicate(debit, credit)) continue;
+            componentCredits.add(credit);
+            if (visitedCredits.has(credit)) continue;
+            visitedCredits.add(credit);
+
+            for (const candidateDebit of unsettled) {
+              if (
+                !visitedDebits.has(candidateDebit) &&
+                this.isInternalTransferCounterEntry(candidateDebit, credit) &&
+                predicate(candidateDebit, credit)
+              )
+                debitQueue.push(candidateDebit);
+            }
+          }
+        }
+
+        if (!componentCredits.size) continue;
+
+        const matches = this.getMaximumInternalTransferMatches([...componentDebits], [...componentCredits], predicate);
+        const principals = [...componentDebits].map((debit) => debit.internalTransferAmount());
+        const firstPrincipal = principals[0];
+        const equalPrincipals =
+          typeof firstPrincipal === 'number' &&
+          principals.every(
+            (principal) => typeof principal === 'number' && Math.abs(principal - firstPrincipal) < 0.005,
+          );
+
+        if (new Set(matches.values()).size !== componentDebits.size && !equalPrincipals) continue;
+
+        for (const [credit, debit] of matches) {
+          unsettled.delete(debit);
+          availableCredits.delete(credit);
+        }
+      }
+    };
+
+    // Optional ISO amount details can identify a partial FX arrival without being used for
+    // per-account attribution. A connected group is settled only if fully covered or if all
+    // source principals are equal, so an ambiguous partial arrival cannot change plus balance.
+    settleSafeFxGroups((debit, credit) => {
+      if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
+      if (!debit.currency || !credit.currency || debit.currency === credit.currency) return false;
+      const creditAmount = credit.internalTransferAmount();
+      if (typeof creditAmount !== 'number' || !Number.isFinite(creditAmount)) return false;
+
+      return this.getInternalTargetAmounts(debit).some(
+        ({ amount, currency }) => currency === credit.currency && Math.abs(amount - creditAmount) < 0.005,
+      );
+    });
 
     // FX amounts are incomparable. Settle a connected candidate group only when every debit is
     // covered, or when every debit principal is equal and the remaining aggregate is independent
     // of which individual transfer arrived.
-    const fxPredicate = (debit: BankTx, credit: BankTx): boolean =>
-      !this.hasConflictingInternalEndToEndIds(debit, credit) &&
-      Boolean(debit.currency && credit.currency && debit.currency !== credit.currency);
-    const visitedDebits = new Set<BankTx>();
-    const visitedCredits = new Set<BankTx>();
-
-    for (const startDebit of [...unsettled]) {
-      if (visitedDebits.has(startDebit)) continue;
-
-      const componentDebits = new Set<BankTx>();
-      const componentCredits = new Set<BankTx>();
-      const debitQueue = [startDebit];
-
-      while (debitQueue.length) {
-        const debit = debitQueue.shift();
-        if (!debit || visitedDebits.has(debit)) continue;
-        visitedDebits.add(debit);
-        componentDebits.add(debit);
-
-        for (const credit of availableCredits) {
-          if (!this.isInternalTransferCounterEntry(debit, credit) || !fxPredicate(debit, credit)) continue;
-          componentCredits.add(credit);
-          if (visitedCredits.has(credit)) continue;
-          visitedCredits.add(credit);
-
-          for (const candidateDebit of unsettled) {
-            if (
-              !visitedDebits.has(candidateDebit) &&
-              this.isInternalTransferCounterEntry(candidateDebit, credit) &&
-              fxPredicate(candidateDebit, credit)
-            )
-              debitQueue.push(candidateDebit);
-          }
-        }
-      }
-
-      if (!componentCredits.size) continue;
-
-      const matches = this.getMaximumInternalTransferMatches([...componentDebits], [...componentCredits], fxPredicate);
-      const principals = [...componentDebits].map((debit) => debit.internalTransferAmount());
-      const firstPrincipal = principals[0];
-      const equalPrincipals =
-        typeof firstPrincipal === 'number' &&
-        principals.every((principal) => typeof principal === 'number' && Math.abs(principal - firstPrincipal) < 0.005);
-
-      if (new Set(matches.values()).size !== componentDebits.size && !equalPrincipals) continue;
-
-      for (const [credit, debit] of matches) {
-        unsettled.delete(debit);
-        availableCredits.delete(credit);
-      }
-    }
+    settleSafeFxGroups(
+      (debit, credit) =>
+        !this.hasConflictingInternalEndToEndIds(debit, credit) &&
+        Boolean(debit.currency && credit.currency && debit.currency !== credit.currency),
+    );
 
     return debits.filter((debit) => unsettled.has(debit));
   }
