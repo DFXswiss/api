@@ -2,6 +2,11 @@ import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+// Pinned to an exact version in package.json, not a range: the exporter and the NodeSDK below
+// both depend on one exact @opentelemetry/sdk-metrics, so a range resolving higher installs a
+// second copy beside theirs. The reader constructed here would then come from a different copy of
+// the package than the one the SDK reads it as, and nothing in the build says so - the types are
+// structural and match either way. Raise the pin together with @opentelemetry/sdk-node.
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor, ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
