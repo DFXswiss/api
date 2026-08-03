@@ -141,9 +141,11 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
       }),
       update: jest.fn().mockResolvedValue(updateResult),
     };
-    jest.spyOn(buyCryptoRepo, 'manager', 'get').mockReturnValue({
-      transaction: (cb: (m: typeof manager) => unknown) => cb(manager),
-    } as unknown as EntityManager);
+    // The auto-mocked repository has no `manager` getter to spy on, so define the property outright.
+    Object.defineProperty(buyCryptoRepo, 'manager', {
+      configurable: true,
+      value: { transaction: (cb: (m: typeof manager) => unknown) => cb(manager) } as unknown as EntityManager,
+    });
     return manager;
   }
 
