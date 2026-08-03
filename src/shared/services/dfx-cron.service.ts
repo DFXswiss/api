@@ -28,6 +28,14 @@ export class DfxCronService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    // HTTP-only instances register nothing at all. Returning here (rather than skipping jobs
+    // individually) also covers jobs that declare no `process` and would otherwise stay active
+    // despite DISABLED_PROCESSES — on a second instance they would run twice.
+    if (!Config.cronJobsEnabled) {
+      this.logger.info('Cron jobs disabled on this instance (CRON_JOBS_ENABLED=false), registering none');
+      return;
+    }
+
     this.discovery
       .getProviders()
       .filter((wrapper) => wrapper.isDependencyTreeStatic())

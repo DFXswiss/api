@@ -1498,11 +1498,36 @@ export class Configuration {
     return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
 
+  // Background jobs and HTTP requests share a single Node event loop, so a busy scheduler
+  // delays every incoming request on the same instance. Setting this to false keeps an
+  // instance HTTP-only: DfxCronService then registers no job at all.
+  //
+  // Note this is deliberately independent of DISABLED_PROCESSES, which only skips jobs that
+  // declare a `process` — jobs without one would keep running and, on a second instance,
+  // run twice. Cron locks are per-process and do not guard across instances.
+  cronJobsEnabled = parseCronJobsEnabled(process.env.CRON_JOBS_ENABLED);
+
   // --- HELPERS --- //
   disabledProcesses = () =>
     process.env.DISABLED_PROCESSES === '*'
       ? Object.values(Process)
       : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
+}
+
+/**
+ * Reads the CRON_JOBS_ENABLED flag.
+ *
+ * Unset means "run jobs", which keeps every existing environment working unchanged. Any other
+ * value than 'true'/'false' throws instead of being coerced: a typo such as 'fals' would
+ * otherwise silently enable the scheduler on an instance meant to be HTTP-only, and duplicate
+ * job execution is far more damaging than a failed boot.
+ */
+export function parseCronJobsEnabled(value?: string): boolean {
+  if (value == null || value === '') return true;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+
+  throw new Error(`Invalid CRON_JOBS_ENABLED value '${value}': expected 'true' or 'false'`);
 }
 
 function readCert(): string | undefined {
