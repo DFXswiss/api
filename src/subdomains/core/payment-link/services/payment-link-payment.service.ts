@@ -677,8 +677,8 @@ export class PaymentLinkPaymentService {
           payment,
           PaymentLinkPaymentStatus.COMPLETED,
           // The count belongs to the transition: `doSave` below is the only other thing that
-          // writes it, and a completed payment no job looks at again would keep whatever count it
-          // had when the caller stopped. The activations are already closed above.
+          // writes it, and no job looks at a completed payment again, so a count left behind by a
+          // caller that stopped between the two would stay wrong.
           async (manager) => {
             await manager.update(PaymentLinkPayment, payment.id, { txCount });
           },
