@@ -215,9 +215,11 @@ export class UserDataController {
   // --- HELPER METHODS --- //
 
   // `getUserData` resolves to undefined for an unknown id; without this the caller would fail with
-  // a 500 on the first property access instead of a 404.
+  // a 500 on the first property access instead of a 404. `wallet` is not an eager relation, so it
+  // has to be requested explicitly - `Fee.verifyForUser` silently skips its wallet check when the
+  // relation is absent.
   private async getUserDataOrThrow(id: number): Promise<UserData> {
-    const userData = await this.userDataService.getUserData(id);
+    const userData = await this.userDataService.getUserData(id, { wallet: true });
     if (!userData) throw new NotFoundException('User data not found');
 
     return userData;
