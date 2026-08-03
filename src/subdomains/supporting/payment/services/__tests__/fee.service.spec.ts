@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock, MockProxy } from 'jest-mock-extended';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -305,6 +306,7 @@ describe('FeeService', () => {
       feeRepo.findBy.mockResolvedValue([]);
 
       // `createFee` would reject the duplicate label with a generic message and no way forward.
+      await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(ConflictException);
       await expect(service.setOnboardingFee(accountWith([]), 800)).rejects.toThrow(/deactivated \(fee 88\)/);
 
       expect(feeRepo.save).not.toHaveBeenCalled();

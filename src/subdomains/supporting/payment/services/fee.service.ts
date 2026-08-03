@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   forwardRef,
   Inject,
   Injectable,
@@ -344,7 +345,7 @@ export class FeeService {
     // the amount - so a deactivated fee would block this amount for good behind a generic error.
     const deactivatedFee = await this.feeRepo.findOneBy({ label, active: false });
     if (deactivatedFee)
-      throw new BadRequestException(
+      throw new ConflictException(
         `Onboarding fee of ${amount} CHF exists but is deactivated (fee ${deactivatedFee.id})`,
       );
 
