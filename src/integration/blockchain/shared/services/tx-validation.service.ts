@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BigNumber, ethers } from 'ethers';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { IcpTransfer } from '../../icp/dto/icp.dto';
 import { SolanaTransactionDto } from '../../solana/dto/solana.dto';
 import { EvmUtil } from '../evm/evm.util';
 
@@ -110,6 +111,25 @@ export class TxValidationService {
         throw new Error(`Insufficient amount: expected ${expectedAmount}, got ${match.amount}`);
 
       return { isValid: true, sender: tx.from?.[0] };
+    } catch (e) {
+      return { isValid: false, error: e.message };
+    }
+  }
+
+  // ICP transfer verification for the `?tx=<txId>` OCP path (used when the ICRC-2 approve/pull
+  // flow is unavailable — no `sender`). `IcpTransfer.to` is: (a) an account-identifier hex for
+  // native ICP (Rosetta + native ledger map from the byte array), (b) a Principal text for ICRC-3
+  // tokens. Caller passes the pre-normalized expected recipient in the format matching the
+  // asset. Overpayment accepted (mirrors validateParsedTransaction); wrong recipient / insufficient
+  // amount fails.
+  validateIcpTransfer(transfer: IcpTransfer, expectedRecipient: string, expectedAmount: number): TxValidationResult {
+    try {
+      if (transfer.to !== expectedRecipient)
+        throw new Error(`Invalid recipient: expected ${expectedRecipient}, got ${transfer.to}`);
+      if (transfer.amount < expectedAmount)
+        throw new Error(`Insufficient amount: expected ${expectedAmount}, got ${transfer.amount}`);
+
+      return { isValid: true, sender: transfer.from };
     } catch (e) {
       return { isValid: false, error: e.message };
     }

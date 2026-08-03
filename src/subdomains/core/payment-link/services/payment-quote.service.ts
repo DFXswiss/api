@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -684,36 +685,13 @@ export class PaymentQuoteService {
     );
   }
 
-  private async doVerifiedTxIdPayment(
-    method: Blockchain,
-    transferInfo: TransferInfo,
-    quote: PaymentQuote,
-  ): Promise<void> {
-    try {
-      if (!transferInfo.tx) {
-        quote.txFailed('Transaction Id not found');
-        return;
-      }
-
-      await this.waitForTxConfirmation(method, transferInfo.tx);
-
-      quote.txInBlockchain(transferInfo.tx);
-    } catch (e) {
-      quote.txFailed(
-        e.message === 'not confirmed'
-          ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${method}`
-          : e.message,
-      );
-    }
-  }
-
-  // Fixes BUG-1260 (Solana anon payment completion): previously only checked finality via
-  // isTxComplete — recipient/amount/asset were never validated, so any finalized Solana tx
-  // accepted. Mirrors the EVM/Firo model: fetch the parsed tx, match a destination against the
-  // expected recipient + asset + amount. `SolanaTransactionDto.destinations[].to` is the wallet
-  // owner for both native and SPL (SolanaClient resolves each SPL transfer's destination ATA to
-  // its owner via postTokenBalances), so the owner address is compared for both paths; the mint
-  // disambiguates the asset.
+  // Fixes BUG-1260 (Solana anon payment completion): previously routed through a "verified txId"
+  // path that only checked finality via isTxComplete — recipient/amount/asset were never validated,
+  // so any finalized Solana tx accepted. Mirrors the EVM/Firo model: fetch the parsed tx, match a
+  // destination against the expected recipient + asset + amount. `SolanaTransactionDto.destinations[].to`
+  // is the wallet owner for both native and SPL (SolanaClient resolves each SPL transfer's
+  // destination ATA to its owner via postTokenBalances), so the owner address is compared for both
+  // paths; the mint disambiguates the asset.
   private async doSolanaTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
       if (!transferInfo.tx) {
@@ -762,8 +740,13 @@ export class PaymentQuoteService {
   }
 
   private async doIcpPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    // When the client cannot use the ICRC-2 approve/pull flow (no `sender` principal), it self-
+    // submits the payment and posts back a txId. That path used to only check finality —
+    // recipient/amount/asset were unverified and any finalized ICP tx would settle a foreign quote.
+    // Now applies the same shape as the Solana fix (BUG-1260): replay guard + fetch the transfer
+    // and match it against an activation.
     if (!transferInfo.sender) {
-      return this.doVerifiedTxIdPayment(Blockchain.INTERNET_COMPUTER, transferInfo, quote);
+      return this.doIcpTxIdPayment(transferInfo, quote);
     }
 
     try {
@@ -803,6 +786,76 @@ export class PaymentQuoteService {
       quote.txInBlockchain(txId);
     } catch (e) {
       quote.txFailed(e.errorType ? Object.keys(e.errorType)[0] : e.message);
+    }
+  }
+
+  // Client-broadcast ICP path (no `sender` — no ICRC-2 approve available). Same shape as the
+  // Solana fix (BUG-1260): replay guard, wait for finality, then bind the tx to an activation by
+  // fetching the transfer and validating recipient/amount. Recipient is normalized to the format
+  // the ICP client returns — native transfers surface an account-identifier hex, ICRC-3 transfers
+  // surface the owner principal.
+  private async doIcpTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    try {
+      if (!transferInfo.tx) {
+        quote.txFailed('Transaction Id not found');
+        return;
+      }
+
+      // Canonicalize the txId before both the replay guard and the ledger lookup — otherwise
+      // Number-coerced aliases (`"42"` / `"042"` / `"+42"` / `"4.2e1"` all name block 42; same
+      // for `canA:42` vs `canA:042`) each pass the exact-string `Equal(...)` guard independently
+      // and settle the same on-chain block against multiple quotes. Persist the canonical form
+      // so downstream state (getConfirmingQuotes, webhooks, later replays) all agree.
+      const txId = InternetComputerUtil.canonicalizeTxId(transferInfo.tx);
+      if (txId !== quote.txId) await this.saveTransaction(quote, Blockchain.INTERNET_COMPUTER, txId);
+
+      const earliestClaim = await this.getEarliestQuoteClaimingTx(Blockchain.INTERNET_COMPUTER, txId);
+      if (earliestClaim && earliestClaim.uniqueId !== quote.uniqueId) {
+        quote.txFailed(`Transaction ${txId} already assigned to another quote`);
+        return;
+      }
+
+      await this.waitForTxConfirmation(Blockchain.INTERNET_COMPUTER, txId);
+
+      const icpClient = this.internetComputerService.getDefaultClient();
+      const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.INTERNET_COMPUTER);
+      const methodActivations = quote.activations?.filter((a) => a.method === Blockchain.INTERNET_COMPUTER) ?? [];
+
+      for (const activation of methodActivations) {
+        const isCoin = activation.asset.type === AssetType.COIN;
+        if (!isCoin && !activation.asset.chainId) continue;
+
+        // For ICRC-3 (`canisterId:blockIndex`), reject the tx up-front when its canister does not
+        // match the activation's asset canister. Without this, a legit transfer of 100 units of a
+        // cheap ICRC-3 token to DFX would satisfy a quote for 100 units of a different (expensive)
+        // ICRC-3 token — same principal, same amount, but a different asset entirely.
+        if (!isCoin) {
+          const canisterId = txId.split(':')[0];
+          if (canisterId !== activation.asset.chainId) continue;
+        }
+
+        const transfer = await icpClient.getTransferByTxId(txId, activation.asset);
+        if (!transfer) continue;
+
+        // Native ICP transfers surface an account-identifier hex; ICRC-3 transfers surface the
+        // owner principal — match the payment address to the same form the transfer carries.
+        const expectedRecipient = isCoin ? InternetComputerUtil.accountIdentifier(paymentAddress) : paymentAddress;
+
+        const result = this.txValidationService.validateIcpTransfer(transfer, expectedRecipient, activation.amount);
+
+        if (result.isValid) {
+          quote.txInBlockchain(txId);
+          return;
+        }
+      }
+
+      quote.txFailed(`Transaction ${txId} does not pay any matching activation`);
+    } catch (e) {
+      quote.txFailed(
+        e.message === 'not confirmed'
+          ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${Blockchain.INTERNET_COMPUTER}`
+          : e.message,
+      );
     }
   }
 
