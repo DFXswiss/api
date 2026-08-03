@@ -282,7 +282,7 @@ describe('BankTxService', () => {
       const currentBankTx = createCustomBankTx({
         id: 208765,
         type: BankTxType.BUY_FIAT,
-        transaction: { id: 77 } as never,
+        transactionId: 77,
       });
       const manager = { findOne: jest.fn().mockResolvedValue(currentBankTx), update: jest.fn() };
       Object.defineProperty(bankTxRepo, 'manager', {
@@ -299,6 +299,37 @@ describe('BankTxService', () => {
         expect.objectContaining({ where: { id: 208765 }, lock: { mode: 'pessimistic_write' } }),
       );
       expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('locks both records and assigns the internal type atomically', async () => {
+      const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({ id: 208765, type: null, transactionId: 77 });
+      const currentTransaction = { id: 77, type: null };
+      const manager = {
+        findOne: jest.fn().mockResolvedValueOnce(currentBankTx).mockResolvedValueOnce(currentTransaction),
+        update: jest.fn(),
+      };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+
+      await service['assignInternalIfUnassigned'](staleBankTx);
+
+      expect(manager.findOne).toHaveBeenCalledTimes(2);
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        expect.objectContaining({ where: { id: 208765 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        expect.objectContaining({ where: { id: 77 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.update).toHaveBeenCalledTimes(2);
     });
   });
 });

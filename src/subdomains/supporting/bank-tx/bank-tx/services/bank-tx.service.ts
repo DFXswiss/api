@@ -278,13 +278,12 @@ export class BankTxService implements OnModuleInit {
     await this.bankTxRepo.manager.transaction(async (manager) => {
       const currentBankTx = await manager.findOne(BankTx, {
         where: { id: bankTx.id },
-        relations: { transaction: true },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!currentBankTx || currentBankTx.type != null || !currentBankTx.transaction?.id) return;
+      if (!currentBankTx || currentBankTx.type != null || !currentBankTx.transactionId) return;
 
       const currentTransaction = await manager.findOne(Transaction, {
-        where: { id: currentBankTx.transaction.id },
+        where: { id: currentBankTx.transactionId },
         lock: { mode: 'pessimistic_write' },
       });
       if (

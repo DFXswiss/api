@@ -11,7 +11,7 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne, RelationId } from 'typeorm';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -248,6 +248,9 @@ export class BankTx extends IEntity {
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
   transaction?: Transaction;
+
+  @RelationId((bankTx: BankTx) => bankTx.transaction)
+  transactionId?: number;
 
   @OneToOne(() => FiatOutput, (fiatOutput) => fiatOutput.bankTx, { nullable: true })
   fiatOutput?: FiatOutput;
