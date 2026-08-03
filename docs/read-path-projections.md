@@ -173,9 +173,10 @@ has nothing to do with the response. Nine of the seventeen conversions recorded 
 [endpoints.md](endpoints.md) were found that way — by reading the endpoint after the filter had
 rejected it. The counts above are therefore a lower bound on what is possible, not a ceiling.
 
-Two of those seventeen are conversions the first criterion excluded as written. It rejects an
-endpoint that writes the entity it loaded, and the hazard it names is saving a partially loaded row
-back — the unselected columns are undefined on the entity and would be written as null.
+Two of those seventeen would fall foul of a blanket no-write rule, and are the reason the first
+criterion does not state one. It rejects an endpoint that writes the entity it loaded, and the hazard
+it names is saving a partially loaded row back — the unselected columns are undefined on the entity
+and would be written as null.
 `PUT /paymentLink/:id/pos` and `POST /user/apiKey/CT` write through `update(id, …)`, which sends
 only the columns named in the call, so a projected read cannot blank anything. What the criterion
 does have to keep excluding is a value the write *derives* from what was read: the point-of-sale
@@ -362,14 +363,16 @@ incomplete result is the caller's doing rather than a defect here. Its 197 specs
 axis — the table and column allowlist, PII masking, parameter binding — and that is the right axis
 for it.
 
-So the gap is narrow and specific: **`log.repository.ts:699` is the one site that carries the
-projection risk, serves a live endpoint (`PUT /log/financial/validity`), and is not exercised at
-all.** What surrounds it is well covered — batching into blocks of 100, the audit trail, rejection
-of fabricated audit records, the block on changing validity through the generic update path.
+So among the six reads this section is about, the gap is narrow and specific:
+**`log.repository.ts:699` carries the projection risk, serves a live endpoint
+(`PUT /log/financial/validity`), and is not exercised at all.** What surrounds it is well covered —
+batching into blocks of 100, the audit trail, rejection of fabricated audit records, the block on
+changing validity through the generic update path.
 
-Every other read in the repository either selects only the root alias or nothing at all and
-therefore still loads every column; nothing can be missing from those. Each becomes subject to these
-tests the moment it is given a field list.
+That was the whole picture when this document was written. It no longer is: 113 sites now name their
+columns — the 18 with an explicit field list and the 90 that name them one at a time, plus the five
+raw statements — and each of them can drop a field silently. The 17 conversions below carry the four
+levels; the rest do not, which is what their `0/4` records.
 
 ### How they run
 
@@ -514,7 +517,7 @@ difference can only come from the columns.
 
 What the level does not verify is the query around them: each spec restates the filter and the
 joins, so a spec that restates them wrongly compares two things neither of which is the endpoint.
-That part is covered by level 2, which asserts the filter against seeded rows. It is also the only
+The endpoint specs do exercise the filter, because they run it against seeded rows, but no level requires that — level 2 is about branches that change the required field set. It is also the only
 level that catches a projection loading the *wrong* field rather than too few: level 1 sees a field
 that went empty, level 4 sees any field that changed.
 
