@@ -6,9 +6,7 @@ export type BankProcessingBlockKey =
   | 'fiatOutput'
   | 'bankTxReturn';
 
-export type ToleranceValue =
-  | { type: 'fixed'; minutes: number }
-  | { type: 'dynamic'; offsetMinutes: number }; // dynamicToleranceMinutes(now) + offsetMinutes
+export type ToleranceValue = { type: 'fixed'; minutes: number } | { type: 'dynamic'; offsetMinutes: number }; // dynamicToleranceMinutes(now) + offsetMinutes
 
 interface BankProcessingRuleBase {
   key: string; // stable, kebab-case — monitoring interface, never rename
