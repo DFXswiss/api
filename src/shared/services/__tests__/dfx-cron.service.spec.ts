@@ -377,7 +377,12 @@ describe('DfxCronService', () => {
       // Still the shape the role alert matches — a heartbeat that stops matching would read as a
       // dead process and hide the reason rather than name it.
       expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered/);
-      expect(line).toContain('lease unusable');
+
+      // And the shape the lease alert matches, which is the same prefix with the state appended
+      // directly to it. Pinned as one expression rather than two `toContain`s: what the alert
+      // needs is the ADJACENCY — a state reported somewhere else in the line, or in a line of its
+      // own, would leave that alert silent while every looser assertion still passed.
+      expect(line).toMatch(/CronRole (api|worker|all): heartbeat, [0-9]+ jobs registered, lease unusable/);
       expect(line).toContain('relation "cron_lease" does not exist');
     });
 
