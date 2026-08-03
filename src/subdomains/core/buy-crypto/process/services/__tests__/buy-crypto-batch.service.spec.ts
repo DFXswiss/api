@@ -16,10 +16,12 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { EntityManager, IsNull } from 'typeorm';
 import { createCustomBuyCryptoBatch } from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCryptoFee } from '../../entities/__mocks__/buy-crypto-fee.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatch } from '../../entities/buy-crypto-batch.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
@@ -64,6 +66,23 @@ describe('BuyCryptoBatchService', () => {
       expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
     });
 
+    it('excludes operator and user refund claims from every batching branch', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.batchAndOptimizeTransactions();
+
+      const where = findSpy.mock.calls[0][0].where as Array<Record<string, unknown>>;
+      expect(where).toHaveLength(2);
+      for (const branch of where) {
+        expect(branch).toEqual(
+          expect.objectContaining({
+            chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: IsNull(),
+          }),
+        );
+      }
+    });
+
     it('defines output reference amounts', async () => {
       const transactions = [
         createCustomBuyCrypto({
@@ -91,6 +110,20 @@ describe('BuyCryptoBatchService', () => {
       await service.batchAndOptimizeTransactions();
 
       expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
+    });
+
+    it('does not save a batch when the transaction changed after the batch calculations', async () => {
+      const transaction = createCustomBuyCrypto({ version: 5 });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([transaction]);
+      (buyCryptoBatchRepo.manager.findOne as jest.Mock).mockResolvedValueOnce(null);
+
+      await service.batchAndOptimizeTransactions();
+
+      expect(buyCryptoBatchRepo.manager.findOne).toHaveBeenCalledWith(
+        BuyCrypto,
+        expect.objectContaining({ where: expect.objectContaining({ id: transaction.id, version: 5 }) }),
+      );
+      expect(buyCryptoBatchRepo.manager.save).not.toHaveBeenCalled();
     });
 
     it('blocks creating a batch if there already existing batch for an asset', async () => {
@@ -215,6 +248,7 @@ describe('BuyCryptoBatchService', () => {
       entity.transaction.userData.riskStatus = RiskStatus.BLOCKED;
 
       jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       await service.batchAndOptimizeTransactions();
 
@@ -226,6 +260,26 @@ describe('BuyCryptoBatchService', () => {
       expect(entityType).toBe('BuyCrypto');
       expect(source).toBe(AmlSourceType.RISK_BLOCK_RESET);
       expect(previousAmlCheck).toBe(CheckStatus.PASS);
+    });
+
+    it('does not reactivate or audit a risk-blocked transaction that changed after the search', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 2,
+        amlCheck: CheckStatus.PASS,
+        status: BuyCryptoStatus.MISSING_LIQUIDITY,
+        version: 5,
+      });
+      entity.transaction.userData.riskStatus = RiskStatus.BLOCKED;
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+
+      await service.batchAndOptimizeTransactions();
+
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 2, version: 5, status: BuyCryptoStatus.MISSING_LIQUIDITY }),
+        expect.objectContaining({ status: BuyCryptoStatus.CREATED }),
+      );
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
   });
 
@@ -270,11 +324,27 @@ describe('BuyCryptoBatchService', () => {
   function setupSpies() {
     jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => [createDefaultBuyCrypto()]);
 
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
     jest.spyOn(buyCryptoBatchRepo, 'findOneBy').mockImplementation(async () => null);
 
     jest.spyOn(buyCryptoBatchRepo, 'create').mockImplementation(() => createCustomBuyCryptoBatch({ id: undefined }));
 
     jest.spyOn(buyCryptoBatchRepo, 'save').mockImplementation(async (e) => e as BuyCryptoBatch);
+    const manager = {
+      findOne: jest.fn().mockResolvedValue({ id: 1 }),
+      save: jest.fn(async (_type: unknown, entity: unknown) => entity),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    Object.defineProperty(buyCryptoBatchRepo, 'manager', {
+      configurable: true,
+      value: {
+        ...manager,
+        transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+          run(manager as unknown as EntityManager),
+        ),
+      },
+    });
 
     exchangeUtilityServiceGetMatchingPrice = jest
       .spyOn(pricingService, 'getPrice')

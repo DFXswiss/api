@@ -7,11 +7,12 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { In, IsNull, LessThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, Not } from 'typeorm';
 import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
-import { PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
 import { PayInEntry } from '../../interfaces';
 import { PayInRepository } from '../../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../../strategies/register/impl/base/register.strategy-registry';
@@ -24,6 +25,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   let service: PayInService;
   let payInRepository: PayInRepository;
   let notificationService: NotificationService;
+  let transactionService: TransactionService;
 
   beforeAll(() => {
     new ConfigService();
@@ -32,11 +34,12 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   beforeEach(() => {
     payInRepository = mock<PayInRepository>();
     notificationService = mock<NotificationService>();
+    transactionService = mock<TransactionService>();
     service = new PayInService(
       payInRepository,
       mock<RegisterStrategyRegistry>(),
       mock<SendStrategyRegistry>(),
-      mock<TransactionService>(),
+      transactionService,
       mock<PaymentLinkPaymentService>(),
       mock<PayInBitcoinService>(),
       mock<PayInFiroService>(),
@@ -128,6 +131,27 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       expect(payInRepository.save).not.toHaveBeenCalled();
     },
   );
+
+  it('uses the caller transaction when scheduling a return', async () => {
+    const payIn = createCustomCryptoInput({
+      id: 52,
+      action: PayInAction.WAITING,
+      status: PayInStatus.ACKNOWLEDGED,
+      transaction: { id: 53 } as any,
+      route: { user: { id: 54 } } as any,
+    });
+    const manager = { save: jest.fn().mockResolvedValue(payIn) } as unknown as EntityManager;
+
+    await service.returnPayIn(payIn, '0x0000000000000000000000000000000000000001', 0.1, manager);
+
+    expect(manager.save).toHaveBeenCalledWith(CryptoInput, payIn);
+    expect(transactionService.updateInternal).toHaveBeenCalledWith(
+      payIn.transaction,
+      { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN, user: payIn.route.user },
+      manager,
+    );
+    expect(payInRepository.save).not.toHaveBeenCalled();
+  });
 
   it('keeps Sending and SendUncertain in the finance-log pending set', async () => {
     const findBySpy = jest.spyOn(payInRepository, 'findBy').mockResolvedValue([]);

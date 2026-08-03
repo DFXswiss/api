@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -28,6 +29,7 @@ import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
+import { SetKycStatusCheckDto } from './dto/set-kyc-status-check.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
@@ -60,6 +62,19 @@ export class UserDataController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
     return this.userDataService.calculateAuditPeriodNumbers();
+  }
+
+  @Put(':id/kycStatus/check')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async setKycStatusCheck(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetKycStatusCheckDto,
+  ): Promise<void> {
+    if (jwt.account === null || jwt.account === undefined) throw new ForbiddenException('Staff account is missing');
+    return this.userDataService.setKycStatusCheck(id, dto.expectedKycStatus, jwt.account);
   }
 
   @Put(':id')

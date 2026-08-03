@@ -1,11 +1,13 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
+import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { TestUtil } from 'src/shared/utils/test.util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
@@ -99,6 +101,29 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     await service.update(99, Object.assign(new UpdateTransactionDto(), { amlType: 'BuyFiat', highRisk: true }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
+  });
+
+  it('stops BuyCrypto with a partial conditional update instead of saving a stale snapshot', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.MISSING_LIQUIDITY });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+    await service.stop(70);
+
+    expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+      { id: 7, status: BuyCryptoStatus.MISSING_LIQUIDITY },
+      { status: BuyCryptoStatus.STOPPED },
+    );
+    expect(buyCryptoRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects stop when a concurrent AML reset changed the BuyCrypto status', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.MISSING_LIQUIDITY });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+
+    await expect(service.stop(70)).rejects.toThrow(ConflictException);
+    expect(buyCryptoRepo.save).not.toHaveBeenCalled();
   });
 });
 

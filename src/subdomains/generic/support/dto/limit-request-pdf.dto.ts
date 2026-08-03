@@ -1,5 +1,7 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
+import { LimitRequestDecision } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 
 /**
  * The decision as it is recorded on the limit request itself, plus the context a reader of the report
@@ -8,16 +10,20 @@ import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
  * report states the decision that was taken even if a later decision changes the account again.
  */
 export class GenerateLimitRequestPdfDto {
-  @IsString()
-  decision: string;
+  @IsEnum(LimitRequestDecision)
+  decision: LimitRequestDecision;
 
+  @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
+  @MaxLength(100)
   clerk: string;
 
-  // @IsNumber, not @IsInt: this is report content, and `user_data.depositLimit` is a float column, so
-  // an account carrying a non-integer limit must not make the report — and with it the decision — fail.
-  @IsNumber()
-  @Type(() => Number)
+  // `requestedLimit` mirrors `limit_request.limit`, an integer column; the write DTO for that column
+  // validates @IsInt, so this report field validates the same way — a value that could never have been
+  // written must not make it into the report either. Unlike previousLimit below, this is not a float
+  // column, so there is no reason to relax it.
+  @IsInt()
   requestedLimit: number;
 
   /**
@@ -26,13 +32,15 @@ export class GenerateLimitRequestPdfDto {
    */
   @IsOptional()
   @IsInt()
-  @Type(() => Number)
   grantedLimit?: number;
 
-  /** The annual limit the account had before this decision — what a rejection leaves in force. */
+  /**
+   * The annual limit the account had before this decision — what a rejection leaves in force. `@IsNumber`,
+   * not `@IsInt`: `user_data.depositLimit` is a float column, so an account carrying a non-integer limit
+   * must not make the report — and with it the decision — fail.
+   */
   @IsOptional()
   @IsNumber()
-  @Type(() => Number)
   previousLimit?: number;
 
   @IsOptional()

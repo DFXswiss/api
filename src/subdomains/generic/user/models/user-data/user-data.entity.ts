@@ -884,6 +884,14 @@ export class UserData extends IEntity {
     return [UserDataStatus.ACTIVE, UserDataStatus.NA].includes(this.status);
   }
 
+  setKycStatusCheck(): UpdateResult<UserData> {
+    const update: Partial<UserData> = { kycStatus: KycStatus.CHECK };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isPaymentKycStatusEnabled(): boolean {
     return [KycStatus.COMPLETED, KycStatus.NA].includes(this.kycStatus);
   }

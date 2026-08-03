@@ -15,7 +15,7 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -268,7 +268,12 @@ export class PayInService {
     });
   }
 
-  async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
+  async returnPayIn(
+    payIn: CryptoInput,
+    returnAddress: string,
+    chargebackAmount: number,
+    manager?: EntityManager,
+  ): Promise<void> {
     if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
     if (CryptoInputInFlightSendStatus.includes(payIn.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
@@ -278,12 +283,17 @@ export class PayInService {
     payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
 
     if (payIn.transaction)
-      await this.transactionService.updateInternal(payIn.transaction, {
-        type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
-        user: payIn.route.user,
-      });
+      await this.transactionService.updateInternal(
+        payIn.transaction,
+        {
+          type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
+          user: payIn.route.user,
+        },
+        manager,
+      );
 
-    await this.payInRepository.save(payIn);
+    if (manager) await manager.save(CryptoInput, payIn);
+    else await this.payInRepository.save(payIn);
   }
 
   async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {

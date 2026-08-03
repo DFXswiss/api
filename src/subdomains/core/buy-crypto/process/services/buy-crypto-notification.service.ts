@@ -13,7 +13,7 @@ import {
   REALUNIT_WALLET_NAME,
 } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
@@ -135,7 +135,7 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  async paymentProcessing(entity: BuyCrypto): Promise<void> {
+  async paymentProcessing(entity: BuyCrypto, manager?: EntityManager): Promise<void> {
     try {
       if (entity.userData.mail) {
         await this.notificationService.sendMail({
@@ -165,7 +165,9 @@ export class BuyCryptoNotificationService {
         });
       }
 
-      await this.buyCryptoRepo.update(...entity.confirmSentMail());
+      const [id, update] = entity.confirmSentMail();
+      if (manager) await manager.update(BuyCrypto, id, update);
+      else await this.buyCryptoRepo.update(id, update);
     } catch (e) {
       this.logger.error(`Failed to send buy-crypto processing mail ${entity.id}:`, e);
     }
