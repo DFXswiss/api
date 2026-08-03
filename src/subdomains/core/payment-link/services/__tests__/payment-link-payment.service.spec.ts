@@ -1,6 +1,7 @@
 import { ConfigService, GetConfig } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Util } from 'src/shared/utils/util';
 import { EntityManager, In } from 'typeorm';
 import { PaymentDevice, PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../../entities/payment-quote.entity';
@@ -23,13 +24,17 @@ describe('PaymentLinkPaymentService', () => {
   let paymentQuoteService: jest.Mocked<PaymentQuoteService>;
   let paymentActivationService: jest.Mocked<PaymentActivationService>;
 
+  /**
+   * Times are relative to now because the delivery read is: it asks for a span before the present,
+   * so a payment stamped at a fixed calendar date would sit outside every window these tests set up.
+   */
   function payment(values: Partial<PaymentLinkPayment>): PaymentLinkPayment {
     return Object.assign(new PaymentLinkPayment(), {
       id: 7,
       status: PaymentLinkPaymentStatus.PENDING,
       mode: PaymentLinkPaymentMode.SINGLE,
       txCount: 0,
-      updated: new Date('2026-01-01T10:00:00Z'),
+      updated: Util.secondsBefore(1),
       link: {},
       ...values,
     });
@@ -57,8 +62,24 @@ describe('PaymentLinkPaymentService', () => {
    */
   let sockets: Map<string, Date>;
 
-  function connect(deviceId: string, since = new Date('2026-01-01T09:00:00Z')): void {
+  function connect(deviceId: string, since = Util.minutesBefore(5)): void {
     sockets.set(deviceId, since);
+  }
+
+  /** The rows the database holds for the delivery read below. */
+  let rows: PaymentLinkPayment[];
+
+  /**
+   * Answers the delivery read out of `rows`, honouring the window each clause carries. Which rows a
+   * window admits is the whole subject of the tests that use this, so a mock that returned a fixed
+   * list whatever it was asked for would prove nothing about them.
+   */
+  function findInWindow(options: unknown): PaymentLinkPayment[] {
+    const windows = (options as { where: { deviceId: string; updated: { value: Date } }[] }).where;
+
+    return rows.filter((row) =>
+      windows.some((window) => row.deviceId === window.deviceId && row.updated > window.updated.value),
+    );
   }
 
   /**
@@ -106,6 +127,7 @@ describe('PaymentLinkPaymentService', () => {
 
   beforeEach(() => {
     row = payment({ id: 7 });
+    rows = [];
     managerUpdates = [];
 
     paymentLinkPaymentRepo = {
@@ -193,7 +215,6 @@ describe('PaymentLinkPaymentService', () => {
           status: PaymentLinkPaymentStatus.COMPLETED,
           deviceId: 'pos-1',
           deviceCommand: 'show-paid',
-          updated: new Date('2026-01-01T11:00:00Z'),
         }),
       ]);
       await service.deliverPaymentUpdates();
@@ -202,6 +223,8 @@ describe('PaymentLinkPaymentService', () => {
     });
 
     it('should send the same payment state to a device once', async () => {
+      // The window admits the same payment on every tick it spans, so what keeps the command from
+      // being repeated is the record of what was sent, not the read.
       const seen = devices();
       connect('pos-1');
 
@@ -211,13 +234,29 @@ describe('PaymentLinkPaymentService', () => {
           status: PaymentLinkPaymentStatus.COMPLETED,
           deviceId: 'pos-1',
           deviceCommand: 'show-paid',
-          updated: new Date('2026-01-01T11:00:00Z'),
         }),
       ]);
       await service.deliverPaymentUpdates();
       await service.deliverPaymentUpdates();
 
       expect(seen).toHaveLength(1);
+    });
+
+    it('should send both payments of a device that carry the same state', async () => {
+      // One slot per device could hold only the later of the two, and the next tick would then find
+      // the earlier one undelivered again — the two would take turns evicting each other for as
+      // long as the window spans both.
+      const seen = devices();
+      connect('pos-1');
+
+      const paid = (id: number) =>
+        payment({ id, status: PaymentLinkPaymentStatus.COMPLETED, deviceId: 'pos-1', deviceCommand: 'show-paid' });
+
+      paymentLinkPaymentRepo.find.mockResolvedValue([paid(7), paid(8)]);
+      await service.deliverPaymentUpdates();
+      await service.deliverPaymentUpdates();
+
+      expect(seen).toHaveLength(2);
     });
 
     it('should stop looking for a device the moment the gateway no longer holds it', async () => {
@@ -235,35 +274,80 @@ describe('PaymentLinkPaymentService', () => {
     });
 
     it('should ask each device for its own window, not for the oldest one of all', async () => {
-      // A single minimum across all devices lets the quietest one set the window for everyone: the
-      // busy device is then re-read from the point the quiet one connected, on every tick.
-      const seen = devices();
-      connect('pos-1', new Date('2026-01-01T09:00:00Z'));
+      // A single minimum across all devices lets the oldest connection set the window for everyone:
+      // a device that connected moments ago is then read from an hour before it existed, on every
+      // tick. The window is also what bounds the read, so it has to hold for the long connection
+      // too — it may not reach back to the day that one was accepted.
+      const justConnected = new Date();
+      connect('pos-1', Util.minutesBefore(90));
+      connect('pos-2', justConnected);
 
-      paymentLinkPaymentRepo.find.mockResolvedValue([
-        payment({
-          id: 7,
-          status: PaymentLinkPaymentStatus.COMPLETED,
-          deviceId: 'pos-1',
-          deviceCommand: 'show-paid',
-          updated: new Date('2026-01-01T11:00:00Z'),
-        }),
-      ]);
-      await service.deliverPaymentUpdates();
-      expect(seen).toHaveLength(1);
-
-      // A second device joins, connected long before anything happened on the first one.
-      connect('pos-2', new Date('2026-01-01T08:00:00Z'));
-      paymentLinkPaymentRepo.find.mockClear();
       await service.deliverPaymentUpdates();
 
       const { where } = paymentLinkPaymentRepo.find.mock.calls[0][0];
       const windows = new Map((where as { deviceId: string; updated: { value: Date } }[]).map((w) => [w.deviceId, w]));
 
-      // The device that was already delivered to has moved on; the newcomer starts at its own
-      // connection time. One shared window could not express both.
-      expect(windows.get('pos-1').updated.value).toEqual(new Date('2026-01-01T11:00:00Z'));
-      expect(windows.get('pos-2').updated.value).toEqual(new Date('2026-01-01T08:00:00Z'));
+      // The long connection is read from the span, not from the day it was accepted; the newcomer
+      // from its own connection time, because nothing before it is this process's to deliver. One
+      // shared window could not express both.
+      expect(windows.get('pos-1').updated.value.getTime()).toBeGreaterThan(Util.minutesBefore(2).getTime());
+      expect(windows.get('pos-2').updated.value).toEqual(justConnected);
+    });
+
+    it('should still deliver a payment that becomes visible after one stamped alike', async () => {
+      // A payment carries the stamp its write gave it and appears only once that write commits, so
+      // a read running beside it sees the stamp of a row it cannot see yet. A mark advanced to the
+      // newest stamp read would ask for something strictly newer on the next tick and never see
+      // that row at all.
+      const seen = devices();
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findInWindow(options));
+
+      const updated = Util.secondsBefore(1);
+      const paid = (id: number) =>
+        payment({
+          id,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+          updated,
+        });
+
+      rows = [paid(7)];
+      await service.deliverPaymentUpdates();
+      expect(seen).toHaveLength(1);
+
+      // The slower write commits. Its row was stamped at the same moment as the one already read.
+      rows = [paid(7), paid(8)];
+      await service.deliverPaymentUpdates();
+
+      // Delivered — and the payment of the first tick was not sent a second time.
+      expect(seen).toHaveLength(2);
+    });
+
+    it('should forget a payment the window has left behind', async () => {
+      // What bounds the record of delivered payments is the window: a payment past its far end
+      // cannot come back from the read, so nothing is kept for it. Without that, a device connected
+      // all day would accumulate an entry per payment it ever saw.
+      connect('pos-1');
+      paymentLinkPaymentRepo.find.mockImplementation(async (options) => findInWindow(options));
+
+      // Delivered directly by the writing process, which does not consult the window.
+      rows = [];
+      service['deliverToDevice'](
+        payment({
+          id: 7,
+          status: PaymentLinkPaymentStatus.COMPLETED,
+          deviceId: 'pos-1',
+          deviceCommand: 'show-paid',
+          updated: Util.minutesBefore(2),
+        }),
+      );
+      expect(service['deviceDeliveries'].get('pos-1').size).toEqual(1);
+
+      await service.deliverPaymentUpdates();
+
+      expect(service['deviceDeliveries'].get('pos-1').size).toEqual(0);
     });
   });
 

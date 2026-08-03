@@ -53,20 +53,34 @@ export interface ConnectedDevice {
   since: Date;
 }
 
-/** How far this process has got in delivering to one device. Never a record of who is connected. */
-interface DeliveryCursor {
-  /** Payments updated at or before this have been delivered, or predate the oldest connection. */
-  since: Date;
-  /** `<payment id>:<wait state>` of the last command delivered, so the same state is sent once. */
-  delivered?: string;
-}
+/**
+ * How far back the delivery read below looks, per device.
+ *
+ * What it replaces is a mark that advanced to the newest `updated` it had read. A row carries the
+ * stamp the writing statement gave it and becomes readable only when that write commits, so a mark
+ * moved past the stamp of a row that had not committed yet asks for `updated > since` and never
+ * sees that row again — the notification is not late, it is gone. Two rows stamped alike are the
+ * plainest case of it, but any write outlived by the read that ran beside it does the same.
+ *
+ * A span measured against the present cannot skip a row that way: it only has to outlast the gap
+ * between a payment's stamp and its commit, which for the transitions in this service is one
+ * statement plus the effects that travel with it. It is also what bounds the read — see
+ * `windowStart`.
+ */
+const DEVICE_DELIVERY_WINDOW_SECONDS = 60;
+
+/**
+ * What this process has delivered to one device: per payment, the wait state last sent for it and
+ * the `updated` that state was read at. Never a record of who is connected — see `connectedDevices`.
+ */
+type DeviceDeliveries = Map<number, { state: string; updated: Date }>;
 
 @Injectable()
 export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
   private readonly waitStates = new Map<number, string>();
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
-  private readonly deviceCursors = new Map<string, DeliveryCursor>();
+  private readonly deviceDeliveries = new Map<string, DeviceDeliveries>();
 
   /**
    * Where the connected devices are READ from — set once by PaymentLinkGateway, which owns the
@@ -309,6 +323,11 @@ export class PaymentLinkPaymentService {
    *
    * Both halves are bounded by what this process actually holds: with no caller waiting and no
    * device connected they touch the database not at all.
+   *
+   * That it reads on a tick rather than subscribing is the choice this makes against CONTRIBUTING's
+   * "initial fetch + subscription for real-time data": the only subscription available here is the
+   * RxJS subject above, and that reaches no process but this one. A subscription that cannot see
+   * the writes it is meant to relay is not one.
    */
   async deliverPaymentUpdates(): Promise<void> {
     await this.deliverToWaitingCallers();
@@ -332,22 +351,22 @@ export class PaymentLinkPaymentService {
   private async deliverToConnectedDevices(): Promise<void> {
     const devices = this.connectedDevices();
 
-    // A cursor is a delivery detail of this process, so it follows the connections rather than
+    // A delivery record is a detail of this process, so it follows the connections rather than
     // outliving them. Pruning here rather than on a disconnect notification is the point: nothing
     // has to be told that a device went away, it simply stops appearing.
-    for (const deviceId of this.deviceCursors.keys()) {
-      if (!devices.some((device) => device.id === deviceId)) this.deviceCursors.delete(deviceId);
+    for (const deviceId of this.deviceDeliveries.keys()) {
+      if (!devices.some((device) => device.id === deviceId)) this.deviceDeliveries.delete(deviceId);
     }
 
     if (!devices.length) return;
 
-    // One window PER DEVICE. Taken as a single minimum across all of them, the device connected
-    // longest — or simply the quietest — sets the window for every other one, and every tick then
-    // re-reads what those have already been sent. The condition inside each window is the one the
-    // direct delivery in doSave runs under, expressed over stored columns: a payment out of
-    // `Pending`, or a `MULTIPLE`-mode payment that has counted a completed quote.
+    // One window PER DEVICE. Taken as a single minimum across all of them, a device that connected
+    // moments ago would be read from the point the oldest connection was accepted. The condition
+    // inside each window is the one the direct delivery in doSave runs under, expressed over stored
+    // columns: a payment out of `Pending`, or a `MULTIPLE`-mode payment that has counted a
+    // completed quote.
     const where = devices.flatMap((device) => {
-      const { since } = this.cursorFor(device);
+      const since = this.windowStart(device);
 
       return [
         { deviceId: device.id, updated: MoreThan(since), status: Not(PaymentLinkPaymentStatus.PENDING) },
@@ -360,12 +379,34 @@ export class PaymentLinkPaymentService {
     for (const payment of payments) this.deliverToDevice(payment);
   }
 
-  /** The cursor for a connected device, starting at the age of its oldest open connection. */
-  private cursorFor(device: ConnectedDevice): DeliveryCursor {
-    const cursor = this.deviceCursors.get(device.id) ?? { since: device.since };
-    this.deviceCursors.set(device.id, cursor);
+  /**
+   * Where the read for one device starts: a fixed span before now, and never before its oldest open
+   * connection was accepted — nothing older than that connection is this process's to deliver.
+   *
+   * The span is the same on every tick, so the read stays the same size however long the connection
+   * lives, whether or not anything happens on it. What the window admits twice, the record below
+   * answers for; what it lets past its far end can no longer come back from the read, so the record
+   * of it goes too. That is what bounds the record: not a cap on its size, but the same window that
+   * bounds the query.
+   */
+  private windowStart(device: ConnectedDevice): Date {
+    const windowStart = Util.secondsBefore(DEVICE_DELIVERY_WINDOW_SECONDS);
+    const since = device.since > windowStart ? device.since : windowStart;
 
-    return cursor;
+    const delivered = this.deliveriesFor(device.id);
+    for (const [paymentId, entry] of delivered) {
+      if (!(entry.updated > since)) delivered.delete(paymentId);
+    }
+
+    return since;
+  }
+
+  /** What has been delivered to a device so far, empty for one nothing has been sent to yet. */
+  private deliveriesFor(deviceId: string): DeviceDeliveries {
+    const delivered = this.deviceDeliveries.get(deviceId) ?? new Map();
+    this.deviceDeliveries.set(deviceId, delivered);
+
+    return delivered;
   }
 
   private resolveWaiters(payment: PaymentLinkPayment): void {
@@ -384,14 +425,12 @@ export class PaymentLinkPaymentService {
     const connected = this.connectedDevices().find((d) => d.id === device.id);
     if (!connected) return;
 
-    const cursor = this.cursorFor(connected);
+    // Per payment rather than one slot per device: the window above holds several payments of the
+    // same device at once, and a single slot would let two of them take turns evicting each other.
+    const delivered = this.deliveriesFor(connected.id);
+    if (delivered.get(payment.id)?.state === payment.waitState) return;
 
-    const state = `${payment.id}:${payment.waitState}`;
-    if (state === cursor.delivered) return;
-
-    cursor.delivered = state;
-    // Keeps the window of the query above from growing over the lifetime of a connection.
-    if (payment.updated > cursor.since) cursor.since = payment.updated;
+    delivered.set(payment.id, { state: payment.waitState, updated: payment.updated });
 
     this.deviceActivationSubject.next(device);
   }
