@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Environment, GetConfig } from 'src/config/config';
+import { Config, CronRole, Environment, GetConfig } from 'src/config/config';
 import { MIN_FEE_RATE_SAT_VB } from 'src/integration/blockchain/bitcoin/services/bitcoin-based-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
@@ -25,6 +25,17 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
   private readonly feeCache: Map<Blockchain, FeeCacheData>;
 
+  /**
+   * The loads currently in flight, one entry per blockchain, so concurrent readers of a cold cache
+   * share one fetch instead of each starting their own. Without it a burst of quotes for the same
+   * chain would fire one gas-price call per request: the cache is only written when a load
+   * RESOLVES, so every request arriving until then sees the same empty entry.
+   *
+   * That burst is not hypothetical here. `updateFees` is leased, so among several API processes
+   * only one wins it per tick and the others rely on this path for a whole minute.
+   */
+  private readonly loading = new Map<Blockchain, Promise<number>>();
+
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
@@ -33,7 +44,24 @@ export class PaymentLinkFeeService implements OnModuleInit {
     this.feeCache = new Map();
   }
 
+  /**
+   * Warms the cache at boot — but only where something reads it.
+   *
+   * `onModuleInit` runs in EVERY process, whatever `CRON_ROLE` says: it is a Nest lifecycle hook,
+   * not a cron job, so the scope on `updateFees` below does not reach it. Called unconditionally
+   * it would undo that scope at boot and make the worker do the one thing the scope exists to
+   * prevent — query gas prices for eight EVM chains plus Bitcoin and Firo to fill a map nothing
+   * in that process ever reads.
+   *
+   * The condition is deliberately about serving requests rather than about which jobs this role
+   * registers. This cache has exactly one reader, `getMinFee`, and every path to it is a request
+   * path; a warm cache is worth something where those requests land and nowhere else. Stating it
+   * that way also keeps the scope table in `runsInThisRole` the single place that maps roles to
+   * scopes, instead of copying it here where a later change would not reach it.
+   */
   onModuleInit() {
+    if (Config.cronRole === CronRole.WORKER) return;
+
     void this.updateFees();
   }
 
@@ -139,11 +167,14 @@ export class PaymentLinkFeeService implements OnModuleInit {
     const usable = cacheData && Util.secondsDiff(cacheData.timestamp) <= PaymentLinkFeeService.MINUTES_5;
     if (usable) return cacheData.fee;
 
-    try {
-      const fee = await this.calculateFee(blockchain);
-      this.feeCache.set(blockchain, { timestamp: new Date(), fee });
+    // The same guard the job carries, for the same reason. On LOC there are no node connections to
+    // ask, so `updateFees` never fills the cache and this path would run into the timeout of every
+    // one of those calls on every request. Answering `undefined` is what a local environment
+    // returned before this method loaded anything, and the callers already handle it.
+    if (GetConfig().environment === Environment.LOC) return undefined;
 
-      return fee;
+    try {
+      return await this.loadFee(blockchain);
     } catch (e) {
       // Same shape as the job's own failure handling: a fee source that cannot be reached leaves
       // the caller without a minimum, which is what it would have had anyway. Logged rather than
@@ -152,5 +183,33 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
       return undefined;
     }
+  }
+
+  // --- HELPER METHODS --- //
+  /**
+   * One load per blockchain at a time; concurrent callers await the one already running.
+   *
+   * The entry is removed in `finally`, before the promise is handed out. A failed load therefore
+   * leaves nothing behind that a later call would await forever, and the next caller retries
+   * rather than inheriting the failure — the cache is a fee that expires, not a decision.
+   */
+  private loadFee(blockchain: Blockchain): Promise<number> {
+    const running = this.loading.get(blockchain);
+    if (running) return running;
+
+    const load = (async () => {
+      try {
+        const fee = await this.calculateFee(blockchain);
+        this.feeCache.set(blockchain, { timestamp: new Date(), fee });
+
+        return fee;
+      } finally {
+        this.loading.delete(blockchain);
+      }
+    })();
+
+    this.loading.set(blockchain, load);
+
+    return load;
   }
 }
