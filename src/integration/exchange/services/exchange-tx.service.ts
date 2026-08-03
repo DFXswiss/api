@@ -207,8 +207,19 @@ export class ExchangeTxService implements OnModuleInit {
     }
   }
 
-  async getExchangeTx(from: Date, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx[]> {
-    return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
+  // Grouped in SQL rather than loading every transaction of the period and filtering per exchange/type
+  // in memory — the caller (FinanceLog job) runs every minute and only needs the totals. Returns one
+  // row per exchange/type combination that actually occurred; absent combinations are simply no fees.
+  async getExchangeTxFee(from: Date): Promise<{ exchange: ExchangeName; type: ExchangeTxType; fee: number }[]> {
+    return this.exchangeTxRepo
+      .createQueryBuilder('exchangeTx')
+      .select('exchangeTx.exchange', 'exchange')
+      .addSelect('exchangeTx.type', 'type')
+      .addSelect('COALESCE(SUM(exchangeTx.feeAmountChf), 0)', 'fee')
+      .where('exchangeTx.created > :from', { from })
+      .groupBy('exchangeTx.exchange')
+      .addGroupBy('exchangeTx.type')
+      .getRawMany<{ exchange: ExchangeName; type: ExchangeTxType; fee: number }>();
   }
 
   async getLastExchangeTx(exchange: ExchangeName, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx> {

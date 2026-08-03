@@ -7,7 +7,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { RetryPayoutDto } from '../dto/retry-payout.dto';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
@@ -33,8 +33,20 @@ export class PayoutService {
 
   //*** PUBLIC API ***//
 
-  async getPayoutOrders(from: Date, relations?: FindOptionsRelations<PayoutOrder>): Promise<PayoutOrder[]> {
-    return this.payoutOrderRepo.find({ where: { created: MoreThan(from) }, relations });
+  // Grouped in SQL rather than loading every order of the period — the caller (FinanceLog job) runs
+  // every minute and only needs the totals per context. The two COALESCEs mirror the feeAmountChf
+  // getter, where a NULL fee column contributes 0 to the sum (JS `null + x === x`).
+  async getPayoutOrderFee(from: Date): Promise<{ context: PayoutOrderContext; fee: number }[]> {
+    return this.payoutOrderRepo
+      .createQueryBuilder('payoutOrder')
+      .select('payoutOrder.context', 'context')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(payoutOrder.preparationFeeAmountChf, 0) + COALESCE(payoutOrder.payoutFeeAmountChf, 0)), 0)',
+        'fee',
+      )
+      .where('payoutOrder.created > :from', { from })
+      .groupBy('payoutOrder.context')
+      .getRawMany<{ context: PayoutOrderContext; fee: number }>();
   }
 
   async doPayout(request: PayoutRequest): Promise<void> {

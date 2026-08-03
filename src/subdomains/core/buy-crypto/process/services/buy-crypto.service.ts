@@ -60,7 +60,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
@@ -745,8 +745,24 @@ export class BuyCryptoService implements OnModuleInit {
     return this.buyCryptoRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
-  async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
-    return this.buyCryptoRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
+  // Summed in SQL on purpose: the caller (FinanceLog job) runs every minute and only needs two totals.
+  // Loading the entities instead pulled ~9 MB / 1.5 M field values per run through the pg driver — the
+  // eager relations expand one row to 481 columns — which is what saturated the API's event loop.
+  // cryptoInput is LEFT-joined because most buy_crypto rows have none (bank purchases); they belong to
+  // `regular`, matching the previous `!p.cryptoInput?.paymentLinkPayment` filter.
+  async getBuyCryptoFee(from: Date): Promise<{ regular: number; paymentLink: number }> {
+    const { regular, paymentLink } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(CASE WHEN paymentLinkPayment.id IS NULL THEN buyCrypto.totalFeeAmountChf END)', 'regular')
+      .addSelect('SUM(CASE WHEN paymentLinkPayment.id IS NOT NULL THEN buyCrypto.totalFeeAmountChf END)', 'paymentLink')
+      .innerJoin('buyCrypto.transaction', 'transaction')
+      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+      .leftJoin('cryptoInput.paymentLinkPayment', 'paymentLinkPayment')
+      .where('transaction.created > :from', { from })
+      .getRawOne<{ regular: number; paymentLink: number }>();
+
+    // SUM over an empty result set is NULL — no transactions this period means no fees
+    return { regular: regular ?? 0, paymentLink: paymentLink ?? 0 };
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

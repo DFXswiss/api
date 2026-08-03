@@ -39,6 +39,7 @@ import { DashboardFinancialService } from '../../dashboard/dashboard-financial.s
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
+import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { PayoutService } from '../../payout/services/payout.service';
 import { LogJobService } from '../log-job.service';
 import { LogService } from '../log.service';
@@ -128,27 +129,31 @@ describe('LogJobService', () => {
   });
 
   describe('getChangeLog (Scrypt & MEXC exchange fees)', () => {
+    // The per-source sums now come from SQL aggregates; these tests cover how getChangeLog assembles
+    // them. That the aggregates themselves sum correctly (rebates, NULL fees, grouping) is covered
+    // against real Postgres semantics in the *.pg.spec.ts files of the respective services.
     function setupEmpty() {
-      jest.spyOn(buyFiatService, 'getBuyFiat').mockResolvedValue([] as any);
-      jest.spyOn(buyCryptoService, 'getBuyCrypto').mockResolvedValue([] as any);
+      jest.spyOn(buyFiatService, 'getBuyFiatFee').mockResolvedValue({ regular: 0, paymentLink: 0 });
+      jest.spyOn(buyCryptoService, 'getBuyCryptoFee').mockResolvedValue({ regular: 0, paymentLink: 0 });
       jest.spyOn(tradingOrderService, 'getTradingOrderYield').mockResolvedValue({ fee: 0, profit: 0 } as any);
-      jest.spyOn(payoutService, 'getPayoutOrders').mockResolvedValue([] as any);
+      jest.spyOn(payoutService, 'getPayoutOrderFee').mockResolvedValue([]);
       jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(0 as any);
       jest.spyOn(payInService, 'getPayInFee').mockResolvedValue(0 as any);
       jest.spyOn(refRewardService, 'getRefRewardVolume').mockResolvedValue(0 as any);
     }
 
-    it('sums Scrypt and MEXC trade+withdrawal fees (sign-aware, incl. rebates) into minus and total', async () => {
+    it('sums Scrypt and MEXC trade+withdrawal fees into minus and total', async () => {
       setupEmpty();
-      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([
-        // Scrypt: trade 240 minus a 20 rebate = 220 net trading, plus a 10 withdrawal -> total 230
-        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: 240 }),
-        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: -20 }),
-        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 10 }),
+      jest.spyOn(exchangeTxService, 'getExchangeTxFee').mockResolvedValue([
+        // Scrypt: 220 net trading (240 minus a 20 rebate, netted by the aggregate) + 10 withdrawal -> 230
+        { exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, fee: 220 },
+        { exchange: ExchangeName.SCRYPT, type: ExchangeTxType.WITHDRAWAL, fee: 10 },
         // MEXC: trade 18 + withdrawal 5 -> total 23
-        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.TRADE, feeAmountChf: 18 }),
-        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 5 }),
-      ] as any);
+        { exchange: ExchangeName.MEXC, type: ExchangeTxType.TRADE, fee: 18 },
+        { exchange: ExchangeName.MEXC, type: ExchangeTxType.WITHDRAWAL, fee: 5 },
+        // a combination no other block reads must not leak into any total
+        { exchange: ExchangeName.MEXC, type: ExchangeTxType.DEPOSIT, fee: 7 },
+      ]);
 
       const result = await (service as any).getChangeLog();
 
@@ -160,7 +165,7 @@ describe('LogJobService', () => {
 
     it('omits the Scrypt and MEXC blocks when there are no such exchange fees', async () => {
       setupEmpty();
-      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(exchangeTxService, 'getExchangeTxFee').mockResolvedValue([]);
 
       const result = await (service as any).getChangeLog();
 
@@ -168,9 +173,42 @@ describe('LogJobService', () => {
       expect(result.minus.mexc).toBeUndefined();
     });
 
+    it('splits the buy fees into buyCrypto, buyFiat and the shared paymentLink block', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTxFee').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getBuyCryptoFee').mockResolvedValue({ regular: 100, paymentLink: 3 });
+      jest.spyOn(buyFiatService, 'getBuyFiatFee').mockResolvedValue({ regular: 20, paymentLink: 7 });
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.plus.buyCrypto).toBe(100);
+      expect(result.plus.buyFiat).toBe(20);
+      // both sources feed the same paymentLink figure
+      expect(result.plus.paymentLink).toBe(10);
+      expect(result.plus.total).toBe(130);
+      expect(result.total).toBe(130);
+    });
+
+    it('separates the ref payout fee from all other payout contexts', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTxFee').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getPayoutOrderFee').mockResolvedValue([
+        { context: PayoutOrderContext.REF_PAYOUT, fee: 5 },
+        { context: PayoutOrderContext.BUY_CRYPTO, fee: 11 },
+        { context: PayoutOrderContext.MANUAL, fee: 4 },
+      ]);
+
+      const result = await (service as any).getChangeLog();
+
+      // ref fee goes to the ref block, every other context to the blockchain tx-out block
+      expect(result.minus.ref.fee).toBe(5);
+      expect(result.minus.blockchain.tx.out).toBe(15);
+      expect(result.minus.total).toBe(20);
+    });
+
     it('flows the bank tx fee into minus.bank and the totals', async () => {
       setupEmpty();
-      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(exchangeTxService, 'getExchangeTxFee').mockResolvedValue([]);
       jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(4196 as any);
 
       const result = await (service as any).getChangeLog();

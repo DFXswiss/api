@@ -25,11 +25,9 @@ import {
 } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
 import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -41,9 +39,8 @@ import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { DashboardFinancialService } from '../dashboard/dashboard-financial.service';
-import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
-import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
+import { PayoutOrderContext } from '../payout/entities/payout-order.entity';
 import { PayoutService } from '../payout/services/payout.service';
 import {
   AssetLog,
@@ -1181,57 +1178,42 @@ export class LogJobService {
     const firstDayOfMonth = Util.firstDayOfMonth();
 
     // plus amounts
-    const buyFiats = await this.buyFiatService.getBuyFiat(firstDayOfMonth, {
-      cryptoInput: { paymentLinkPayment: true },
-    });
-    const buyCryptos = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth, {
-      cryptoInput: { paymentLinkPayment: true },
-    });
+    // All four sources aggregate in SQL. Loading the entities and summing in JS cost ~9 MB and 1.5 M
+    // field values per minute for buy_crypto alone, which is what kept the event loop saturated.
+    const buyFiatFees = await this.buyFiatService.getBuyFiatFee(firstDayOfMonth);
+    const buyCryptoFees = await this.buyCryptoService.getBuyCryptoFee(firstDayOfMonth);
     const { fee: tradingOrderFee, profit: tradingOrderProfit } =
       await this.tradingOrderService.getTradingOrderYield(firstDayOfMonth);
 
-    const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
-    const paymentLinkFee = this.getFeeAmount([
-      ...buyFiats.filter((p) => p.cryptoInput.paymentLinkPayment),
-      ...buyCryptos.filter((p) => p.cryptoInput?.paymentLinkPayment),
-    ]);
-    const buyCryptoFee = this.getFeeAmount(buyCryptos.filter((b) => !b.cryptoInput?.paymentLinkPayment));
+    const buyFiatFee = buyFiatFees.regular;
+    const paymentLinkFee = buyFiatFees.paymentLink + buyCryptoFees.paymentLink;
+    const buyCryptoFee = buyCryptoFees.regular;
 
     // minus amounts
-    const exchangeTx = await this.exchangeTxService.getExchangeTx(firstDayOfMonth);
-    const payoutOrders = await this.payoutService.getPayoutOrders(firstDayOfMonth);
+    const exchangeFees = await this.exchangeTxService.getExchangeTxFee(firstDayOfMonth);
+    const payoutOrderFees = await this.payoutService.getPayoutOrderFee(firstDayOfMonth);
 
     const bankTxFee = await this.bankTxService.getBankTxFee(firstDayOfMonth);
-    const krakenTxWithdrawFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.WITHDRAWAL),
-    );
-    const krakenTxTradingFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.KRAKEN && e.type === ExchangeTxType.TRADE),
-    );
-    const binanceTxWithdrawFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.WITHDRAWAL),
-    );
-    const binanceTxTradingFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
-    );
-    const scryptTxWithdrawFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.WITHDRAWAL),
-    );
-    const scryptTxTradingFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.TRADE),
-    );
-    const mexcTxWithdrawFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.WITHDRAWAL),
-    );
-    const mexcTxTradingFee = this.getFeeAmount(
-      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.TRADE),
-    );
+
+    // a combination the period has no transactions for contributes no fees
+    const exchangeFee = (exchange: ExchangeName, type: ExchangeTxType): number =>
+      exchangeFees.find((f) => f.exchange === exchange && f.type === type)?.fee ?? 0;
+
+    const krakenTxWithdrawFee = exchangeFee(ExchangeName.KRAKEN, ExchangeTxType.WITHDRAWAL);
+    const krakenTxTradingFee = exchangeFee(ExchangeName.KRAKEN, ExchangeTxType.TRADE);
+    const binanceTxWithdrawFee = exchangeFee(ExchangeName.BINANCE, ExchangeTxType.WITHDRAWAL);
+    const binanceTxTradingFee = exchangeFee(ExchangeName.BINANCE, ExchangeTxType.TRADE);
+    const scryptTxWithdrawFee = exchangeFee(ExchangeName.SCRYPT, ExchangeTxType.WITHDRAWAL);
+    const scryptTxTradingFee = exchangeFee(ExchangeName.SCRYPT, ExchangeTxType.TRADE);
+    const mexcTxWithdrawFee = exchangeFee(ExchangeName.MEXC, ExchangeTxType.WITHDRAWAL);
+    const mexcTxTradingFee = exchangeFee(ExchangeName.MEXC, ExchangeTxType.TRADE);
     const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
     const refRewards = await this.refRewardService.getRefRewardVolume(firstDayOfMonth);
-    const payoutOrderRefFee = this.getFeeAmount(
-      payoutOrders.filter((p) => p.context === PayoutOrderContext.REF_PAYOUT),
+    const payoutOrderRefFee = payoutOrderFees.find((p) => p.context === PayoutOrderContext.REF_PAYOUT)?.fee ?? 0;
+    const payoutOrderFee = Util.sumObjValue(
+      payoutOrderFees.filter((p) => p.context !== PayoutOrderContext.REF_PAYOUT),
+      'fee',
     );
-    const payoutOrderFee = this.getFeeAmount(payoutOrders.filter((p) => p.context !== PayoutOrderContext.REF_PAYOUT));
 
     const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
     const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
@@ -1322,12 +1304,6 @@ export class LogJobService {
 
   private getTxIdMonitoringLog(tx: (BankTx | ExchangeTx)[]): string | undefined {
     return tx.length ? tx.map((t) => t.id).join(';') : undefined;
-  }
-
-  private getFeeAmount(
-    tx: (BuyCrypto | BuyFiat | BankTx | ExchangeTx | RefReward | TradingOrder | CryptoInput | PayoutOrder)[],
-  ): number {
-    return tx.reduce((sum, tx) => sum + (tx.feeAmountChf ?? 0), 0);
   }
 
   private getPendingAmounts(
