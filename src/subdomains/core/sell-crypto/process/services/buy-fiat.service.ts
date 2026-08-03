@@ -37,7 +37,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -615,21 +615,8 @@ export class BuyFiatService implements OnModuleInit {
     }
 
     // Historical replay only — see the matching block in BuyCryptoService.getUserVolumeForType for
-    // why this is two branches rather than one.
-    if (judgedBy)
-      request.andWhere(
-        new Brackets((qb) =>
-          qb
-            .where(
-              'buyFiat.amlCheck = :judgedPass AND buyFiat.priceDefinitionAllowedDate IS NOT NULL AND buyFiat.priceDefinitionAllowedDate <= :judgedBy',
-              { judgedPass: CheckStatus.PASS, judgedBy },
-            )
-            .orWhere('buyFiat.amlCheck != :judgedPass AND buyFiat.created <= :judgedBy', {
-              judgedPass: CheckStatus.PASS,
-              judgedBy,
-            }),
-        ),
-      );
+    // why this gates on existence rather than on the verdict, and which residuals remain.
+    if (judgedBy) request.andWhere('buyFiat.created <= :judgedBy', { judgedBy });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

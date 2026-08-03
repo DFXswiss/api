@@ -2,8 +2,8 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SiftModule } from 'src/integration/sift/sift.module';
-import { CustodyModule } from 'src/subdomains/core/custody/custody.module';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { CustodyModule } from 'src/subdomains/core/custody/custody.module';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { SharedModule } from 'src/shared/shared.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
@@ -76,8 +76,9 @@ import { WebhookService } from './services/webhook/webhook.service';
       CustodyProvider,
       Organization,
       Recommendation,
+      // source entities, read-only (KycFileIdBackfillService)
       BuyCrypto,
-      BuyFiat, // source entities (read-only, KycFileIdBackfillService)
+      BuyFiat,
     ]),
     SharedModule,
     NotificationModule,

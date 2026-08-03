@@ -58,12 +58,14 @@ interface BackfillReport {
   candidates: number;
   crossings: number;
   assigned: number;
-  /**
-   * Left untouched: the row had gained an id before the write ran, had vanished, or already
-   * carried an `amlListAddedDate` — see `assign`. Ids are listed in `skippedIds`.
-   */
+  /** Row had gained an id before the write ran, or had vanished — benign, nothing to do. */
   skipped: number;
   skippedIds: number[];
+  /**
+   * Carried an `amlListAddedDate` but no id, so neither overwriting nor inheriting the date is
+   * ours to choose — see `assign`. Needs a human, unlike `skippedIds`.
+   */
+  needsReviewIds: number[];
   /**
    * Threw during assignment. `assigned + skipped + failed` reconciles against `crossings` only for
    * a live pass that ran to completion — a dry run leaves all three at zero, and the kill-switch
@@ -164,6 +166,7 @@ export class KycFileIdBackfillService {
       assigned: 0,
       skipped: 0,
       skippedIds: [],
+      needsReviewIds: [],
       failed: 0,
       excludedMergedIds,
       crossingDetail: crossings,
@@ -183,14 +186,10 @@ export class KycFileIdBackfillService {
       }
 
       try {
-        const kycFileId = await this.assign(crossing);
+        const kycFileId = await this.assign(crossing, report);
 
-        if (kycFileId == null) {
-          report.skipped++;
-          report.skippedIds.push(crossing.userDataId);
-        } else {
-          report.assigned++;
-        }
+        if (kycFileId == null) report.skipped++;
+        else report.assigned++;
       } catch (e) {
         report.failed++;
         this.logger.error(
@@ -415,20 +414,26 @@ export class KycFileIdBackfillService {
    *
    * Only the UPDATE is retried, so a downstream failure can never hand the row a second id.
    */
-  private async assign(crossing: Crossing, attempt = 0): Promise<number | null> {
+  private async assign(crossing: Crossing, report: BackfillReport, attempt = 0): Promise<number | null> {
     const before = await this.userDataRepo.findOne({
       where: { id: crossing.userDataId },
       select: { id: true, kycFileId: true, amlListAddedDate: true },
       loadEagerRelations: false,
     });
-    if (!before || before.kycFileId != null) return null;
+    if (!before || before.kycFileId != null) {
+      report.skippedIds.push(crossing.userDataId);
+      return null;
+    }
 
     // A row carrying a date but no id did not get there through the live rule, which only ever
     // writes the two together — it came from a merge or a compliance edit. Overwriting the date
     // would destroy it; keeping it would file a fresh ~6200 id under an old year, which
     // `getMaxKycFileIdByDateRange` then reports as that year's highest. Neither is ours to choose,
     // so the row is left alone and surfaced for manual handling.
-    if (before.amlListAddedDate != null) return null;
+    if (before.amlListAddedDate != null) {
+      report.needsReviewIds.push(crossing.userDataId);
+      return null;
+    }
 
     const kycFileId = await this.userDataService.getNextKycFileId();
     const amlListAddedDate = crossing.crossingDate;
@@ -452,7 +457,7 @@ export class KycFileIdBackfillService {
       const isConflict = e.message?.includes('duplicate key');
       if (attempt >= MAX_ASSIGNMENT_ATTEMPTS - 1 || !isConflict) throw e;
 
-      return this.assign(crossing, attempt + 1);
+      return this.assign(crossing, report, attempt + 1);
     }
   }
 

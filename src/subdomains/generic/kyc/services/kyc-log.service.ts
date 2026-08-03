@@ -11,7 +11,7 @@ import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
-// TypeORM binds one parameter per `In()` element; Postgres caps a statement at 65535.
+// Bounds the bind-parameter count on the `In()` below; see Postgres' 65535 statement cap.
 const ID_BATCH_SIZE = 100;
 
 @Injectable()

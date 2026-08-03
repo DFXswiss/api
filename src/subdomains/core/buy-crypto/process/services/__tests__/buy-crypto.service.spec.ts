@@ -455,26 +455,16 @@ describe('BuyCryptoService', () => {
 
   describe('getUserVolume judgedBy', () => {
     // The historical-replay gate for KycFileIdBackfillService. It lives entirely in a WHERE clause,
-    // which the backfill's own specs cannot observe — they mock getVolumeSince wholesale. Asserted
-    // here instead, because getting it wrong is silent: an over-broad gate invents compliance file
-    // numbers, an over-narrow one drops the Pending/GSheet siblings the live sum counts.
+    // which the backfill's own specs cannot observe — they mock getVolumeSince wholesale. Getting it
+    // wrong is silent and irreversible: too broad invents compliance file numbers, too narrow drops
+    // the siblings the live sum counted and the repair is missed or misdated.
     const capture = () => {
       const predicates: string[] = [];
-      const sub = {
-        where: (c: string) => (predicates.push(c), sub),
-        orWhere: (c: string) => (predicates.push(c), sub),
-      };
       const qb: any = {
         select: () => qb,
         innerJoin: () => qb,
         where: () => qb,
-        andWhere: (c: any) => {
-          if (typeof c === 'function') c(sub);
-          else if (c?.whereFactory) c.whereFactory(sub);
-          else predicates.push(String(c));
-
-          return qb;
-        },
+        andWhere: (c: any) => (predicates.push(String(c)), qb),
         getRawOne: async () => ({ volume: 0 }),
       };
       jest.spyOn(buyCryptoRepo, 'createQueryBuilder').mockReturnValue(qb);
@@ -487,20 +477,18 @@ describe('BuyCryptoService', () => {
 
       await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx');
 
-      expect(predicates.join(' ')).not.toContain('priceDefinitionAllowedDate');
+      expect(predicates).not.toContain('buyCrypto.created <= :judgedBy');
     });
 
-    it('gates a PASS sibling on its verdict and a non-PASS sibling on its existence', async () => {
+    it('gates on existence at judgedBy', async () => {
       const predicates = capture();
 
       await service.getUserVolume([1], new Date(0), new Date(), undefined, 'bankTx', new Date('2026-06-10'));
 
-      const sql = predicates.join(' ');
-      // A PASS records when it was reached, so it can be gated exactly.
-      expect(sql).toContain('buyCrypto.priceDefinitionAllowedDate <= :judgedBy');
-      // A Pending/GSheet row records no verdict time, yet the live sum counted it — gating those on
-      // priceDefinitionAllowedDate would drop every one. Existence is the available proxy.
-      expect(sql).toContain('buyCrypto.amlCheck != :judgedPass AND buyCrypto.created <= :judgedBy');
+      expect(predicates).toContain('buyCrypto.created <= :judgedBy');
+      // Not on the verdict: priceDefinitionAllowedDate is written only on PASS, so gating on it
+      // drops every Pending/GSheet sibling — which the live sum counts.
+      expect(predicates.join(' ')).not.toContain('priceDefinitionAllowedDate');
     });
   });
 });
