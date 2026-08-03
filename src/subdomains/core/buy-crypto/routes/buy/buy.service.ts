@@ -493,7 +493,11 @@ export class BuyService {
       const virtualIban = await this.virtualIbanService
         .getOrCreateFrickForUser(selector.userData, selector.currency)
         .catch((e) => this.infrastructureFailureOrRethrow(e));
-      if (virtualIban?.bank.receive && virtualIban.bank.name === IbanBankName.FRICK) {
+      if (
+        virtualIban?.bank.receive &&
+        virtualIban.bank.name === IbanBankName.FRICK &&
+        this.isVibanAddressComplete(virtualIban, selector.userData)
+      ) {
         return {
           bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
           bankId: virtualIban.bank.id,
@@ -551,7 +555,7 @@ export class BuyService {
         }
       }
 
-      if (virtualIban?.bank.receive) {
+      if (virtualIban?.bank.receive && this.isVibanAddressComplete(virtualIban, selector.userData)) {
         return {
           bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData),
           bankId: virtualIban.bank.id,
@@ -584,7 +588,7 @@ export class BuyService {
       ).catch((e) => this.infrastructureFailureOrRethrow(e));
     }
 
-    if (virtualIban?.bank.receive) {
+    if (virtualIban?.bank.receive && this.isVibanAddressComplete(virtualIban, selector.userData)) {
       return {
         bankInfo: this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage),
         bankId: virtualIban.bank.id,
@@ -675,6 +679,21 @@ export class BuyService {
     };
   }
 
+  // A CUSTOMER-held personal IBAN shows the customer as QR-bill creditor, which requires the
+  // customer's postal address country (getCreditor fails closed without it). Legacy accounts can
+  // predate mandatory country capture, so quote resolution treats such a vIBAN as unusable and
+  // degrades to the collection account instead of failing the whole quote.
+  private isVibanAddressComplete(virtualIban: VirtualIban, userData: UserData): boolean {
+    const complete =
+      this.virtualIbanService.getAccountHolder(virtualIban.bank.name) !== VibanAccountHolder.CUSTOMER ||
+      userData.address.country?.symbol != null;
+    if (!complete)
+      this.logger.warn(
+        `Personal IBAN ${virtualIban.id} unusable for quote: user data ${userData.id} has no address country`,
+      );
+    return complete;
+  }
+
   private buildVirtualIbanResponse(
     virtualIban: VirtualIban,
     userData: UserData,
@@ -689,6 +708,8 @@ export class BuyService {
     // entity: this function only has the persisted row, never the issuing provider instance).
     const accountHolder = this.virtualIbanService.getAccountHolder(virtualIban.bank.name);
     const { address } = userData;
+    if (accountHolder === VibanAccountHolder.CUSTOMER && !address.country?.symbol)
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_USER_ADDRESS_INCOMPLETE);
     const recipient =
       accountHolder === VibanAccountHolder.CUSTOMER
         ? {
