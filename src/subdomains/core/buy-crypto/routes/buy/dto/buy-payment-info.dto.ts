@@ -28,6 +28,9 @@ export class BankInfoDto {
   @ApiProperty()
   country: string;
 
+  @ApiProperty({ description: 'ISO 3166-1 alpha-2 country code of the recipient address' })
+  countryCode: string;
+
   @ApiPropertyOptional()
   iban: string;
 
