@@ -1,6 +1,7 @@
+import { ConfigService, GetConfig } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { In } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { PaymentDevice, PaymentLinkPayment } from '../../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../../entities/payment-quote.entity';
 import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentQuoteStatus } from '../../enums';
@@ -60,12 +61,57 @@ describe('PaymentLinkPaymentService', () => {
     sockets.set(deviceId, since);
   }
 
+  /**
+   * The row the transition competes for, and the only thing that says whether a caller won: the
+   * manager below applies an update exactly when its criteria still match, as the database does.
+   */
+  let row: PaymentLinkPayment;
+
+  /**
+   * Stands in for the transaction the transition runs in, statements included. Statements are
+   * staged and written back to `row` only when the callback returns — a callback that throws
+   * leaves the row as it was, which is what a rollback means and what these tests are about.
+   */
+  function transaction<T>(run: (manager: EntityManager) => Promise<T>): Promise<T> {
+    const staged = Object.assign(new PaymentLinkPayment(), row);
+
+    return run(transactionManager(staged)).then((result) => {
+      Object.assign(row, staged);
+
+      return result;
+    });
+  }
+
+  function transactionManager(staged: PaymentLinkPayment): EntityManager {
+    const update = jest.fn().mockImplementation((_target, criteria: number | Partial<PaymentLinkPayment>, values) => {
+      const matches = typeof criteria === 'number' || criteria.status == null || criteria.status === staged.status;
+      if (matches) Object.assign(staged, values);
+
+      return Promise.resolve({ affected: matches ? 1 : 0 });
+    });
+
+    managerUpdates.push(update);
+
+    return { update } as unknown as EntityManager;
+  }
+
+  /** Every statement any transition ran, in order, as [criteria, values]. */
+  function transitions(): [Partial<PaymentLinkPayment>, Partial<PaymentLinkPayment>][] {
+    return managerUpdates.flatMap((update) =>
+      update.mock.calls.map(([, criteria, values]) => [criteria, values] as [never, never]),
+    );
+  }
+
+  let managerUpdates: jest.Mock[];
+
   beforeEach(() => {
+    row = payment({ id: 7 });
+    managerUpdates = [];
+
     paymentLinkPaymentRepo = {
       find: jest.fn().mockResolvedValue([]),
       save: jest.fn().mockImplementation((entity) => entity),
-      // The default is the caller that wins the transition; the tests below that care set it.
-      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager: { transaction: jest.fn().mockImplementation(transaction) },
     } as unknown as jest.Mocked<PaymentLinkPaymentRepository>;
 
     paymentWebhookService = { sendWebhook: jest.fn() } as unknown as jest.Mocked<PaymentWebhookService>;
@@ -310,28 +356,20 @@ describe('PaymentLinkPaymentService', () => {
    * hold the same payment as `Pending` at the same time, and each of them would send the merchant
    * its webhook and cancel the quotes again.
    *
-   * `affected: 0` is what a caller that lost sees, and it is the whole assertion: nothing after
-   * the transition may happen for it.
+   * A row that no longer reads `Pending` is what a caller that lost meets, and it is the whole
+   * assertion: nothing after the transition may happen for it.
    */
   describe('leaving Pending', () => {
-    function transitions(): { status: PaymentLinkPaymentStatus }[] {
-      return paymentLinkPaymentRepo.update.mock.calls.map(
-        ([, values]) => values as { status: PaymentLinkPaymentStatus },
-      );
-    }
-
     it('should expire through a conditional update rather than a status read', async () => {
       await service.expirePayment(payment({ id: 7 }));
 
-      expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
-        { id: 7, status: PaymentLinkPaymentStatus.PENDING },
-        { status: PaymentLinkPaymentStatus.EXPIRED },
-      );
-      expect(transitions()).toHaveLength(1);
+      expect(transitions()).toEqual([
+        [{ id: 7, status: PaymentLinkPaymentStatus.PENDING }, { status: PaymentLinkPaymentStatus.EXPIRED }],
+      ]);
     });
 
     it('should not expire a second time when another process took the transition', async () => {
-      paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+      row.status = PaymentLinkPaymentStatus.EXPIRED;
 
       await service.expirePayment(payment({ id: 7, link: { webhookUrl: 'https://merchant.example/hook' } as never }));
 
@@ -344,21 +382,80 @@ describe('PaymentLinkPaymentService', () => {
     it('should cancel through the same transition', async () => {
       await service.cancelByPayment(payment({ id: 7 }));
 
-      expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
-        { id: 7, status: PaymentLinkPaymentStatus.PENDING },
-        { status: PaymentLinkPaymentStatus.CANCELLED },
-      );
+      expect(transitions()).toEqual([
+        [{ id: 7, status: PaymentLinkPaymentStatus.PENDING }, { status: PaymentLinkPaymentStatus.CANCELLED }],
+      ]);
       expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledTimes(1);
     });
 
     it('should not cancel a payment the worker expired in between', async () => {
-      paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+      row.status = PaymentLinkPaymentStatus.EXPIRED;
 
       await service.cancelByPayment(payment({ id: 7, link: { webhookUrl: 'https://merchant.example/hook' } as never }));
 
       expect(paymentWebhookService.sendWebhook).not.toHaveBeenCalled();
       expect(paymentQuoteService.cancelAllForPayment).not.toHaveBeenCalled();
       expect(paymentLinkPaymentRepo.save).not.toHaveBeenCalled();
+    });
+
+    /**
+     * What a transition costs when it commits on its own: the row leaves `Pending` and the effects
+     * that belong to it do not follow. `processExpiredPayments` asks for `Pending`, so such a row
+     * is out of reach of every job — it is not a delayed repair but a permanent half-state.
+     */
+    describe('a caller that stops between the transition and its effects', () => {
+      /** The payments the expiry job would find on its next run. */
+      function pendingPayments(): PaymentLinkPayment[] {
+        return row.status === PaymentLinkPaymentStatus.PENDING ? [row] : [];
+      }
+
+      beforeEach(() => {
+        // The real job runs here: what makes the half-state permanent is its own query.
+        new ConfigService(GetConfig());
+        paymentLinkPaymentRepo.find.mockImplementation(async () => pendingPayments());
+      });
+
+      it('should ask for nothing but Pending, which is why a half-state is out of its reach', async () => {
+        await service.processExpiredPayments();
+
+        expect(paymentLinkPaymentRepo.find).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ status: PaymentLinkPaymentStatus.PENDING }),
+          }),
+        );
+      });
+
+      it('should leave the payment where the next run of the job picks it up', async () => {
+        paymentQuoteService.cancelAllForPayment.mockRejectedValue(new Error('connection reset'));
+
+        await expect(service.processExpiredPayments()).rejects.toThrow('connection reset');
+
+        // Not expired, and its quotes are not cancelled either: both or neither.
+        expect(row.status).toEqual(PaymentLinkPaymentStatus.PENDING);
+        expect(paymentActivationService.closeAllForPayment).not.toHaveBeenCalled();
+
+        // And the next run finds it, which is the property the whole transition rests on.
+        paymentQuoteService.cancelAllForPayment.mockResolvedValue(undefined);
+        await service.processExpiredPayments();
+
+        expect(row.status).toEqual(PaymentLinkPaymentStatus.EXPIRED);
+        expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledTimes(1);
+      });
+
+      it('should have cancelled the quotes before anything a merchant can hold up', async () => {
+        // The webhook is the one effect that stays outside the transaction, so it must be the last
+        // one: a payment whose merchant call fails is finished in the database all the same.
+        paymentLinkPaymentRepo.save.mockRejectedValue(new Error('merchant unreachable'));
+
+        await expect(service.processExpiredPayments()).rejects.toThrow('merchant unreachable');
+
+        expect(row.status).toEqual(PaymentLinkPaymentStatus.EXPIRED);
+        expect(paymentQuoteService.cancelAllForPayment).toHaveBeenCalledTimes(1);
+        expect(paymentActivationService.closeAllForPayment).toHaveBeenCalledTimes(1);
+
+        // Nothing left over: the job does not see it again, and does not have to.
+        expect(pendingPayments()).toEqual([]);
+      });
     });
 
     /** The third way out of `Pending`, reached from a request path and from checkTxConfirmations. */
@@ -381,15 +478,26 @@ describe('PaymentLinkPaymentService', () => {
       it('should complete a SINGLE payment through the transition', async () => {
         await service['handleQuoteChange'](completing(), quote);
 
-        expect(paymentLinkPaymentRepo.update).toHaveBeenCalledWith(
-          { id: 7, status: PaymentLinkPaymentStatus.PENDING },
-          { status: PaymentLinkPaymentStatus.COMPLETED },
-        );
+        expect(transitions()).toEqual([
+          [{ id: 7, status: PaymentLinkPaymentStatus.PENDING }, { status: PaymentLinkPaymentStatus.COMPLETED }],
+          [7, { txCount: 1 }],
+        ]);
         expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
       });
 
+      it('should carry the counted quotes into the transition, not only into the save after it', async () => {
+        // A completed payment is looked at by no job, so a count left behind by a caller that
+        // stopped after the transition would stay wrong for good.
+        paymentLinkPaymentRepo.save.mockRejectedValue(new Error('merchant unreachable'));
+
+        await expect(service['handleQuoteChange'](completing(), quote)).rejects.toThrow('merchant unreachable');
+
+        expect(row.status).toEqual(PaymentLinkPaymentStatus.COMPLETED);
+        expect(row.txCount).toEqual(1);
+      });
+
       it('should not complete it again when another process got there first', async () => {
-        paymentLinkPaymentRepo.update.mockResolvedValue({ affected: 0 } as never);
+        row.status = PaymentLinkPaymentStatus.COMPLETED;
 
         await service['handleQuoteChange'](completing(), quote);
 
@@ -401,7 +509,7 @@ describe('PaymentLinkPaymentService', () => {
         // but one from recording the quote it counted.
         await service['handleQuoteChange'](completing({ mode: PaymentLinkPaymentMode.MULTIPLE }), quote);
 
-        expect(paymentLinkPaymentRepo.update).not.toHaveBeenCalled();
+        expect(transitions()).toEqual([]);
         expect(paymentLinkPaymentRepo.save).toHaveBeenCalledTimes(1);
       });
     });

@@ -10,7 +10,7 @@ import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
@@ -115,16 +115,18 @@ export class PaymentLinkPaymentService {
   }
 
   async expirePayment(payment: PaymentLinkPayment): Promise<void> {
-    if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.EXPIRED))) return;
+    const taken = await this.takePendingTransition(payment, PaymentLinkPaymentStatus.EXPIRED, (manager) =>
+      this.cancelQuotesForPayment(payment.id, manager),
+    );
+    if (!taken) return;
 
     await this.doSave(payment.expire(), true);
-    await this.cancelQuotesForPayment(payment);
   }
 
   /**
-   * Moves a payment out of `Pending` in one statement, and answers whether THIS caller is the one
-   * that moved it. Everything that follows a transition — the merchant webhook, the quote
-   * cancellations, the activation closes — belongs to the caller that gets `true`.
+   * Moves a payment out of `Pending` together with the database effects that belong to that
+   * transition, and answers whether THIS caller is the one that moved it. Everything that follows
+   * — the merchant webhook, the deliveries in `doSave` — belongs to the caller that gets `true`.
    *
    * The read-then-write this replaces was safe while everything ran in one process. It is not any
    * more: `processExpiredPayments` is a `Worker` job, while the expiry timers `createPayment` arms
@@ -137,14 +139,36 @@ export class PaymentLinkPaymentService {
    * `Pending` and reports it as the affected row, and every other caller gets nothing. That holds
    * for any number of processes and for every path into the transition, which is why it sits here
    * rather than at the call sites.
+   *
+   * `effects` runs in the same transaction as that statement, so the row leaves `Pending` only if
+   * they leave with it. A statement committing on its own would be worse than the double run it
+   * prevents: a caller dying between the two would leave a payment out of `Pending` with its
+   * quotes still open, and nothing looks for that — `processExpiredPayments` asks for `Pending`
+   * and would never see the row again. Rolled back, the payment stays exactly where the next run
+   * of the job, or of the timer, picks it up.
+   *
+   * What stays outside is what a transaction must not hold open: the merchant webhook and the
+   * process-local deliveries in `doSave`. Those cost a notification when they are lost, not a row
+   * that no one reconciles — and the webhook is best-effort by construction (see
+   * `PaymentWebhookService.sendWebhook`).
    */
-  private async takePendingTransition(payment: PaymentLinkPayment, status: PaymentLinkPaymentStatus): Promise<boolean> {
-    const { affected } = await this.paymentLinkPaymentRepo.update(
-      { id: payment.id, status: PaymentLinkPaymentStatus.PENDING },
-      { status },
-    );
+  private async takePendingTransition(
+    payment: PaymentLinkPayment,
+    status: PaymentLinkPaymentStatus,
+    effects: (manager: EntityManager) => Promise<void>,
+  ): Promise<boolean> {
+    return this.paymentLinkPaymentRepo.manager.transaction(async (manager) => {
+      const { affected } = await manager.update(
+        PaymentLinkPayment,
+        { id: payment.id, status: PaymentLinkPaymentStatus.PENDING },
+        { status },
+      );
+      if (!affected) return false;
 
-    return affected > 0;
+      await effects(manager);
+
+      return true;
+    });
   }
 
   async checkTxConfirmations(): Promise<void> {
@@ -505,10 +529,12 @@ export class PaymentLinkPaymentService {
   async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
     // Both callers reach here from a payment they read as `Pending`, and the worker can expire
     // that same payment in between. Whoever the transition lets through sends the webhook.
-    if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.CANCELLED))) return;
+    const taken = await this.takePendingTransition(payment, PaymentLinkPaymentStatus.CANCELLED, (manager) =>
+      this.cancelQuotesForPayment(payment.id, manager),
+    );
+    if (!taken) return;
 
     await this.doSave(payment.cancel(), true);
-    await this.cancelQuotesForPayment(payment);
   }
 
   async deletePayment(payment: PaymentLinkPayment): Promise<void> {
@@ -526,9 +552,10 @@ export class PaymentLinkPaymentService {
     await this.paymentLinkPaymentRepo.delete(payment.id);
   }
 
-  private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {
-    await this.paymentQuoteService.cancelAllForPayment(payment.id);
-    await this.paymentActivationService.closeAllForPayment(payment.id);
+  /** The database effects of leaving `Pending`, run on the manager of the transition's transaction. */
+  private async cancelQuotesForPayment(paymentId: number, manager: EntityManager): Promise<void> {
+    await this.paymentQuoteService.cancelAllForPayment(paymentId, manager);
+    await this.paymentActivationService.closeAllForPayment(paymentId, manager);
   }
 
   // --- HANDLE CALLBACKS --- //
@@ -639,13 +666,24 @@ export class PaymentLinkPaymentService {
     const isPaymentComplete =
       PaymentQuoteTxStates.indexOf(quote.status) >= PaymentQuoteTxStates.indexOf(minCompletionStatus);
     if (isPaymentComplete) {
-      payment.txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+      const txCount = await this.paymentQuoteService.getCompletedQuoteCount(payment, minCompletionStatus);
+      payment.txCount = txCount;
 
       // The status read above is the same read-then-write as in expirePayment, and this one is
       // reached from request paths as well as from checkTxConfirmations. A `MULTIPLE` payment
       // stays `Pending` and has no transition to take: it only counts a quote.
       if (payment.mode === PaymentLinkPaymentMode.SINGLE) {
-        if (!(await this.takePendingTransition(payment, PaymentLinkPaymentStatus.COMPLETED))) return;
+        const taken = await this.takePendingTransition(
+          payment,
+          PaymentLinkPaymentStatus.COMPLETED,
+          // The count belongs to the transition: `doSave` below is the only other thing that
+          // writes it, and a completed payment no job looks at again would keep whatever count it
+          // had when the caller stopped. The activations are already closed above.
+          async (manager) => {
+            await manager.update(PaymentLinkPayment, payment.id, { txCount });
+          },
+        );
+        if (!taken) return;
 
         payment.complete();
       }
