@@ -706,6 +706,44 @@ describe('BuyService', () => {
       });
       expect(bankInfo.name).not.toBe(Config.bank.dfxAddress.name);
     });
+
+    it('still issues the explicit Frick vIBAN for a REALU buy (explicit provider wins over the REALU carve-out)', async () => {
+      const realuAsset = { ...asset, name: 'REALU' } as Asset;
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(virtualIban);
+      const fees = {
+        min: 0,
+        rate: 0.01,
+        fixed: 0,
+        dfx: 1,
+        network: 0,
+        platform: 0,
+        bank: 0,
+        total: 1,
+      };
+      jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+        timestamp: new Date('2026-07-24T00:00:00Z'),
+        minVolume: 10,
+        minVolumeTarget: 0.001,
+        maxVolume: 10000,
+        maxVolumeTarget: 1,
+        exchangeRate: 100000,
+        rate: 101000,
+        estimatedAmount: 0.00099,
+        sourceAmount: 100,
+        isValid: false,
+        exactPrice: false,
+        feeSource: fees,
+        feeTarget: fees,
+        priceSteps: [],
+      } as any);
+
+      const response = await service.toPaymentInfoDto(1, buy, dto({ asset: realuAsset }));
+
+      expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
+      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(response).toMatchObject({ iban: virtualIban.iban, isPersonalIban: true });
+    });
   });
 
   describe('implicit personal IBAN resolution', () => {
