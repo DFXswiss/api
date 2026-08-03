@@ -296,4 +296,34 @@ describe('CronLeaseService', () => {
       expect(service.takeFailures()).toEqual({ healthy: true, count: 0, last: undefined });
     });
   });
+
+  describe('a lost race that is not routine', () => {
+    // For a worker job, losing the lease is the mechanism working: the other worker is doing the
+    // work and the result lands in the database. For a job whose effect exists only inside the
+    // process that runs it, the same outcome means the effect did not happen where it was needed.
+    // Nothing distinguishes the two at the lease, so the caller says which it is.
+
+    it('reports the loss for a job whose effect is local to its process', async () => {
+      const { service } = buildService({ acquire: [] });
+      const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+      const task = jest.fn();
+
+      await service.run('PaymentCronService::processExpiredPayments', task, true);
+
+      expect(task).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls[0][0]).toContain('PaymentCronService::processExpiredPayments');
+    });
+
+    it('stays quiet for a job whose result lands in the database', async () => {
+      // These lose the race every cycle by design — one worker holds the lease, the other does
+      // not. Reporting that would bury the case above under noise.
+      const { service } = buildService({ acquire: [] });
+      const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      await service.run('SomeWorkerService::job', jest.fn());
+
+      expect(error).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -43,12 +43,8 @@ const FORBIDDEN: { pattern: RegExp; what: string; instead: string }[] = [
   },
 ];
 
-/**
- * A timer tied to the lifetime of an object rather than to a schedule. It is bound to the role
- * directly, which is the same decision the scope expresses for a cron job.
- */
+/** Timers tied to the lifetime of something other than a schedule. */
 const ALLOWED = [
-  'integration/blockchain/spark/spark-client.ts',
   // The lease renewal is bound to the lifetime of a single job run, not to a schedule: it starts
   // when that run takes the lease and is cleared in its `finally`. Routing it through @DfxCron
   // would be circular — it is the mechanism that keeps @DfxCron jobs from running twice.

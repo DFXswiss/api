@@ -180,8 +180,14 @@ export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown
    * Failing to reach the database means NOT running: a job that moves money must not proceed on
    * the assumption that it is probably alone. The caller sees the same outcome as a job whose
    * lease is held elsewhere — it simply does not run this cycle and tries again on the next.
+   *
+   * `reportContention` marks jobs for which losing the race is not a normal outcome. For a worker
+   * job it is: the other worker holds the lease and is doing the work, and the result lands in the
+   * database where everyone can see it. For a job whose effect is confined to the process that
+   * runs it, losing the race means that effect did not happen where it was needed — see
+   * PaymentCronService. Nothing else can tell the two apart, so the caller says which it is.
    */
-  async run(job: string, task: () => Promise<void>): Promise<void> {
+  async run(job: string, task: () => Promise<void>, reportContention = false): Promise<void> {
     let acquired: boolean;
     try {
       acquired = await this.acquire(job);
@@ -191,7 +197,15 @@ export class CronLeaseService implements OnModuleInit, BeforeApplicationShutdown
       return;
     }
 
-    if (!acquired) return;
+    if (!acquired) {
+      if (reportContention)
+        this.logger.error(
+          `Skipped ${job}: another process holds the lease. This job only has an effect in the ` +
+            `process that runs it, so that effect did not happen here`,
+        );
+
+      return;
+    }
 
     // Unref'd: a pending timer must never hold the process open on shutdown.
     const renewal = setInterval(() => {

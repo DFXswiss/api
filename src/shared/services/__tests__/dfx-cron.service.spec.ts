@@ -267,6 +267,45 @@ describe('DfxCronService', () => {
       expect(claim).toBeDefined();
       expect(claim[1][2]).toEqual('60');
     });
+
+    it('marks only the api-scoped jobs as ones whose lost race is worth reporting', async () => {
+      // The flag is derived from the scope, not declared per job: an api-scoped job is one whose
+      // effect is confined to the process running it, so losing the lease means that effect did
+      // not happen. A worker job loses it every cycle by design.
+      process.env.CRON_ROLE = 'all';
+      new ConfigService(GetConfig());
+
+      const reported = new Map<string, boolean>();
+      const jobs = [
+        providerWithJob('apiJob', { expression: CronExpression.EVERY_MINUTE, scope: CronScope.API, useDelay: false }),
+        providerWithJob('workerJob', {
+          expression: CronExpression.EVERY_MINUTE,
+          scope: CronScope.WORKER,
+          useDelay: false,
+        }),
+      ];
+      const discovery = createMock<DiscoveryService>({
+        getProviders: () =>
+          jobs.map((p) => ({ ...p, isDependencyTreeStatic: () => true })) as ReturnType<
+            DiscoveryService['getProviders']
+          >,
+      });
+      const metadataScanner = createMock<MetadataScanner>({ getAllMethodNames: (i: object) => Object.keys(i) });
+      const leaseSpy = createMock<CronLeaseService>({
+        run: (job: string, task: () => Promise<void>, reportContention?: boolean) => {
+          reported.set(job, reportContention);
+          return task();
+        },
+      });
+
+      new DfxCronService(discovery, metadataScanner, createMock<SchedulerRegistry>(), leaseSpy).onModuleInit();
+
+      const scheduled = (CronJob as unknown as jest.Mock).mock.calls.map(([, fn]) => fn as () => unknown);
+      for (const fire of scheduled) await fire();
+
+      expect(reported.get('Object::apiJob')).toBe(true);
+      expect(reported.get('Object::workerJob')).toBe(false);
+    });
   });
 
   describe('role heartbeat', () => {

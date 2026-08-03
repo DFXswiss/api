@@ -161,13 +161,22 @@ export class DfxCronService implements OnModuleInit {
    * starve whichever process lost the race, and the job would silently stop maintaining that
    * state. Their safety comes from a different property: running twice must be harmless by
    * construction, which is what CONTRIBUTING requires of them.
+   *
+   * `API` jobs are leased, and reported when they lose the race. They are declared `API` because
+   * their effect is confined to the process running them, which is an argument for running them
+   * in every API process; they also write to the database and call out, which is an argument for
+   * running them once. Only one of those can be had. The lease is the side that cannot be undone
+   * afterwards — a duplicated payout or webhook stays duplicated, whereas a caller that was not
+   * released is a request that times out. Losing the race therefore stays possible by design, and
+   * is reported rather than passed over, because for these jobs it is the symptom of a deployment
+   * running more than one API process rather than a normal cycle.
    */
   private guardAcrossProcesses(cronJobName: string, data: CronJobData): () => Promise<void> {
     const task = this.wrapFunction(data);
 
     if (data.params.scope === CronScope.BOTH) return task;
 
-    return () => this.leases.run(cronJobName, task);
+    return () => this.leases.run(cronJobName, task, data.params.scope === CronScope.API);
   }
 
   private wrapFunction(data: CronJobData) {
