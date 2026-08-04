@@ -701,6 +701,35 @@ export class Configuration {
   letter = {
     auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
+    // Address verification letter dispatch (`AddressLetterJobService` / `AddressLetterObserver`).
+    // Defaults reproduce the behaviour of the spreadsheet automation this job replaces; every value is
+    // an operational lever that must be tunable without a code change.
+    addressLetter: {
+      // Countries the dispatch provider bills as a national shipment. Trimmed and upper-cased, because
+      // it is compared against an upper-cased country symbol - `de, ch` must not route as international.
+      nationalCountries: (process.env.LETTER_NATIONAL_COUNTRIES ?? 'DE')
+        .split(',')
+        .map((c) => c.trim().toUpperCase())
+        .filter((c) => c),
+      // Accounts served per run. At the ten-minute interval this caps the throughput.
+      batchSize: +(process.env.LETTER_BATCH_SIZE ?? 10),
+      // Failed attempts after which an account stops being retried and is escalated instead.
+      maxFailures: +(process.env.LETTER_MAX_FAILURES ?? 3),
+      // How long a claim may stay open before it counts as stray rather than in flight. Must exceed
+      // the cron timeout, or a dispatch still running is reported as needing manual resolution.
+      claimGraceMinutes: +(process.env.LETTER_CLAIM_GRACE_MINUTES ?? 60),
+      // Hours without a single letter that mark the dispatch as broken (normal load is a few dozen a day).
+      maxHoursWithoutLetter: +(process.env.LETTER_MAX_HOURS_WITHOUT ?? 24),
+      // Queue size above which the health check reports a backlog.
+      backlogThreshold: +(process.env.LETTER_BACKLOG_THRESHOLD ?? 100),
+      // Provider credit at or below which the health check reports the dispatch as blocked. Zero is the
+      // unambiguous floor; raise it to be warned before the balance runs out mid-batch.
+      minBalance: +(process.env.LETTER_MIN_BALANCE ?? 0),
+      // How old the observation itself may be before the health check calls it stale. A few times the
+      // observer's ten-minute interval: the metrics freeze at their last good values when the observer
+      // stops running, and frozen healthy values are indistinguishable from healthy ones.
+      maxObservationAgeMinutes: +(process.env.LETTER_MAX_OBSERVATION_AGE_MINUTES ?? 45),
+    },
   };
 
   frontend = {

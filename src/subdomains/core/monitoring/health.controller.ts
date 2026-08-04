@@ -1,6 +1,8 @@
 import { Controller, Get, HttpCode, HttpStatus, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { MonitoringService } from './monitoring.service';
 import { SystemState } from './system-state-snapshot.entity';
 
@@ -51,6 +53,10 @@ export class HealthController {
     // Banking
     const banking = this.checkBanking(state);
     checks.banking = banking;
+
+    // Address verification letters
+    const addressLetter = this.checkAddressLetter(state);
+    checks.addressLetter = addressLetter;
 
     // Determine overall status
     const statuses = Object.values(checks).map((c) => c.status);
@@ -184,6 +190,69 @@ export class HealthController {
 
     const details = largeDiscrepancies.map((b) => `${b.name}: ${b.difference}`).join(', ');
     return { status: HealthStatus.DEGRADED, detail: `Balance discrepancy: ${details}` };
+  }
+
+  /**
+   * Address verification letters (`AddressLetterObserver`). The signal that matters is age, not size:
+   * during the multi-day outage that preceded this job, the backlog looked unremarkable while no letter
+   * had gone out for days, and every status display stayed green.
+   *
+   * Never reports DOWN. A stalled letter dispatch is an operational problem, not a reason to answer
+   * `/health` with 503 and let a load balancer take a perfectly healthy API process out of service.
+   */
+  private checkAddressLetter(state: SystemState | null): { status: HealthStatus; detail?: string } {
+    const metric = state?.addressLetter?.dispatch;
+    const data = metric?.data as {
+      backlog?: number;
+      claimedWithoutLetter?: number;
+      exhausted?: number;
+      sentWithoutFile?: number;
+      hoursSinceLastLetter?: number | null;
+      letterBalance?: number | null;
+    };
+    if (!data) return { status: HealthStatus.DEGRADED, detail: 'No address letter data' };
+
+    const { maxHoursWithoutLetter, backlogThreshold, maxObservationAgeMinutes, minBalance } =
+      Config.letter.addressLetter;
+
+    const issues: string[] = [];
+    // The values below are only as current as the observation they come from. When the observer stops
+    // running, the snapshot freezes at its last good values and every check below keeps answering `ok`
+    // - a stalled dispatch behind healthy-looking numbers, which is the failure this job exists to end.
+    // Parsed JSON carries `updated` as a string, the in-memory state as a Date; an unreadable one
+    // counts as stale rather than as fresh.
+    const observedAt = metric.updated ? new Date(metric.updated).getTime() : NaN;
+    const observationAge = Util.minutesDiff(new Date(observedAt));
+    if (!Number.isFinite(observedAt) || observationAge > maxObservationAgeMinutes)
+      issues.push(`observation ${Number.isFinite(observedAt) ? `${Util.round(observationAge, 0)}min old` : 'undated'}`);
+    // A few dozen letters a day is the normal load, so a day without one is a broken dispatch. Checked
+    // only while there is something to send - a genuinely empty queue must not raise an alert. A null
+    // age means no letter was EVER sent, which with a non-empty queue is the same broken dispatch: it
+    // has to be tested explicitly, because `null > n` is false and would otherwise read as healthy.
+    if (data.backlog > 0) {
+      if (data.hoursSinceLastLetter == null) issues.push('no letter ever sent');
+      else if (data.hoursSinceLastLetter > maxHoursWithoutLetter)
+        issues.push(`no letter sent for ${data.hoursSinceLastLetter}h`);
+    }
+    // Credit at the provider decides whether anything can go out at all, and it runs out silently:
+    // every send simply fails. Only reported while there is something to send, and `null` counts -
+    // it means the provider is unconfigured or did not answer, which blocks the queue just the same.
+    if (data.backlog > 0) {
+      // `Number.isFinite` rather than a null check: `getBalance` coerces the provider's value with `+`,
+      // so a non-numeric answer arrives as NaN - and NaN passes both `== null` and `<= minBalance`,
+      // reading as healthy. Unusable and absent are the same thing here.
+      if (!Number.isFinite(data.letterBalance)) issues.push('provider balance unknown');
+      else if (data.letterBalance <= minBalance) issues.push(`provider balance ${data.letterBalance}`);
+    }
+    if (data.claimedWithoutLetter > 0) issues.push(`${data.claimedWithoutLetter} claims with unknown outcome`);
+    if (data.exhausted > 0) issues.push(`${data.exhausted} accounts out of retries`);
+    // A dispatched letter whose document never reached the store: the letter is out, the compliance
+    // record is not. Reported, because nothing else would ever surface it.
+    if (data.sentWithoutFile > 0) issues.push(`${data.sentWithoutFile} letters without a document`);
+    if (data.backlog > backlogThreshold) issues.push(`${data.backlog} letters queued`);
+
+    if (issues.length === 0) return { status: HealthStatus.OK };
+    return { status: HealthStatus.DEGRADED, detail: issues.join(', ') };
   }
 
   private checkExternalServices(state: SystemState | null): { status: HealthStatus; detail?: string } {

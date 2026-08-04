@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { EntityManager } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -6,6 +6,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
+import { KycFile } from '../entities/kyc-file.entity';
 import { KycLog } from '../entities/kyc-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
@@ -18,6 +19,34 @@ export class KycLogService {
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly kycDocumentService: KycDocumentService,
   ) {}
+
+  /**
+   * Records one address letter dispatch transition, append-only.
+   *
+   * Written BEFORE the snapshot columns on the account change (`letterClaimDate`, `letterFailures`,
+   * `letterSentDate`), so the previous value and the reason for a change stay reconstructible from the
+   * database alone. Deliberately not swallowing errors: the caller must fail closed and leave the
+   * columns untouched when the trail cannot be written.
+   */
+  async createAddressLetterLog(
+    userData: UserData,
+    result: string,
+    comment?: string,
+    manager?: EntityManager,
+    fileId?: number,
+  ): Promise<void> {
+    const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
+    const entity = repo.create({
+      type: KycLogType.ADDRESS_LETTER,
+      eventDate: new Date(),
+      result,
+      comment,
+      userData,
+      file: fileId ? ({ id: fileId } as KycFile) : undefined,
+    });
+
+    await repo.save(entity);
+  }
 
   async createMergeLog(user: UserData, log: string, manager?: EntityManager): Promise<void> {
     const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
@@ -38,6 +67,12 @@ export class KycLogService {
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
+    // Address letter events are written by the dispatch job alone, inside the transaction that changes
+    // the state they describe. Letting one be created by hand would put a fabricated event into the
+    // trail - and `assertMutable` would then make it permanent.
+    if (dto.type === KycLogType.ADDRESS_LETTER)
+      throw new BadRequestException('Address letter logs are written by the dispatch job only');
+
     const entity = this.kycLogRepo.create({
       type: dto.type ?? KycLogType.MANUAL,
       comment: dto.comment,
@@ -82,6 +117,7 @@ export class KycLogService {
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Log not found');
+    this.assertMutable(entity);
 
     await this.kycLogRepo.save(Object.assign({ ...entity, ...dto }));
   }
@@ -89,8 +125,20 @@ export class KycLogService {
   async updateLogPdfUrl(id: number, url: string): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('KycLog not found');
+    this.assertMutable(entity);
 
     await this.kycLogRepo.update(...entity.setPdfUrl(url));
+  }
+
+  /**
+   * Address letter events are the evidence that a physical letter went out and that the AML proof
+   * behind it is honest. They are written append-only inside the transaction that changes the state
+   * they describe, so editing one afterwards would make the trail say something the database never
+   * did. `PUT /kycAdmin/log/:id` reaches every log by id, hence the guard here rather than there.
+   */
+  private assertMutable(entity: KycLog): void {
+    if (entity.type === KycLogType.ADDRESS_LETTER)
+      throw new BadRequestException('Address letter logs are append-only and cannot be changed');
   }
 
   async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {

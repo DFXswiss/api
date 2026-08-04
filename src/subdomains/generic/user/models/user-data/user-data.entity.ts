@@ -225,8 +225,26 @@ export class UserData extends IEntity {
   @Column({ type: 'float', nullable: true })
   depositLimit?: number;
 
+  // Proof that the address verification letter was physically handed to the print/dispatch provider.
+  // Read by the AML check (`AmlHelperService`, `AmlError.NO_LETTER`), so it must never be set for a
+  // letter that did not go out - see `letterClaimDate` for how the dispatch job keeps that promise.
   @Column({ type: 'timestamp', nullable: true })
   letterSentDate?: Date;
+
+  // Claim marker of `AddressLetterJobService`: set before the dispatch attempt, so a second replica
+  // (or the next run) cannot pick the same account up again. It is cleared again ONLY when the
+  // attempt provably did not send. `letterClaimDate IS NOT NULL AND letterSentDate IS NULL` therefore
+  // means "outcome unknown, do not retry automatically" and is what the observer alerts on. The two
+  // fields are separate on purpose: a single field cannot be both the retry guard (which has to be
+  // set BEFORE the send) and the AML proof (which may only be set AFTER it).
+  @Column({ type: 'timestamp', nullable: true })
+  letterClaimDate?: Date;
+
+  // Dispatch attempts that provably failed (PDF rendering error, or the provider rejecting the job).
+  // Caps the automatic retries of `AddressLetterJobService` - the automation it replaces retried
+  // forever in an unbounded loop.
+  @Column({ type: 'integer', default: 0 })
+  letterFailures: number;
 
   @Column({ length: 256, nullable: true })
   identificationType?: KycIdentificationType;

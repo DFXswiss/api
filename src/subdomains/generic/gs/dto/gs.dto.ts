@@ -1503,6 +1503,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'kycType',
       'languageId',
       'lastNameCheckDate',
+      // dispatch state of AddressLetterJobService, alongside the proof it produces: an operator has to
+      // be able to see a claim with an unknown outcome, not just the letters that went out
+      'letterClaimDate',
+      'letterFailures',
       'letterSentDate',
       'moderator',
       'monthlyBuyVolume',

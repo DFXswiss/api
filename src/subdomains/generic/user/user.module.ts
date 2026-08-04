@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { LetterModule } from 'src/integration/letter/letter.module';
 import { SiftModule } from 'src/integration/sift/sift.module';
 import { CustodyModule } from 'src/subdomains/core/custody/custody.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -45,6 +46,8 @@ import { UserDataRelationController } from './models/user-data-relation/user-dat
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { JwtRevocationSyncService } from './models/user-data/jwt-revocation-sync.service';
+import { AddressLetterJobService } from './models/user-data/address-letter-job.service';
+import { AddressLetterPdfService } from './models/user-data/address-letter-pdf.service';
 import { UserDataJobService } from './models/user-data/user-data-job.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
@@ -82,6 +85,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     forwardRef(() => KycModule),
     BankModule,
     SiftModule,
+    LetterModule,
     forwardRef(() => SupportIssueModule),
     forwardRef(() => TransactionModule),
     forwardRef(() => CustodyModule),
@@ -126,6 +130,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationService,
     OrganizationRepository,
     UserDataJobService,
+    AddressLetterPdfService,
+    AddressLetterJobService,
     JwtRevocationSyncService,
     StaffKycClearanceService,
     UserJobService,
