@@ -9,6 +9,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  MaxDate,
   ValidateNested,
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -299,6 +300,9 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsDate()
+  @MaxDate(() => new Date(), {
+    message: 'scorechainCheckDate must not be in the future: a review cannot be dated forward to extend the exemption',
+  })
   @Type(() => Date)
   scorechainCheckDate?: Date;
 
