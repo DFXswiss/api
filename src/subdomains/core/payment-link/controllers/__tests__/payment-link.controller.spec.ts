@@ -154,9 +154,19 @@ describe('PaymentLinkController', () => {
       expect(paymentLinkService.deletePaymentLink).not.toHaveBeenCalled();
     });
 
-    it.each(['42', ' 42 '])('passes the well-formed id %j through as a number', async (id) => {
-      await controller.deletePaymentLink(id);
+    // Pinned per handler: a rejection-only assertion would still pass if a site passed the wrong
+    // number, since parseIdParam throws before the argument is ever used.
+    it.each(['42', ' 42 '])('passes the well-formed id %j through unchanged', async (id) => {
+      await controller.updatePaymentLinkPayment(id, {} as never);
+      expect(paymentLinkPaymentService.updatePayment).toHaveBeenCalledWith(42, {});
 
+      await controller.updatePaymentLinkAdmin(id, {} as never);
+      expect(paymentLinkService.updatePaymentLinkAdmin).toHaveBeenCalledWith(42, {});
+
+      await controller.createPosLinkAdmin(id, 'true');
+      expect(paymentLinkService.createPosLinkAdmin).toHaveBeenCalledWith(42, true);
+
+      await controller.deletePaymentLink(id);
       expect(paymentLinkService.deletePaymentLink).toHaveBeenCalledWith(42);
     });
   });

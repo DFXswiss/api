@@ -88,6 +88,52 @@ describe('DepositRouteService', () => {
     });
   });
 
+  describe('getPaymentRoutesForPublicName scoping', () => {
+    // GET /v1/paymentLink/locations has no auth guard. With publicName omitted the nested userData
+    // object is all-undefined and dropped, leaving only `active` + blockchain — i.e. every merchant's
+    // Lightning route, whose recipient addresses getLocations then returns.
+    it.each([undefined, null, ''])('does not query when the public name is %p', async (publicName) => {
+      const routes = await service.getPaymentRoutesForPublicName(publicName as string);
+
+      expect(routes).toEqual([]);
+      expect(depositRouteRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a public name is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'find').mockResolvedValue([]);
+
+      await service.getPaymentRoutesForPublicName('acme');
+
+      expect(depositRouteRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ user: { userData: { paymentLinksName: 'acme' } } }),
+        }),
+      );
+    });
+  });
+
+  describe('getById scoping', () => {
+    it.each([undefined, null, 0])('does not query when the id is %p', async (id) => {
+      const route = await service.getById(
+        id as number,
+        {
+          where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+        } as FindOneOptions<DepositRoute>,
+      );
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when an id is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getById(42);
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 42 } }));
+    });
+  });
+
   describe('getPaymentLinksFromRoute scoping', () => {
     // The reachable shape: an id filter with no route to scope it to. Without the guard the surviving
     // where is the id filter alone, returning links that belong to other routes entirely.
