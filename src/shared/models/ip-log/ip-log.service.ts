@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
-import { FindOptionsWhere, IsNull, LessThanOrEqual, MoreThan } from 'typeorm';
+import { FindOptionsWhere, IsNull, MoreThan } from 'typeorm';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';
@@ -22,7 +22,6 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  private readonly idCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTHS);
   private readonly recentLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_10_SECONDS);
 
   async create(
@@ -71,16 +70,11 @@ export class IpLogService {
   }
 
   async getLoginCountries(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<string[]> {
-    const nearestLog = await this.idCache.get(Util.isoDate(dateFrom), () =>
-      this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
-    );
-
     return this.ipLogRepo
       .createQueryBuilder('log')
       .select('log.country', 'country')
       .distinct()
-      .where('log.id >= :id', { id: nearestLog.id })
-      .andWhere('log.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .where('log.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('log.userDataId = :userDataId', { userDataId })
       .andWhere('log.country IS NOT NULL')
       .getRawMany<{ country: string }>()
@@ -114,12 +108,10 @@ export class IpLogService {
   }
 
   async updateUserIpLogs(user: User): Promise<void> {
-    const dateFrom = Util.daysBefore(180);
-    const nearestLog = await this.idCache.get(Util.isoDate(dateFrom), () =>
-      this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
-    );
-
-    const request: FindOptionsWhere<IpLog> = { id: MoreThan(nearestLog.id), address: user.address };
+    const request: FindOptionsWhere<IpLog> = {
+      created: MoreThan(Util.daysBefore(180)),
+      address: user.address,
+    };
 
     await this.ipLogRepo.update(
       [

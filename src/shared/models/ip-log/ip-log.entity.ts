@@ -4,6 +4,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
+@Index((ipLog: IpLog) => [ipLog.address, ipLog.created])
 @Entity()
 export class IpLog extends IEntity {
   @Column({ length: 256 })
