@@ -1,0 +1,66 @@
+{
+  "pdfs": {
+    "titel": "Beispielbelege",
+    "beschreibung": "Committete PDF-Beispiele (RealUnit-Belege und Vermögensübersichten). Inline im Browser lesbar; regenerierbar per Jest mit Generate-Flag."
+  },
+  "mails": {
+    "titel": "Mail-Vorschauen",
+    "beschreibung": "HTML-Vorschauen aller RealUnit-Mail-Templates, erzeugt aus Handlebars-Template und i18n-Dateien."
+  },
+  "docs": {
+    "titel": "Dokumentation",
+    "beschreibung": "Markdown-Dokumentation aus dem Repository, zur Build-Zeit mit marked gerendert."
+  },
+  "diagrams": {
+    "titel": "Diagramme",
+    "beschreibung": "Architekturdiagramme und editierbare Quelldateien."
+  },
+  "assets": {
+    "titel": "Laufzeit-Assets",
+    "beschreibung": "Open-CryptoPay-Sticker und Logos, die der API-Laufzeitdienst aus assets/ ausliefert."
+  },
+  "specs": {
+    "titel": "Spezifikationen",
+    "beschreibung": "Maschinenlesbare API-Spezifikationen (AsyncAPI) und zugehörige README."
+  },
+  "realunit-receipt": {
+    "titel": "RealUnit Belege (Receipt)",
+    "beschreibung": "Transaktionsbestätigungen, Historie und Transfer-PDFs (DE/EN). Regenerieren: GENERATE_RECEIPT_EXAMPLES=true npx jest realunit-receipt-example"
+  },
+  "realunit-statement": {
+    "titel": "RealUnit Vermögensübersicht (Statement)",
+    "beschreibung": "Vermögensübersicht DE/EN. Regenerieren: GENERATE_STATEMENT_EXAMPLE=true npx jest realunit-statement-example"
+  },
+  "docs/endpoints.md": {
+    "titel": "API-Endpunkte",
+    "beschreibung": "Übersicht aller HTTP-Routen der API (breite Tabelle; horizontal nur im Tabellen-Container scrollbar)."
+  },
+  "docs/load-sites.md": {
+    "titel": "Load-Sites",
+    "beschreibung": "Dokumentation der Load-Site-Konfiguration und Nutzung."
+  },
+  "docs/cron-jobs.md": {
+    "titel": "Cron-Jobs",
+    "beschreibung": "Übersicht der @DfxCron-Jobs und ihrer Intervalle."
+  },
+  "docs/bank-frick-operations.md": {
+    "titel": "Bank Frick Operationen",
+    "beschreibung": "Betriebsabläufe und Besonderheiten der Bank-Frick-Integration."
+  },
+  "docs/payment-links.md": {
+    "titel": "Payment Links",
+    "beschreibung": "Dokumentation zu Payment-Link-Flows und Konfiguration."
+  },
+  "docs/read-path-projections.md": {
+    "titel": "Read-Path Projections",
+    "beschreibung": "Projektionen und Lese-Pfade der API."
+  },
+  "docs/coverage-gate.md": {
+    "titel": "Coverage Gate",
+    "beschreibung": "Wie das Coverage-Gate in CI greift und was die Schwellen bedeuten."
+  },
+  "docs/staff-kyc-clearance.md": {
+    "titel": "Staff KYC Clearance",
+    "beschreibung": "Staff-seitige KYC-Freigabeprozesse und Gates."
+  }
+}

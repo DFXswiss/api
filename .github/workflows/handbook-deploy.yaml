@@ -1,0 +1,115 @@
+# Build, push and deploy the DFX API handbook on develop.
+# Image: dfxswiss/dfx-api-handbook:latest → handbook.api.dfx.swiss
+#
+# Credentials for Basic Auth are NOT in this repo; the container receives
+# HANDBOOK_USER / HANDBOOK_PASSWORD from the deployment environment only.
+
+name: Handbook Deploy
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'docs/**'
+      - 'scripts/handbook/**'
+      - 'scripts/generate-realunit-previews.js'
+      - 'assets/**'
+      - 'src/subdomains/supporting/notification/templates/realunit.hbs'
+      - 'src/shared/i18n/de/mail-realunit.json'
+      - 'src/shared/i18n/de/mail.json'
+      - 'src/integration/exchange/docs/**'
+      - 'src/subdomains/supporting/dex/docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'Dockerfile.handbook'
+      - 'Dockerfile.handbook.dockerignore'
+      - 'handbook.nginx.conf'
+      - '.github/workflows/handbook-deploy.yaml'
+      - '.github/workflows/handbook-check.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: handbook-deploy
+  cancel-in-progress: false
+
+env:
+  DOCKER_TAGS: dfxswiss/dfx-api-handbook:latest
+  DEPLOY_SERVICE: dfx-api-handbook
+  SMOKE_URL: https://handbook.api.dfx.swiss/healthz
+
+jobs:
+  build-and-deploy:
+    name: Build, push, deploy, smoke
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.handbook
+          push: true
+          tags: ${{ env.DOCKER_TAGS }}
+          platforms: linux/arm64
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+      # Pin cloudflared and verify SHA256 (release binary, not "latest").
+      - name: Install cloudflared
+        env:
+          CLOUDFLARED_VERSION: '2025.4.0'
+          CLOUDFLARED_SHA256: '2561391ee9abdc828afcc52f5ac314b6551a9a6a31ff59cbc64efc63aec04615'
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-arm64" -o /usr/local/bin/cloudflared
+          echo "${CLOUDFLARED_SHA256}  /usr/local/bin/cloudflared" | sha256sum -c -
+          chmod +x /usr/local/bin/cloudflared
+
+      # IdentitiesOnly + IdentityAgent=none pin SSH to the explicit deploy key
+      # so OpenSSH does not probe default/agent keys first and exhaust
+      # MaxAuthTries on the server.
+      - name: Deploy via SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_PRD_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_PRD_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o IdentityAgent=none \
+            -o ProxyCommand="cloudflared access ssh --hostname ${{ secrets.DEPLOY_PRD_HOST }}" \
+            ${{ secrets.DEPLOY_PRD_USER }}@${{ secrets.DEPLOY_PRD_HOST }} \
+            "${{ env.DEPLOY_SERVICE }}"
+
+      # Poll public /healthz so a green job cannot lie when the container is up
+      # but nginx is not answering.
+      - name: Smoke test public endpoint
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -sS -L --max-redirs 3 -o /dev/null -w '%{http_code}' --max-time 10 "$SMOKE_URL" || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "handbook responded 200 after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "[$i/30] $SMOKE_URL -> ${code} (waiting 10 s)"
+            sleep 10
+          done
+          echo "::error::handbook never returned 200 within ~5 min after deploy"
+          exit 1
