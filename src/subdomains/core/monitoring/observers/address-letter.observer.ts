@@ -34,6 +34,11 @@ interface AddressLetterData {
   // Letters this job dispatched whose PDF never reached the KYC file store. `letterClaimDate IS NOT
   // NULL` restricts this to accounts the job itself handled: a few thousand accounts carry a historic
   // `letterSentDate` from before this job without a `PostDispatch` file and would otherwise drown it.
+  //
+  // LIMIT: it counts rows, and `KycDocumentService.uploadFile` writes the row before the blob. A failed
+  // upload is caught and the row invalidated, so that case is covered - but a hard crash between the
+  // two leaves a valid row with no blob, which this metric reads as present. Closing that would mean
+  // changing the shared upload path for every caller; storage reconciliation is the tool for it.
   sentWithoutFile: number;
   // APPROXIMATE age (hours) of the oldest processable candidate, derived from `user_data.updated`.
   // That is an @UpdateDateColumn bumped by every save, so this is "time since last change" and only a

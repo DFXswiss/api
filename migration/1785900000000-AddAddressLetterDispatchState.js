@@ -47,17 +47,18 @@ module.exports = class AddAddressLetterDispatchState1785900000000 {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterClaimDate" TIMESTAMP`);
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterFailures" integer NOT NULL DEFAULT 0`);
-    // Appends without duplicating, and creates the setting when it does not exist yet.
+    // Strictly additive, and a no-op when the entry is already there: the `WHERE` on the conflict
+    // branch leaves the row completely untouched in that case, so this migration never replaces a value
+    // an operator owns - it only ever appends its own entry to the list.
     await queryRunner.query(`
       INSERT INTO "setting" ("key", "value", "updated", "created")
       VALUES ('disabledProcess', '["AddressLetter"]', NOW(), NOW())
-      ON CONFLICT ("key") DO UPDATE SET "value" = (
-        COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb
-        || CASE
-          WHEN COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb @> '["AddressLetter"]'::jsonb
-          THEN '[]'::jsonb ELSE '["AddressLetter"]'::jsonb
-        END
-      )::text, "updated" = NOW()
+      ON CONFLICT ("key") DO UPDATE
+        SET "value" = (
+          COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb || '["AddressLetter"]'::jsonb
+        )::text,
+        "updated" = NOW()
+        WHERE NOT (COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb @> '["AddressLetter"]'::jsonb)
     `);
   }
 

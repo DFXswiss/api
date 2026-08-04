@@ -13,7 +13,13 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { IsNull } from 'typeorm';
 import { AddressLetterJobService } from '../address-letter-job.service';
 import { AddressLetterPdfService } from '../address-letter-pdf.service';
+import { AccountType } from '../account-type.enum';
+import { KycLevel, KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
+
+// Constructed at module scope, not in `beforeAll`: the `it.each` table below reads Config while the
+// test file is being loaded, which happens before any hook runs.
+new ConfigService();
 
 describe('AddressLetterJobService', () => {
   let service: AddressLetterJobService;
@@ -27,11 +33,19 @@ describe('AddressLetterJobService', () => {
   let notificationService: NotificationService;
 
   let queryBuilder: any;
+  // Releases and the proof stamp run inside a transaction, so they go through the manager's repository
+  // rather than through the injected one. This captures them.
+  let txUpdate: jest.Mock;
 
   // synthetic test data only (public repo) — never a real customer name, address or account id
   function createUserData(id: number, overrides: Partial<any> = {}): any {
     return {
       id,
+      kycLevel: KycLevel.LEVEL_50,
+      kycType: KycType.DFX,
+      status: UserDataStatus.ACTIVE,
+      accountType: null,
+      letterSentDate: null,
       firstname: 'Testina',
       surname: 'Musterfrau',
       naturalPersonName: 'Testina Musterfrau',
@@ -73,10 +87,6 @@ describe('AddressLetterJobService', () => {
       .mockImplementation((where: any) => Promise.resolve(candidates.find((c) => c.id === where.id)));
   }
 
-  beforeAll(() => {
-    new ConfigService();
-  });
-
   beforeEach(async () => {
     userDataRepo = createMock<UserDataRepository>();
     addressLetterPdfService = createMock<AddressLetterPdfService>();
@@ -102,6 +112,11 @@ describe('AddressLetterJobService', () => {
     service = module.get<AddressLetterJobService>(AddressLetterJobService);
 
     queryBuilder = createQueryBuilder([]);
+    txUpdate = jest.fn().mockResolvedValue({ affected: 1 });
+    Object.defineProperty(userDataRepo, 'manager', {
+      value: { transaction: (fn: any) => fn({ getRepository: () => ({ update: txUpdate }) }) },
+      configurable: true,
+    });
     jest.spyOn(userDataRepo, 'createQueryBuilder').mockReturnValue(queryBuilder);
     jest.spyOn(userDataRepo, 'update').mockResolvedValue({ affected: 1 } as any);
     jest.spyOn(userDataRepo, 'findOneBy').mockResolvedValue(null);
@@ -193,8 +208,26 @@ describe('AddressLetterJobService', () => {
     await service.sendAddressLetters();
 
     expect(letterService.sendLetter).not.toHaveBeenCalled();
-    expect(updateCalls()[1][1]).toEqual({ letterClaimDate: null });
+    expect(txUpdate.mock.calls[0][1]).toEqual({ letterClaimDate: null });
     expect(notificationService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['merged', { status: UserDataStatus.MERGED }],
+    ['an organization', { accountType: AccountType.ORGANIZATION }],
+    ['below the KYC level', { kycLevel: KycLevel.LEVEL_40 }],
+    ['a different KYC type', { kycType: KycType.LOCK }],
+    ['already stamped', { letterSentDate: new Date() }],
+    ['out of retries', { letterFailures: Config.letter.addressLetter.maxFailures }],
+  ])('never sends to an account that became %s after it was selected', async (_case, change) => {
+    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    jest.spyOn(userDataRepo, 'findOneBy').mockResolvedValue(createUserData(7, change) as any);
+
+    await service.sendAddressLetters();
+
+    // the claim cannot carry these conditions, so they are re-checked on the claimed row
+    expect(letterService.sendLetter).not.toHaveBeenCalled();
+    expect(txUpdate.mock.calls[0][1]).toEqual({ letterClaimDate: null });
   });
 
   it('sends, stamps the AML proof and attaches the document, in that order', async () => {
@@ -210,8 +243,8 @@ describe('AddressLetterJobService', () => {
       ship: LetterShip.INTERNATIONAL,
     });
 
-    const [criteria, values] = updateCalls()[1];
-    expect(criteria).toEqual({ id: 7, letterSentDate: IsNull() });
+    const [criteria, values] = txUpdate.mock.calls[0];
+    expect(criteria).toEqual({ id: 7, letterSentDate: IsNull(), letterClaimDate: expect.any(Date) });
     expect(values).toEqual({ letterSentDate: expect.any(Date) });
 
     const upload = (kycDocumentService.uploadUserFile as jest.Mock).mock.calls[0];
@@ -221,7 +254,7 @@ describe('AddressLetterJobService', () => {
 
     // the proof may only be written after the dispatch, and the upload only after the proof
     const sendOrder = (letterService.sendLetter as jest.Mock).mock.invocationCallOrder[0];
-    const stampOrder = (userDataRepo.update as jest.Mock).mock.invocationCallOrder[1];
+    const stampOrder = txUpdate.mock.invocationCallOrder[0];
     const uploadOrder = (kycDocumentService.uploadUserFile as jest.Mock).mock.invocationCallOrder[0];
     expect(sendOrder).toBeLessThan(stampOrder);
     expect(stampOrder).toBeLessThan(uploadOrder);
@@ -252,7 +285,7 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    expect(updateCalls().some(([, values]) => 'letterSentDate' in values)).toBe(false);
+    expect([...updateCalls(), ...txUpdate.mock.calls].some(([, values]) => 'letterSentDate' in values)).toBe(false);
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
 
@@ -262,16 +295,37 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    const [criteria, values] = updateCalls()[1];
-    // guarded by the observed count, so an overlapping run cannot lose an increment
-    expect(criteria).toEqual({ id: 7, letterFailures: 1 });
+    const [criteria, values] = txUpdate.mock.calls[0];
+    // guarded by the observed count AND by this attempt's own claim, so neither an overlapping run nor
+    // a resumed stale attempt can clear a claim that is no longer theirs
+    expect(criteria).toEqual({
+      id: 7,
+      letterSentDate: IsNull(),
+      letterClaimDate: expect.any(Date),
+      letterFailures: 1,
+    });
     expect(values).toEqual({ letterClaimDate: null, letterFailures: 2 });
 
     const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[0];
     expect(log[1]).toContain('failures 1 -> 2');
-    // event before snapshot: the audit row is durable before the columns lose their previous values
+    // event before snapshot, and in the same transaction: the log is passed the manager
     const logOrder = (kycLogService.createAddressLetterLog as jest.Mock).mock.invocationCallOrder[0];
-    expect(logOrder).toBeLessThan((userDataRepo.update as jest.Mock).mock.invocationCallOrder[1]);
+    expect(logOrder).toBeLessThan(txUpdate.mock.invocationCallOrder[0]);
+    expect(log[3]).toBeDefined();
+  });
+
+  it('changes nothing and reports no exhaustion when the claim was lost meanwhile', async () => {
+    withCandidates(createUserData(7, { letterFailures: Config.letter.addressLetter.maxFailures - 1 }));
+    jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
+    txUpdate.mockResolvedValue({ affected: 0 });
+
+    await service.sendAddressLetters();
+
+    // an update that hit no row means someone else owns the claim - reporting exhaustion would name an
+    // account whose counter this run does not control
+    const mail = (notificationService.sendMail as jest.Mock).mock.calls[0][0];
+    expect(mail.input.errors.join(' ')).not.toContain('Retries exhausted');
+    expect(mail.input.errors.join(' ')).toContain('unknown');
   });
 
   it('leaves the state untouched when the audit trail cannot be written', async () => {
@@ -281,7 +335,7 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    // only the claim was written; nothing cleared it and no failure was counted
+    // only the claim was written; the transaction rolled back, so nothing cleared it
     expect(updateCalls()).toHaveLength(1);
     expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
   });
@@ -314,7 +368,7 @@ describe('AddressLetterJobService', () => {
 
     expect(addressLetterPdfService.generatePdf).toHaveBeenCalledTimes(1);
     expect(letterService.sendLetter).not.toHaveBeenCalled();
-    expect(updateCalls()[1][1]).toEqual({ letterClaimDate: null, letterFailures: 1 });
+    expect(txUpdate.mock.calls[0][1]).toEqual({ letterClaimDate: null, letterFailures: 1 });
   });
 
   it('escalates once the retries of an account ran out', async () => {
@@ -346,9 +400,10 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    expect(updateCalls()[1][1]).toEqual({ letterSentDate: expect.any(Date) });
+    expect(txUpdate.mock.calls[0][1]).toEqual({ letterSentDate: expect.any(Date) });
     // an upload failure is not a dispatch failure: nothing is rolled back and no retry is queued
-    expect(updateCalls()).toHaveLength(2);
+    expect(txUpdate.mock.calls).toHaveLength(1);
+    expect(updateCalls()).toHaveLength(1);
   });
 
   it('invalidates the row a failed upload left behind, so it cannot pass as a stored document', async () => {
@@ -362,7 +417,13 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    expect(kycFileService.invalidateKycFile).toHaveBeenCalledWith(42);
+    expect(kycFileService.invalidateKycFile).toHaveBeenCalledWith(42, expect.anything());
+    // `valid` is a snapshot column too: the transition is recorded, naming the file, before the update
+    const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls.find((c) =>
+      c[1].includes('document invalidated'),
+    );
+    expect(log[1]).toContain('valid true -> false');
+    expect(log[4]).toBe(42);
   });
 
   it('bills the pages it actually rendered', async () => {
@@ -379,8 +440,10 @@ describe('AddressLetterJobService', () => {
 
     await service.sendAddressLetters();
 
-    const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[0];
-    expect(log[1]).toContain('dispatched');
-    expect(log[2]).toContain('file 1');
+    const dispatched = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[0];
+    expect(dispatched[1]).toContain('dispatched');
+
+    const document = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[1];
+    expect(document[1]).toContain('document stored: file 1');
   });
 });

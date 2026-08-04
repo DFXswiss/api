@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
-import { FindOptionsRelations } from 'typeorm';
+import { EntityManager, FindOptionsRelations } from 'typeorm';
 import { CreateKycFileDto } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { KycFileRepository } from '../repositories/kyc-file.repository';
@@ -27,8 +27,8 @@ export class KycFileService {
   // so a failing storage upload leaves a row pointing at a blob that does not exist - and reporting,
   // which only counts valid files, would treat the document as present. This keeps the store honest
   // instead of leaving that orphan behind.
-  async invalidateKycFile(id: number): Promise<void> {
-    await this.kycFileRepository.update(id, { valid: false });
+  async invalidateKycFile(id: number, manager?: EntityManager): Promise<void> {
+    await (manager?.getRepository(KycFile) ?? this.kycFileRepository).update(id, { valid: false });
     this.kycFileRepository.invalidateCache();
   }
 

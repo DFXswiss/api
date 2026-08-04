@@ -6,6 +6,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
+import { KycFile } from '../entities/kyc-file.entity';
 import { KycLog } from '../entities/kyc-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
@@ -27,16 +28,24 @@ export class KycLogService {
    * database alone. Deliberately not swallowing errors: the caller must fail closed and leave the
    * columns untouched when the trail cannot be written.
    */
-  async createAddressLetterLog(userData: UserData, result: string, comment?: string): Promise<void> {
-    const entity = this.kycLogRepo.create({
+  async createAddressLetterLog(
+    userData: UserData,
+    result: string,
+    comment?: string,
+    manager?: EntityManager,
+    fileId?: number,
+  ): Promise<void> {
+    const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
+    const entity = repo.create({
       type: KycLogType.ADDRESS_LETTER,
       eventDate: new Date(),
       result,
       comment,
       userData,
+      file: fileId ? ({ id: fileId } as KycFile) : undefined,
     });
 
-    await this.kycLogRepo.save(entity);
+    await repo.save(entity);
   }
 
   async createMergeLog(user: UserData, log: string, manager?: EntityManager): Promise<void> {

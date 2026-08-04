@@ -14,7 +14,8 @@ import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.ser
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, SelectQueryBuilder } from 'typeorm';
+import { FindOptionsWhere, IsNull, SelectQueryBuilder } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { AccountType } from './account-type.enum';
 import { AddressLetterPdf, AddressLetterPdfService } from './address-letter-pdf.service';
 import { UserData } from './user-data.entity';
@@ -62,11 +63,37 @@ export function applyCompleteAddress(qb: SelectQueryBuilder<UserData>): SelectQu
     .andWhere(`NULLIF(BTRIM(country.name), '') IS NOT NULL`);
 }
 
-/** The address parts the envelope needs, tested the same way the SQL predicate tests them. */
-function hasPrintableAddress(userData: UserData): boolean {
-  return [userData.firstname, userData.street, userData.zip, userData.location, userData.country?.name].every((part) =>
-    part?.trim(),
+/**
+ * The in-memory counterpart of `applyLetterEligibility` + `applyCompleteAddress`, re-evaluated on the
+ * row as it stands under the claim.
+ *
+ * The claim cannot carry these conditions: it has to match on the claim columns alone to stay a valid
+ * compare-and-set. Between selecting a candidate and claiming it, an account can be merged, turn into
+ * an organization, lose KYC level or have its address emptied - and a letter is irreversible. So the
+ * predicate is checked once more on the claimed row, and the two definitions are kept adjacent on
+ * purpose: a change to one is meant to be an obvious change to the other.
+ */
+function isStillEligible(userData: UserData): boolean {
+  const { maxFailures } = Config.letter.addressLetter;
+
+  return (
+    !userData.letterSentDate &&
+    userData.letterFailures < maxFailures &&
+    userData.kycLevel >= KycLevel.LEVEL_50 &&
+    userData.kycType === KycType.DFX &&
+    userData.status !== UserDataStatus.MERGED &&
+    userData.accountType !== AccountType.ORGANIZATION &&
+    [userData.firstname, userData.street, userData.zip, userData.location, userData.country?.name].every((part) =>
+      part?.trim(),
+    )
   );
+}
+
+/** Thrown when a conditional update finds no row: someone else owns the claim now. */
+class ClaimLostError extends Error {
+  constructor(userDataId: number) {
+    super(`Address letter claim lost for account ${userDataId}`);
+  }
 }
 
 /**
@@ -175,9 +202,9 @@ export class AddressLetterJobService {
         continue;
       }
 
-      if (!hasPrintableAddress(userData)) {
-        this.logger.info(`Address letter skipped for account ${userData.id}: address no longer printable`);
-        if (!(await this.unclaim(userData, claimedAt, 'address no longer printable'))) break;
+      if (!isStillEligible(userData)) {
+        this.logger.info(`Address letter skipped for account ${userData.id}: no longer eligible under its claim`);
+        if (!(await this.unclaim(userData, claimedAt, 'no longer eligible'))) break;
         continue;
       }
 
@@ -234,9 +261,14 @@ export class AddressLetterJobService {
       }
 
       // The AML proof, and only now: everything above can still fail without a letter existing,
-      // everything below cannot undo one that does. Writing a NULL column overwrites nothing.
+      // everything below cannot undo one that does. Record and stamp in one transaction, so the trail
+      // and the proof can never disagree about whether this letter went out.
       const sentAt = new Date();
-      await this.userDataRepo.update({ id: userData.id, letterSentDate: IsNull() }, { letterSentDate: sentAt });
+      if (!(await this.stampProof(userData, claimedAt, sentAt))) {
+        lastError = `Address letter sent but not stamped for account ${userData.id}`;
+        unknown.push(userData.id);
+        break;
+      }
 
       await this.attachKycFile(userData, pdf.base64, sentAt);
     }
@@ -266,8 +298,53 @@ export class AddressLetterJobService {
   }
 
   /**
-   * Counts a provably failed attempt and releases the claim. Returns true when the audit trail could
-   * not be written — the caller then stops, because the columns were deliberately left untouched.
+   * Writes the immutable event and the state change it describes in ONE transaction, so the trail can
+   * never claim a transition that did not happen (nor a transition go unrecorded).
+   *
+   * Every criteria carries `letterClaimDate: claimedAt`, i.e. proof that this attempt still owns the
+   * claim. Without it a stalled attempt could, on resuming, clear a claim that a later attempt has
+   * meanwhile taken - and two workers dispatching the same account is the one outcome that cannot be
+   * undone. Comparing against the timestamp this run wrote itself is safe: it is the same value that
+   * went into the column, not one read back at a different precision.
+   *
+   * Returns false when nothing was changed, distinguishing a lost claim (benign, someone else owns it)
+   * from an unusable audit store (systemic, the caller stops the run).
+   */
+  private async recordTransition(
+    userData: UserData,
+    criteria: FindOptionsWhere<UserData>,
+    values: QueryDeepPartialEntity<UserData>,
+    result: string,
+    comment: string,
+  ): Promise<boolean> {
+    try {
+      await this.userDataRepo.manager.transaction(async (manager) => {
+        await this.kycLogService.createAddressLetterLog(userData, result, comment, manager);
+
+        const update = await manager
+          .getRepository(UserData)
+          .update({ id: userData.id, letterSentDate: IsNull(), ...criteria }, values);
+        // Rolls the event back with it: an event describing a transition that did not happen is worse
+        // than no event at all.
+        if (!update.affected) throw new ClaimLostError(userData.id);
+      });
+
+      return true;
+    } catch (e) {
+      if (e instanceof ClaimLostError) {
+        this.logger.warn(e.message);
+        return false;
+      }
+
+      this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
+      return false;
+    }
+  }
+
+  /**
+   * Counts a provably failed attempt and releases the claim. Returns true when the caller must stop:
+   * either the trail could not be written or the claim was lost, and in both cases the columns were
+   * deliberately left untouched.
    */
   private async countFailure(
     userData: UserData,
@@ -279,30 +356,21 @@ export class AddressLetterJobService {
     const { maxFailures } = Config.letter.addressLetter;
     const failures = userData.letterFailures + 1;
 
-    try {
-      // Event before snapshot: the claim timestamp is about to be cleared and the counter overwritten,
-      // and neither previous value exists anywhere else.
-      await this.kycLogService.createAddressLetterLog(
-        userData,
-        `dispatch failed: claimDate ${claimedAt.toISOString()} -> null, failures ${userData.letterFailures} -> ${failures}`,
-        reason,
-      );
-    } catch (e) {
-      // Fail closed: no audit, no column change. The claim stays and is reported as unknown outcome.
-      this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
+    const released = await this.recordTransition(
+      userData,
+      { letterClaimDate: claimedAt, letterFailures: userData.letterFailures },
+      { letterClaimDate: null, letterFailures: failures },
+      `dispatch failed: claimDate ${claimedAt.toISOString()} -> null, failures ${userData.letterFailures} -> ${failures}`,
+      reason,
+    );
+
+    if (!released) {
       unknown.push(userData.id);
       return true;
     }
 
-    // The counter guard makes the release idempotent against a run that overlaps this one: a second
-    // writer that already incremented leaves this update without effect instead of losing its increment.
-    const release = await this.userDataRepo.update(
-      { id: userData.id, letterFailures: userData.letterFailures },
-      { letterClaimDate: null, letterFailures: failures },
-    );
-    if (!release.affected)
-      this.logger.warn(`Address letter claim release had no effect for account ${userData.id}, failure count moved`);
-
+    // Only a release that actually took effect may report exhaustion - otherwise the alert names an
+    // account whose counter someone else owns.
     if (failures >= maxFailures) exhausted.push(userData.id);
 
     return false;
@@ -310,24 +378,35 @@ export class AddressLetterJobService {
 
   /**
    * Releases a claim for an account that turned out not to be dispatchable, without counting a failed
-   * attempt — nothing was sent and nothing was wrong with the dispatch. Returns false when the audit
-   * trail could not be written, in which case the claim was deliberately left in place.
+   * attempt — nothing was sent and nothing was wrong with the dispatch. Returns false when the claim
+   * was left in place, in which case the caller stops.
    */
   private async unclaim(userData: UserData, claimedAt: Date, reason: string): Promise<boolean> {
-    try {
-      await this.kycLogService.createAddressLetterLog(
-        userData,
-        `claim released: claimDate ${claimedAt.toISOString()} -> null`,
-        reason,
-      );
-    } catch (e) {
-      this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
-      return false;
-    }
+    return this.recordTransition(
+      userData,
+      { letterClaimDate: claimedAt },
+      { letterClaimDate: null },
+      `claim released: claimDate ${claimedAt.toISOString()} -> null`,
+      reason,
+    );
+  }
 
-    await this.userDataRepo.update({ id: userData.id }, { letterClaimDate: null });
+  /** Records the dispatch and stamps the AML proof in one transaction, under this attempt's claim. */
+  private async stampProof(userData: UserData, claimedAt: Date, sentAt: Date): Promise<boolean> {
+    const stamped = await this.recordTransition(
+      userData,
+      { letterClaimDate: claimedAt },
+      { letterSentDate: sentAt },
+      `dispatched: letterSentDate null -> ${sentAt.toISOString()}`,
+      `claimed ${claimedAt.toISOString()}`,
+    );
 
-    return true;
+    // The letter is already out. A missing stamp leaves the claim standing, which is the honest state:
+    // the observer reports it as an unknown outcome and a human reconciles it with the provider.
+    if (!stamped)
+      this.logger.critical(`Address letter dispatched for account ${userData.id} but the proof was not stamped`);
+
+    return stamped;
   }
 
   /**
@@ -356,35 +435,52 @@ export class AddressLetterJobService {
         { document: 'AddressLetter', creationTime: date.toISOString(), fileName: name },
       );
 
-      // de-facto audit trail, replacing the archive the previous automation kept
-      this.logger.info(`Address letter sent for account ${userData.id}: ${name} (file ${file.id})`);
-      await this.logDispatch(userData, date, `file ${file.id} (${name})`);
+      this.logger.info(`Address letter document stored for account ${userData.id}: ${name} (file ${file.id})`);
+      await this.logDocument(userData, `document stored: file ${file.id} (${name})`);
     } catch (e) {
       this.logger.error(`Address letter file upload failed for account ${userData.id} after dispatch`, e);
       // `uploadUserFile` writes the row before the blob, so a failed storage upload leaves a valid row
       // without a blob behind. Left alone, the observer's anti-join would count the document as present
       // and `sentWithoutFile` would stay silent about the very case it exists for.
-      await this.invalidateOrphanFile(userData, name);
-      await this.logDispatch(userData, date, `document upload failed: ${e.message}`);
+      await this.invalidateOrphanFile(userData, name, e.message);
+      await this.logDocument(userData, `document upload failed: ${e.message}`);
     }
   }
 
-  /** The dispatch itself, for the record. Never lets a failed trail write undo a letter already sent. */
-  private async logDispatch(userData: UserData, sentAt: Date, detail: string): Promise<void> {
+  /**
+   * The document outcome, for the record. Best effort on purpose: the letter and its proof are already
+   * durable at this point, and a missing note about the document must not fail anything.
+   */
+  private async logDocument(userData: UserData, detail: string): Promise<void> {
     await this.kycLogService
-      .createAddressLetterLog(userData, `dispatched: letterSentDate null -> ${sentAt.toISOString()}`, detail)
-      .catch((e) => this.logger.error(`Address letter dispatch log failed for account ${userData.id}`, e));
+      .createAddressLetterLog(userData, detail)
+      .catch((e) => this.logger.error(`Address letter document log failed for account ${userData.id}`, e));
   }
 
-  private async invalidateOrphanFile(userData: UserData, name: string): Promise<void> {
+  /**
+   * Marks the row a failed upload left behind as invalid, recording the transition first: `valid` is a
+   * mutable snapshot column, and `true -> false` would otherwise be an overwrite with no recoverable
+   * previous value. Log and update share one transaction, and the log names the file it describes.
+   */
+  private async invalidateOrphanFile(userData: UserData, name: string, reason: string): Promise<void> {
     const files = await this.kycFileService
       .getUserDataKycFiles(userData.id)
       .catch(() => [] as { id: number; name: string }[]);
     const orphan = files.find((f) => f.name === name);
-    if (orphan)
-      await this.kycFileService
-        .invalidateKycFile(orphan.id)
-        .catch((e) => this.logger.error(`Address letter orphan invalidation failed for file ${orphan.id}`, e));
+    if (!orphan) return;
+
+    await this.userDataRepo.manager
+      .transaction(async (manager) => {
+        await this.kycLogService.createAddressLetterLog(
+          userData,
+          `document invalidated: file ${orphan.id} valid true -> false`,
+          reason,
+          manager,
+          orphan.id,
+        );
+        await this.kycFileService.invalidateKycFile(orphan.id, manager);
+      })
+      .catch((e) => this.logger.error(`Address letter orphan invalidation failed for file ${orphan.id}`, e));
   }
 
   /**
