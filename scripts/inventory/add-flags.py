@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ergaenzt table.json um `deprecated` und bestimmt `version` aus dem vollen Dekoratorenblock.
+"""Adds `deprecated` to table.json and determines `version` from the full decorator block.
 
 The block between the route decorator and the method is delimited exactly (counting brackets,
 respecting strings and comments) — a window of a fixed number of lines misses a multi-line
@@ -44,7 +44,7 @@ def skip_args(s, i):
     return i
 
 def decorator_block(s, i):
-    """Text aller Dekoratoren zwischen Routen-Dekorator und Methodensignatur."""
+    """The text of every decorator between the route decorator and the method signature."""
     start = i
     while True:
         i = skip_trivia(s, i)

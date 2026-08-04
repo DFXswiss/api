@@ -119,12 +119,12 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/admin/sendLetter` | hidden | none | — | n/a |  | `AdminController.sendLetter` | `subdomains/generic/admin/admin.controller.ts` |
 | POST | 1 |  | `/alchemy/addressWebhook` | hidden | none | — | n/a |  | `AlchemyController.addressWebhook` | `integration/alchemy/controllers/alchemy.controller.ts` |
 | GET | 1 |  | `/alchemy/addresses/:webhookId` | hidden | none | — | n/a |  | `AlchemyController.addresses` | `integration/alchemy/controllers/alchemy.controller.ts` |
-| GET | 1 |  | `/app` | hidden | whole rows | 6 | not yet |  | `AppController.createRefNew` | `app.controller.ts` |
-| GET | 1 |  | `/app/:app` | hidden | whole rows | 6 | not yet |  | `AppController.redirectToStore` | `app.controller.ts` |
+| GET | 1 |  | `/app` | hidden | whole rows | 6 | not yet | yes | `AppController.createRefNew` | `app.controller.ts` |
+| GET | 1 |  | `/app/:app` | hidden | whole rows | 6 | not yet | yes | `AppController.redirectToStore` | `app.controller.ts` |
 | GET | 1 |  | `/app/advertisements` | hidden | none | — | n/a |  | `AppController.getAds` | `app.controller.ts` |
 | GET | 1 |  | `/app/announcements` | hidden | none | — | n/a |  | `AppController.getAnnouncements` | `app.controller.ts` |
 | GET | 1 |  | `/app/settings/flags` | hidden | none | — | n/a |  | `AppController.getFlags` | `app.controller.ts` |
-| GET | 1 |  | `/asset` | public | whole rows | 33 | not yet |  | `AssetController.getAllAsset` | `shared/models/asset/asset.controller.ts` |
+| GET | 1 |  | `/asset` | public | whole rows | 33 | not yet | yes | `AssetController.getAllAsset` | `shared/models/asset/asset.controller.ts` |
 | PUT | 1 |  | `/asset/:id` | hidden | whole rows | 33 | not yet |  | `AssetController.updateAsset` | `shared/models/asset/asset.controller.ts` |
 | POST | 1 |  | `/auth` | public | whole rows | 643 | not yet |  | `AuthController.authenticate` | `subdomains/generic/user/models/auth/auth.controller.ts` |
 | GET | 1 |  | `/auth/2fa` | public | whole rows | 253 | not yet |  | `AuthController.check2fa` | `subdomains/generic/user/models/auth/auth.controller.ts` |

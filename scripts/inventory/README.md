@@ -13,8 +13,13 @@ npm run build                 # the column counts come from the compiled entitie
 node scripts/inventory/run.js # writes to .inventory-out/ by default
 ```
 
-No database is involved. The counts come from the TypeORM metadata via `buildMetadatas()`, so the
-numbers are measured against the real schema rather than estimated from the source text.
+No database is involved. Where a query loads whole rows, the width is measured against the real
+schema — the query is built from the TypeORM metadata and its SELECT list counted. Where a query
+names its columns, the width is the number of names, counted in the source; and where the field
+list comes from a `ReadProjection` constant, it is that constant's size, which
+`join-measurements.py` holds in a table. So two of the three are source counts, not measurements,
+and the table is the one part of the chain that can silently go out of date. It does not go
+silently: a query that names columns and yields no count stops the run.
 
 Python 3 and Node are the only prerequisites. The chain takes a few minutes, most of it in the
 call-graph resolution.
@@ -27,8 +32,7 @@ call-graph resolution.
 | `measure-columns.js`    | `dist`, `sites.json`     | `measured.json` — the SELECT width of each site                          |
 | `join-measurements.py`  | both of the above        | `sites-measured.json`                                                    |
 | `extract-routes.py`     | `src/**/*.controller.ts` | `table.json` — one row per routing decorator                             |
-| `add-versions.py`       | `table.json`             | the API version per route                                                |
-| `add-flags.py`          | `table.json`             | `@ApiOperation({ deprecated })`                                          |
+| `add-flags.py`          | `table.json`             | the API version per route and `@ApiOperation({ deprecated })`            |
 | `resolve-endpoints.py`  | both trees               | `endpoint-eff.json` — the union over every load site an endpoint reaches |
 | `render-docs.py`        | the two JSON files       | `endpoints.md`, `load-sites.md`                                          |
 | `probe-claims.js`       | `dist`                   | the schema-wide figures the prose quotes                                 |
@@ -41,8 +45,10 @@ The output goes to a directory, not over `docs/`. That is deliberate — see bel
 
 - **`Tests`** — the state against the four levels in `read-path-projections.md`. No tool can derive
   it; it records a judgement about test coverage.
-- **`Spec`** — derived, but a weak signal by construction, and corrected by hand where the
-  derivation is known to be wrong.
+- **`Spec`** — derived, but a weak signal by construction: it says a spec file names the
+  controller and calls the handler, not that the endpoint is covered. Where that derivation is
+  known to be wrong, the column is corrected by hand, and such a correction must survive a
+  regeneration.
 
 **The prose is also hand-maintained.** The introductions, the limits sections and the worked
 examples in both documents were corrected repeatedly during review; the templates in
@@ -52,19 +58,31 @@ an older version of itself. Read the diff before accepting it.
 So the working method is: run the generator, and transfer what actually changed — not the other way
 round.
 
-## The documents and this tool do not agree exactly
+## How far the documents and this tool are apart
 
-Measured on the tree this tool was committed against, `docs/load-sites.md` differs from a fresh run
-in **131 column counts and 28 join counts**, and `docs/endpoints.md` in **6 `Max cols` values and 3
-`Spec` values**.
+Measured on the tree this tool was committed against:
 
-That is not a defect on either side. Those documents were published with the numbers frozen at the
-measurement epoch of the pull request that introduced them, while the generator measures the tree in
-front of it. Entities have gained columns since. Where the two disagree, **the generator is the
-current answer and the document is the older one**.
+- `docs/endpoints.md` — **no differing rows**. Every route, classification, width and test state
+  the generator produces is what the document already says.
+- `docs/load-sites.md` — **114 column counts and 10 join counts** differ, almost all of them a
+  handful of columns higher in the fresh run.
 
-Anyone regenerating should therefore expect a large numeric diff on the first run and should not
-read it as breakage.
+The remaining difference is not a defect on either side. Those numbers were published with the
+measurement frozen at the epoch of the pull request that introduced the document, while the
+generator measures the tree in front of it, and entities have gained columns since. For the width
+of a query the fresh measurement is the current answer.
+
+That is not a general rule, and it does not extend to `Tests` or to a hand-corrected `Spec`: there
+the document is the record and the generator is the weaker signal. Read the diff per column, not
+per file.
+
+## Where it stops rather than guesses
+
+- A query builder that names columns but yields no width means `PROJECTION_SIZES` no longer matches
+  the projection constants — renamed, or newly added. The run stops and names the sites.
+- A load site whose entity resolves but whose relation tree does not is reported by count and by
+  site. It is not fatal: the document has a form for it, a dash in the width column, and five such
+  sites exist today. A new one shows up in the log rather than in silence.
 
 ## What this cannot check
 

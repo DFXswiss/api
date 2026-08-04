@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baut docs/endpoints.md und docs/load-sites.md neu."""
+"""Rebuilds docs/endpoints.md and docs/load-sites.md."""
 import json, re, os
 from collections import Counter
 
@@ -38,7 +38,7 @@ def is_write_qb(s):
     return bool(re.search(r'\.(update|delete|insert|softDelete|restore)\s*\(', chain))
 
 def raw_kind(s):
-    """Rohes SQL: Sperre, Schreibvorgang oder echter Lesevorgang."""
+    """Raw SQL: a lock, a write, or a genuine read."""
     f = SRC + s['file'].replace('src/', '')
     body = '\n'.join(open(f, encoding='utf-8', errors='replace').read()
                      .split('\n')[s['line'] - 1:s['line'] + 8])
@@ -62,13 +62,13 @@ exact = [s for s in meas if s['relations']]
 lower = [s for s in meas if not s['relations']]
 cols_sorted = sorted(s['cols'] for s in meas)
 
-# Rohes SQL aufschluesseln: Sperre, Schreibvorgang oder echter Lesevorgang
+# Break raw SQL down: a lock, a write, or a genuine read
 raw_lock = sum(1 for x in sites if x['rawkind'] == 'lock')
 raw_write = sum(1 for x in sites if x['rawkind'] == 'write')
 raw_read = sum(1 for x in sites if x['rawkind'] == 'read')
 
 # Column count before the conversion, taken from the baseline run, so the text can state the
-# Wirkung nennen kann statt sie zu behaupten.
+# effect can be stated rather than asserted.
 _before = {('GET', '/user/profile'): 253, ('GET', '/buy/:id/history'): 497,
            ('GET', '/swap/:id/history'): 509, ('GET', '/sell/:id/history'): 470,
            ('GET', '/support/issue/:id/data'): 951, ('GET', '/support/issue'): 450,
@@ -86,15 +86,15 @@ _proj_cols = sorted(x['cols'] for x in sites
                     if x.get('select') == 'named-columns' and x.get('cols'))
 proj_median = _proj_cols[len(_proj_cols) // 2] if _proj_cols else 0
 
-# ---------------- 1. Endpunkte ----------------
+# ---------------- 1. endpoints ----------------
 total = len(eps)
 internal = sum(1 for e in eps if e['internal'])
 files = len({e['file'] for e in eps})
 acc = Counter(access(e) for e in eps)
 ver = Counter(e['version'] for e in eps)
-# Umgebaute Endpunkte mit ihrem Teststand. Eintrag heisst: es gibt eine Spec-Datei, die
+# Converted endpoints with their test state. An entry means: a spec file exists that checks
 # checks exactly this endpoint against the four levels. Without an entry a projection counts
-# als ungeprueft - das ist der Punkt der Tests-Spalte.
+# as untested — that is the point of the Tests column.
 CONVERTED = {
     ('GET', '/user/profile'): '4/4',
     ('GET', '/buy/:id/history'): '4/4',
@@ -117,20 +117,20 @@ CONVERTED = {
 }
 
 def tests(e):
-    """Stand gegen die vier Teststufen. `n/a` = Definition greift nicht."""
+    """State against the four test levels. `n/a` = the definition does not apply."""
     a = access(e)
     if a in ('none', 'caller-defined'): return 'n/a'
     if a == 'whole rows': return 'not yet'
     if e['path'] == '/gs/debug': return 'n/a'      # the field list comes from the caller
-    # Zwei Endpunkte teilen sich einen Pfad und unterscheiden sich nur in der Version;
-    # der versionierte Schluessel geht deshalb vor.
-    # `/user` gibt es zweimal: die v1-Fassung reicht einen Fiat durch und wurde nicht
-    # umgebaut, die v2-Fassung schon. Der Pfad allein unterscheidet sie nicht.
+    # Two endpoints share a path and differ only in the version, so the versioned key wins.
+    #
+    # `/user` exists twice: the v1 handler passes a Fiat through and was not converted, the v2
+    # handler was. The path alone does not tell them apart.
     if e['path'] == '/user' and e.get('version') != '2': return 'not yet' if a == 'whole rows' else '0/4'
     known = CONVERTED.get((e['verb'], e['path']))
     if known: return known
-    # Projiziert, aber ohne eigene Spec gegen die vier Stufen: das ist genau der Zustand,
-    # den das Dokument als unfertig fuehrt.
+    # Projects, but without a spec of its own against the four levels: that is exactly the state
+    # the document records as unfinished.
     return '0/4' 
 
 _after.update({(e['verb'], e['path']): e['maxcol'] for e in eps
@@ -386,7 +386,10 @@ for s in sorted(loads, key=lambda x: (-(x.get('cols') or 0), x['file'], x['line'
     # The classifier's own names are internal; the document is English and is read by the team.
     mech = s['kind'] + (f" ({SELECT_LABEL.get(s['select'], s['select'])})" if s.get('select') else '')
     where = f"`{s['cls']}.{s['method']}`" if s['cls'] and s['method'] else '—'
-    t.append(f"| {s.get('cols') or '—'} | {s.get('joins') if s.get('cols') else '—'} | {mech} | "
+    # A getCount()/getExists() chain materialises no row: that is a measured 0, not a missing
+    # value, and the legend above reserves the dash for what could not be measured.
+    cols = s.get('cols')
+    t.append(f"| {cols if cols is not None else '—'} | {s.get('joins') or 0 if cols is not None else '—'} | {mech} | "
              f"`{s['entity'] or '—'}` | `{s['file'].replace('src/','')}:{s['line']}` | "
              f"{where} |")
 open(SP + '/load-sites.md', 'w').write("\n".join(t) + "\n")

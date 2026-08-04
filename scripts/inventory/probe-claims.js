@@ -1,7 +1,7 @@
 /**
- * Misst die vier Kennzahlen, die read-path-projections.md ausserhalb der Tabellen behauptet:
- * Schemagroesse, eager-Deklarationen, die zwei Beispielabfragen, und die Getter-Zahl.
- * Gleicher Stub-Bootstrap wie measure2.js, ohne Datenbank.
+ * Measures the four figures read-path-projections.md states outside its tables: the size of the
+ * schema, the eager declarations, the two worked query examples, and the number of getters.
+ * Same stubbed module loader as measure-columns.js, and no database.
  */
 const Module = require('module');
 const _load = Module._load;
@@ -44,7 +44,7 @@ async function main() {
   const shape = (name) => {
     const m = ds.entityMetadatas.find((x) => x.name === name);
     if (!m) return null;
-    // setFindOptions({}) ist der find-Pfad: nur dort expandiert TypeORM die eager-Relationen.
+    // setFindOptions({}) is the find path: only there does TypeORM expand the eager relations.
     const qb = ds.createQueryBuilder(m.target, 'root');
     qb.setFindOptions({});
     const sql = qb.getQuery();
@@ -52,7 +52,7 @@ async function main() {
     return { cols: sel.split(',').filter((x) => x.trim()).length, joins: (sql.match(/\bJOIN\b/g) || []).length };
   };
 
-  // Getter mit Feldzugriff: eine Eigenschaft ohne Spalte, die im Prototyp als Getter existiert.
+  // A getter with field access: a property without a column that exists on the prototype as one.
   let getters = 0,
     getterEntities = 0;
   for (const m of ds.entityMetadatas) {

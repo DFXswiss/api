@@ -30,7 +30,7 @@ def chain_at(rel, line):
 def named_columns(rel, line, chain):
     """How many columns does the query name?"""
     total = 0
-    # Auch ein Variablen-Argument benennt eine Spalte: `.select(bucketExpr, 'bucket')`.
+    # A variable argument names a column too: `.select(bucketExpr, 'bucket')`.
     for m in re.finditer(r'\.(?:select|addSelect)\s*\(\s*(\[|[\'"`]|[A-Za-z_$][\w$]*\s*[,)])', chain):
         if m.group(1) == '[':
             body = chain[m.end() - 1:]
@@ -48,11 +48,11 @@ def named_columns(rel, line, chain):
 
 # Size of each projection constant: fields plus guards.
 #
-# Aus der Laufzeit abgelesen (`fields.length + guards.length`), nicht aus dem Text geparst.
-# Ein Parser dafuer war zweimal daneben - Guards in einer einzeiligen Konstante, dann eine
-# Hilfsfunktion, die eine feste Zahl von Feldern liefert - und ein falscher Wert hier landet
-# ungeprueft in der Doku. `read-projection.spec.ts` vergleicht die Zahlen in endpoints.md
-# gegen die Projektionen selbst und wird rot, sobald diese Liste veraltet.
+# Read off the runtime (`fields.length + guards.length`) rather than parsed out of the text.
+# A parser for it was wrong twice — guards in a single-line constant, then a helper returning a
+# fixed number of fields — and a wrong value here reaches the document unchecked.
+# `read-projection.spec.ts` compares the counts in endpoints.md against the projections
+# themselves and turns red once this list is out of date.
 PROJECTION_SIZES = {
     'BUY_CRYPTO_BUY_HISTORY_PROJECTION': 12,
     'BUY_CRYPTO_ROUTE_HISTORY_PROJECTION': 12,
@@ -72,16 +72,16 @@ PROJECTION_SIZES = {
     'POS_LINK_PROJECTION': 7,
 }
 
-out, carried, counted, missing = [], 0, 0, 0
+out, carried, counted, missing, unknown = [], 0, 0, 0, []
 for s in fresh:
     rec = dict(s)
     if s['kind'] == 'query-builder' and s['select'] == 'count-only':
-        # Die Kette endet auf getCount()/getExists(): COUNT(...) bzw. SELECT 1, keine Spalte.
+        # The chain ends on getCount()/getExists(): COUNT(...) or SELECT 1, and no column.
         rec['cols'] = 0; rec['joins'] = 0; counted += 1
     elif s['kind'] == 'query-builder' and s['select'] in ('field-list', 'named-columns'):
         n = named_columns(s['file'], s['line'], chain_at(s['file'], s['line']))
         if n: rec['cols'] = n; rec['joins'] = 0; counted += 1
-        else: missing += 1
+        else: missing += 1; unknown.append(f"{s['file']}:{s['line']}")
     else:
         pool = by_key.get((s['file'], s['cls'], s['method'], s['call'], s['entity']))
         if pool:
@@ -100,3 +100,12 @@ print('  column count joined:', carried)
 print('  columns counted (projections):', counted)
 print('  without a column count:', missing)
 print('  projection constants:', PROJECTION_SIZES)
+
+# A query builder that names columns must yield a count. When it does not, the field list came
+# through a projection constant this script does not know — renamed, or newly added. Carrying on
+# would drop the site to a dash and read as "not measurable", which is a different statement.
+if unknown:
+    print('\nno column count for a query that names columns — PROJECTION_SIZES is out of date:')
+    for site in unknown:
+        print('  ' + site)
+    raise SystemExit(1)

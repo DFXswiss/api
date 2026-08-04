@@ -44,7 +44,6 @@ const STAGES = [
     { IN_SITES: j('sites.json'), IN_MEASURED: j('measured.json'), OUT_MEASURED: j('sites-measured.json') },
   ],
   ['routes from the controllers', 'python3', ['extract-routes.py']],
-  ['versions', 'python3', ['add-versions.py']],
   ['deprecation flags', 'python3', ['add-flags.py']],
   ['per-endpoint union over the reachable load sites', 'python3', ['resolve-endpoints.py']],
   ['render', 'python3', ['render-docs.py']],

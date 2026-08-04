@@ -1,15 +1,17 @@
 /**
  * Measures, per load site, the real SELECT column count from the TypeORM metadata.
  *
- * No database is involved:
- *   - parametrisiert (DIST, INPUT, OUT_MEASURED, OUT_TABLES per Umgebung/argv) statt fest verdrahtet,
- *   - `buildMetadatas()` statt `initialize()`, also OHNE Datenbank.
- * `buildMetadatas()` is enough, and a connection would only add a failure source that has
+ * Parameterised through DIST and three positional arguments:
  *
- * Der Stub-Bootstrap stammt aus proof.js und ist in reference_dfx_api_typeorm_metadata_messung
- * nothing to do with the measurement. The stub loader below exists because native modules may be
- * und @arkade-os/sdk ist ESM. Keine der Entities liest die Config innerhalb eines Dekorators, die
- * absent, `src/config/config` demands ~300 environment variables, and one dependency is ESM.
+ *   DIST=<built tree> node measure-columns.js <sites.json> <measured.json> <meta-tables.json>
+ *
+ * No database is involved. `buildMetadatas()` is enough, and a connection would only add a
+ * failure source that has nothing to do with the measurement.
+ *
+ * The module loader below is stubbed because the entities cannot otherwise be required outside
+ * the application: native modules may be absent, `src/config/config` demands around three hundred
+ * environment variables, and one dependency is ESM. No entity reads the config inside a decorator,
+ * so the metadata do not depend on any of it.
  */
 const Module = require('module');
 const _load = Module._load;
@@ -77,7 +79,10 @@ async function main() {
     }
     try {
       const qb = ds.createQueryBuilder(meta.target, 'root');
-      qb.setFindOptions({ relations: s.relations });
+      // setFindOptions is the find path, and only there does TypeORM expand the eager relations.
+      // A query builder does not apply them — measuring one through setFindOptions reports the
+      // eager closure instead of the root entity and overstates the site several times over.
+      if (s.kind === 'find') qb.setFindOptions({ relations: s.relations });
       const sql = qb.getQuery();
       const sel = sql.slice(sql.indexOf('SELECT') + 6, sql.indexOf(' FROM '));
       const cols = sel.split(',').filter((x) => x.trim()).length;
@@ -88,6 +93,14 @@ async function main() {
     }
   }
   fs.writeFileSync(OUT_MEASURED, JSON.stringify(out, null, 1));
+  // A site whose entity resolved but whose relation tree does not: the document shows it as a
+  // dash, which is what it is — but the count belongs in the log, so a new one is not silent.
+  const unresolved = out.filter((o) => o.error && o.entity && o.error !== 'entity not found');
+  if (unresolved.length) {
+    console.error(`not measurable although the entity resolved: ${unresolved.length}`);
+    for (const u of unresolved) console.error(`  ${u.file}:${u.line}  ${u.entity}  ${u.error}`);
+  }
+
   const ok = out.filter((o) => o.columns);
   const tables = Object.keys(perTable).length;
   const columns = Object.values(perTable).reduce((a, t) => a + t.cols, 0);

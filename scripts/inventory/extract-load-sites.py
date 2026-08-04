@@ -2,7 +2,7 @@
 """Extracts EVERY load site in the code. Locally decidable, no call-chain heuristic.
 
 A load site is a call that reads from the database. Per site this records the file, the line,
-festgehalten: Datei, Zeile, umgebende Klasse/Methode, Ziel-Entity, Lademechanik.
+the surrounding class and method, the target entity and the loading mechanism.
 The column count is then measured by TypeORM itself, in measure-columns.js.
 """
 import re, glob, os, json
@@ -19,7 +19,7 @@ CLASSRE = re.compile(r'export\s+(?:abstract\s+)?class\s+(\w+)')
 SIG = re.compile(r'^\s{2,}(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*(?:<[^>]*>)?\s*\(', re.M)
 
 def strip_comments(s):
-    # nur Zeilenkommentare, URLs geschuetzt; Blockkommentare NICHT (Regex-Literale)
+    # line comments only, protecting URLs; NOT block comments (regex literals)
     return re.sub(r'(?m)(?<!:)//[^\n]*', '', s)
 
 def parse_obj(text, i):
@@ -56,7 +56,7 @@ sites = []
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
     # Test infrastructure is not a load site of the application: it creates the schema and
-    # erzeugt Fixtures, laeuft aber nie im Anfragepfad.
+    # creates fixtures but never runs in the request path.
     if f.endswith('projection-test.util.ts'): continue
     raw = open(f, encoding='utf-8', errors='replace').read()
     if not READ.search(raw): continue
@@ -64,11 +64,11 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     rel = f.replace(SRC + '/', 'src/')
 
     classes = [(m.start(), m.group(1)) for m in CLASSRE.finditer(s)]
-    # Kontrollstrukturen sehen wie Methodensignaturen aus - herausfiltern
+    # Control structures look like method signatures — filter them out
     KW = {'if','for','while','switch','catch','return','do','else','try','constructor'}
-    # Grossbuchstaben-Bezeichner sind SQL-Schluesselwoerter aus Template-Literalen, keine
-    # Methoden: `CASE WHEN ... THEN (` traf die Signaturregel und wanderte als angebliche
-    # Methode `THEN` ins Inventar.
+    # An all-caps identifier is an SQL keyword out of a template literal, not a method:
+    # `CASE WHEN ... THEN (` matched the signature rule and travelled on as a supposed
+    # method `THEN` into the inventory.
     methods = [(m.start(), m.group(1)) for m in SIG.finditer(s)
                if m.group(1) not in KW and not m.group(1).isupper()]
     def enclosing(pos, lst):
@@ -78,7 +78,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             else: break
         return cur
 
-    # Feld -> Typ (dateiweit; Kollisionen sind hier unkritisch, es geht um lokale Zuordnung)
+    # field -> type (file-wide; collisions do not matter here, this is a local attribution)
     inj = {}
     for mm in re.finditer(r'(?:private|public|protected)\s+(?:readonly\s+)?(\w+)\s*:\s*(\w+)', s):
         inj[mm.group(1)] = mm.group(2)
@@ -92,7 +92,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
         meth = enclosing(m.start(), methods)
         line = s[:m.start()].count('\n') + 1
 
-        # Ziel bestimmen: this.<feld>.<call>()  |  this.<call>()  |  <var>.<call>()
+        # Determine the target: this.<field>.<call>()  |  this.<call>()  |  <var>.<call>()
         entity, via = None, None
         tm = re.search(r'this\.(\w+)\s*$', pre)
         if tm:
@@ -106,7 +106,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             vm = re.search(r'(\w+)\s*$', pre)
             if vm: via = vm.group(1)
 
-        # Mechanik: eager oder projiziert
+        # Mechanism: eager, or projected
         if call in ('createQueryBuilder', 'query'):
             kind = 'raw-sql' if call == 'query' else 'query-builder'
         else:
@@ -122,36 +122,36 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 if t2: tree = norm(t2)
             except Exception: pass
 
-        # Bei einem QueryBuilder: folgt eine explizite Feldliste?
+        # On a query builder: does an explicit field list follow?
         select = None
         if call == 'createQueryBuilder':
             window = s[m.end():m.end() + 1500]
-            # bis zum Ende der Kette schauen (grob: bis zum naechsten ';')
+            # look to the end of the chain (roughly: up to the next ';')
             chain = window.split(';')[0]
-            # `.select('alias')` laedt jede Spalte; `.select('alias.spalte')` nennt eine.
+            # `.select('alias')` loads every column; `.select('alias.column')` names one.
             # Both are string literals — the dot in the first argument is what separates them.
             # Without this distinction every column-wise projection would count as a full read.
-            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)`: die Feldliste steht in
+            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)`: the field list lives in
             # the projection constant. Without this case every query built that way would count as
-            # Vollzugriff, obwohl sie genau das Gegenteil ist.
+            # a full read although it is exactly the opposite.
             # The call may read `PROJECTION.apply(this.createQueryBuilder(...))` or arrive through
-            # ein injiziertes Repository gehen: `PROJECTION.apply(this.orderRepo.createQueryBuilder(...))`.
-            # `getCount()` und `getExists()` verwerfen die Auswahlliste und setzen COUNT(...) bzw.
-            # SELECT 1 - solche Ketten materialisieren keine Zeile, egal was davor steht.
+            # an injected repository: `PROJECTION.apply(this.orderRepo.createQueryBuilder(...))`.
+            # `getCount()` and `getExists()` discard the select list and issue COUNT(...) or
+            # SELECT 1 — such a chain materialises no row, whatever precedes it.
             if re.search(r'\.(getCount|getExists)\s*\(\s*\)', chain):
                 sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
                               'call': call, 'kind': kind, 'entity': entity, 'via': via,
                               'relations': tree, 'select': 'count-only'})
                 continue
-            # Zwischen `apply(` und `createQueryBuilder` steht dann eine Objektkette.
+            # Between `apply(` and `createQueryBuilder` there is then an object chain.
             before = s[max(0, m.start() - 160):m.start()]
             if re.search(r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$', before):
                 select = 'field-list'
             elif re.search(r'\.select\(\s*\[', chain): select = 'field-list'
             elif re.search(r'\.select\(\s*[A-Za-z_$][\w$]*\s*[,)]', chain):
-                # `.select(bucketExpr, 'bucket')` - das Argument steht in einer Variablen. Die im
-                # Rumpf zugewiesene Form entscheidet: ein blosser Bezeichner waere der Wurzel-Alias,
-                # alles andere benennt etwas.
+                # `.select(bucketExpr, 'bucket')` — the argument sits in a variable. The one in
+                # body decides: a bare identifier would be the root alias,
+                # anything else names something.
                 v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
                 a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", s[max(0, m.start() - 1500):m.start()])
                 if a and not re.fullmatch(r"['\"`]\w+['\"`]", a.group(1).strip()):
@@ -161,13 +161,13 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             elif re.search(r'\.select\(\s*[\'"`]', chain):
                 first = re.search(r'\.select\(\s*[\'"`]([^\'"`]*)[\'"`]', chain)
                 arg = first.group(1) if first else ''
-                # Ein blosser Bezeichner ist der Wurzel-Alias und laedt jede Spalte. Alles andere
-                # nennt etwas Bestimmtes: eine Spalte (`userData.id`) oder einen Ausdruck
-                # (`COUNT(*)`, `MAX(tx.seq)`), und beides schraenkt die Abfrage ein.
+                # A bare identifier is the root alias and loads every column. Anything else
+                # names something definite: a column (`userData.id`) or an expression
+                # (`COUNT(*)`, `MAX(tx.seq)`), and both narrow the query.
                 select = 'alias-only' if re.fullmatch(r'\w+', arg.strip()) else 'named-columns'
             else: select = 'no-select'
-            # Ein `leftJoinAndSelect` holt die gejointe Entity vollstaendig - dann hilft die
-            # Projektion auf der Wurzel nicht mehr.
+            # A `leftJoinAndSelect` fetches the joined entity whole — the projection on the
+            # root then no longer helps.
             if select in ('field-list', 'named-columns') and re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain):
                 select = 'projected-full-join'
 
@@ -178,7 +178,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
 json.dump(sites, open(SP + '/sites.json', 'w'), indent=1)
 from collections import Counter
 print(f"load sites found: {len(sites)}")
-print("  nach Mechanik:", dict(Counter(s['kind'] for s in sites)))
-print(f"  mit aufloesbarer Entity: {sum(1 for s in sites if s['entity'])}")
-print(f"  davon mit relations-Baum: {sum(1 for s in sites if s['relations'])}")
-print(f"  Dateien: {len({s['file'] for s in sites})}")
+print("  by mechanism:", dict(Counter(s['kind'] for s in sites)))
+print(f"  with a resolvable entity: {sum(1 for s in sites if s['entity'])}")
+print(f"  of those with a relations tree: {sum(1 for s in sites if s['relations'])}")
+print(f"  files: {len({s['file'] for s in sites})}")

@@ -917,7 +917,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:264` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:268` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:274` | `LedgerBookingService.activeTx` |
-| — | — | query-builder (count only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
+| 0 | 0 | query-builder (count only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | — |
@@ -1079,7 +1079,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1382` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1585` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1763` | `UserDataService.updateBankTxTime` |
-| — | — | query-builder (count only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1804` | `UserDataService.countByDateRange` |
+| 0 | 0 | query-builder (count only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1804` | `UserDataService.countByDateRange` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:70` | `UserRepository.getNextRef` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:337` | `UserService.createUser` |
@@ -1148,7 +1148,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:616` | `LogJobService.getAssetLog` |
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:982` | `LogJobService.getAssetLog` |
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:1833` | `LogJobService.findSenderReceiverPair` |
-| — | — | query-builder (count only) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
+| 0 | 0 | query-builder (count only) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | — | — | find | `—` | `subdomains/supporting/notification/services/notification.service.ts:128` | `NotificationService.resolveMailWallet` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin-notification.service.ts:32` | `PayInNotificationService.returnedCryptoInput` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:177` | `PayInService.getCryptoInputsByTransactionIds` |

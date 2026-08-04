@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Erzeugt table.json frisch aus den Controllern (verb, pfad, controller, handler, datei, intern).
+"""Builds table.json from the controllers (verb, path, controller, handler, file, hidden).
 
-Ersetzt den urspruenglichen Generator: Dekoratoren zwischen Routen-Dekorator und Methode werden
+Decorators between the route decorator and the method are skipped by counting brackets
 are skipped by counting brackets (respecting strings and comments); otherwise a multi-line
-mehrzeiligem @UseGuards( der Guard als Handler gelesen.
+multi-line @UseGuards( would have its guard read as the handler.
 """
 import re, glob, os, json
 
@@ -43,7 +43,7 @@ def skip_args(s, i):
     return i
 
 def block_and_handler(s, i):
-    """(Dekoratorenblock, Handlername) ab dem Ende des Routen-Dekorators."""
+    """(decorator block, handler name) from the end of the route decorator."""
     start = i
     while True:
         i = skip_trivia(s, i)
@@ -85,5 +85,5 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.controller.ts'), recursive=
 
 rows.sort(key=lambda r: (r['path'], r['verb']))
 json.dump(rows, open(SP + '/table.json', 'w'), indent=1)
-print('Routen:', len(rows), '| ohne erkannten Handler:', sum(1 for r in rows if r['handler'] == '?'),
-      '| intern:', sum(1 for r in rows if r['internal']))
+print('routes:', len(rows), '| without a recognised handler:', sum(1 for r in rows if r['handler'] == '?'),
+      '| hidden:', sum(1 for r in rows if r['internal']))

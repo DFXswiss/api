@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Per endpoint: does it reach a load site that loads more columns than it needs?
 
-Anders als der zurueckgezogene Versuch behauptet das hier KEINEN einzelnen "Ladeweg"
+Unlike the withdrawn attempt, this claims NO single "load path"
 This claims no single "load path" per endpoint. What is formed is the UNION over every load
 site reachable from the handler — the aggregation that matches the question: as soon as any
 one of them overloads, the endpoint loads more than it needs.
@@ -9,8 +9,8 @@ one of them overloads, the endpoint loads more than it needs.
 Categories per load site (verified against the TypeORM metadata):
   find*(...)                                -> every column plus eager relations -> over
   createQueryBuilder() without .select([...]) -> every column of the root entity -> over
-  createQueryBuilder().select([...])        -> nur die gelisteten Felder        -> proj
-  .query(...)  rohes SQL                    -> haengt vom Statement ab          -> raw
+  createQueryBuilder().select([...])        -> only the listed fields             -> proj
+  .query(...)  raw SQL                             -> depends on the statement       -> raw
 """
 import re, glob, os, json
 from collections import defaultdict
@@ -25,7 +25,7 @@ RAW = re.compile(r'\.query\s*\(')
 SIG = re.compile(r'^\s{2,}(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*(?:<[^>]*>)?\s*\(', re.M)
 SKIP = {'constructor', 'if', 'for', 'while', 'switch', 'catch', 'return', 'do', 'else', 'try'}
 # Calls through `this`. Dots may be surrounded by line breaks — the fluent
-# Stil `this.service\n  .methode(...)` ist im Repo die Regel, nicht die Ausnahme.
+# style `this.service\n  .method(...)` is the rule in this repository, not the exception.
 CALL = re.compile(r'this\s*\.\s*((?:\w+\s*\.\s*)*\w+)\s*\(')
 
 def brace(s, i):
@@ -38,12 +38,12 @@ def brace(s, i):
     return s[i + 1:], len(s)
 
 def body_start(s, i):
-    """Erste '{' NACH der Rueckgabetyp-Annotation, ab Position i (hinter der Parameterliste).
+    """First '{' AFTER the return-type annotation, from position i (past the parameter list).
 
-    `Promise<{ data: X; capReached: boolean }>` enthaelt eine Klammer, die wie ein
-    Methodenrumpf aussieht. Erkennungsregel, exakt statt heuristisch: schliesst eine
-    Klammergruppe und folgt darauf sofort wieder '{', war die erste die Typ-Annotation.
-    Nach einem echten Rumpf folgt nie unmittelbar eine oeffnende Klammer.
+    `Promise<{ data: X; capReached: boolean }>` contains a brace that looks like the start of a
+    method body. The rule is exact rather than heuristic: if the candidate closes a bracket
+    bracket group and another '{' follows immediately, the first one was the type annotation.
+    A real body is never followed immediately by an opening brace.
     """
     lt, j = 0, i
     while j < len(s):
@@ -52,24 +52,24 @@ def body_start(s, i):
         elif c == '>':
             if lt: lt -= 1                     # do not count '=>' in function types as a closer
         elif c == ';' and lt == 0:
-            return -1                          # abstrakte Deklaration, kein Rumpf
+            return -1                      # an abstract declaration, no body
         elif c == '{':
             _, close = brace(s, j)
-            if lt > 0:                         # Klammer innerhalb von '<...>' = Typ
+            if lt > 0:                     # a bracket inside '<...>' belongs to a type
                 j = close + 1; continue
             nxt = close + 1
             while nxt < len(s) and s[nxt] in ' \n\r\t': nxt += 1
-            if nxt < len(s) and s[nxt] == '{':  # blosser Objekt-Rueckgabetyp
+            if nxt < len(s) and s[nxt] == '{':  # a bare object return type
                 j = nxt; continue
             return j
         j += 1
     return -1
 
-# Geerbte Schreib-/Zaehloperationen: kein eager, und in der konkreten Klasse nicht auffindbar.
+# Inherited write and count operations: no eager, and not findable on the concrete class.
 NO_LOAD = {'save', 'update', 'create', 'delete', 'remove', 'insert', 'upsert', 'increment',
            'decrement', 'count', 'countBy', 'exists', 'existsBy', 'invalidateCache', 'clear',
            'softDelete', 'restore', 'preload', 'merge', 'getRepository', 'manager'}
-# Verifiziert kein Entity-Zugriff.
+# Verified: no entity access.
 EXTERNAL = {'Map', 'Set', 'Date', 'Array', 'Promise', 'JSON', 'Object', 'Queue', 'Subject',
             'Observable', 'QueueItem', 'QueueHandler', 'StorageService', 'RegisterStrategyRegistry',
             'Logger', 'EventEmitter2', 'HttpService', 'ConfigService', 'SchedulerRegistry',
@@ -102,13 +102,13 @@ def is_projection(chain, body=''):
 
     `.select(['a.x','a.y'])` and `.select('a.x')` name columns — both project.
     `.select('buyCrypto')` passes the root alias: it reads like a projection,
-    laedt aber jede Spalte. Der Punkt im ersten Argument ist der Unterschied.
+    but loads every column. The dot in the first argument is what separates them.
     """
     joined = re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain)
-    # `.select(bucketExpr, 'bucket')` - das Argument steht in einer Variablen. Die im Rumpf
-    # zugewiesene Form entscheidet: ein blosser Bezeichner waere der Wurzel-Alias, alles
+    # `.select(bucketExpr, 'bucket')` — the argument sits in a variable. The one in the body
+    # assigned in the body decides: a bare identifier would be the root alias, anything
     # the other names something. Without resolving this, a projected aggregate query would count
-    # als "laedt ganze Zeilen".
+    # as "loads whole rows".
     v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
     if v:
         a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", body)
@@ -118,21 +118,21 @@ def is_projection(chain, body=''):
     if not m: return False
     if m.group(1) == '[': return not re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain)
     a = re.search(r"\.select\(\s*['\"`]([^'\"`]*)['\"`]", chain)
-    # Nur ein blosser Bezeichner ist der Wurzel-Alias; eine Spalte oder ein Ausdruck schraenkt ein.
+    # Only a bare identifier is the root alias; a column or an expression narrows the query.
     if not a or re.fullmatch(r'\w+', a.group(1).strip()): return False
-    # `leftJoinAndSelect` laedt die gejointe Entity vollstaendig - die Projektion auf der
-    # Wurzel hilft dann nichts mehr.
+    # `leftJoinAndSelect` fetches the joined entity whole — the projection on the root then
+    # no longer helps.
     return not re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain)
 
 SITES_OF = {}                    # (cls, meth) -> {(datei, zeile)}
 METHODS = defaultdict(dict)      # cls -> meth -> list[body]
-INJECT = defaultdict(dict)       # cls -> feld -> typ
+INJECT = defaultdict(dict)       # cls -> field -> type
 DIRECT = defaultdict(dict)       # cls -> meth -> set(kategorien)
 
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
     s = open(f, encoding='utf-8', errors='replace').read()
-    s = re.sub(r'(?m)(?<!:)//[^\n]*', '', s)          # nur Zeilenkommentare, URLs geschuetzt
+    s = re.sub(r'(?m)(?<!:)//[^\n]*', '', s)          # line comments only, protecting URLs
     rel = f.replace(SRC + '/', 'src/')
     classes = [(m.start(), m.group(1)) for m in
                re.finditer(r'export\s+(?:abstract\s+)?class\s+(\w+)', s)]
@@ -178,16 +178,16 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 kinds.add('over'); sites.add(at(fm.start()))
         for qm in QB.finditer(mb):
             chain = mb[qm.end():qm.end() + 1500].split(';')[0]
-            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)` - die Feldliste steht in
+            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)` — the field list lives in
             # the projection constant, not in the chain. Without this case every load going
-            # ReadProjection gebaute Abfrage als "laedt ganze Zeilen".
+            # built through ReadProjection would count as "loads whole rows".
             before = mb[max(0, qm.start() - 160):qm.start()]
             if re.search(r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$', before):
                 kinds.add('proj'); sites.add(at(qm.start())); continue
-            # `.update()/.delete()/.insert()` sind Schreib-Statements - sie laden nichts
+            # `.update()/.delete()/.insert()` are write statements — they load nothing.
             if re.search(r'\.(update|delete|insert|softDelete|restore)\s*\(', chain): continue
-            # `getCount()` und `getExists()` verwerfen die Auswahlliste und setzen COUNT(...)
-            # bzw. SELECT 1 - solche Ketten materialisieren keine Zeile, egal was davor steht.
+            # `getCount()` and `getExists()` discard the select list and issue COUNT(...)
+            # or SELECT 1 — such a chain materialises no row, whatever precedes it.
             if re.search(r'\.(getCount|getExists)\s*\(\s*\)', chain):
                 kinds.add('proj'); sites.add(at(qm.start())); continue
             kinds.add('proj' if is_projection(chain, mb) else 'over')
@@ -198,8 +198,8 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 kinds.add('raw')
 
 # ---- build the call graph (edges once, then a fixpoint rather than recursion) ----
-# Der Fixpunkt behandelt Zyklen exakt: eine Rekursion mit Zyklusabbruch liefert je nach
-# Einstiegspunkt unterschiedliche Ergebnisse und speichert sie auch noch zwischen.
+# The fixpoint handles cycles exactly: a recursion with cycle-breaking returns different results
+# depending on the entry point, and caches them on top of that.
 EDGES = defaultdict(set)
 LOCAL_OK = {}
 for cls in METHODS:
@@ -207,9 +207,9 @@ for cls in METHODS:
         key = (cls, meth)
         ok = True
         for body in bodies:
-            # lokal erzeugte Objekte: `const txLogRepo = new LogRepository(manager)` und
-            # anschliessend `txLogRepo.getFoo(...)` - ohne diesen Kantentyp bleibt eine
-            # Transaktion, die ihr Repository selbst konstruiert, unsichtbar.
+            # locally constructed objects: `const txLogRepo = new LogRepository(manager)` and
+            # then `txLogRepo.getFoo(...)` — without this kind of edge a load stays
+            # transaction that constructs its own repository invisible.
             local = {m.group(1): m.group(2)
                      for m in re.finditer(r'\b(?:const|let|var)\s+(\w+)\s*=\s*new\s+(\w+)\s*\(', body)}
             for lm in re.finditer(r'\b(\w+)\s*\.\s*(\w+)\s*\(', body):
@@ -229,8 +229,8 @@ for cls in METHODS:
                     sub_cls = t
                 if external or sub_cls in EXTERNAL: continue
                 if called not in METHODS.get(sub_cls, {}):
-                    # ohne Rumpf: geerbte Schreib-/Zaehloperation laedt nichts,
-                    # alles andere ist ein echter Zweifelsfall
+                    # without a body: an inherited write or count operation loads nothing,
+                    # anything else is a genuine doubtful case
                     if called not in NO_LOAD: ok = False
                     continue
                 EDGES[key].add((sub_cls, called))
@@ -308,7 +308,7 @@ for r in eps:
                 'sites': sorted(f'{f}:{l}' for f, l in REACH.get(key, set()))})
 # Does any spec touch this endpoint at all? Strict: the same file names the controller
 # AND calls the handler. A weak signal and a lower bound — specs driving a route over HTTP
-# ansteuern, ohne den Handler zu nennen, fallen durch.
+# a route over HTTP without naming the handler are missed.
 SPECS = [open(f, encoding='utf-8', errors='replace').read()
          for f in glob.glob(os.path.join(SRC, '**', '*.spec.ts'), recursive=True)]
 for r in out:
@@ -323,19 +323,19 @@ from collections import Counter
 CALLER_SELECT = {'/gs/db', '/gs/db/custom'}
 
 def cat(e):
-    if e['path'] in CALLER_SELECT: return 'aufrufer-abhaengig'
+    if e['path'] in CALLER_SELECT: return 'caller-defined'
     k = set(e['kinds'])
-    if 'over' in k: return 'ineffizient'
-    if not k: return 'kein DB-Zugriff'
-    if k <= {'proj', 'raw'}: return 'effizient'
-    return 'unklar'
+    if 'over' in k: return 'loads whole rows'
+    if not k: return 'no database access'
+    if k <= {'proj', 'raw'}: return 'projects'
+    return 'unclear'
 
 c = Counter(cat(e) for e in out)
-print(f"Endpunkte gesamt: {len(out)}")
-for k in ['ineffizient', 'kein DB-Zugriff', 'effizient', 'aufrufer-abhaengig', 'unklar']:
+print(f"endpoints: {len(out)}")
+for k in ['loads whole rows', 'no database access', 'projects', 'caller-defined', 'unclear']:
     if c[k]: print(f"  {k:20s} {c[k]:4d}  ({100*c[k]/len(out):.0f} %)")
 
-ineff = [e for e in out if cat(e) == 'ineffizient']
+ineff = [e for e in out if cat(e) == 'loads whole rows']
 mc = sorted((e['maxcol'] for e in ineff if e['maxcol']), reverse=True)
 print(f"\nWidest query triggered (measured columns), {len(mc)} of {len(ineff)} measurable:")
 print(f"  over 1000 columns: {sum(1 for x in mc if x > 1000)}")
@@ -347,5 +347,5 @@ for e in sorted(ineff, key=lambda x: -x['maxcol'])[:8]:
     print(f"  {e['maxcol']:5d}  {e['verb']:6s} {e['path']}")
 print("\nEffizient:")
 for e in out:
-    if cat(e) in ('effizient', 'aufrufer-abhaengig'):
+    if cat(e) in ('projects', 'caller-defined'):
         print(f"  {cat(e):20s} {e['verb']:6s} {e['path']:34s} {e['kinds']}")
