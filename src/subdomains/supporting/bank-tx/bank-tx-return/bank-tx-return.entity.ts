@@ -187,9 +187,10 @@ export class BankTxReturn extends IEntity {
       chargebackAmount,
       chargebackAsset,
       // No chargebackOutput here on purpose. It is a relation column whose inverse side this code
-      // saves — saving the FiatOutput sets the owning FK as a side effect — and chargebackTx
-      // selects on `chargebackOutput: IsNull()`, so it must not be written ahead of, or apart
-      // from, the state write. See BankTxReturnService.refundBankTx.
+      // saves — saving the FiatOutput sets the owning FK as a side effect — so passing it here
+      // only duplicates that write, and accepting it at all is what pushed the save ahead of the
+      // state write in the first place. What matters is that the two never commit separately; see
+      // BankTxReturnService.refundBankTx.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,

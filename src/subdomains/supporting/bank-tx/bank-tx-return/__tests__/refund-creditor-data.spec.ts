@@ -1,13 +1,13 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EntityManager } from 'typeorm';
+import { BankTx } from '../../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from '../bank-tx-return.entity';
 import { BankTxReturnRepository } from '../bank-tx-return.repository';
 import { BankTxReturnService } from '../bank-tx-return.service';
@@ -35,28 +35,35 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     country: 'CH',
   };
 
-  const mockBankTxReturn = {
-    id: 1,
-    chargebackIban: 'CH9300762011623852957',
-    chargebackAmount: 50,
-    chargebackAsset: 'CHF',
-    chargebackCreditorData: JSON.stringify(mockCreditorData),
-    amlCheck: CheckStatus.FAIL,
-    outputAmount: null,
-    bankTx: {
+  // A real BankTxReturn, not an object literal: TransactionUtilService.validateRefund branches on
+  // `entity instanceof BankTxReturn`, so a cast literal silently skips the whole BankTxReturn
+  // validation path — including the "Transaction is already returned" guard on chargebackOutput.
+  // Keeping chargebackFillUp real also lets the tests assert the actual update payload.
+  function createBankTxReturn(overrides: Partial<BankTxReturn> = {}): BankTxReturn {
+    return Object.assign(new BankTxReturn(), {
       id: 1,
-      currency: { id: 1, name: 'CHF' },
-      iban: 'CH0000000000000000000',
-      amount: 52,
-    },
-    get creditorData() {
-      return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
-    },
-    chargebackFillUp: jest.fn().mockReturnValue([{ id: 1 }, {}]),
-    chargebackBankRemittanceInfo: 'Test remittance info',
-  } as unknown as BankTxReturn;
+      chargebackIban: 'CH9300762011623852957',
+      chargebackAmount: 50,
+      chargebackAsset: 'CHF',
+      chargebackCreditorData: JSON.stringify(mockCreditorData),
+      inputAsset: 'CHF',
+      // refundAmount is a getter over amount + chargebackBankFee (itself a getter over chargeAmount),
+      // so the cap validateRefund enforces has to be set through those.
+      bankTx: Object.assign(new BankTx(), {
+        id: 1,
+        currency: 'CHF',
+        iban: 'CH0000000000000000000',
+        amount: 52,
+        chargeAmount: 0,
+      }),
+      ...overrides,
+    });
+  }
+
+  let mockBankTxReturn: BankTxReturn;
 
   beforeEach(async () => {
+    mockBankTxReturn = createBankTxReturn();
     bankTxReturnRepo = createMock<BankTxReturnRepository>();
     fiatOutputService = createMock<FiatOutputService>();
     transactionUtilService = createMock<TransactionUtilService>();
@@ -65,7 +72,6 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     fiatOutputService.createInternal.mockResolvedValue({ id: 1 } as any);
     bankTxReturnRepo.update.mockResolvedValue(undefined);
 
-    (mockBankTxReturn.chargebackFillUp as jest.Mock).mockClear();
     manager = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     Object.defineProperty(bankTxReturnRepo, 'manager', {
       configurable: true,
@@ -153,15 +159,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     });
 
     it('should throw error when creditorData is missing and chargebackAllowedDate is set', async () => {
-      const bankTxReturnWithoutCreditor = {
-        ...mockBankTxReturn,
-        chargebackCreditorData: null,
-        amlCheck: CheckStatus.FAIL,
-        outputAmount: null,
-        get creditorData() {
-          return undefined;
-        },
-      } as unknown as BankTxReturn;
+      const bankTxReturnWithoutCreditor = createBankTxReturn({ chargebackCreditorData: null });
 
       const dto = {
         chargebackAllowedDate: new Date(),
@@ -188,7 +186,12 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
       expect(bankTxReturnRepo.manager.transaction).toHaveBeenCalledTimes(1);
       expect(bankTxReturnRepo.update).not.toHaveBeenCalled();
-      expect(manager.update).toHaveBeenCalledWith(BankTxReturn, { id: 1 }, {});
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BankTxReturn,
+        1,
+        expect.objectContaining({ chargebackAllowedBy: 'BatchJob', chargebackIban: mockBankTxReturn.chargebackIban }),
+      );
       expect(fiatOutputService.createInternal).toHaveBeenCalledWith(
         FiatOutputType.BANK_TX_RETURN,
         { bankTxReturn: mockBankTxReturn },
@@ -208,11 +211,10 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         chargebackAllowedBy: 'BatchJob',
       });
 
-      // The output must reach the row through the FiatOutput save's inverse-side FK write, never
-      // through chargebackFillUp — chargebackTx selects on that column being NULL.
-      const fillUpArgs = (mockBankTxReturn.chargebackFillUp as jest.Mock).mock.calls[0];
-      expect(fillUpArgs).toHaveLength(9);
-      expect(fillUpArgs).not.toContainEqual(expect.objectContaining({ id: expect.anything() }));
+      // The output reaches the row through the FiatOutput save's inverse-side FK write. Carrying it
+      // in the state write too would be a redundant second write of the same column, and accepting
+      // it as a parameter is what put the save ahead of the state write to begin with.
+      expect(manager.update.mock.calls[0][2]).not.toHaveProperty('chargebackOutput');
       expect(mockBankTxReturn.chargebackOutput).toEqual({ id: 1 });
     });
 
@@ -229,14 +231,37 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
     });
 
+    it('propagates a failed output creation so the state write rolls back with it', async () => {
+      fiatOutputService.createInternal.mockRejectedValueOnce(
+        new Error('Failed to create fiat output for BankTxReturn 1: Missing required creditor fields: iban'),
+      );
+
+      await expect(
+        service.refundBankTx(mockBankTxReturn, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'BatchJob',
+        }),
+      ).rejects.toThrow('Missing required creditor fields');
+
+      // The state write already ran, so the rejection has to escape the transaction callback for
+      // TypeORM to roll it back — swallowing it here would commit a chargeback with no output.
+      expect(manager.update).toHaveBeenCalledTimes(1);
+    });
+
     it('skips the output on the user-initiated leg but still writes the chargeback state', async () => {
       await service.refundBankTx(mockBankTxReturn, {
         chargebackAllowedDateUser: new Date(),
         chargebackAllowedBy: 'User',
       });
 
-      expect(manager.update).toHaveBeenCalledWith(BankTxReturn, { id: 1 }, {});
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BankTxReturn,
+        1,
+        expect.objectContaining({ chargebackAllowedBy: 'User' }),
+      );
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
+      expect(mockBankTxReturn.chargebackOutput).toBeUndefined();
     });
   });
 });
