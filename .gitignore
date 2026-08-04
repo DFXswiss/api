@@ -57,3 +57,7 @@ test-results/
 
 # Generated email previews
 scripts/email-previews/
+
+# Output of scripts/inventory
+.inventory-out/
+__pycache__/

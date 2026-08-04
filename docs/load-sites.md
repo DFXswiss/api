@@ -29,11 +29,11 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 796 of 1158 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 799 of 1158 sites.
 
 - **341 are exact**: the `relations` tree is written at the call site.
-- **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 362 could not be measured: no resolvable target entity, or raw SQL.
+- **458 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- 359 could not be measured: no resolvable target entity, or raw SQL.
 
 **That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 343 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
 
@@ -111,10 +111,10 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:615` | `BuyFiatPreparationService.chargebackTx` |
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:486` | `BuyFiatService.retriggerScorechain` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:65` | `PaymentLinkRepository.getAllPaymentLinks` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:72` | `PaymentLinkRepository.getAllPaymentLinks` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:79` | `PaymentLinkRepository.getAllPaymentLinksByExternalLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:72` | `PaymentLinkRepository.getAllPaymentLinksByExternalLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:79` | `PaymentLinkRepository.getAllPaymentLinksByExternalPaymentId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:116` | `PaymentLinkRepository.getPaymentLinkByLinkId` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:123` | `PaymentLinkRepository.getPaymentLinkByLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:123` | `PaymentLinkRepository.getPaymentLinkByExternalId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:133` | `PaymentLinkRepository.getPaymentLinkByExternalPaymentId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/services/payment-link.service.ts:430` | `PaymentLinkService.updatePaymentLinkAdmin` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/services/payment-link.service.ts:485` | `PaymentLinkService.getActivePaymentLink` |
@@ -796,8 +796,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 2 | 0 | query-builder (named columns) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
 | 2 | 0 | query-builder (named columns) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:198` | `SupportIssueService.getSupportIssueStatistics` |
 | 2 | 0 | query-builder (named columns) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:516` | `BankTxService.getBankTxFee` |
-| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
-| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
+| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
+| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (named columns) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:528` | `BankTxService.getBankTxFee` |
 | 1 | 0 | query-builder (named columns) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:245` | `SupportIssueService.getSupportIssueStatistics` |
@@ -838,13 +838,16 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1 | 0 | query-builder (named columns) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:189` | `DepositService.getNextDepositIndex` |
 | 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:97` | `LogRepository.cleanup` |
 | 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:104` | `LogRepository.cleanup` |
-| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
-| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
+| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
+| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (named columns) | `—` | `subdomains/supporting/payin/services/payin.service.ts:246` | `PayInService.getPayInFee` |
 | 1 | 0 | query-builder (named columns) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:358` | `TransactionRequestService.getLegacySettlementTxIds` |
 | 1 | 0 | query-builder (named columns) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:412` | `TransactionRequestService.getActiveDepositAddresses` |
 | 1 | 0 | query-builder (named columns) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:186` | `SupportIssueService.getSupportIssueStatistics` |
 | 1 | 0 | query-builder (no select) | `—` | `subdomains/generic/gs/gs.service.ts:906` | `GsService.getExtendedBankTxData` |
+| 0 | 0 | query-builder (count only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
+| 0 | 0 | query-builder (count only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1804` | `UserDataService.countByDateRange` |
+| 0 | 0 | query-builder (count only) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:341` | `LogRepository.getFinancialLogAssetPrices` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:511` | `LogRepository.getFinancialLogSummariesFull` |
 | — | — | raw-sql | `Log` | `subdomains/supporting/log/log.repository.ts:664` | `LogRepository.getFinancialLogSummariesChartOnly` |
@@ -917,7 +920,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:264` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:268` | `LedgerBookingService.activeTx` |
 | — | — | find | `—` | `subdomains/core/accounting/services/ledger-booking.service.ts:274` | `LedgerBookingService.activeTx` |
-| — | — | query-builder (count only) | `LedgerLeg` | `subdomains/core/accounting/services/ledger-mark-to-market.service.ts:212` | `LedgerMarkToMarketService.alreadyBooked` |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:375` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:684` | — |
 | — | — | find | `—` | `subdomains/core/aml/services/aml-helper.service.ts:685` | — |
@@ -1079,7 +1081,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1382` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1585` | `UserDataService.mergeUserData` |
 | — | — | find | `—` | `subdomains/generic/user/models/user-data/user-data.service.ts:1763` | `UserDataService.updateBankTxTime` |
-| — | — | query-builder (count only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1804` | `UserDataService.countByDateRange` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/dto/user-dto.mapper.ts:27` | — |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.repository.ts:70` | `UserRepository.getNextRef` |
 | — | — | find | `—` | `subdomains/generic/user/models/user/user.service.ts:337` | `UserService.createUser` |
@@ -1148,7 +1149,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:616` | `LogJobService.getAssetLog` |
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:982` | `LogJobService.getAssetLog` |
 | — | — | find | `—` | `subdomains/supporting/log/log-job.service.ts:1833` | `LogJobService.findSenderReceiverPair` |
-| — | — | query-builder (count only) | `Log` | `subdomains/supporting/log/log.repository.ts:688` | `LogRepository.assertEmptyResultIsEndOfData` |
 | — | — | find | `—` | `subdomains/supporting/notification/services/notification.service.ts:128` | `NotificationService.resolveMailWallet` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin-notification.service.ts:32` | `PayInNotificationService.returnedCryptoInput` |
 | — | — | find | `—` | `subdomains/supporting/payin/services/payin.service.ts:177` | `PayInService.getCryptoInputsByTransactionIds` |
