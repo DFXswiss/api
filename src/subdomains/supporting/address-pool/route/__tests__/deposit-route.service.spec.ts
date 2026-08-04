@@ -2,6 +2,8 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { FindOneOptions, In } from 'typeorm';
+import { DepositRoute } from '../deposit-route.entity';
 import { DepositRouteRepository } from '../deposit-route.repository';
 import { DepositRouteService } from '../deposit-route.service';
 
@@ -51,6 +53,50 @@ describe('DepositRouteService', () => {
       expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: 42 }) }),
       );
+    });
+  });
+
+  describe('getByLabel scoping', () => {
+    // TypeORM drops relation objects whose properties are all undefined, so with no label the base
+    // where vanishes and a caller-supplied options.where becomes the only surviving condition —
+    // matching across every route. The query must not be issued at all.
+    it.each([undefined, null, ''])('does not query when the label is %p', async (label) => {
+      const route = await service.getByLabel(undefined, label as string);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('does not query when only a caller-supplied where survives', async () => {
+      const route = await service.getByLabel(undefined, undefined, {
+        relations: { paymentLinks: true },
+        where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+      } as FindOneOptions<DepositRoute>);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a label is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getByLabel(7, 'my-label');
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { route: { label: 'my-label' }, user: { id: 7 } } }),
+      );
+    });
+  });
+
+  describe('getPaymentLinksFromRoute scoping', () => {
+    // The reachable shape: an id filter with no route to scope it to. Without the guard the surviving
+    // where is the id filter alone, returning links that belong to other routes entirely.
+    it('does not query when no route is supplied', async () => {
+      await expect(service.getPaymentLinksFromRoute(undefined, undefined, [1, 2, 3])).rejects.toThrow(
+        'Payment route not found',
+      );
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
   });
 });

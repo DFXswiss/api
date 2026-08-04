@@ -34,6 +34,15 @@ export class DepositRouteService {
   }
 
   async getByLabel(userId: number, label: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
+    // Without a label there is nothing left to scope on. TypeORM drops relation objects whose
+    // properties are all undefined, so `{ route: { label: undefined }, user: { id: undefined } }`
+    // disappears entirely and a caller-supplied `options.where` — e.g. the paymentLinks id filter in
+    // getPaymentLinksFromRoute — becomes the only surviving condition, matching across every route
+    // rather than one. Both callers that can reach this with no label are unauthenticated.
+    // Returned rather than thrown because every caller already turns a missing route into its own
+    // 404/400; throwing here would change those responses.
+    if (!label) return undefined;
+
     const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
