@@ -905,7 +905,7 @@ export class KycService {
 
     await this.verify2fa(user, ip);
 
-    await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
+    await this.kycStepRepo.update(...kycStep.inProgress(data.responses));
 
     const complete = FinancialService.isComplete(data.responses, user.accountType);
     if (complete) {

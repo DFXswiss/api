@@ -21,6 +21,8 @@ import { KycError } from '../../dto/kyc-error.enum';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
 import { SumSubLevelName } from '../../dto/sum-sub.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
+import { KycStepStatus } from '../../dto/output/kyc-info.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
@@ -851,5 +853,44 @@ describe('KycService checkDfxApproval step promotion', () => {
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// updateFinancialData used to call KycStep.update(undefined, responses), which Object.assign-wipes
+// status/sequenceNumber so KycStepMapper.toStepBase drops them from the response. Fix is inProgress()
+// (same pattern as other result writes on a running step). Cover the incomplete path.
+describe('KycService updateFinancialData response fields', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+
+    // updateFinancialData only touches getUser/verify2fa/updateProgress (stubbed below) and the repo
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('keeps status and sequenceNumber on the response when the step stays in progress', async () => {
+    const kycStep = Object.assign(new KycStep(), {
+      id: 99,
+      name: KycStepName.FINANCIAL_DATA,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 3,
+    });
+
+    const user = createMock<UserData>({ kycHash: 'hash', accountType: AccountType.PERSONAL });
+    user.getPendingStepOrThrow.mockReturnValue(kycStep);
+
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+    jest.spyOn(service as any, 'verify2fa').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+
+    // empty responses → FinancialService.isComplete is false → no internalReview transition
+    const result = await service.updateFinancialData('hash', '1.2.3.4', 99, { responses: [] });
+
+    expect(result.status).toBe(KycStepStatus.IN_PROGRESS);
+    expect(result.sequenceNumber).toBe(3);
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
   });
 });
