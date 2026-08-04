@@ -130,6 +130,7 @@ function createHeadingRenderer() {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, '')
       .replace(/ /g, '-');
+    if (!slug) slug = 'section';
     if (seen.has(slug)) {
       const n = seen.get(slug);
       seen.set(slug, n + 1);
@@ -597,6 +598,8 @@ function main() {
       outputPath: 'mails/index.html',
       sourcePath: path.posix.join('scripts/email-previews/realunit', '00_index.html'),
       title: 'mails/index.html',
+      // Navigation page only — not a real mail; excluded from counts.mails.
+      navigation: true,
     });
   }
   if (mailEntries.length < MIN_MAILS) {
@@ -1549,10 +1552,14 @@ function main() {
     return sortStrings(a.title, b.title);
   });
 
-  // counts from finished artifacts[] so extra registrations (e.g. mails/index.html)
-  // stay consistent with the manifest artifact list.
+  // counts: real category members only. Skip navigation:true (e.g. mails/index.html)
+  // so counts.mails matches mailEntries.length / the index page, not artifacts[].
+  // counts.specs intentionally differs from specEntries.length: the companion
+  // README is a display entry under specs but lives only under category 'docs'
+  // in artifacts[] (avoids double-counting the same file under two categories).
   const counts = { pdfs: 0, mails: 0, docs: 0, diagrams: 0, assets: 0, specs: 0 };
   for (const a of artifacts) {
+    if (a.navigation) continue;
     if (Object.prototype.hasOwnProperty.call(counts, a.category)) {
       counts[a.category] += 1;
     }

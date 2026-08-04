@@ -144,13 +144,26 @@ jobs:
             esac
           done < /tmp/handbook-sample-paths.txt
 
-          # PDF inline disposition sample (first pdfs artifact if any)
+          # PDF inline disposition sample (first pdfs artifact if any).
+          # Encode per segment (same as sample loop above) so '#'/'?' in a
+          # filename are not treated as fragment/query by curl.
           pdf_path=$(node -e "
             const m=require('/tmp/handbook-manifest.json');
             const p=(m.artifacts||[]).find(a=>a.category==='pdfs');
-            if(p) process.stdout.write(p.outputPath);
+            if(p) process.stdout.write(p.outputPath.split('/').map(encodeURIComponent).join('/'));
           ")
           if [ -n "$pdf_path" ]; then
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -u ci:ci --max-time 10 \
+              "http://127.0.0.1:8080/${pdf_path}")
+            # nginx sends Content-Disposition: inline with `always`, i.e. even on a 404 —
+            # so the status code must be checked first, or a missing PDF passes silently.
+            case "$code" in
+              2*) ;;
+              *)
+                echo "pdf sample ${code}: ${pdf_path}" >&2
+                exit 1
+                ;;
+            esac
             disp=$(curl -sS -D - -o /dev/null -u ci:ci --max-time 10 \
               "http://127.0.0.1:8080/${pdf_path}" | tr -d '\r' | grep -i '^content-disposition:' || true)
             echo "Content-Disposition for ${pdf_path}: ${disp}"
