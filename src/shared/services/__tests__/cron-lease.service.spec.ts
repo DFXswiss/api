@@ -16,13 +16,15 @@ import { CronLeaseService } from '../cron-lease.service';
 describe('CronLeaseService', () => {
   const original = process.env.CRON_ROLE;
 
-  /** Mirrors the two shapes `DataSource.query` returns: rows for INSERT..RETURNING, [rows, count] for UPDATE. */
+  /** Mirrors the two shapes `DataSource.query` returns: rows for INSERT..RETURNING, [rows, count] for UPDATE
+   * and DELETE — the driver answers both the same way, and `release` reads the count. */
   function buildService(responses: { acquire?: unknown[]; renew?: [unknown[], number]; onQuery?: jest.Mock }) {
     const onQuery =
       responses.onQuery ??
       jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return Promise.resolve(responses.acquire ?? [{ owner: 'x' }]);
         if (sql.includes('UPDATE')) return Promise.resolve(responses.renew ?? [[], 1]);
+        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
 
@@ -805,13 +807,60 @@ describe('CronLeaseService', () => {
       expect(error.mock.calls[0][0]).toContain('Lost the lease');
     });
 
-    it('reports the loss when the release itself never answered', async () => {
+    it('reports the loss when the release itself failed', async () => {
       // Unknown is not the same as safe: a release that threw leaves it undecided whether the row
       // went, and the honest default is the one that still reports.
       const error = await releaseRacingAStalledRenewal(() => Promise.reject(new Error('connection lost')));
 
       const lost = error.mock.calls.map((c) => c[0]).filter((line: string) => line.includes('Lost the lease'));
       expect(lost).toHaveLength(1);
+    });
+
+    it('waits for the release before deciding, when the renewal answers first', async () => {
+      // The renewal and the release run on different pooled connections, so the DELETE can execute
+      // first in the database while its answer arrives second here. Reading a flag the release sets
+      // would then still be unset, and a row this run's own release had taken would be reported as
+      // lost — the same false line, just through a narrower window.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let answerRenewal: (result: [unknown[], number]) => void;
+        let answerRelease: (result: [unknown[], number]) => void;
+        const onQuery = lease({
+          renew: () => new Promise((resolve) => (answerRenewal = resolve)),
+          release: () => new Promise((resolve) => (answerRelease = resolve)),
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        // The run ends and the DELETE goes out, but has not come back yet.
+        finish();
+        await settle();
+
+        // The renewal answers FIRST, matching nothing because the DELETE already executed.
+        answerRenewal([[], 0]);
+        await settle();
+
+        expect(error).not.toHaveBeenCalled();
+
+        // Only now does the release report that the row was ours.
+        answerRelease([[], 1]);
+        await run;
+        await settle();
+
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('reports a loss while the run is still going', async () => {

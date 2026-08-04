@@ -33,10 +33,9 @@ const LEASE_TTL_SECONDS = 60;
  * Measuring from the answer is what this replaced, and it spent the margin twice. An attempt fired
  * at 20 s whose answer arrived at 45 s put the next at 65 s — five seconds after the claim had
  * already lapsed, so a database slow enough to be worth surviving was the very thing that
- * guaranteed the loss. Attempts
- * now start every `max(interval, round trip)` instead of every `interval + round trip`: unchanged
- * while the database answers promptly, and no longer adding the latency on top of a wait that was
- * already sized to absorb it.
+ * guaranteed the loss. Attempts now start every `max(interval, round trip)` instead of every
+ * `interval + round trip`: unchanged while the database answers promptly, and no longer adding the
+ * latency on top of a wait that was already sized to absorb it.
  *
  * It does not restore the three-attempts-per-TTL the interval was chosen for. Nothing can, once a
  * single round trip approaches the TTL — attempts then run back to back, one per round trip, and
@@ -44,6 +43,11 @@ const LEASE_TTL_SECONDS = 60;
  * deliberate trade: during an outage the claim is renewed as early as it possibly can be, at the
  * cost of a continuous rather than intermittent connection. The failure path re-arms the same way
  * and therefore has no backoff, which is the same trade seen from the other side.
+ *
+ * That cost feeds back on itself, and the class doc rejects `pg_advisory_lock` on the same grounds:
+ * a slower database means continuously renewing jobs, which means fewer free connections in a pool
+ * sized by `SQL_POOL_MAX`, which makes the database slower still. Bounding the round trip is what
+ * breaks the loop; the schedule alone cannot.
  *
  * What is still not bounded is the round trip itself — there is no statement timeout on these
  * queries. A database slow to EVERY renewal cannot be renewed against at any cadence, and no
@@ -394,18 +398,23 @@ export class CronLeaseService implements OnModuleInit {
     // is the bound that always applies. The release only ever shortens that wait.
     const renewal = this.keepAlive(job, owner, claimedAt);
 
-    return this.track(job, owner, task, () => {
+    return this.track(job, owner, task, async () => {
       renewal.stop();
 
-      return this.release(job, owner)
-        .then((removed) => renewal.released(removed))
-        .catch((e) => {
-          // Nothing is reported to `renewal` here on purpose: a release that did not answer leaves
-          // it unknown whether the row went, and the honest default is the one that still reports a
-          // loss rather than the one that hides it.
-          this.recordFailure(e);
-          this.logger.error(`Could not release the lease for ${job}`, e);
-        });
+      // Handed over as a PROMISE, and before it is awaited. The renewal and the release run on
+      // different pooled connections, so the DELETE can execute first in the database while its
+      // answer arrives second here — passing the resolved value would leave an outstanding renewal
+      // deciding on a flag that is still unset, and reporting a loss for a row its own release had
+      // already taken. Giving it the promise lets it wait for the fact instead of racing it.
+      const releasing = this.release(job, owner);
+      renewal.releasing(releasing);
+
+      try {
+        await releasing;
+      } catch (e) {
+        this.recordFailure(e);
+        this.logger.error(`Could not release the lease for ${job}`, e);
+      }
     });
   }
 
@@ -546,14 +555,14 @@ export class CronLeaseService implements OnModuleInit {
     job: string,
     owner: string,
     claimedAt: number,
-  ): { stop: () => void; released: (removed: boolean) => void } {
+  ): { stop: () => void; releasing: (release: Promise<boolean>) => void } {
     let stopped = false;
     let timer: NodeJS.Timeout;
     let reportedLoss = false;
     let worstReportedMs = 0;
 
     /**
-     * Whether this run's own `release` is known to have removed the row.
+     * Whether this run's own `release` removed the row — the question the loss line turns on.
      *
      * This is the whole of the false-loss problem, and the row answers it exactly. `stop` cannot
      * cancel an attempt that has already fired, so a finishing run races its own release: the
@@ -564,8 +573,8 @@ export class CronLeaseService implements OnModuleInit {
      * A DELETE that removed a row proves the row was still THIS run's when it ran, so nothing had
      * taken it and any later unmatched renewal is unmatched because of that DELETE. A DELETE that
      * removed nothing proves the row had already gone or been re-owned, and the loss is real and
-     * still reported. A release that threw leaves this false, which reports — the direction that
-     * errs towards a line too many rather than a double run kept quiet.
+     * still reported. A release that threw leaves it unknown, which also reports — the direction
+     * that errs towards a line too many rather than a double run kept quiet.
      *
      * Two weaker tests were tried first and both were wrong. `stopped` says only that the run
      * ended, never why the renewal matched nothing: a claim taken over at 60 s on a run that ends
@@ -576,7 +585,16 @@ export class CronLeaseService implements OnModuleInit {
      * past the remaining margin. It also rested on the app's clock agreeing with the database's,
      * and on an expiry predicate that `acquire` applies only when the row still exists.
      */
-    let releasedOwnRow = false;
+    let releasing: Promise<boolean> | undefined;
+
+    /**
+     * Whether this run's own release is the reason a renewal matched nothing.
+     *
+     * Awaits the release when one is in flight, rather than reading a flag it may have set too
+     * late. A release that rejected answers false — unknown is not the same as safe, and the
+     * direction that errs towards a line too many is the right one for a double run.
+     */
+    const ourReleaseTookTheRow = (): Promise<boolean> => releasing?.catch(() => false) ?? Promise.resolve(false);
 
     /**
      * When the claim was last confirmed to name this run — the claim itself to begin with, then the
@@ -599,7 +617,7 @@ export class CronLeaseService implements OnModuleInit {
 
           if (stillOurs) {
             acceptedAt = startedAt;
-          } else if (!reportedLoss && !releasedOwnRow) {
+          } else if (!reportedLoss && !(await ourReleaseTookTheRow())) {
             reportedLoss = true;
             this.logger.error(
               `Lost the lease for ${job} (owner ${owner}, ` +
@@ -607,9 +625,10 @@ export class CronLeaseService implements OnModuleInit {
             );
           }
         } catch (e) {
-          // Deliberately not latched, unlike the two lines above. Each failure is a distinct event
-          // with its own cause attached, and it also feeds `takeFailures` for the heartbeat, which
-          // counts per window and would under-report a persistent outage if this returned early.
+          // Deliberately unrestricted, unlike the loss line above and the slow line below. Each
+          // failure is a distinct event carrying its own cause, and it also feeds `takeFailures`
+          // for the heartbeat, which counts per window and would under-report a persistent outage
+          // if this line were latched or held to a high-water mark.
           this.recordFailure(e);
           this.logger.error(`Could not extend the lease for ${job}`, e);
         }
@@ -648,11 +667,12 @@ export class CronLeaseService implements OnModuleInit {
         stopped = true;
         clearTimeout(timer);
       },
-      // Told to the renewal only after the DELETE has answered, which is the only moment its result
-      // is known. An attempt that answers before this point cannot be the release race — the row was
-      // still there to match — so nothing is missed by the flag arriving late.
-      released: (removed: boolean) => {
-        releasedOwnRow = removed;
+      // Given the moment the DELETE is issued, not when it answers. An attempt that is already
+      // outstanding then waits for it before deciding, instead of reading a result that may not
+      // have arrived yet; an attempt that answers before the release is issued at all sees nothing
+      // to wait for, which is correct — with no DELETE in flight, matching nothing is a takeover.
+      releasing: (release: Promise<boolean>) => {
+        releasing = release;
       },
     };
   }
