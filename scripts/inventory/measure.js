@@ -128,7 +128,9 @@ async function main() {
       out.push({ ...s, cols: width, joins: 0, over: false });
       continue;
     }
-    if (s.select_count) {
+    // `!= null`, not truthy: a query selecting zero columns is a measurement of zero, and
+    // falling through to the default query would report the full entity width instead.
+    if (s.select_count != null) {
       out.push({ ...s, cols: s.select_count, joins: 0, over: false });
       continue;
     }

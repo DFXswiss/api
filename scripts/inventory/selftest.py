@@ -121,6 +121,17 @@ export class WidgetService {
     return qb.getRawMany();
   }
 
+  async reusesTheSameVariableName(): Promise<unknown> {
+    const qb = this.widgetRepo.createQueryBuilder('w').select('w.id', 'id');
+    return qb.getRawMany();
+  }
+
+  async andAgainInTheNextMethod(): Promise<unknown> {
+    const qb = this.widgetRepo.createQueryBuilder('w').select('w.name', 'name');
+    qb.addSelect('w.amount', 'amount');
+    return qb.getRawMany();
+  }
+
   async aliasOnly(): Promise<Widget[]> {
     return this.widgetRepo.createQueryBuilder('w').select('w').getMany();
   }
@@ -217,6 +228,12 @@ def test_select_categories(src, work):
     # unmatched by a string-literal rule.
     check('columns counted across statements and branches',
           by_method['namedColumnsAcrossStatements'].get('select_count'), 3)
+    # `qb` is used again in the next method. Without stopping at the re-declaration, the
+    # lookahead would pull that query's columns into this one's count and be quietly wrong.
+    check('columns of a later same-named builder stay out',
+          by_method['reusesTheSameVariableName'].get('select_count'), 1)
+    check('the later builder counts its own',
+          by_method['andAgainInTheNextMethod'].get('select_count'), 2)
     check('count only marked unmeasurable', by_method['countOnly'].get('unmeasurable'), True)
     check('named columns', by_method['namedColumns']['select'], classify.SEL_NAMED_COLUMNS)
     check('alias only', by_method['aliasOnly']['select'], classify.SEL_ALIAS_ONLY)

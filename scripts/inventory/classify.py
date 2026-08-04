@@ -31,8 +31,11 @@ SELECT_KINDS = (SEL_FIELD_LIST, SEL_NAMED_COLUMNS, SEL_ALIAS_ONLY, SEL_NO_SELECT
 # joined entity whole.
 NARROWING = frozenset({SEL_FIELD_LIST, SEL_NAMED_COLUMNS, SEL_COUNT_ONLY})
 
+# `PROJECTION.apply(this.createQueryBuilder('x'), fields)` — the constant is captured, because
+# the measurement resolves it by name. One pattern for both the "is this a projection" test and
+# the name lookup; two near-identical copies would be free to drift into disagreeing.
 APPLY_HELPER = re.compile(
-    r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$')
+    r'\b([A-Z][A-Z0-9_]*)\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$')
 COUNTING = re.compile(r'\.(getCount|getExists)\s*\(\s*\)')
 SELECT_BRACKET = re.compile(r'\.select\(\s*\[')
 SELECT_IDENT = re.compile(r'\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]')
@@ -99,7 +102,6 @@ def select_kind(text, m_start, m_end):
     return select
 
 
-APPLY_NAME = re.compile(r'\b([A-Z][A-Z0-9_]*)\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$')
 SELECT_LIST = re.compile(r'\.select\(\s*\[([^\]]*)\]')
 # A select/addSelect call. The first argument may be a variable holding an expression
 # (`.select(bucketExpr, 'bucket')`), so matching only string literals undercounts.
@@ -126,7 +128,7 @@ def selected_columns(text, m_start, m_end, kind):
         return {'unmeasurable': True}
     chain = text[m_end:m_end + 1500].split(';')[0]
     before = text[max(0, m_start - 160):m_start]
-    m = APPLY_NAME.search(before)
+    m = APPLY_HELPER.search(before)
     if m:
         return {'projection': m.group(1)}
     lst = SELECT_LIST.search(chain)
@@ -134,6 +136,12 @@ def selected_columns(text, m_start, m_end, kind):
         return {'select_count': len([x for x in lst.group(1).split(',') if x.strip()])}
     count = _named_column_count(text, m_start, m_end, chain)
     return {'select_count': count} if count else {}
+
+
+# Quote types are not interchangeable: `"SUM(CASE WHEN x = 'a' THEN 'b' END)"` is one double
+# quoted string containing single quotes, not four alternating fragments. A single character
+# class would cut it into pieces and hand back a meaningless tail as the column identifier.
+STRING_LITERAL = re.compile(r"'([^']*)'|\"([^\"]*)\"|`([^`]*)`")
 
 
 def _alias_at(text, paren):
@@ -144,7 +152,7 @@ def _alias_at(text, paren):
     """
     from tsparse import skip_args
     args = text[paren:skip_args(text, paren)]
-    strings = re.findall(r'[\'"`]([^\'"`]*)[\'"`]', args)
+    strings = [next(g for g in m.groups() if g is not None) for m in STRING_LITERAL.finditer(args)]
     return strings[-1] if strings else args
 
 
@@ -159,8 +167,15 @@ def _named_column_count(text, m_start, m_end, chain):
     aliases = {_alias_at(chain, m.end() - 1) for m in NAMED_CALL.finditer(chain)}
     assigned = ASSIGNED_TO.search(text[max(0, m_start - 200):m_start])
     if assigned:
+        name = assigned.group(1)
         rest = text[m_end:m_end + 6000]
-        later = re.compile(r'\b' + re.escape(assigned.group(1)) + r'\s*\.\s*(?:select|addSelect)\s*\(')
+        # Stop at a re-declaration of the same identifier. `qb` and `query` are used in method
+        # after method; without this the lookahead would collect the columns of an unrelated
+        # query into this one's count, and be wrong with nothing to show for it.
+        redecl = re.search(r'\b(?:const|let|var)\s+' + re.escape(name) + r'\b', rest)
+        if redecl:
+            rest = rest[:redecl.start()]
+        later = re.compile(r'\b' + re.escape(name) + r'\s*\.\s*(?:select|addSelect)\s*\(')
         aliases |= {_alias_at(rest, m.end() - 1) for m in later.finditer(rest)}
     return len(aliases)
 
@@ -210,9 +225,12 @@ def is_write_qb(src, s):
 
 def raw_kind(src, s):
     """Raw SQL at a recorded site: an advisory lock, a write, or a genuine read."""
-    lines = _lines(src, s['file'])
-    # From the recorded line to the end of the call, however long the statement is.
-    return raw_kind_of(raw_statement('\n'.join(lines[s['line'] - 1:]), 0))
+    text = '\n'.join(_lines(src, s['file'])[s['line'] - 1:])
+    # Anchor on the `.query(` itself. Starting the bracket walk at the beginning of the line
+    # picks up whatever parenthesis comes first — `const raw = (await this.query(...))` happens
+    # to still enclose the call, but only by luck.
+    call = re.search(r'\.query\s*\(', text)
+    return raw_kind_of(raw_statement(text, call.start() if call else 0))
 
 
 def annotate(src, sites):
