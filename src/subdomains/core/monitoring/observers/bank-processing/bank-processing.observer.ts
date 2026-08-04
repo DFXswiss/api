@@ -4,7 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -33,7 +33,7 @@ export class BankProcessingObserver extends MetricObserver<BankProcessingData> {
   // be read as "all ok".
   // The finite lock timeout is mandatory (an infinite lock would let one hung run block the job
   // silently forever); 1800s matches the sibling observers and keeps overlap unlikely at a 5-minute cadence.
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_PROCESSING_MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_PROCESSING_MONITORING, timeout: 1800 })
   async fetch(): Promise<BankProcessingData> {
     const now = new Date();
     const results: BankProcessingRuleResult[] = [];
