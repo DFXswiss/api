@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -108,7 +109,7 @@ describe('DepositRouteService', () => {
     it.each([undefined, null, ''])('does not query when the public name is %p', async (publicName) => {
       const routes = await service.getPaymentRoutesForPublicName(publicName as string);
 
-      expect(routes).toEqual([]);
+      expect(routes).toStrictEqual([]);
       expect(depositRouteRepo.find).not.toHaveBeenCalled();
     });
 
@@ -117,11 +118,16 @@ describe('DepositRouteService', () => {
 
       await service.getPaymentRoutesForPublicName('acme');
 
-      expect(depositRouteRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ user: { userData: { paymentLinksName: 'acme' } } }),
-        }),
-      );
+      // Whole where pinned: dropping `active` or the blockchain filter would flow inactive and
+      // non-Lightning routes into getLocations/assignPaymentLink with no test noticing.
+      expect(depositRouteRepo.find).toHaveBeenCalledWith({
+        where: {
+          active: true,
+          deposit: { blockchains: Blockchain.LIGHTNING },
+          user: { userData: { paymentLinksName: 'acme' } },
+        },
+        relations: { user: { userData: true } },
+      });
     });
   });
 
@@ -138,12 +144,25 @@ describe('DepositRouteService', () => {
       expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
 
+    // Without this the guard could be weakened to `!id && options` and stay green, since the falsy
+    // cases above all pass options. Same asymmetry already closed for getByLabel.
+    it('does not query for a falsy id even with no options', async () => {
+      const route = await service.getById(undefined);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('still queries when an id is supplied', async () => {
       jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
 
       await service.getById(42);
 
-      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 42 } }));
+      // relations pinned too: createInvoice reads route.user.id off the result.
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 42 },
+        relations: { user: { userData: true } },
+      });
     });
   });
 
@@ -186,7 +205,13 @@ describe('DepositRouteService', () => {
 
       await service.getLatest(7);
 
-      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { user: { id: 7 } } }));
+      // order pinned: create() attaches a new payment link to whatever comes back, so returning the
+      // oldest route rather than the newest is a real behaviour change.
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith({
+        where: { user: { id: 7 } },
+        relations: { user: { userData: true } },
+        order: { created: 'DESC' },
+      });
     });
   });
 
