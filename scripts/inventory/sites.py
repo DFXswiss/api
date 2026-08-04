@@ -3,7 +3,7 @@
 
 Eine Ladestelle ist ein Aufruf, der Daten aus der Datenbank liest. Pro Stelle wird
 festgehalten: Datei, Zeile, umgebende Klasse/Methode, Ziel-Entity, Lademechanik.
-Die Spaltenzahl misst anschliessend TypeORM selbst (sites_measure.js).
+Die Spaltenzahl misst anschliessend TypeORM selbst (measure.js).
 """
 import re, glob, os, json
 

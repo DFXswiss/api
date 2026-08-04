@@ -1,7 +1,7 @@
 /**
  * Misst je Ladestelle die echte SELECT-Spaltenzahl aus den TypeORM-Metadaten.
  *
- * Ersatz für measure.js, in genau zwei Punkten:
+ * Gegenüber der Vorgängerfassung ausserhalb dieses Repos in genau zwei Punkten geändert:
  *   - parametrisiert (DIST, INPUT, OUT_MEASURED, OUT_TABLES per Umgebung/argv) statt fest verdrahtet,
  *   - `buildMetadatas()` statt `initialize()`, also OHNE Datenbank.
  * Das Ausgabeformat ist unverändert, damit build_docs.py es unbesehen lesen.

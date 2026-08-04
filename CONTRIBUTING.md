@@ -519,7 +519,7 @@ export class SupportIssueController {
 
 [docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
 
-Both inventories (`docs/endpoints.md` and `docs/load-sites.md`) are produced by the scripts under `scripts/inventory/`. A full `npm run docs:inventory` run is a data source, not a replacement for the published documents: it overwrites both files completely and discards their hand-adjusted passages. To keep the documents current, use the `apply_drift.py` workflow described in `scripts/inventory/README.md`. A PR that moves or adds load sites should update the inventories through that workflow rather than regenerating them.
+Both inventories (`docs/endpoints.md` and `docs/load-sites.md`) are produced by the scripts under `scripts/inventory/`. A full `npm run docs:inventory` run is a data source, not a replacement for the published documents: it overwrites both files completely and discards their hand-adjusted passages. To keep the published `docs/load-sites.md` current, use the `apply_drift.py` workflow described in `scripts/inventory/README.md`; a PR that moves or adds load sites should update it that way rather than regenerating it. `docs/endpoints.md` has no such workflow and is maintained by hand, as described above.
 
 Two details are easy to get wrong when editing the list by hand:
 

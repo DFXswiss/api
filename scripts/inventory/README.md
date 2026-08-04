@@ -12,7 +12,7 @@ A fresh run has been verified to produce the same inventory counts as the publis
 
 ## Keeping the documents current
 
-Use `apply_drift.py` to keep the published documents current after code changes. Run the same inventory pipeline twice: once on the commit from which the document was published and once on the current commit. `apply_drift.py` compares the two runs and applies only the following changes to the published `load-sites.md`:
+Use `apply_drift.py` to keep the published `docs/load-sites.md` current after code changes. It handles that document only; `docs/endpoints.md` has no drift tool and is maintained by hand. Run the same inventory pipeline twice: once on the commit from which the document was published and once on the current commit. `apply_drift.py` compares the two runs and applies only the following changes to the published `load-sites.md`:
 
 - insert rows for new load sites;
 - remove rows for load sites that no longer exist;

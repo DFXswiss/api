@@ -125,7 +125,7 @@ def tests(e):
     if known: return known
     # Projiziert, aber ohne eigene Spec gegen die vier Stufen: das ist genau der Zustand,
     # den das Dokument als unfertig fuehrt.
-    return '0/4' 
+    return '0/4'
 
 _after.update({(e['verb'], e['path']): e['maxcol'] for e in eps
                if (e['verb'], e['path']) in CONVERTED})
