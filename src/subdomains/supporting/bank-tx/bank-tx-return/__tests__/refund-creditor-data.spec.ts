@@ -13,11 +13,10 @@ import { BankTxReturnRepository } from '../bank-tx-return.repository';
 import { BankTxReturnService } from '../bank-tx-return.service';
 
 /**
- * Test: Creditor-Daten Fallback in BankTxReturnService.refundBankTx()
+ * BankTxReturnService.refundBankTx()
  *
- * Dieser Test verifiziert den Fix für den Bug:
- * - Wenn refundBankTx() aufgerufen wird OHNE Creditor-Daten im DTO
- * - Sollten die Creditor-Daten aus bankTxReturn.creditorData als Fallback verwendet werden
+ * - creditor data falls back to bankTxReturn.creditorData when the DTO carries none
+ * - the chargeback state write and its FiatOutput are one transaction, so neither can commit alone
  */
 describe('BankTxReturnService - refundBankTx Creditor Data', () => {
   let service: BankTxReturnService;
@@ -70,7 +69,6 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
     transactionUtilService.validateChargebackIban.mockResolvedValue(true);
     fiatOutputService.createInternal.mockResolvedValue({ id: 1 } as any);
-    bankTxReturnRepo.update.mockResolvedValue(undefined);
 
     manager = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     Object.defineProperty(bankTxReturnRepo, 'manager', {
@@ -173,24 +171,30 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
   });
 
   describe('refundBankTx - chargeback output atomicity', () => {
-    // FiatOutput.bankTxReturn is the inverse side of BankTxReturn.chargebackOutput, so saving the
-    // output writes chargebackOutputId onto the row. Committing that ahead of the state write, in
-    // its own transaction, left a window where a failure in between stranded the return: the FK is
-    // set while chargebackAllowedDate is still null, which drops it out of chargebackTx's
-    // `chargebackOutput: IsNull()` selection and makes every manual retry fail validateRefund.
+    // Why this matters is documented at the hazard site, in BankTxReturnService.refundBankTx.
+    // State-first is a convention rather than a requirement here; see the comment there.
     it('writes the chargeback state and creates the output in one transaction, state first', async () => {
-      await service.refundBankTx(mockBankTxReturn, {
-        chargebackAllowedDate: new Date(),
-        chargebackAllowedBy: 'BatchJob',
-      });
+      const chargebackAllowedDate = new Date();
+
+      await service.refundBankTx(mockBankTxReturn, { chargebackAllowedDate, chargebackAllowedBy: 'BatchJob' });
 
       expect(bankTxReturnRepo.manager.transaction).toHaveBeenCalledTimes(1);
       expect(bankTxReturnRepo.update).not.toHaveBeenCalled();
+      // Pin every slot that shifted when the chargebackOutput parameter was removed. The two dates
+      // sit either side of it and are both Date, so a swap would type-check silently.
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BankTxReturn,
         1,
-        expect.objectContaining({ chargebackAllowedBy: 'BatchJob', chargebackIban: mockBankTxReturn.chargebackIban }),
+        expect.objectContaining({
+          chargebackIban: 'CH9300762011623852957',
+          chargebackAmount: 50,
+          chargebackAsset: 'CHF',
+          chargebackAllowedDate,
+          chargebackAllowedDateUser: undefined,
+          chargebackAllowedBy: 'BatchJob',
+          chargebackCreditorData: JSON.stringify(mockCreditorData),
+        }),
       );
       expect(fiatOutputService.createInternal).toHaveBeenCalledWith(
         FiatOutputType.BANK_TX_RETURN,
@@ -211,9 +215,8 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         chargebackAllowedBy: 'BatchJob',
       });
 
-      // The output reaches the row through the FiatOutput save's inverse-side FK write. Carrying it
-      // in the state write too would be a redundant second write of the same column, and accepting
-      // it as a parameter is what put the save ahead of the state write to begin with.
+      // The output reaches the row through the FiatOutput save's inverse-side FK write, so carrying
+      // it in the state write too would be a redundant second write of the same column.
       expect(manager.update.mock.calls[0][2]).not.toHaveProperty('chargebackOutput');
       expect(mockBankTxReturn.chargebackOutput).toEqual({ id: 1 });
     });
