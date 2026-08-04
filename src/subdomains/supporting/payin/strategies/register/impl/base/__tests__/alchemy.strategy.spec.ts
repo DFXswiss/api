@@ -58,7 +58,11 @@ class TestAlchemyStrategy extends AlchemyStrategy {
   }
 }
 
-function createNftWebhook(category: string, rawValue: string): AlchemyWebhookDto {
+function createNftWebhook(
+  category: string,
+  rawValue: string,
+  markers?: { erc721TokenId?: string; erc1155Metadata?: { tokenId: string; value: string }[] },
+): AlchemyWebhookDto {
   return {
     webhookId: 'webhook-1',
     id: `event-nft-${category}`,
@@ -75,6 +79,7 @@ function createNftWebhook(category: string, rawValue: string): AlchemyWebhookDto
           value: undefined as unknown as number,
           asset: undefined as unknown as string,
           category,
+          ...markers,
           rawContract: {
             rawValue,
             decimals: undefined as unknown as number,
@@ -204,6 +209,35 @@ describe('AlchemyStrategy priced pay-in boundary', () => {
     await strategy.process(createNftWebhook('specialnft', '0x1'));
 
     expect(storedPayIns).toHaveLength(0);
+  });
+
+  it('skips an ERC-721 delivered under the collective token category', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(createNftWebhook('token', `0x${'f'.repeat(64)}`, { erc721TokenId: '0x2a' }));
+
+    expect(storedPayIns).toHaveLength(0);
+  });
+
+  it('skips an ERC-1155 delivered under the collective token category', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(
+      createNftWebhook('token', `0x${'1'.padStart(64, '0')}${'1'.padStart(64, '0')}`, {
+        erc1155Metadata: [{ tokenId: '0x1', value: '0x1' }],
+      }),
+    );
+
+    expect(storedPayIns).toHaveLength(0);
+  });
+
+  it('still registers a fungible transfer delivered under the collective token category', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(createNftWebhook('token', `0x${(10n ** 8n).toString(16)}`));
+
+    expect(storedPayIns).toHaveLength(1);
+    expect(storedPayIns.at(0)).toMatchObject({ asset: null, status: PayInStatus.FAILED });
   });
 
   it('stores an inert unpriced DGC input as FAILED and never returns it for processing', async () => {
