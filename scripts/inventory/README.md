@@ -113,12 +113,22 @@ is a query builder carrying a `leftJoinAndSelect`: there the joined entity is no
 width really is a lower bound. So the second group in `docs/load-sites.md` mixes two different
 things, and the sentence explaining it is true only of the `find` sites in it.
 
-One more thing belongs beside it: the extractor reads the source as text. It follows a builder to
-the end of its statement and no further, so a builder mutated elsewhere is not seen, and it does
-not remove block comments, so a commented-out query still counts. Neither shows up in the current
-inventory, and both are the kind of thing the four test levels in `read-path-projections.md` exist
-to catch downstream — but a width from this tool is a reading of the source, not a trace of a
-running query.
+Two more things belong beside it.
+
+**The extractor reads the source as text.** It follows a query builder from the call for a bounded
+window and stops at the first semicolon it sees, so a long chain can be cut short and a builder
+mutated elsewhere is not seen at all; and it does not remove block comments, so a commented-out
+query still counts. A width from this tool is a reading of the source, not a trace of a running
+query — which is what the four test levels in `read-path-projections.md` exist to settle
+downstream.
+
+**`count`, `countBy`, `exists` and `existsBy` on a repository are not extracted.** They read the
+database without materialising a row, exactly like the `getCount()` chains that _are_ recorded, and
+they are treated as writes by the call-graph resolution rather than as reads. The consequence is
+concrete and was measured: at least one endpoint recorded as reading nothing — `GET
+/support/call-queues` — does issue such a query. Recording them correctly means a site whose width
+is zero rather than one that loads whole rows, which is a change to how a site is categorised and
+not a matter of adding a name to a list.
 
 **The call graph keys symbols by class and method name alone**, and a good number of class names in
 this repository are declared more than once — `KycService` and `KycController` in the deprecated
