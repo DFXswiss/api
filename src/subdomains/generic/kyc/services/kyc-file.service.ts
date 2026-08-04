@@ -32,9 +32,16 @@ export class KycFileService {
   // concurrent read between the drop and the commit would refill the cache with the still-valid row and
   // that stale entry would outlive the commit. The caller invalidates once the transaction resolved -
   // `invalidateKycFileCache` is there for exactly that.
-  async invalidateKycFile(id: number, manager?: EntityManager): Promise<void> {
-    await (manager?.getRepository(KycFile) ?? this.kycFileRepository).update(id, { valid: false });
+  // Compare-and-set on `valid`, and the caller is told whether it applied: an invalidation that hit
+  // nothing must not be described by an audit event as a `true -> false` transition that happened.
+  async invalidateKycFile(id: number, manager?: EntityManager): Promise<boolean> {
+    const result = await (manager?.getRepository(KycFile) ?? this.kycFileRepository).update(
+      { id, valid: true },
+      { valid: false },
+    );
     if (!manager) this.invalidateKycFileCache();
+
+    return result.affected === 1;
   }
 
   invalidateKycFileCache(): void {

@@ -37,6 +37,15 @@ export class LetterService {
     return !!(Config.letter.url && Config.letter.auth.username && Config.letter.auth.apikey);
   }
 
+  /**
+   * Hands one letter to the print/dispatch provider.
+   *
+   * `false` means the provider answered and refused the job - it is read by callers as proof that
+   * nothing was sent, so it may only be returned for an answer that actually says so. A response whose
+   * shape is not recognised is ambiguous: the job may well have been created, and reporting "not sent"
+   * would invite a second, irreversible physical letter. Those throw instead, which callers treat as an
+   * unknown outcome.
+   */
   async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
     return this.http
       .post<LetterResponse>(`${Config.letter.url}/setJob`, {
@@ -52,7 +61,12 @@ export class LetterService {
           },
         },
       })
-      .then((r) => r.status == 200);
+      .then((r) => {
+        if (r?.status === 200) return true;
+        if (typeof r?.status === 'number') return false;
+
+        throw new Error(`Unexpected letter provider response: ${JSON.stringify(r)?.slice(0, 200)}`);
+      });
   }
 
   async getBalance(): Promise<number> {

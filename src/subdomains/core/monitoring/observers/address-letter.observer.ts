@@ -156,10 +156,17 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
       .leftJoin(
         'userData.kycFiles',
         'kycFile',
-        // `created >= letterClaimDate` restricts this to the document of THIS dispatch. Without it an
-        // older PostDispatch file - the previous automation attached one and then failed before
-        // stamping the date - would satisfy the join and hide a document this job never stored.
-        'kycFile.subType = :subType AND kycFile.valid = :valid AND kycFile.created >= userData.letterClaimDate',
+        // Restricts this to the document of THIS dispatch. Without it an older PostDispatch file - the
+        // previous automation attached one and then failed before stamping the date - would satisfy the
+        // join and hide a document this job never stored.
+        //
+        // It is a time correlation, not an identity: `created` is set by the database and the claim by
+        // the application, so the hour of slack absorbs clock skew between them rather than reporting a
+        // stored document as missing. Historic files predate a claim by days, so the slack costs
+        // nothing. What it cannot tell apart is another PostDispatch document attached to the same
+        // account after the claim - by compliance, say - which then counts as this one.
+        `kycFile.subType = :subType AND kycFile.valid = :valid
+         AND kycFile.created >= userData.letterClaimDate - INTERVAL '1 hour'`,
         { subType: FileSubType.POST_DISPATCH, valid: true },
       )
       .where('userData.letterClaimDate IS NOT NULL')

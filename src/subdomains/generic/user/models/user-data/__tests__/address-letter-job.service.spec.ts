@@ -349,16 +349,19 @@ describe('AddressLetterJobService', () => {
     expect(mail.input.errors.join(' ')).toContain('unknown');
   });
 
-  it('leaves the state untouched when the audit trail cannot be written', async () => {
+  it('leaves the state untouched and raises an alert when the audit trail cannot be written', async () => {
     withCandidates(createUserData(7));
-    jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
     jest.spyOn(kycLogService, 'createAddressLetterLog').mockRejectedValue(new Error('audit store down'));
 
     await service.sendAddressLetters();
 
     // the claim transaction rolled back too, so not even the claim was written
     expect(txUpdate.mock.calls).toHaveLength(0);
-    expect(notificationService.sendMail).not.toHaveBeenCalled();
+    expect(letterService.sendLetter).not.toHaveBeenCalled();
+    // and the run does not end quietly: an unwritable trail is not a successful run with nothing to do
+    const mail = (notificationService.sendMail as jest.Mock).mock.calls[0][0];
+    expect(mail.input.errors.join(' ')).toContain('trail could not be written');
+    expect(mail.correlationId).toBe('AddressLetterDispatch&stopped');
   });
 
   it('keeps the claim when the dispatch went unanswered, so no second letter can follow', async () => {

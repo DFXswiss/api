@@ -36,9 +36,9 @@ export interface AddressLetterPdf {
  * (`LetterService`). Pure rendering, no DB access, no side effects.
  *
  * Geometry follows the Swiss window-envelope norm (SN 010130, C5/6), which the printer requires: the
- * recipient block starts 45 mm from the top edge and 20 mm from the left, is at most 45 mm wide and
- * carries a sender line above it. Everything else (logo, date, subject, body, signature) is placed
- * outside that window area.
+ * recipient block starts 45 mm from the top edge and 20 mm from the left, spans at most 85 mm across
+ * and 40 mm down (`ADDRESS_WIDTH` / `ADDRESS_MAX_HEIGHT`), and carries a sender line above it.
+ * Everything else (logo, date, subject, body, signature) is placed outside that window area.
  *
  * The wording below is DFX's own and is deliberately kept minimal: the letter only has to arrive, it
  * asks the recipient for nothing. It is NOT yet a verified transcription of the spreadsheet template

@@ -189,6 +189,10 @@ export class AddressLetterJobService {
     const exhausted: number[] = [];
     const unknown: number[] = [];
     let lastError: string;
+    // A run that stops because it cannot write its own trail must not look like a quiet, successful
+    // run. Throwing would not help - the cron lock wrapper catches and only logs - so it is escalated
+    // through the one channel that actually reaches an operator.
+    let systemicError: string;
 
     for (const candidate of candidates) {
       const claimedAt = new Date();
@@ -197,7 +201,10 @@ export class AddressLetterJobService {
       // second replica from dispatching the same letter. Only an affected row count of 1 wins it.
       const claim = await this.claim(candidate, claimedAt);
       if (claim === TransitionResult.LOST) continue;
-      if (claim === TransitionResult.FAILED) break;
+      if (claim === TransitionResult.FAILED) {
+        systemicError = `Address letter trail could not be written while claiming account ${candidate.id}`;
+        break;
+      }
 
       // Re-read under the claim: the candidate list was selected before it, so an address corrected in
       // between would otherwise be printed from the stale row and then stamped as verified.
@@ -212,7 +219,10 @@ export class AddressLetterJobService {
 
       if (!isStillEligible(userData)) {
         this.logger.info(`Address letter skipped for account ${userData.id}: no longer eligible under its claim`);
-        if ((await this.unclaim(userData, claimedAt, 'no longer eligible')) === TransitionResult.FAILED) break;
+        if ((await this.unclaim(userData, claimedAt, 'no longer eligible')) === TransitionResult.FAILED) {
+          systemicError = `Address letter trail could not be written while releasing account ${userData.id}`;
+          break;
+        }
         continue;
       }
 
@@ -283,7 +293,7 @@ export class AddressLetterJobService {
       await this.attachKycFile(userData, pdf.base64, sentAt);
     }
 
-    await this.escalate(exhausted, unknown, lastError);
+    await this.escalate(exhausted, unknown, lastError, systemicError);
   }
 
   // *** HELPER METHODS *** //
@@ -505,7 +515,10 @@ export class AddressLetterJobService {
           manager,
           orphan.id,
         );
-        await this.kycFileService.invalidateKycFile(orphan.id, manager);
+        // Rolls the event back when the row was already invalid or gone: an audit entry describing a
+        // transition that did not happen is worse than none.
+        if (!(await this.kycFileService.invalidateKycFile(orphan.id, manager)))
+          throw new Error(`Address letter orphan ${orphan.id} was not invalidated`);
       })
       // only once the row is committed - dropping the cache earlier lets a concurrent read refill it
       // with the still-valid row
@@ -521,23 +534,34 @@ export class AddressLetterJobService {
    * `suppressRecurring` without `debounce`: `Notification.isSuppressed` evaluates
    * `suppressRecurring || isDebounced`, so combining both would silence the alert forever.
    */
-  private async escalate(exhausted: number[], unknown: number[], lastError?: string): Promise<void> {
-    if (!exhausted.length && !unknown.length) return;
+  private async escalate(
+    exhausted: number[],
+    unknown: number[],
+    lastError?: string,
+    systemicError?: string,
+  ): Promise<void> {
+    if (!exhausted.length && !unknown.length && !systemicError) return;
 
     const { maxFailures } = Config.letter.addressLetter;
     const ids = [...exhausted, ...unknown].sort((a, b) => a - b);
     const errors = [
       exhausted.length ? `Retries exhausted (${maxFailures}) for account(s) ${exhausted.join(', ')}` : undefined,
       unknown.length ? `Dispatch outcome unknown, claim kept for account(s) ${unknown.join(', ')}` : undefined,
+      systemicError,
       lastError,
     ].filter((e) => e);
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.MONITORING,
-      input: { subject: `Address letter dispatch failed: account(s) ${ids.join(', ')}`, errors },
+      input: {
+        subject: ids.length
+          ? `Address letter dispatch failed: account(s) ${ids.join(', ')}`
+          : 'Address letter dispatch stopped',
+        errors,
+      },
       options: { suppressRecurring: true },
-      correlationId: `AddressLetterDispatch&${ids.join('-')}`,
+      correlationId: `AddressLetterDispatch&${ids.length ? ids.join('-') : 'stopped'}`,
     });
   }
 }
