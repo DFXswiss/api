@@ -555,7 +555,7 @@ describe('BuyCryptoService', () => {
       expect(returnPayInSpy).not.toHaveBeenCalled();
     });
 
-    it('creates and claims a bank refund in the same BuyCrypto transaction', async () => {
+    it('claims a bank refund before creating its chargeback output', async () => {
       const buyCrypto = createCustomBuyCrypto({
         id: 7,
         amlCheck: CheckStatus.PENDING,

@@ -653,11 +653,11 @@ export class BuyCrypto extends IEntity {
       chargebackReferenceAmount,
       chargebackAmount,
       chargebackAsset,
-      // No chargebackOutput here on purpose: it is the one column refundClaimWhere pins to
-      // IsNull(). Having one to supply means the FiatOutput was already saved, and saving it
-      // writes the owning FK onto this row — which is what leaves the claim matching nothing.
-      // The FK is set by saving the output after the claim has been won — see
-      // BuyCryptoService.refundBankTx.
+      // No chargebackOutput here on purpose. refundClaimWhere pins it to IsNull(), and alone
+      // among the columns it pins, this one can be written by an earlier statement of the same
+      // transaction: saving the FiatOutput sets the owning FK as a side effect. So a refund with
+      // an output to supply has already made its own claim match nothing. The FK is set by saving
+      // the output after the claim has been won — see BuyCryptoService.refundBankTx.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
