@@ -9,7 +9,7 @@ if [ -z "${HANDBOOK_USER:-}" ] || [ -z "${HANDBOOK_PASSWORD:-}" ]; then
   exit 1
 fi
 
-htpasswd -bBc /etc/nginx/handbook.htpasswd "$HANDBOOK_USER" "$HANDBOOK_PASSWORD"
+printf '%s' "$HANDBOOK_PASSWORD" | htpasswd -iBc /etc/nginx/handbook.htpasswd "$HANDBOOK_USER"
 
 # Hand PID 1 to nginx so signals (SIGTERM etc.) are delivered correctly.
 exec nginx -g 'daemon off;'

@@ -18,7 +18,7 @@ handgepflegtes Mapping, kein exakter Count-Guard):
 
 | Kategorie | Schlüssel | Quelle |
 |-----------|-----------|--------|
-| Beispielbelege | `pdfs` | `docs/examples/realunit-receipt/*.pdf`, `docs/examples/realunit-statement/*.pdf` |
+| Beispielbelege | `pdfs` | rekursiver `*.pdf`-Scan ab Repo-Root (mit Ausschlussliste) |
 | Mail-Vorschauen | `mails` | Generator `scripts/generate-realunit-previews.js` → `scripts/email-previews/realunit/` |
 | Dokumentation | `docs` | rekursiver `*.md`-Scan ab Repo-Root (mit Ausschlussliste) |
 | Diagramme | `diagrams` | `src/subdomains/supporting/dex/docs/DEX_Module.{jpg,drawio}` |
@@ -41,10 +41,10 @@ docs/handbook/build/
 
 Guards (Build bricht ab bei Verletzung; Überschreitung ist nie ein Fehler):
 
-- **Floor:** mindestens 10 PDFs, 25 Mails, 17 Docs, 10 Assets
+- **Floor:** mindestens 11 PDFs, 24 Mails, 17 Docs, 10 Assets
 - **Magic-Bytes + Mindestgrösse:** PDF `%PDF`, PNG, JPEG; jeweils > 1000 Bytes
-- **HTML-Integrität:** jedes lokale `src`/`href` in `index.html` muss existieren
-- **Mail-Trigger:** stdout-Zeilen, die mit `[trigger] Missing` beginnen, sind ein Fehler
+- **HTML-Integrität:** jedes Artefakt im Manifest muss auf Disk existieren; jedes lokale `src`/`href` in generierten Doc-Seiten muss auf eine Repo-Datei zeigen (existierende, aber nicht ins Handbook kopierte Dateien → Warnung; fehlende Pfade → Fehler)
+- **Mail-Trigger:** stdout- und stderr-Zeilen, die mit `[trigger] Missing` beginnen, sind ein Fehler
 
 Metadaten in `scripts/handbook/metadata.json` sind **nur Anreicherung** (deutsche Titel/
 Beschreibungen). Fehlende Einträge sind kein Fehler; verwaiste Einträge erzeugen nur

@@ -17,11 +17,11 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 // --- Floor guards (today's counts; never exact upper bounds) ---
-const MIN_PDFS = 10;
-const MIN_MAILS = 25;
+const MIN_PDFS = 11;
+const MIN_MAILS = 24;
 const MIN_DOCS = 17;
 const MIN_ASSETS = 10;
 const MIN_FILE_BYTES = 1000;
@@ -42,6 +42,8 @@ const MD_EXCLUDE_DIRS = new Set([
   'coverage-gate',
   '_handbook-deps',
   'docs/handbook/build',
+  'thunder-tests',
+  'rest-client',
 ]);
 
 const SORT_LOCALE = 'en';
@@ -212,8 +214,16 @@ function listFilesWithExt(dir, ext) {
 /**
  * Recursive directory walk. Returns relative paths (posix) from rootDir,
  * sorted. Skips excluded directory basenames and full relative prefixes.
+ * Dot-directories are skipped except .github (legit docs live there).
  */
-function walkFiles(rootDir, predicate) {
+function isExcludedDir(name, rel, extraExcludeDirs) {
+  if (name.startsWith('.') && name !== '.github') return true;
+  if (MD_EXCLUDE_DIRS.has(name) || MD_EXCLUDE_DIRS.has(rel)) return true;
+  if (extraExcludeDirs && (extraExcludeDirs.has(name) || extraExcludeDirs.has(rel))) return true;
+  return false;
+}
+
+function walkFiles(rootDir, predicate, extraExcludeDirs) {
   const results = [];
   function walk(absDir, relDir) {
     let entries;
@@ -226,9 +236,7 @@ function walkFiles(rootDir, predicate) {
     for (const ent of entries) {
       const rel = relDir ? path.posix.join(relDir, ent.name) : ent.name;
       if (ent.isDirectory()) {
-        if (MD_EXCLUDE_DIRS.has(ent.name) || MD_EXCLUDE_DIRS.has(rel)) {
-          continue;
-        }
+        if (isExcludedDir(ent.name, rel, extraExcludeDirs)) continue;
         walk(path.join(absDir, ent.name), rel);
       } else if (ent.isFile() && predicate(ent.name, rel)) {
         results.push(rel);
@@ -240,38 +248,62 @@ function walkFiles(rootDir, predicate) {
   return results;
 }
 
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'");
+}
+
+// Matches any absolute URI scheme (http:, https:, mailto:, data:,
+// javascript:, vbscript:, file:, tel:, custom-scheme:, ...) per RFC 3986
+// scheme syntax. Generic on purpose (see Befund 8 / CodeQL "Incomplete URL
+// scheme check"): enumerating known-bad prefixes is inherently incomplete,
+// whereas this recognizes "is this an absolute URI at all" and skips it.
+const ABSOLUTE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
 function collectRelativeRefs(html) {
   const refs = [];
   const re = /\b(?:src|href)="([^"]+)"/g;
   let m;
   while ((m = re.exec(html)) !== null) {
     const raw = m[1];
-    if (
-      raw.startsWith('http://') ||
-      raw.startsWith('https://') ||
-      raw.startsWith('//') ||
-      raw.startsWith('mailto:') ||
-      raw.startsWith('data:') ||
-      raw.startsWith('#') ||
-      raw.startsWith('javascript:')
-    ) {
+    if (ABSOLUTE_SCHEME_RE.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
       continue;
     }
-    const cleaned = raw.split('#')[0].split('?')[0];
-    if (cleaned) refs.push(cleaned);
+    let cleaned = raw.split('#')[0].split('?')[0];
+    if (!cleaned) continue;
+    cleaned = decodeHtmlEntities(cleaned);
+    try {
+      cleaned = decodeURIComponent(cleaned);
+    } catch {
+      // Malformed percent-encoding — keep as-is; the existence check below
+      // will simply fail to find it, which is the correct fail-loud outcome.
+    }
+    refs.push(cleaned);
   }
   return refs;
 }
 
-function integrityCheck(html, outDir, label) {
-  const refs = collectRelativeRefs(html);
+function checkDocPageReferences(doc, repoRoot, sourceToOutput) {
+  const refs = collectRelativeRefs(doc.bodyHtml);
+  const baseDir = path.posix.dirname(doc.sourcePath);
   for (const ref of refs) {
-    const full = path.join(outDir, ref);
-    if (!fs.existsSync(full)) {
-      fail(
-        `handbook integrity check failed (${label}): referenced path does not exist: ${ref}`,
+    const candidate = path.posix.normalize(path.posix.join(baseDir, ref));
+    if (sourceToOutput.has(candidate)) continue; // known handbook artifact (incl. other docs)
+    if (fs.existsSync(path.join(repoRoot, candidate))) {
+      console.error(
+        `handbook warning: ${doc.sourcePath} references repo file "${ref}" ` +
+          `(resolved: ${candidate}) that exists but is not part of the handbook output.`,
       );
+      continue;
     }
+    fail(
+      `handbook integrity check failed (${doc.sourcePath}): referenced path does not exist anywhere in the repo: ${ref} (resolved: ${candidate})`,
+    );
   }
 }
 
@@ -367,25 +399,27 @@ function main() {
   if (!fs.existsSync(mailGenScript)) {
     fail(`handbook: missing mail preview generator ${mailGenScript}`);
   }
-  let mailStdout = '';
-  try {
-    mailStdout = execFileSync('node', [mailGenScript], {
-      cwd: repoRoot,
-      env: { ...process.env, NODE_PATH: childNodePath },
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    const out = (err.stdout || '') + (err.stderr || '');
+  const mailProc = spawnSync('node', [mailGenScript], {
+    cwd: repoRoot,
+    env: { ...process.env, NODE_PATH: childNodePath },
+    encoding: 'utf8',
+  });
+  if (mailProc.error) {
+    fail('handbook: mail preview generator failed to start:\n' + mailProc.error.message);
+  }
+  if (mailProc.status !== 0) {
     fail(
-      'handbook: mail preview generator failed:\n' +
-        out +
-        (err.message ? '\n' + err.message : ''),
+      'handbook: mail preview generator failed (exit ' + mailProc.status + '):\n' +
+        (mailProc.stdout || '') + (mailProc.stderr || ''),
     );
   }
-  // Also capture if generator wrote to stderr mixed in stdout via encoding
-  const mailLines = String(mailStdout || '').split(/\r?\n/);
-  const missingTriggers = mailLines.filter((line) => /^\[trigger\] Missing/.test(line));
+  const mailStdout = mailProc.stdout || '';
+  const mailStderr = mailProc.stderr || '';
+  const TRIGGER_MISSING_RE = /^\[trigger\] Missing.*$/gm;
+  const missingTriggers = [
+    ...(mailStdout.match(TRIGGER_MISSING_RE) || []),
+    ...(mailStderr.match(TRIGGER_MISSING_RE) || []),
+  ];
   if (missingTriggers.length) {
     fail(
       'handbook: mail preview generator reported missing trigger explanations:\n' +
@@ -397,7 +431,7 @@ function main() {
   if (!fs.existsSync(mailSrcDir)) {
     fail(`handbook: mail preview output missing after generator run: ${mailSrcDir}`);
   }
-  const mailFiles = listFilesWithExt(mailSrcDir, '.html');
+  const mailFiles = listFilesWithExt(mailSrcDir, '.html').filter((name) => name !== '00_index.html');
   const mailEntries = [];
   for (const name of mailFiles) {
     const src = path.join(mailSrcDir, name);
@@ -426,26 +460,39 @@ function main() {
   }
 
   // =========================================================================
-  // Source A: PDFs under docs/examples/realunit-{receipt,statement}/
+  // Source A: recursive PDF discovery (docs, integration references, …)
   // =========================================================================
-  const pdfGroups = [
-    {
-      key: 'realunit-receipt',
-      dir: 'docs/examples/realunit-receipt',
-      regen: 'GENERATE_RECEIPT_EXAMPLES=true npx jest realunit-receipt-example',
-    },
-    {
-      key: 'realunit-statement',
-      dir: 'docs/examples/realunit-statement',
-      regen: 'GENERATE_STATEMENT_EXAMPLE=true npx jest realunit-statement-example',
-    },
-  ];
+  const PDF_REGEN_HINTS = {
+    'docs/examples/realunit-receipt': 'GENERATE_RECEIPT_EXAMPLES=true npx jest realunit-receipt-example',
+    'docs/examples/realunit-statement': 'GENERATE_STATEMENT_EXAMPLE=true npx jest realunit-statement-example',
+  };
+  const PDF_EXTRA_EXCLUDE_DIRS = new Set([
+    // Tiny synthetic KYC upload fixtures for scripts/kyc/upload-kyc-files.*,
+    // not documentation — and smaller than MIN_FILE_BYTES, which would trip
+    // the "incomplete checkout" guard as a false positive.
+    'scripts/kyc/dummy-files',
+  ]);
+  const pdfRels = walkFiles(
+    repoRoot,
+    (name) => name.toLowerCase().endsWith('.pdf'),
+    PDF_EXTRA_EXCLUDE_DIRS,
+  );
+  const pdfDirs = Array.from(new Set(pdfRels.map((rel) => path.posix.dirname(rel)))).sort(
+    sortStrings,
+  );
+  const pdfGroups = pdfDirs.map((dir) => ({
+    key: dir,
+    dir,
+    regen: PDF_REGEN_HINTS[dir] || null,
+  }));
   const pdfEntries = [];
   for (const g of pdfGroups) {
-    const absDir = path.join(repoRoot, g.dir);
-    const names = listFilesWithExt(absDir, '.pdf');
+    const names = pdfRels
+      .filter((rel) => path.posix.dirname(rel) === g.dir)
+      .map((rel) => path.posix.basename(rel))
+      .sort(sortStrings);
     for (const name of names) {
-      const src = path.join(absDir, name);
+      const src = path.join(repoRoot, g.dir, name);
       assertValidPdf(src);
       const relOut = path.posix.join('pdfs', g.key, name);
       copyFile(src, path.join(outDir, relOut));
@@ -463,7 +510,7 @@ function main() {
     fail(
       `handbook floor guard: found ${pdfEntries.length} PDFs, ` +
         `need at least MIN_PDFS=${MIN_PDFS}. ` +
-        'Check docs/examples/realunit-receipt/ and realunit-statement/.',
+        'Check recursive *.pdf discovery and excluded fixture dirs.',
     );
   }
 
@@ -478,11 +525,10 @@ function main() {
     const parts = rel.split('/');
     for (let i = 0; i < parts.length; i++) {
       const prefix = parts.slice(0, i + 1).join('/');
-      if (MD_EXCLUDE_DIRS.has(parts[i]) || MD_EXCLUDE_DIRS.has(prefix)) {
+      if (isExcludedDir(parts[i], prefix)) {
         return false;
       }
     }
-    // Skip the handbook README we write next to build output? docs/handbook/README.md is fine.
     return true;
   });
 
@@ -513,6 +559,7 @@ function main() {
       title,
       beschreibung: meta.beschreibung,
       group: sourceDirGroup(rel),
+      bodyHtml: body,
     });
     artifacts.push({
       category: 'docs',
@@ -635,6 +682,15 @@ function main() {
     });
   }
 
+  // Map from repo-relative source path -> output-relative path, built from
+  // every artifact this build has produced (PDFs, mails, docs, diagrams,
+  // assets, specs). Used to validate markdown-authored relative references
+  // without re-parsing HTML-escaped output.
+  const sourceToOutput = new Map();
+  for (const a of artifacts) {
+    sourceToOutput.set(a.sourcePath, a.outputPath);
+  }
+
   // =========================================================================
   // Orphan metadata warnings (keys without matching artifact / group)
   // =========================================================================
@@ -645,8 +701,9 @@ function main() {
     'diagrams',
     'assets',
     'specs',
-    'realunit-receipt',
-    'realunit-statement',
+    'docs/examples/realunit-receipt',
+    'docs/examples/realunit-statement',
+    'src/integration/exchange/docs',
     ...docEntries.map((d) => d.sourcePath),
     ...pdfEntries.map((p) => p.group),
   ]);
@@ -1100,11 +1157,13 @@ function main() {
       if (groupMeta.beschreibung) {
         body += `<p class="spec-intro">${escapeHtml(groupMeta.beschreibung)}</p>`;
       }
-      body += `<p class="regen">Regenerieren: <code>${escapeHtml(g.regen)}</code></p>`;
+      if (g.regen) {
+        body += `<p class="regen">Regenerieren: <code>${escapeHtml(g.regen)}</code></p>`;
+      }
       body += '<ul class="link-list">';
       for (const p of items) {
         body +=
-          `<li><a href="${escapeHtml(p.outputPath)}">${escapeHtml(p.name)}</a>` +
+          `<li><a href="${escapeHtml(encodeURI(p.outputPath))}">${escapeHtml(p.name)}</a>` +
           `<span class="src">${escapeHtml(p.outputPath)}</span></li>`;
       }
       body += '</ul>';
@@ -1130,7 +1189,7 @@ function main() {
       cards +=
         `<div class="test" id="${escapeHtml(cardId)}">` +
         `<div class="head"><span class="name">${escapeHtml(m.name)}</span></div>` +
-        `<div class="body"><a href="${escapeHtml(m.outputPath)}">Vorschau öffnen</a></div>` +
+        `<div class="body"><a href="${escapeHtml(encodeURI(m.outputPath))}">Vorschau öffnen</a></div>` +
         `</div>`;
     }
     cards += '</div>';
@@ -1166,7 +1225,7 @@ function main() {
       const list = byGroup.get(g).slice().sort((a, b) => sortStrings(a.title, b.title));
       for (const d of list) {
         body +=
-          `<li><a href="${escapeHtml(d.outputPath)}">${escapeHtml(d.title)}</a>` +
+          `<li><a href="${escapeHtml(encodeURI(d.outputPath))}">${escapeHtml(d.title)}</a>` +
           `<span class="src">${escapeHtml(d.sourcePath)}</span>` +
           (d.beschreibung
             ? `<div style="margin-top:4px;font-size:12.5px;color:var(--ink-3)">${escapeHtml(d.beschreibung)}</div>`
@@ -1194,8 +1253,8 @@ function main() {
     for (const d of diagramEntries) {
       if (d.kind === 'image') {
         body +=
-          `<div><a href="${escapeHtml(d.outputPath)}">` +
-          `<img src="${escapeHtml(d.outputPath)}" alt="${escapeHtml(d.title)}" loading="lazy"></a>` +
+          `<div><a href="${escapeHtml(encodeURI(d.outputPath))}">` +
+          `<img src="${escapeHtml(encodeURI(d.outputPath))}" alt="${escapeHtml(d.title)}" loading="lazy"></a>` +
           `<p class="regen">${escapeHtml(d.sourcePath)}</p></div>`;
       }
     }
@@ -1203,7 +1262,7 @@ function main() {
     for (const d of diagramEntries) {
       if (d.kind === 'download') {
         body +=
-          `<li><a href="${escapeHtml(d.outputPath)}" download>${escapeHtml(d.title)}</a>` +
+          `<li><a href="${escapeHtml(encodeURI(d.outputPath))}" download>${escapeHtml(d.title)}</a>` +
           `<span class="src">Download</span></li>`;
       }
     }
@@ -1226,8 +1285,8 @@ function main() {
     let ag = '<div class="asset-grid">';
     for (const a of assetEntries) {
       ag +=
-        `<div class="asset-card"><a href="${escapeHtml(a.outputPath)}">` +
-        `<img src="${escapeHtml(a.outputPath)}" alt="${escapeHtml(a.name)}" loading="lazy"></a>` +
+        `<div class="asset-card"><a href="${escapeHtml(encodeURI(a.outputPath))}">` +
+        `<img src="${escapeHtml(encodeURI(a.outputPath))}" alt="${escapeHtml(a.name)}" loading="lazy"></a>` +
         `<div class="an">${escapeHtml(a.name)}</div></div>`;
     }
     ag += '</div>';
@@ -1253,7 +1312,7 @@ function main() {
           ? `Download ${s.title}`
           : `Dokumentation: ${s.title}`;
       body +=
-        `<li><a href="${escapeHtml(s.outputPath)}">${escapeHtml(label)}</a>` +
+        `<li><a href="${escapeHtml(encodeURI(s.outputPath))}">${escapeHtml(label)}</a>` +
         `<span class="src">${escapeHtml(s.sourcePath)}</span></li>`;
     }
     body += '</ul>';
@@ -1342,8 +1401,15 @@ function main() {
   const manifestPath = path.join(outDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 
-  // Integrity: every local src/href in index.html must exist
-  integrityCheck(indexHtml, outDir, 'index.html');
+  // Integrity of markdown-authored content: every local reference inside a
+  // rendered doc page must point at something that actually exists in the
+  // repo. References to real repo files that were not copied into the
+  // handbook output are not an error (many docs link to source code or to
+  // each other) — only a reference that resolves to nothing in the repo at
+  // all is a hard failure.
+  for (const d of docEntries) {
+    checkDocPageReferences(d, repoRoot, sourceToOutput);
+  }
 
   // Every non-index artifact path in the manifest must exist on disk
   for (const a of artifacts) {
