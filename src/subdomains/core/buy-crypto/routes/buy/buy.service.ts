@@ -593,10 +593,14 @@ export class BuyService {
 
     // user-level vIBAN — reuse the caller's lookup only when it actually found one. A negative result is
     // deliberately NOT reused: it is up to a full getTxDetails (pricing, fees, limits) old by now, and the
-    // branch below issues an IBAN. A concurrent request that issued one in that window would otherwise be
-    // missed here, createForUser would hit a duplicate and swallow it, and the customer would get a
-    // fail-closed PersonalIbanIssuanceFailed where a fresh read returns the IBAN. Re-reading costs one
-    // SELECT on a path that is about to make an external issuance call anyway.
+    // branch below issues an IBAN. A vIBAN issued concurrently in that window would be missed here. On the
+    // non-EUR path that is a real misroute: createForUser throws ConflictException,
+    // infrastructureFailureOrRethrow swallows it (it rethrows only BadRequestException), and the request
+    // degrades to the shared collection account — a customer who does hold a personal IBAN is shown the
+    // collection one, and an ERROR is logged for a provider outage that never happened. EUR is covered by
+    // getOrCreateFrickForUser, which returns the existing vIBAN under its issuance lock instead of
+    // throwing. Re-reading costs one SELECT on a path that is about to make an external issuance call
+    // anyway, and it keeps the two currencies from behaving differently here.
     let virtualIban =
       activeVirtualIban ??
       (await this.virtualIbanService.getActiveReceivingForUserAndCurrency(selector.userData, selector.currency));

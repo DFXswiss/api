@@ -31,8 +31,9 @@ export interface TransactionDetails extends TargetEstimation {
    *
    * Only a positive result is reusable. A caller must NOT treat undefined as a settled "there is none"
    * and skip its own read before issuing an IBAN: by then this value is a whole getTxDetails old, and a
-   * vIBAN issued concurrently in that window would be missed — which surfaces as a fail-closed
-   * PersonalIbanIssuanceFailed once the duplicate issuance is swallowed.
+   * vIBAN issued concurrently in that window would be missed. On the non-EUR issuance path the duplicate
+   * that follows is swallowed, so the customer is sent to the shared collection account while holding a
+   * personal IBAN, and a provider outage that never happened is logged at ERROR.
    */
   activeVirtualIban?: VirtualIban;
 }

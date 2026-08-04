@@ -1744,7 +1744,8 @@ describe('BuyService', () => {
 
       // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
       // follows. The fresh read here returns a vIBAN, standing in for one issued concurrently in that
-      // window — reusing the stale negative would lose it and fail closed with PersonalIbanIssuanceFailed.
+      // window — reusing the stale negative would lose it, send a customer who holds a personal IBAN to
+      // the shared collection account, and log an ERROR for a provider outage that never happened.
       it('re-resolves when getTxDetails found none, so a concurrently issued vIBAN is not missed', async () => {
         jest
           .spyOn(transactionHelper, 'getTxDetails')
@@ -1765,9 +1766,10 @@ describe('BuyService', () => {
         expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
       });
 
-      // CARD on purpose: a BANK transfer that resolves no personal IBAN fails closed by design, so the
-      // "nothing found either way" outcome can only be observed on the payment method that still
-      // resolves a bank.
+      // CARD on purpose: a BANK transfer that resolves no personal IBAN degrades through
+      // collectionAccountOrThrow, so it never reaches the plain bank resolution. CARD is the payment
+      // method that skips that fallback, which is what makes the "nothing found either way" outcome
+      // observable at all.
       it('resolves it itself when getTxDetails ran no lookup', async () => {
         jest
           .spyOn(transactionHelper, 'getTxDetails')
