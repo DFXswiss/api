@@ -36,7 +36,7 @@ without a deploy — `DfxCronService` skips it when the process appears in the d
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
 
-There is a third source, hard-coded rather than operable: while the ledger master switch
+There is a further source, hard-coded rather than operable: while the ledger master switch
 (`Config.ledger.enabled`) is off, `Config.disabledProcesses()` returns every `LEDGER_*` process as
 well, which is what keeps those jobs out of the cron lease entirely. The `disabledProcesses`
 setting cannot switch them back on — that takes flipping the master switch and a deploy.
