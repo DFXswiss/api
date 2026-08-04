@@ -300,6 +300,11 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
+  scorechainCheckDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
   phoneCallCheckDate?: Date;
 
   @IsOptional()

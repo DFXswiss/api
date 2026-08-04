@@ -1510,6 +1510,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'paymentLinksAllowed',
       'pep',
       'phoneCallAccepted',
+      'scorechainCheckDate',
       'phoneCallCheckDate',
       'phoneCallExternalAccountCheckDate',
       'phoneCallIpCheckDate',

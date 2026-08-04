@@ -548,6 +548,7 @@ export class UserDataDetailDto {
   // PhoneCall
   phoneCallStatus?: PhoneCallStatus;
   phoneCallAccepted?: boolean;
+  scorechainCheckDate?: Date;
   phoneCallCheckDate?: Date;
   phoneCallExternalAccountCheckDate?: Date;
   phoneCallExternalAccountCheckValues?: string;

@@ -77,6 +77,18 @@ export class BuyCryptoPreparationService {
     // must never route an unscreened-because-off tx to manual review.
     if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return ScorechainOutcome.PASS;
 
+    // Compliance has reviewed this account's Scorechain findings with the customer and released them
+    // (`scorechainCheckDate`). The on-chain verdict never changes for a permanently tainted source, so
+    // without this every further payment would be routed to the same manual review again. Skips the
+    // billable provider call for both directions — deposit tx and withdrawal address. Deliberately NOT
+    // fail-closed on a missing userData: no account means no review, so the screening runs.
+    if (entity.userData?.scorechainCheckDate) {
+      this.logger.verbose(
+        `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed on ${entity.userData.scorechainCheckDate.toISOString()}`,
+      );
+      return ScorechainOutcome.PASS;
+    }
+
     const [blockchain, objectId, isDeposit] = entity.cryptoInput
       ? [entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId, true]
       : [entity.outputAsset.blockchain, entity.targetAddress, false];

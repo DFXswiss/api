@@ -252,6 +252,14 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   serviceProviders?: string; // semicolon separated ServiceProvider add-ons (e.g. RealUnit); DFX core never reads this, only the RealUnit dashboards
 
+  // Compliance has reviewed this account's Scorechain findings with the customer and released them.
+  // Set once by compliance (never automatically), it suppresses the Scorechain screening for this
+  // account's deposits and withdrawals — same "set means checked, no expiry" semantics as the
+  // phoneCall*CheckDate fields below. Every other AML check still runs, so a payment is only released
+  // automatically when nothing else is open.
+  @Column({ type: 'timestamp', nullable: true })
+  scorechainCheckDate?: Date;
+
   @Column({ type: 'timestamp', nullable: true })
   phoneCallCheckDate?: Date;
 
@@ -894,6 +902,7 @@ export const KycCompletedStates = [KycStatus.COMPLETED];
 export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
 export const UserDataComplianceUpdateCols = [
   'kycStatus',
+  'scorechainCheckDate',
   'depositLimit',
   'amlAccountType',
   'complexOrgStructure',

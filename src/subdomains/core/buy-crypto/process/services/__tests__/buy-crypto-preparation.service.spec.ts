@@ -169,6 +169,48 @@ describe('BuyCryptoPreparationService', () => {
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
+    // A permanently tainted source never changes its on-chain verdict, so without the exemption every
+    // further payment of an already-reviewed account repeats the identical manual review.
+    it('skips the provider for a compliance-reviewed account (deposit)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue({ id: 42, scorechainCheckDate: new Date('2026-08-04') } as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('skips the provider for a compliance-reviewed account (withdrawal)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue({ id: 42, scorechainCheckDate: new Date('2026-08-04') } as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+    });
+
+    // Without a date the account was never reviewed: the screening has to run, or the exemption would
+    // silently cover every account.
+    it('still screens an account without a review date', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, scorechainCheckDate: null } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
     it('yields no signal (false) and skips the provider for an unsupported chain', async () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: null,
