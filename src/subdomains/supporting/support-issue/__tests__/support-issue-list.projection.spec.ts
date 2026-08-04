@@ -23,7 +23,6 @@ import {
   SupportIssueType,
 } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import {
-  MAX_SEARCH_TERMS,
   SUPPORT_ISSUE_LIST_PROJECTION,
   SUPPORT_ISSUE_LIST_RESPONSE_FIELDS,
   SupportIssueListQuery,
@@ -334,10 +333,10 @@ describeProjection('support issue list — read-path projection', () => {
   // being pinned here is the behaviour the caller sees, not the value the implementation happens
   // to hold.
 
-  const TERMS = (n: number, prefix: string): string[] => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+  const makeTerms = (n: number, prefix: string): string[] => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 
   it('applies all ten terms a request may contain', async () => {
-    const ten = TERMS(10, 'w');
+    const ten = makeTerms(10, 'w');
     // The row carries nine of the ten.
     const { issue } = await seedIssue({ name: ten.slice(0, 9).join(' ') });
 
@@ -350,7 +349,7 @@ describeProjection('support issue list — read-path projection', () => {
   }, 120000);
 
   it('drops an eleventh term instead of applying it', async () => {
-    const ten = TERMS(10, 'v');
+    const ten = makeTerms(10, 'v');
     const { issue } = await seedIssue({ name: ten.join(' ') });
 
     // The eleventh matches nothing. Without the bound the search is an AND over all of them and the

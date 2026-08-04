@@ -289,7 +289,13 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
 
     // Bounded here rather than only where the terms are split: this method is public, and the
     // statement grows with every term.
-    const terms = query.terms.slice(0, MAX_SEARCH_TERMS);
+    //
+    // The array check is not redundant with the type. What the loop below must not meet is an
+    // object carrying a large `length` and no elements — `{ length: 1e100 }` reaching a caller
+    // that passes request data through unshaped. A type annotation does not survive the network,
+    // and such an object has no `slice` to bound it either. Anything that is not an array carries
+    // no search terms.
+    const terms = Array.isArray(query.terms) ? query.terms.slice(0, MAX_SEARCH_TERMS) : [];
 
     // The search predicate and the customer scope both need the account; they share one alias.
     if (terms.length > 0 || query.customerIds) qb.leftJoin('issue.userData', 'userData');
