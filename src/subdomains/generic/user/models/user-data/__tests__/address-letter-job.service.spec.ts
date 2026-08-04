@@ -36,7 +36,7 @@ describe('AddressLetterJobService', () => {
   // Releases and the proof stamp run inside a transaction, so they go through the manager's repository
   // rather than through the injected one. This captures them.
   let txUpdate: jest.Mock;
-  let txFindOneBy: jest.Mock;
+  let txFindOne: jest.Mock;
 
   // synthetic test data only (public repo) — never a real customer name, address or account id
   function createUserData(id: number, overrides: Partial<any> = {}): any {
@@ -110,10 +110,10 @@ describe('AddressLetterJobService', () => {
 
     queryBuilder = createQueryBuilder([]);
     txUpdate = jest.fn().mockResolvedValue({ affected: 1 });
-    txFindOneBy = jest.fn().mockResolvedValue({ id: 7 });
+    txFindOne = jest.fn().mockResolvedValue({ id: 7 });
     Object.defineProperty(userDataRepo, 'manager', {
       value: {
-        transaction: (fn: any) => fn({ getRepository: () => ({ update: txUpdate, findOneBy: txFindOneBy }) }),
+        transaction: (fn: any) => fn({ getRepository: () => ({ update: txUpdate, findOne: txFindOne }) }),
       },
       configurable: true,
     });
@@ -500,12 +500,14 @@ describe('AddressLetterJobService', () => {
         Promise.resolve([{ id: 42, name: (kycDocumentService.uploadUserFile as jest.Mock).mock.calls[0][2] }] as any),
       );
     // someone reconciled the account meanwhile, so this attempt no longer owns the claim
-    txFindOneBy.mockResolvedValue(null);
+    txFindOne.mockResolvedValue(null);
 
     await service.sendAddressLetters();
 
     expect(kycFileService.invalidateKycFile).not.toHaveBeenCalled();
     expect(kycFileService.invalidateKycFileCache).not.toHaveBeenCalled();
+    // the ownership read takes a write lock, so nothing can slip between the check and the write
+    expect(txFindOne).toHaveBeenCalledWith(expect.objectContaining({ lock: { mode: 'pessimistic_write' } }));
   });
 
   it('bills the pages it actually rendered', async () => {

@@ -73,8 +73,10 @@ export class LetterService {
       .then((r) => {
         if (r?.status === 200) return true;
         // A job id means a job exists, whatever the status says next to it. Calling that a refusal is
-        // the one mistake that produces a second physical letter.
-        if (!r?.letter?.job_id && typeof r?.status === 'number') return false;
+        // the one mistake that produces a second physical letter. Neither is a status that does not
+        // report an error: the body mirrors HTTP semantics, so a 2xx or 3xx other than 200 may well
+        // mean "accepted" and stays ambiguous rather than being read as "nothing was sent".
+        if (!r?.letter?.job_id && typeof r?.status === 'number' && r.status >= 400) return false;
 
         throw new Error(`Unexpected letter provider response: ${JSON.stringify(r)?.slice(0, 200)}`);
       });

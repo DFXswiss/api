@@ -68,6 +68,7 @@ describe('LetterService.sendLetter', () => {
     ['an empty body', {}],
     ['no body at all', undefined],
     ['a status that is not a number', { status: 'queued' }],
+    ['a status that reports no error', { status: 202 }],
   ])('refuses to call %s a refusal', async (_case, body) => {
     jest.spyOn(http, 'post').mockResolvedValue(body as never);
 

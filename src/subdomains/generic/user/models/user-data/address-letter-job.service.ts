@@ -510,9 +510,19 @@ export class AddressLetterJobService {
       .transaction(async (manager) => {
         // Same ownership rule as every other destructive write: only the attempt that still holds the
         // claim may invalidate its document. A stale attempt resuming after a manual reconciliation
-        // would otherwise undo a document someone had just repaired. A check, not a lock - the file
-        // compare-and-set below is what makes the write itself safe.
-        const owned = await manager.getRepository(UserData).findOneBy({ id: userData.id, letterClaimDate: claimedAt });
+        // would otherwise undo a document someone had just repaired.
+        //
+        // Locked, not merely read: a plain read leaves a window between the check and the write. The
+        // lock is affordable here precisely because this transaction is database-only and short - the
+        // dispatch call is long over. Holding one across that call would be a different matter.
+        const owned = await manager.getRepository(UserData).findOne({
+          where: { id: userData.id, letterClaimDate: claimedAt },
+          lock: { mode: 'pessimistic_write' },
+          // Without this the eager relations join in as LEFT JOINs, and PostgreSQL refuses `FOR UPDATE`
+          // on the nullable side of an outer join - the lock would fail at runtime, every time. Only
+          // the claim column is read here anyway.
+          loadEagerRelations: false,
+        });
         if (!owned) throw new ClaimLostError(userData.id);
 
         await this.kycLogService.createAddressLetterLog(
