@@ -129,6 +129,38 @@ describe('PaymentLinkController', () => {
     });
   });
 
+  describe('admin :id param', () => {
+    // Required path param, so a malformed value is rejected rather than dropped. Plain `+id` gave
+    // NaN/Infinity/1e21, which the driver serialises straight into an integer comparison -> 500.
+    const bad = ['abc', 'NaN', 'Infinity', '1.9', '1e+21', '-1', '0', '2147483648', ''];
+
+    it.each(bad)('rejects PUT /paymentLink/payment/%j', async (id) => {
+      await expect(controller.updatePaymentLinkPayment(id, {} as never)).rejects.toBeInstanceOf(BadRequestException);
+      expect(paymentLinkPaymentService.updatePayment).not.toHaveBeenCalled();
+    });
+
+    it.each(bad)('rejects PUT /paymentLink/%j', async (id) => {
+      await expect(controller.updatePaymentLinkAdmin(id, {} as never)).rejects.toBeInstanceOf(BadRequestException);
+      expect(paymentLinkService.updatePaymentLinkAdmin).not.toHaveBeenCalled();
+    });
+
+    it.each(bad)('rejects PUT /paymentLink/%j/pos', async (id) => {
+      await expect(controller.createPosLinkAdmin(id, 'true')).rejects.toBeInstanceOf(BadRequestException);
+      expect(paymentLinkService.createPosLinkAdmin).not.toHaveBeenCalled();
+    });
+
+    it.each(bad)('rejects DELETE /paymentLink/%j', async (id) => {
+      await expect(controller.deletePaymentLink(id)).rejects.toBeInstanceOf(BadRequestException);
+      expect(paymentLinkService.deletePaymentLink).not.toHaveBeenCalled();
+    });
+
+    it.each(['42', ' 42 '])('passes the well-formed id %j through as a number', async (id) => {
+      await controller.deletePaymentLink(id);
+
+      expect(paymentLinkService.deletePaymentLink).toHaveBeenCalledWith(42);
+    });
+  });
+
   describe('generateOcpStickers ids parsing', () => {
     const run = (ids: string) =>
       controller.generateOcpStickers(
