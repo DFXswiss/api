@@ -705,8 +705,12 @@ export class Configuration {
     // Defaults reproduce the behaviour of the spreadsheet automation this job replaces; every value is
     // an operational lever that must be tunable without a code change.
     addressLetter: {
-      // Countries the dispatch provider bills as a national shipment.
-      nationalCountries: (process.env.LETTER_NATIONAL_COUNTRIES ?? 'DE').split(','),
+      // Countries the dispatch provider bills as a national shipment. Trimmed and upper-cased, because
+      // it is compared against an upper-cased country symbol - `de, ch` must not route as international.
+      nationalCountries: (process.env.LETTER_NATIONAL_COUNTRIES ?? 'DE')
+        .split(',')
+        .map((c) => c.trim().toUpperCase())
+        .filter((c) => c),
       // Accounts served per run. At the ten-minute interval this caps the throughput.
       batchSize: +(process.env.LETTER_BATCH_SIZE ?? 10),
       // Failed attempts after which an account stops being retried and is escalated instead.

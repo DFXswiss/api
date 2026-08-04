@@ -271,6 +271,26 @@ describe('AddressLetterJobService', () => {
     expect(name.endsWith('.pdf')).toBe(true);
   });
 
+  it('reads the national country list case- and whitespace-insensitively', async () => {
+    const original = process.env.LETTER_NATIONAL_COUNTRIES;
+    process.env.LETTER_NATIONAL_COUNTRIES = ' de , ch ';
+    new ConfigService();
+
+    try {
+      withCandidates(createUserData(7, { country: { id: 2, symbol: 'DE', name: 'Deutschland' } }));
+
+      await service.sendAddressLetters();
+
+      // the list is compared against an upper-cased symbol, so `de` must not route as international
+      expect((letterService.sendLetter as jest.Mock).mock.calls[0][0].ship).toBe(LetterShip.NATIONAL);
+    } finally {
+      // assigning `undefined` would store the string "undefined" and leak into every later test
+      if (original == null) delete process.env.LETTER_NATIONAL_COUNTRIES;
+      else process.env.LETTER_NATIONAL_COUNTRIES = original;
+      new ConfigService();
+    }
+  });
+
   it('ships nationally only for the countries the provider bills as national', async () => {
     withCandidates(createUserData(7, { country: { id: 2, symbol: 'de', name: 'Deutschland' } }));
 
@@ -418,6 +438,12 @@ describe('AddressLetterJobService', () => {
     await service.sendAddressLetters();
 
     expect(kycFileService.invalidateKycFile).toHaveBeenCalledWith(42, expect.anything());
+    // the cache may only be dropped once the row is committed, or a concurrent read refills it with
+    // the still-valid row and that stale entry outlives the commit
+    expect(kycFileService.invalidateKycFileCache).toHaveBeenCalled();
+    expect((kycFileService.invalidateKycFile as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (kycFileService.invalidateKycFileCache as jest.Mock).mock.invocationCallOrder[0],
+    );
     // `valid` is a snapshot column too: the transition is recorded, naming the file, before the update
     const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls.find((c) =>
       c[1].includes('document invalidated'),

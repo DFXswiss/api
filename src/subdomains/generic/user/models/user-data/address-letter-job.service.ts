@@ -480,6 +480,9 @@ export class AddressLetterJobService {
         );
         await this.kycFileService.invalidateKycFile(orphan.id, manager);
       })
+      // only once the row is committed - dropping the cache earlier lets a concurrent read refill it
+      // with the still-valid row
+      .then(() => this.kycFileService.invalidateKycFileCache())
       .catch((e) => this.logger.error(`Address letter orphan invalidation failed for file ${orphan.id}`, e));
   }
 

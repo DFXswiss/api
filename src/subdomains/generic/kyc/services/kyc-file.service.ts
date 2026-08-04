@@ -27,8 +27,17 @@ export class KycFileService {
   // so a failing storage upload leaves a row pointing at a blob that does not exist - and reporting,
   // which only counts valid files, would treat the document as present. This keeps the store honest
   // instead of leaving that orphan behind.
+  //
+  // Inside a caller's transaction the cache is NOT dropped here: the row is not committed yet, so a
+  // concurrent read between the drop and the commit would refill the cache with the still-valid row and
+  // that stale entry would outlive the commit. The caller invalidates once the transaction resolved -
+  // `invalidateKycFileCache` is there for exactly that.
   async invalidateKycFile(id: number, manager?: EntityManager): Promise<void> {
     await (manager?.getRepository(KycFile) ?? this.kycFileRepository).update(id, { valid: false });
+    if (!manager) this.invalidateKycFileCache();
+  }
+
+  invalidateKycFileCache(): void {
     this.kycFileRepository.invalidateCache();
   }
 
