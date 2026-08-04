@@ -91,7 +91,7 @@ export class KycNotificationService {
 
   async kycStepFailed(userData: UserData, stepName: string, reason: string): Promise<void> {
     try {
-      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if (userData.mail && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.KYC_FAILED,
@@ -132,7 +132,7 @@ export class KycNotificationService {
 
   async kycStepMissingData(userData: UserData, stepName: string): Promise<void> {
     try {
-      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if (userData.mail && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.KYC_MISSING_DATA,
