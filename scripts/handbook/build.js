@@ -271,7 +271,10 @@ const ABSOLUTE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
 function collectRelativeRefs(html) {
   const refs = [];
-  const re = /\b(?:src|href)="([^"]+)"/g;
+  // Only match real attribute names (after start-of-string, whitespace, or '<').
+  // A word boundary alone also matches after '-' / ':', so data-src, xlink:href,
+  // ng-src etc. would be treated as resources even though they are not browser-resolved.
+  const re = /(?:^|[\s<])(?:src|href)="([^"]+)"/g;
   let m;
   while ((m = re.exec(html)) !== null) {
     const raw = m[1];
@@ -296,7 +299,11 @@ function checkDocPageReferences(doc, repoRoot, sourceToOutput) {
   const refs = collectRelativeRefs(doc.bodyHtml);
   const baseDir = path.posix.dirname(doc.sourcePath);
   for (const ref of refs) {
-    const candidate = path.posix.normalize(path.posix.join(baseDir, ref));
+    // A leading '/' is repo-root-relative (common in Markdown). path.posix.join
+    // would otherwise append it under baseDir (e.g. docs/ + /package.json → docs/package.json).
+    const candidate = ref.startsWith('/')
+      ? path.posix.normalize(ref.slice(1))
+      : path.posix.normalize(path.posix.join(baseDir, ref));
     if (sourceToOutput.has(candidate)) continue; // known handbook artifact (incl. other docs)
     if (fs.existsSync(path.join(repoRoot, candidate))) {
       console.error(
