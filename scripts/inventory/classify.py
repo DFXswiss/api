@@ -99,6 +99,56 @@ def select_kind(text, m_start, m_end):
     return select
 
 
+APPLY_NAME = re.compile(r'\b([A-Z][A-Z0-9_]*)\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$')
+SELECT_LIST = re.compile(r'\.select\(\s*\[([^\]]*)\]')
+NAMED_CALL = re.compile(r'\.(?:select|addSelect)\(\s*[\'"`][^\'"`]*[\'"`]')
+
+
+def selected_columns(text, m_start, m_end, kind):
+    """How many columns a narrowing query builder actually selects, where that is decidable.
+
+    Returns a dict with `projection` (the name of a `ReadProjection` constant, to be resolved
+    against the compiled entity metadata) and/or `select_count`. Empty when the query does not
+    narrow, in which case the full entity width is the honest answer.
+
+    Without this the measurement builds the default query and counts *that*, so a converted
+    read path is reported at the width it was converted away from - `GET /buy/:id/history`
+    measured 364 columns where the projection selects 12, and the document rendered
+    "497 columns to 364", presenting the conversion as a failure.
+    """
+    if kind not in NARROWING:
+        return {}
+    if kind == SEL_COUNT_ONLY:
+        # COUNT(*)/SELECT 1 - no row is materialised, so a column count is meaningless here.
+        return {'unmeasurable': True}
+    chain = text[m_end:m_end + 1500].split(';')[0]
+    before = text[max(0, m_start - 160):m_start]
+    m = APPLY_NAME.search(before)
+    if m:
+        return {'projection': m.group(1)}
+    lst = SELECT_LIST.search(chain)
+    if lst:
+        return {'select_count': len([x for x in lst.group(1).split(',') if x.strip()])}
+    named = NAMED_CALL.findall(chain)
+    if named:
+        return {'select_count': len(named)}
+    return {}
+
+
+def raw_statement(text, start):
+    """The text of a `.query(` call starting at `start`, to its closing parenthesis.
+
+    A fixed window is not enough: the one raw write in this repository puts its `UPDATE` some
+    1200 characters and 53 lines past the `.query(`, so both a nine-line and a 400-character
+    window classify it as a read. Bracket counting has no such limit.
+    """
+    from tsparse import skip_args
+    open_paren = text.find('(', start)
+    if open_paren < 0:
+        return text[start:start + 400]
+    return text[start:skip_args(text, open_paren)]
+
+
 def raw_kind_of(body):
     """Raw SQL classified from the statement text: an advisory lock, a write, or a read."""
     if 'pg_advisory' in body:
@@ -130,7 +180,9 @@ def is_write_qb(src, s):
 
 def raw_kind(src, s):
     """Raw SQL at a recorded site: an advisory lock, a write, or a genuine read."""
-    return raw_kind_of('\n'.join(_lines(src, s['file'])[s['line'] - 1:s['line'] + 8]))
+    lines = _lines(src, s['file'])
+    # From the recorded line to the end of the call, however long the statement is.
+    return raw_kind_of(raw_statement('\n'.join(lines[s['line'] - 1:]), 0))
 
 
 def annotate(src, sites):

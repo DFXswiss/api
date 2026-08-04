@@ -16,7 +16,14 @@ For that reason `npm run docs:inventory` **does not touch `docs/`**. It leaves b
 bash scripts/inventory/run.sh --write-docs
 ```
 
-A fresh run does reproduce the published *classification* exactly: all 537 endpoints match the published `Data access` and `Tests` columns, at 410 `whole rows`, 36 `projected`, 89 `none` and 2 `caller-defined`. What it does not reproduce is the hand-written prose around the tables. Treat a fresh run as a data source, not as a replacement for the documents.
+A fresh run does reproduce the published *classification* exactly. Run against `06226c90b`, the commit the documents were published from, all 537 endpoints match the published `Data access` and `Tests` columns — 410 `whole rows`, 36 `projected`, 89 `none`, 2 `caller-defined` — and all 18 measured field lists match column for column.
+
+Two things it does not reproduce:
+
+- the hand-written prose around the tables;
+- `Max cols` for nine of the 537 endpoints. Seven come out wider than published (`GET /pricing/price` 53 against 33, `GET /support/transactionList` 98 against 20, four RealUnit and exchange routes at 53 against 33–40) and two narrower (`GET /dashboard/accounting/ledger/margin` 3 against 4, `GET /dashboard/financial/ref-recipients` 4 against 2). These are not drift: the same nine appear when the run is made against the publication commit itself, so they are a genuine remaining difference from whatever produced the published numbers. Which side is right has not been established per case. The classification is unaffected — every one of the nine keeps its published `Data access` and `Tests`.
+
+Treat a fresh run as a data source, not as a replacement for the documents.
 
 ## Keeping the documents current
 
@@ -102,6 +109,7 @@ These scripts were developed outside this repository and checked in here for the
 - The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked. `measure.js` now exits non-zero when nothing measures at all, so this class of failure cannot pass as a completed run again.
 - The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided.
 - `apply_drift.py` filtered new sites on `write` and `rawkind`, fields that only ever existed inside `build_docs.py` and are absent from `sites-measured.json` — so the filter matched nothing and would have inserted write statements, advisory locks and raw `INSERT`s into the published document. Both callers now share `classify.py`.
+- The measurement built the default query and counted *that*, ignoring what the site actually selects. A converted read path was therefore reported at the width it was converted away from: `GET /buy/:id/history` measured 364 columns where its projection selects 12, and the document rendered "497 columns to 12" as "497 columns to 364" — presenting the conversion as a failure. `sites.py` now records the projection constant or the column count, and `measure.js` resolves the constant against `dist/` and counts `fields + guards`. `getCount()`/`getExists()` sites report no width at all, since no row is materialised.
 - `endpoint_eff.py` decided "does this narrow its columns" with its own regex, recognising only a literal `.select([...])`. Every endpoint projecting through `PROJECTION.apply(...)`, naming its columns one at a time, or counting was classified as loading whole rows: a run produced 444 `whole rows` / 2 `projected` against the published 410 / 36, marked all seventeen converted endpoints `not yet`, and rendered the sentence "the other -15 were already projecting" without anything failing. It now calls `classify.select_kind`, and `build_docs.py` refuses to render if a `CONVERTED` endpoint does not come out projected.
 
 Remaining properties worth knowing:

@@ -135,11 +135,16 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
 
         # For a query builder: does an explicit field list follow? The same decision the
         # per-endpoint walk in endpoint_eff.py has to make, so it lives in classify.py.
-        select = classify.select_kind(s, m.start(), m.end()) if call == 'createQueryBuilder' else None
+        select, detail = None, {}
+        if call == 'createQueryBuilder':
+            select = classify.select_kind(s, m.start(), m.end())
+            # What it actually selects, where that is decidable - otherwise the measurement
+            # reports the width the query was narrowed away from.
+            detail = classify.selected_columns(s, m.start(), m.end(), select)
 
         sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
                       'call': call, 'kind': kind, 'entity': entity, 'via': via,
-                      'relations': tree, 'select': select})
+                      'relations': tree, 'select': select, **detail})
 
 if not sites:
     raise SystemExit(f"no load sites found under {SRC} - the scan produced nothing to measure")

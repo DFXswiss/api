@@ -83,8 +83,50 @@ async function main() {
   fs.writeFileSync(OUT_TABLES, JSON.stringify(perTable, null, 1));
 
   const sites = JSON.parse(fs.readFileSync(INPUT, 'utf8'));
+
+  // A site that narrows its columns must be measured at what it selects, not at the default
+  // query. Building the query without the projection reports the width the read path was
+  // converted away from - the widest offender measured 364 columns where it selects 12, and
+  // the document then read "497 columns to 364".
+  const projectionCache = new Map();
+  function projectionWidth(site) {
+    const key = `${site.file}#${site.projection}`;
+    if (!projectionCache.has(key)) {
+      let width = null;
+      try {
+        const mod = require(`${DIST}/${site.file.replace(/\.ts$/, '.js')}`);
+        const p = mod[site.projection];
+        // fields feed the response, guards are selected too - both reach the SELECT list.
+        if (p && Array.isArray(p.fields)) width = p.fields.length + (p.guards || []).length;
+      } catch (e) {
+        console.error(`[inventory] cannot resolve ${site.projection} in ${site.file}: ${e.message}`);
+      }
+      projectionCache.set(key, width);
+    }
+    return projectionCache.get(key);
+  }
+
   const out = [];
   for (const s of sites) {
+    // getCount()/getExists() discard the select list - no row is materialised, so a column
+    // count would be a number about a query that never returns one.
+    if (s.unmeasurable) {
+      out.push({ ...s, error: 'no row materialised' });
+      continue;
+    }
+    if (s.projection) {
+      const width = projectionWidth(s);
+      if (width !== null) {
+        // The projection joins with `leftJoin`, not `leftJoinAndSelect`: no relation is
+        // loaded whole, so nothing widens the row beyond the field list.
+        out.push({ ...s, cols: width, joins: 0, over: false });
+        continue;
+      }
+    }
+    if (s.select_count) {
+      out.push({ ...s, cols: s.select_count, joins: 0, over: false });
+      continue;
+    }
     const meta = ds.entityMetadatas.find((m) => m.name === s.entity);
     if (!meta) {
       out.push({ ...s, error: 'entity not found' });

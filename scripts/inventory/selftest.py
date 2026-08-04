@@ -138,6 +138,29 @@ export class WidgetService {
     await this.widgetRepo.query('INSERT INTO widget (name) VALUES ($1)', ['x']);
   }
 
+  async longRawWrite(): Promise<void> {
+    // The write keyword sits far past any fixed window - the one real raw write in this
+    // repository puts its UPDATE some 1200 characters past the `.query(`.
+    await this.widgetRepo.query(`
+      WITH candidates AS (
+        SELECT id FROM widget WHERE name IS NOT NULL AND id > 0 AND id < 1000000
+      ), filtered AS (
+        SELECT id FROM candidates WHERE id % 2 = 0
+      ), padding_one AS (
+        SELECT id FROM filtered WHERE id NOT IN (SELECT id FROM candidates WHERE id < 0)
+      ), padding_two AS (
+        SELECT id FROM padding_one WHERE id NOT IN (SELECT id FROM filtered WHERE id < 0)
+      ), padding_three AS (
+        SELECT id FROM padding_two WHERE id NOT IN (SELECT id FROM padding_one WHERE id < 0)
+      ), padding_four AS (
+        SELECT id FROM padding_three WHERE id NOT IN (SELECT id FROM padding_two WHERE id < 0)
+      ), padding_five AS (
+        SELECT id FROM padding_four WHERE id NOT IN (SELECT id FROM padding_three WHERE id < 0)
+      )
+      UPDATE widget SET name = 'x' WHERE id IN (SELECT id FROM padding_five)
+    `);
+  }
+
   async rawRead(): Promise<unknown> {
     return this.widgetRepo.query('SELECT name FROM widget WHERE id = $1', [1]);
   }
@@ -172,6 +195,13 @@ def test_select_categories(src, work):
     check('field list', by_method['fieldList']['select'], classify.SEL_FIELD_LIST)
     check('field list via PROJECTION.apply', by_method['viaProjectionHelper']['select'],
           classify.SEL_FIELD_LIST)
+    # What a narrowing query selects has to travel to the measurement, or it reports the width
+    # the read path was converted away from.
+    check('projection name recorded for the measurement',
+          by_method['viaProjectionHelper'].get('projection'), 'WIDGET_PROJECTION')
+    check('literal field list counted', by_method['fieldList'].get('select_count'), 2)
+    check('named columns counted', by_method['namedColumns'].get('select_count'), 1)
+    check('count only marked unmeasurable', by_method['countOnly'].get('unmeasurable'), True)
     check('named columns', by_method['namedColumns']['select'], classify.SEL_NAMED_COLUMNS)
     check('alias only', by_method['aliasOnly']['select'], classify.SEL_ALIAS_ONLY)
     check('no select', by_method['noSelect']['select'], classify.SEL_NO_SELECT)
@@ -194,6 +224,8 @@ def test_write_classification(src, sites):
     check('update chain is a write', by_method['writeChain']['write'], True)
     check('advisory lock is a write', by_method['takeLock']['write'], True)
     check('raw INSERT is a write', by_method['rawInsert']['write'], True)
+    # A fixed window classified this as a read: the write keyword is far past its end.
+    check('raw write past any fixed window is a write', by_method['longRawWrite']['write'], True)
     check('raw SELECT is a read', by_method['rawRead']['write'], False)
     check('raw SELECT keeps its rawkind', by_method['rawRead']['rawkind'], 'read')
     check('plain find is a read', by_method['all']['write'], False)

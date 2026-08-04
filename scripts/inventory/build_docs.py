@@ -279,10 +279,14 @@ o += ["",
      "version decorator and is therefore served under the default.",
      "- **Data access** — the union over the call graph, following injected fields, locally " +
      "constructed repositories and multi-line call chains. `find*` pulls in eager relations, " +
-     "`createQueryBuilder` does not, `.select([...])` is the only form that narrows the column list, " +
-     "and `.update()/.delete()/.insert()` are writes that load nothing.",
-     "- **Max cols** — the query is built from the real entity metadata and its SELECT list counted. " +
-     "Not an estimate.", "",
+     "`createQueryBuilder` does not. A query narrows its column list through `.select([...])`, " +
+     "through a `ReadProjection` applied with `PROJECTION.apply(...)`, by naming columns one at a " +
+     "time as `.select('alias.column')`, or by counting with `getCount()`/`getExists()`; " +
+     "`.select('alias')` names the root alias and narrows nothing. `.update()/.delete()/.insert()` " +
+     "are writes that load nothing.",
+     "- **Max cols** — measured, not estimated. A query that narrows is counted at what it " +
+     "selects: the field list of its projection, or the columns it names. Everything else is " +
+     "built from the real entity metadata and its SELECT list counted.", "",
      "## Known discrepancy", "",
      "`POST /paymentLink/integrations/kucoin/webhook/cancel` appears in the source but is **not " +
      "registered at runtime**: its handler in `c2b-payment-link.controller.ts` carries two `@Post` " +

@@ -169,8 +169,10 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             pre = mb[max(0, rm.start() - 60):rm.start()]
             if re.search(r'this\.(\w+)\s*$', pre) or re.search(r'this\s*$', pre):
                 # An advisory lock returns no rows and a raw write loads nothing - neither is
-                # a read, so neither makes the endpoint one.
-                if classify.raw_kind_of(mb[rm.start():rm.start() + 400]) == 'read':
+                # a read, so neither makes the endpoint one. The statement is read to its
+                # closing parenthesis: a window would miss a write far down a long template
+                # literal, which is exactly the shape the one raw write in this repo has.
+                if classify.raw_kind_of(classify.raw_statement(mb, rm.start())) == 'read':
                     kinds.add('raw')
 
 # ---- build the call graph (edges once, then a fixpoint instead of recursion) ----
