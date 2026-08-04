@@ -13,7 +13,7 @@ import { AccountingModule } from '../../accounting.module';
 // Known limitation (accepted, not fixed here): this only sees a cron method that (a) lives on a class
 // registered in AccountingModule's OWN `providers` array and (b) carries a `Process.LEDGER_*` value on its
 // `@DfxCron` metadata. A ledger job registered in a DIFFERENT module, or one whose `@DfxCron` omits
-// `process` (or sets it to something other than a `LEDGER*` enum member), is invisible to this discovery —
+// `process` (or sets it to something other than a `LEDGER_*` enum member), is invisible to this discovery —
 // exactly as it would already be invisible to the existing per-process `DISABLED_PROCESSES` kill-switches,
 // which depend on the very same `process` flag. Not this test's job to fix; CONTRIBUTING requires every
 // cron to carry its own Process flag regardless.
