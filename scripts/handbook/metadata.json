@@ -49,7 +49,7 @@
   },
   "docs/bank-processing-monitoring.md": {
     "titel": "Bank-Processing-Monitoring",
-    "beschreibung": "Der BankProcessingObserver: 36 Regeln über offene Bank-Transaktionen, Toleranzmodell und das Log-Interface für Dashboards."
+    "beschreibung": "Der BankProcessingObserver: 45 Regeln über offene Bank-Transaktionen, Toleranzmodell und das Log-Interface für Dashboards."
   },
   "docs/bank-frick-operations.md": {
     "titel": "Bank Frick Operationen",

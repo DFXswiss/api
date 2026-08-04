@@ -1,6 +1,6 @@
 # Bank-processing monitoring
 
-The `BankProcessingObserver` watches **open bank-processing transactions** as 36 declarative
+The `BankProcessingObserver` watches **open bank-processing transactions** as 45 declarative
 rules and publishes the result every 5 minutes — into the monitoring `SystemState` and as
 structured log lines that downstream dashboards parse. It replaces a legacy spreadsheet-based
 ops monitor whose alert path had silently died.
@@ -43,8 +43,8 @@ Sun +2.5 d, Mon before 07:12 +3.5 d).
 The log lines are a monitoring contract; field names and prefixes must stay stable:
 
 ```
-BankProcessing state snapshot: 36 rule(s), 2 overdue
-BankProcessing rule snapshot: {"key":"bc-aml-manual-check","block":"buyCryptoFiat","label":"…","count":1,"chfSum":932.8,"overdueCount":1,"overdueChf":932.8,"toleranceMinutes":7200}
+BankProcessing state snapshot: 45 rule(s), 2 overdue
+BankProcessing rule snapshot: {"key":"bc-aml-manual-check","block":"buyCryptoFiat","label":"BuyCrypto AML Pending ManualCheck","count":1,"chfSum":932.8,"overdueCount":1,"overdueChf":932.8,"toleranceMinutes":7200}
 ```
 
 The summary line is a heartbeat and is written even when everything is healthy. A missing
