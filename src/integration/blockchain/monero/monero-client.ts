@@ -81,7 +81,11 @@ const MONERO_PRE_BROADCAST_RPC_MESSAGES: PreBroadcastRpcMessage[] = [
   { code: -4, message: 'failed to get output distribution' },
 ];
 
+const MONERO_REQUEST_TIMEOUT_MS = 30_000;
+
 export class MoneroClient extends BlockchainClient implements CoinOnly {
+  private agent?: Agent;
+
   constructor(private readonly http: HttpService) {
     super();
   }
@@ -396,10 +400,15 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   // --- HELPER --- //
 
   private httpConfig(): HttpRequestConfig {
+    // one keep-alive agent per client: without it every call pays a full TCP + TLS handshake
+    this.agent ??= new Agent({
+      ca: Config.blockchain.monero.certificate,
+      keepAlive: true,
+    });
+
     return {
-      httpsAgent: new Agent({
-        ca: Config.blockchain.monero.certificate,
-      }),
+      httpsAgent: this.agent,
+      timeout: MONERO_REQUEST_TIMEOUT_MS,
     };
   }
 }

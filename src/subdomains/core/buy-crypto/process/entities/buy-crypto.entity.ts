@@ -639,7 +639,6 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
-    chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
     creditorData?: CreditorData,
@@ -654,7 +653,12 @@ export class BuyCrypto extends IEntity {
       chargebackReferenceAmount,
       chargebackAmount,
       chargebackAsset,
-      chargebackOutput,
+      // No chargebackOutput here on purpose. refundClaimWhere pins it to IsNull(), and it is a
+      // relation column whose inverse side this code saves — saving the FiatOutput sets the owning
+      // FK as a side effect. A refund with an output to supply has therefore already made its own
+      // claim match nothing. The FK is set by saving the output after the claim has been won; see
+      // BuyCryptoService.refundBankTx. The same hazard applies to any pinned relation whose inverse
+      // side gets saved before the claim — chargebackBankTx and batch are mapped that way too.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
