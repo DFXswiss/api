@@ -135,3 +135,101 @@ describe('BankTxOutgoingMatchService.getUniqueOutgoingBankTx', () => {
     );
   });
 });
+
+describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
+  let service: BankTxOutgoingMatchService;
+  let bankTxRepo: jest.Mocked<BankTxRepository>;
+  let query: Record<string, jest.Mock>;
+
+  const completeMatch = {
+    counterpartyIban: ' de12 5001 0517 0648 4898 90 ',
+    accountIban: ' lu11 6060 0020 0000 5040 ',
+    amount: 83.39,
+    currency: ' eur ',
+    earliestDate: new Date('2026-07-22T00:00:00.000Z'),
+  };
+
+  beforeEach(async () => {
+    query = {
+      select: jest.fn(),
+      leftJoinAndSelect: jest.fn(),
+      leftJoin: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      take: jest.fn(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    for (const method of ['select', 'leftJoinAndSelect', 'leftJoin', 'where', 'andWhere', 'orderBy', 'take']) {
+      query[method].mockReturnValue(query);
+    }
+    bankTxRepo = createMock<BankTxRepository>();
+    bankTxRepo.createQueryBuilder.mockReturnValue(query as never);
+
+    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxOutgoingMatchService] })
+      .useMocker((token) => (token === BankTxRepository ? bankTxRepo : createMock()))
+      .compile();
+    service = module.get(BankTxOutgoingMatchService);
+  });
+
+  it.each([
+    ['the counterparty IBAN', { ...completeMatch, counterpartyIban: undefined }],
+    ['the source account', { ...completeMatch, accountIban: undefined }],
+    ['the currency', { ...completeMatch, currency: undefined }],
+    ['a finite amount', { ...completeMatch, amount: Number.NaN }],
+    ['a positive amount', { ...completeMatch, amount: 0 }],
+    ['an earliest date', { ...completeMatch, earliestDate: undefined }],
+    ['a valid earliest date', { ...completeMatch, earliestDate: new Date('invalid') }],
+  ])('returns no match when the refund profile lacks %s', async (_description, match) => {
+    await expect(service.getUniqueExternalChargebackBankTx(match as never)).resolves.toBeUndefined();
+    expect(bankTxRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('constrains matches to unassigned debits on counterparty, account, currency, net amount and date', async () => {
+    const bankTx = createCustomBankTx({ id: 208278 });
+    query.getMany.mockResolvedValue([bankTx]);
+
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(bankTx);
+
+    expect(query.where).toHaveBeenCalledWith('bankTx.creditDebitIndicator = :indicator', {
+      indicator: BankTxIndicator.DEBIT,
+    });
+    expect(query.andWhere).toHaveBeenCalledWith(`UPPER(REPLACE(bankTx.iban, ' ', '')) = :counterpartyIban`, {
+      counterpartyIban: 'DE12500105170648489890',
+    });
+    expect(query.andWhere).toHaveBeenCalledWith(`UPPER(REPLACE(bankTx.accountIban, ' ', '')) = :accountIban`, {
+      accountIban: 'LU116060002000005040',
+    });
+    expect(query.andWhere).toHaveBeenCalledWith('UPPER(bankTx.currency) = :currency', { currency: 'EUR' });
+    expect(query.andWhere).toHaveBeenCalledWith(
+      'ABS((bankTx.amount - COALESCE(bankTx.chargeAmount, 0)) - :amount) < :amountTolerance',
+      { amount: 83.39, amountTolerance: 0.005 },
+    );
+    expect(query.andWhere).toHaveBeenCalledWith('bankTx.created >= :earliestDate', {
+      earliestDate: completeMatch.earliestDate,
+    });
+    // bank TXs already linked as chargeback of a buy-crypto are excluded
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'chargebackOf',
+      'chargebackOf.chargebackBankTxId = bankTx.id',
+    );
+    expect(query.andWhere).toHaveBeenCalledWith('chargebackOf.id IS NULL');
+    expect(query.take).toHaveBeenCalledWith(2);
+
+    const typeBrackets = query.andWhere.mock.calls.map(([condition]) => condition).find((v) => v instanceof Brackets);
+    const type = { where: jest.fn(), orWhere: jest.fn() };
+    type.where.mockReturnValue(type);
+    type.orWhere.mockReturnValue(type);
+    (typeBrackets as Brackets).whereFactory(type as never);
+    expect(type.where).toHaveBeenCalledWith('bankTx.type IS NULL');
+    expect(type.orWhere).toHaveBeenCalledWith('bankTx.type IN (:...unassignedTypes)', expect.any(Object));
+  });
+
+  it('returns undefined for no match and for ambiguous matches instead of guessing', async () => {
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 1 }), createCustomBankTx({ id: 2 })]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+  });
+});

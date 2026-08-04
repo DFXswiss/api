@@ -34,6 +34,8 @@ export class BuyCryptoJobService {
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoPreparationService.chargebackTx();
     await this.buyCryptoPreparationService.chargebackFillUp();
+    if (!DisabledProcess(Process.EXTERNAL_CHARGEBACK_MATCH))
+      await this.buyCryptoPreparationService.matchExternalChargebacks();
     await this.buyCryptoNotificationService.sendNotificationMails();
   }
 

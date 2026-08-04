@@ -17,6 +17,10 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -51,6 +55,8 @@ describe('BuyCryptoPreparationService', () => {
   let scorechainScreeningService: ScorechainScreeningService;
   let scorechainDocumentService: ScorechainDocumentService;
   let transactionAmlCheckService: TransactionAmlCheckService;
+  let bankTxService: BankTxService;
+  let bankTxOutgoingMatchService: BankTxOutgoingMatchService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -69,6 +75,8 @@ describe('BuyCryptoPreparationService', () => {
     scorechainScreeningService = createMock<ScorechainScreeningService>();
     scorechainDocumentService = createMock<ScorechainDocumentService>();
     transactionAmlCheckService = createMock<TransactionAmlCheckService>();
+    bankTxService = createMock<BankTxService>();
+    bankTxOutgoingMatchService = createMock<BankTxOutgoingMatchService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -90,6 +98,8 @@ describe('BuyCryptoPreparationService', () => {
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
         { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
         { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
+        { provide: BankTxService, useValue: bankTxService },
+        { provide: BankTxOutgoingMatchService, useValue: bankTxOutgoingMatchService },
       ],
     }).compile();
 
@@ -674,5 +684,113 @@ describe('BuyCryptoPreparationService', () => {
         expect(refund).toHaveBeenCalledWith(entity, expect.objectContaining({ chargebackAllowedDateUser }));
       },
     );
+  });
+
+  describe('matchExternalChargebacks', () => {
+    const incomingBankTx = createCustomBankTx({
+      id: 100,
+      iban: 'DE12500105170648489890',
+      accountIban: 'LU116060002000005040',
+      amount: 83.39,
+      currency: 'EUR',
+      created: new Date('2026-07-22T11:00:00.000Z'),
+    });
+    const chargebackBankTx = createCustomBankTx({
+      id: 200,
+      iban: 'DE12500105170648489890',
+      amount: 83.39,
+      currency: 'EUR',
+      created: new Date('2026-07-29T09:05:00.000Z'),
+    });
+
+    function createFailedEntity(): BuyCrypto {
+      return createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.FAIL,
+        bankTx: incomingBankTx,
+        chargebackAmount: null,
+        transaction: { user: { id: 11 } } as never,
+      });
+    }
+
+    it('claims the matched bank TX and types it as BuyCryptoReturn', async () => {
+      const entity = createFailedEntity();
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(chargebackBankTx);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as never);
+
+      await service.matchExternalChargebacks();
+
+      expect(bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx).toHaveBeenCalledWith({
+        counterpartyIban: incomingBankTx.iban,
+        accountIban: incomingBankTx.accountIban,
+        amount: incomingBankTx.amount,
+        currency: incomingBankTx.currency,
+        earliestDate: incomingBankTx.created,
+      });
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: entity.id,
+          amlCheck: CheckStatus.FAIL,
+          isComplete: false,
+          chargebackOutput: IsNull(),
+          chargebackAllowedDate: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackCryptoTxId: IsNull(),
+          chargebackBankTx: IsNull(),
+        }),
+        expect.objectContaining({
+          chargebackBankTx: { id: chargebackBankTx.id },
+          chargebackDate: chargebackBankTx.created,
+          chargebackAmount: incomingBankTx.amount,
+          chargebackIban: chargebackBankTx.iban,
+        }),
+      );
+      expect(bankTxService.updateInternal).toHaveBeenCalledWith(
+        chargebackBankTx,
+        { type: BankTxType.BUY_CRYPTO_RETURN },
+        entity.transaction.user,
+      );
+    });
+
+    it('never types the bank TX when the claim is lost to a concurrent chargeback', async () => {
+      const entity = createFailedEntity();
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(chargebackBankTx);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0 } as never);
+
+      await service.matchExternalChargebacks();
+
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('does nothing without a unique bank TX match', async () => {
+      const entity = createFailedEntity();
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(undefined);
+      const update = jest.spyOn(buyCryptoRepo, 'update');
+
+      await service.matchExternalChargebacks();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('heals a linked but untyped chargeback bank TX', async () => {
+      const linkedEntity = createCustomBuyCrypto({
+        id: 8,
+        chargebackBankTx: createCustomBankTx({ id: 300, type: BankTxType.PENDING }),
+        transaction: { user: { id: 12 } } as never,
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]).mockResolvedValueOnce([linkedEntity]);
+
+      await service.matchExternalChargebacks();
+
+      expect(bankTxService.updateInternal).toHaveBeenCalledWith(
+        linkedEntity.chargebackBankTx,
+        { type: BankTxType.BUY_CRYPTO_RETURN },
+        linkedEntity.transaction.user,
+      );
+    });
   });
 });

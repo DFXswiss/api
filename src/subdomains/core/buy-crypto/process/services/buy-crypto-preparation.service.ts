@@ -23,6 +23,9 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { BankTxType, BankTxUnassignedTypes } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -33,7 +36,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EntityManager, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -64,6 +67,9 @@ export class BuyCryptoPreparationService {
     @Inject(forwardRef(() => ScorechainDocumentService))
     private readonly scorechainDocumentService: ScorechainDocumentService,
     private readonly transactionAmlCheckService: TransactionAmlCheckService,
+    @Inject(forwardRef(() => BankTxService))
+    private readonly bankTxService: BankTxService,
+    private readonly bankTxOutgoingMatchService: BankTxOutgoingMatchService,
   ) {}
 
   // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
@@ -837,6 +843,102 @@ export class BuyCryptoPreparationService {
         await this.buyCryptoWebhookService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
+      }
+    }
+  }
+
+  // Matches failed buy-cryptos that were refunded directly at the bank (no fiat_output, no
+  // remittance reference) to the outgoing bank TX, so the refund is documented on the transaction
+  // and can never be paid a second time. Claim-first: the chargeback marks are written via a guarded
+  // UPDATE (all chargeback fields still NULL) before the bank TX is typed - a concurrent manual
+  // chargeback loses exactly one of the two races, never both. The DB-side backstop is the UNIQUE
+  // constraint on buy_crypto.chargebackBankTxId.
+  async matchExternalChargebacks(): Promise<void> {
+    const request: FindOptionsWhere<BuyCrypto> = {
+      amlCheck: CheckStatus.FAIL,
+      isComplete: false,
+      batch: IsNull(),
+      outputAmount: IsNull(),
+      chargebackOutput: IsNull(),
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: IsNull(),
+      chargebackDate: IsNull(),
+      chargebackCryptoTxId: IsNull(),
+      chargebackBankTx: IsNull(),
+      created: MoreThan(Util.daysBefore(90)),
+    };
+    const entities = await this.buyCryptoRepo.find({
+      where: { ...request, bankTx: { id: Not(IsNull()) } },
+      relations: { bankTx: true, transaction: { user: { userData: true } } },
+    });
+
+    for (const entity of entities) {
+      try {
+        const chargebackTx = await this.bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx({
+          counterpartyIban: entity.bankTx.iban,
+          accountIban: entity.bankTx.accountIban,
+          amount: entity.chargebackAmount ?? entity.bankTx.amount,
+          currency: entity.bankTx.currency,
+          earliestDate: entity.bankTx.created,
+        });
+        if (!chargebackTx) continue;
+
+        const claim = await this.buyCryptoRepo.update(
+          {
+            id: entity.id,
+            amlCheck: CheckStatus.FAIL,
+            isComplete: false,
+            chargebackOutput: IsNull(),
+            chargebackAllowedDate: IsNull(),
+            chargebackDate: IsNull(),
+            chargebackCryptoTxId: IsNull(),
+            chargebackBankTx: IsNull(),
+          },
+          {
+            chargebackBankTx: { id: chargebackTx.id },
+            chargebackDate: chargebackTx.created,
+            chargebackAmount: entity.chargebackAmount ?? entity.bankTx.amount,
+            chargebackIban: chargebackTx.iban,
+            chargebackAllowedBy: 'API (bank TX match)',
+          },
+        );
+        if (claim.affected !== 1) continue;
+
+        await this.bankTxService.updateInternal(
+          chargebackTx,
+          { type: BankTxType.BUY_CRYPTO_RETURN },
+          entity.transaction?.user,
+        );
+        this.logger.info(`Matched external chargeback bank TX ${chargebackTx.id} to buy-crypto ${entity.id}`);
+      } catch (e) {
+        this.logger.error(`Failed to match external chargeback for buy-crypto ${entity.id}:`, e);
+      }
+    }
+
+    // heal pass: chargeback bank TX linked (by this cron or manually via chargebackBankTxId), but
+    // typing it failed or was skipped - without the type, accounting and the assign cron would keep
+    // treating the booked refund as an open pending TX
+    const unhealed = await this.buyCryptoRepo.find({
+      where: [
+        // id guard: without it, the LEFT JOIN would satisfy `type IS NULL` for every buy-crypto
+        // that has NO chargeback bank TX at all
+        { chargebackBankTx: { id: Not(IsNull()), type: IsNull() }, created: MoreThan(Util.daysBefore(90)) },
+        {
+          chargebackBankTx: { id: Not(IsNull()), type: In(BankTxUnassignedTypes) },
+          created: MoreThan(Util.daysBefore(90)),
+        },
+      ],
+      relations: { chargebackBankTx: { transaction: true }, transaction: { user: { userData: true } } },
+    });
+    for (const entity of unhealed) {
+      try {
+        await this.bankTxService.updateInternal(
+          entity.chargebackBankTx,
+          { type: BankTxType.BUY_CRYPTO_RETURN },
+          entity.transaction?.user,
+        );
+      } catch (e) {
+        this.logger.error(`Failed to type external chargeback bank TX of buy-crypto ${entity.id}:`, e);
       }
     }
   }

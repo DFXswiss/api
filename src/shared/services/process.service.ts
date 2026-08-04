@@ -37,6 +37,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   AUTO_AML_CHECK = 'AutoAmlCheck',
+  EXTERNAL_CHARGEBACK_MATCH = 'ExternalChargebackMatch',
   BANK_RELEASE_CHECK = 'BankReleaseCheck',
   BUY_CRYPTO_REFRESH_FEE = 'BuyCryptoRefreshFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',

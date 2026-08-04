@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -10,7 +17,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
@@ -144,6 +151,15 @@ export class FiatOutputService {
     inputCreditorData?: Partial<FiatOutput>,
     manager?: EntityManager,
   ): Promise<FiatOutput> {
+    // second line of defense against a double refund: once a chargeback bank TX is linked (refund
+    // executed externally and matched, or linked manually), no further refund output may be created
+    if (type === FiatOutputType.BUY_CRYPTO_FAIL && buyCrypto) {
+      const repo = manager?.getRepository(BuyCrypto) ?? this.buyCryptoRepo;
+      const alreadyRefunded = await repo.existsBy({ id: buyCrypto.id, chargebackBankTx: { id: Not(IsNull()) } });
+      if (alreadyRefunded)
+        throw new ConflictException('Chargeback already executed for this buy-crypto (chargeback bank TX linked)');
+    }
+
     let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
 
     // For BuyFiat without inputCreditorData: auto-populate from seller's UserData
