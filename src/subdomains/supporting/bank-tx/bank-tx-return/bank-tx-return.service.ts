@@ -238,13 +238,10 @@ export class BankTxReturnService {
       );
 
       // FiatOutput.bankTxReturn is the inverse side of BankTxReturn.chargebackOutput, so saving it
-      // writes chargebackOutputId onto this row as a side effect. What that used to do — and what
-      // the shared transaction fixes — is commit the FK separately from the state write: a failure
-      // in between left chargebackOutputId set with chargebackAllowedDate still null, which drops
-      // the row out of chargebackTx's `chargebackOutput: IsNull()` selection and makes every manual
-      // retry fail validateRefund. The return is stranded and its output stalls too: the same
-      // failed write leaves chargebackRemittanceInfo null, so setFiatAmounts never picks it up and
-      // the payout job skips it on the missing amounts forever.
+      // writes chargebackOutputId onto this row as a side effect. That FK and the state write above
+      // must commit together: chargebackTx selects on `chargebackOutput: IsNull()` and
+      // validateRefund rejects on the same column, so a row carrying one without the other is
+      // neither retried nor refundable by hand.
       //
       // Creating it after the state write is not required for that — inside one transaction either
       // order commits the same row. It is kept as the convention BuyCryptoService.refundBankTx

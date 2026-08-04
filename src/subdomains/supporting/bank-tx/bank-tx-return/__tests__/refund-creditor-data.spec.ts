@@ -15,7 +15,7 @@ import { BankTxReturnService } from '../bank-tx-return.service';
 /**
  * BankTxReturnService.refundBankTx()
  *
- * - creditor data falls back to bankTxReturn.creditorData when the DTO carries none
+ * - creditor data comes from bankTxReturn.creditorData, with the DTO only as a fallback
  * - the chargeback state write and its FiatOutput are one transaction, so neither can commit alone
  */
 describe('BankTxReturnService - refundBankTx Creditor Data', () => {
