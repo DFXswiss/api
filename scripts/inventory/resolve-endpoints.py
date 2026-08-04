@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Per endpoint: does it reach a load site that loads more columns than it needs?
 
-Unlike the withdrawn attempt, this claims NO single "load path"
-This claims no single "load path" per endpoint. What is formed is the UNION over every load
+This claims NO single "load path" per endpoint. What is formed is the UNION over every load
 site reachable from the handler — the aggregation that matches the question: as soon as any
 one of them overloads, the endpoint loads more than it needs.
 
@@ -238,7 +237,7 @@ for cls in METHODS:
 
 # Measured column count per load site (from the TypeORM measurement), matched on file+line
 MEAS = {(s['file'], s['line']): s.get('cols')
-        for s in json.load(open(SP + '/sites-measured.json')) if s.get('cols')}
+        for s in json.load(open(SP + '/sites-measured.json')) if s.get('cols') is not None}
 
 KINDS = {k: set(DIRECT[k[0]].get(k[1], set())) for k in LOCAL_OK}
 OK = dict(LOCAL_OK)
@@ -342,10 +341,10 @@ print(f"  over 1000 columns: {sum(1 for x in mc if x > 1000)}")
 print(f"  over  500 columns: {sum(1 for x in mc if x > 500)}")
 print(f"  over  100 columns: {sum(1 for x in mc if x > 100)}")
 print(f"  Median: {mc[len(mc)//2]}")
-print("\nSpitzenreiter:")
+print("\nwidest endpoints:")
 for e in sorted(ineff, key=lambda x: -x['maxcol'])[:8]:
     print(f"  {e['maxcol']:5d}  {e['verb']:6s} {e['path']}")
-print("\nEffizient:")
+print("\nprojecting endpoints:")
 for e in out:
     if cat(e) in ('projects', 'caller-defined'):
         print(f"  {cat(e):20s} {e['verb']:6s} {e['path']:34s} {e['kinds']}")

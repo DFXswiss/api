@@ -29,11 +29,11 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 796 of 1158 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 799 of 1158 sites.
 
 - **341 are exact**: the `relations` tree is written at the call site.
-- **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 362 could not be measured: no resolvable target entity, or raw SQL.
+- **458 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
+- 359 could not be measured: no resolvable target entity, or raw SQL.
 
 **That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 343 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
 

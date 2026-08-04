@@ -78,11 +78,18 @@ per file.
 
 ## Where it stops rather than guesses
 
-- A query builder that names columns but yields no width means `PROJECTION_SIZES` no longer matches
-  the projection constants — renamed, or newly added. The run stops and names the sites.
+- A query builder that names columns but yields no width means the field list came through a
+  projection constant the run did not find in the built tree. The run stops and names the sites.
 - A load site whose entity resolves but whose relation tree does not is reported by count and by
   site. It is not fatal: the document has a form for it, a dash in the width column, and five such
   sites exist today. A new one shows up in the log rather than in silence.
+
+## What it cannot measure
+
+One site projects on its root and pulls a joined entity in whole (`query-builder (projected, full
+join)`). Its true width is neither the root entity nor the projection, and the chain is not
+reconstructed here — the number shown is the root entity's width, and it is a lower bound like the
+455 others the document already marks as such.
 
 ## What this cannot check
 

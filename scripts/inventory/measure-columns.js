@@ -36,14 +36,18 @@ Module._load = function (request) {
 
 require('reflect-metadata');
 const fs = require('fs');
+const path = require('path');
 const { DataSource } = require('typeorm');
 
 const DIST = process.env.DIST;
 const INPUT = process.argv[2];
 const OUT_MEASURED = process.argv[3];
 const OUT_TABLES = process.argv[4];
-if (!DIST || !INPUT || !OUT_MEASURED || !OUT_TABLES) {
-  console.error('usage: DIST=<dist> node measure-columns.js <sites.json> <measured.json> <meta-tables.json>');
+const OUT_PROJECTIONS = process.argv[5];
+if (!DIST || !INPUT || !OUT_MEASURED || !OUT_TABLES || !OUT_PROJECTIONS) {
+  console.error(
+    'usage: DIST=<dist> node measure-columns.js <sites.json> <measured.json> <meta-tables.json> <projections.json>',
+  );
   process.exit(2);
 }
 
@@ -68,6 +72,33 @@ async function main() {
     perTable[m.tableName].cols = Math.max(perTable[m.tableName].cols, m.columns.length);
   }
   fs.writeFileSync(OUT_TABLES, JSON.stringify(perTable, null, 1));
+
+  // The width of a projected read is the size of its ReadProjection constant. Read it off the
+  // built tree rather than keeping a copy: a copy is right on the day it is written and wrong on
+  // the day a projection gains a field, and nothing would say so.
+  const projections = {};
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith('.js') && fs.readFileSync(full, 'utf8').includes('_PROJECTION')) {
+        let mod;
+        try {
+          mod = require(full);
+        } catch {
+          continue;
+        }
+        for (const [name, value] of Object.entries(mod)) {
+          if (!/_PROJECTION$/.test(name)) continue;
+          if (Array.isArray(value?.fields) && Array.isArray(value?.guards))
+            projections[name] = value.fields.length + value.guards.length;
+        }
+      }
+    }
+  };
+  walk(path.join(DIST, 'src'));
+  fs.writeFileSync(OUT_PROJECTIONS, JSON.stringify(projections, null, 1));
+  console.log(JSON.stringify({ step: 'projections', found: Object.keys(projections).length }));
 
   const sites = JSON.parse(fs.readFileSync(INPUT, 'utf8'));
   const out = [];

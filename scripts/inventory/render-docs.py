@@ -57,7 +57,9 @@ qb = [s for s in loads if s['kind'] == 'query-builder']
 sel = Counter(s['select'] for s in qb)
 writes = sum(1 for s in sites if s['write'])
 qb_writes = sum(1 for s in sites if s['kind'] == 'query-builder' and s['write'])
-meas = [s for s in loads if s.get('cols')]
+# A width of 0 is a measurement: a getCount()/getExists() chain materialises no row.
+# Only `None` means the site could not be measured.
+meas = [s for s in loads if s.get('cols') is not None]
 exact = [s for s in meas if s['relations']]
 lower = [s for s in meas if not s['relations']]
 cols_sorted = sorted(s['cols'] for s in meas)
@@ -83,7 +85,7 @@ _before = {('GET', '/user/profile'): 253, ('GET', '/buy/:id/history'): 497,
 _after = {}
 
 _proj_cols = sorted(x['cols'] for x in sites
-                    if x.get('select') == 'named-columns' and x.get('cols'))
+                    if x.get('select') == 'named-columns' and x.get('cols') is not None)
 proj_median = _proj_cols[len(_proj_cols) // 2] if _proj_cols else 0
 
 # ---------------- 1. endpoints ----------------
@@ -382,7 +384,7 @@ t = ["# Database load sites", "",
      "Sorted by measured columns, largest first. `—` means not measurable, not zero.", "",
      "| Columns | Joins | Mechanism | Entity | Location | Method |",
      "| ------: | ----: | --------- | ------ | -------- | ------ |"]
-for s in sorted(loads, key=lambda x: (-(x.get('cols') or 0), x['file'], x['line'])):
+for s in sorted(loads, key=lambda x: (x.get('cols') is None, -(x.get('cols') or 0), x['file'], x['line'])):
     # The classifier's own names are internal; the document is English and is read by the team.
     mech = s['kind'] + (f" ({SELECT_LABEL.get(s['select'], s['select'])})" if s.get('select') else '')
     where = f"`{s['cls']}.{s['method']}`" if s['cls'] and s['method'] else '—'

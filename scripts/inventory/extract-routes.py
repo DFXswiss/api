@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Builds table.json from the controllers (verb, path, controller, handler, file, hidden).
 
-Decorators between the route decorator and the method are skipped by counting brackets
-are skipped by counting brackets (respecting strings and comments); otherwise a multi-line
-multi-line @UseGuards( would have its guard read as the handler.
+Decorators between the route decorator and the method are skipped by counting brackets,
+respecting strings and comments. A window of a fixed number of lines would instead read the
+guard of a multi-line @UseGuards( as the handler.
 """
 import re, glob, os, json
 

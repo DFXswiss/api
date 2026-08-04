@@ -3,8 +3,9 @@
  *
  *   npm run build && node scripts/inventory/run.js [output-dir]
  *
- * The column counts come from the TypeORM metadata, which only exist once the entities are
- * compiled — hence the build. No database is involved.
+ * Widths of whole-row queries are measured against the TypeORM metadata, which only exist once
+ * the entities are compiled — hence the build. A query that names its columns is counted in
+ * the source instead. No database is involved.
  *
  * The documents are written to the output directory, not over docs/. Two columns of endpoints.md
  * and the prose of both documents are maintained by hand; see README.md.
@@ -35,13 +36,18 @@ const STAGES = [
   [
     'column counts from the entity metadata',
     'node',
-    ['measure-columns.js', j('sites.json'), j('measured.json'), j('meta-tables.json')],
+    ['measure-columns.js', j('sites.json'), j('measured.json'), j('meta-tables.json'), j('projections.json')],
   ],
   [
     'join measurements onto the sites',
     'python3',
     ['join-measurements.py'],
-    { IN_SITES: j('sites.json'), IN_MEASURED: j('measured.json'), OUT_MEASURED: j('sites-measured.json') },
+    {
+      IN_SITES: j('sites.json'),
+      IN_MEASURED: j('measured.json'),
+      IN_PROJECTIONS: j('projections.json'),
+      OUT_MEASURED: j('sites-measured.json'),
+    },
   ],
   ['routes from the controllers', 'python3', ['extract-routes.py']],
   ['deprecation flags', 'python3', ['add-flags.py']],

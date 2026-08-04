@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Adds `deprecated` to table.json and determines `version` from the full decorator block.
 
-The block between the route decorator and the method is delimited exactly (counting brackets,
-respecting strings and comments) — a window of a fixed number of lines misses a multi-line
-mehrzeilige @ApiOperation({ ... deprecated: true }).
+The block between the route decorator and the method is delimited exactly, counting brackets and
+respecting strings and comments. A window of a fixed number of lines would miss a multi-line
+@ApiOperation({ ... deprecated: true }).
 """
 import re, glob, os, json
 
@@ -106,7 +106,7 @@ for r in rows:
 json.dump(rows, open(SP + '/table.json', 'w'), indent=1)
 
 from collections import Counter
-print('Versionen:', dict(Counter(r['version'] for r in rows)))
+print('versions:', dict(Counter(r['version'] for r in rows)))
 print('deprecated:', sum(1 for r in rows if r['deprecated']))
 for r in rows:
     if r['deprecated']: print(f"   v{r['version']} {r['verb']:6s} {r['path']:34s} {r['controller']}.{r['handler']}")
