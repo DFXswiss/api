@@ -26,6 +26,13 @@
  * rows the job itself dispatched - a few thousand accounts carry a historic `letterSentDate` without a
  * `PostDispatch` KYC file and must not be reported as a defect of the new job.
  *
+ * It also switches `AddressLetter` off, following `AddBankFrickPayoutTracking1783944000000`. This is
+ * not a convenience: the job dispatches physical mail, and the automation it replaces is still live.
+ * Both running at once means two letters per customer, paid for twice and impossible to recall. The
+ * switch therefore has to be set by the deploy itself, not by remembering an environment entry - the
+ * job must never be able to start on its own. Ops removes the entry (or the `disabledProcess` setting
+ * value) once the letter layout is confirmed and the old automation is verifiably off.
+ *
  * @class
  * @implements {MigrationInterface}
  */
@@ -36,10 +43,32 @@ module.exports = class AddAddressLetterDispatchState1785900000000 {
   async up(queryRunner) {
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterClaimDate" TIMESTAMP`);
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterFailures" integer NOT NULL DEFAULT 0`);
+    // Appends without duplicating, and creates the setting when it does not exist yet.
+    await queryRunner.query(`
+      INSERT INTO "setting" ("key", "value", "updated", "created")
+      VALUES ('disabledProcess', '["AddressLetter"]', NOW(), NOW())
+      ON CONFLICT ("key") DO UPDATE SET "value" = (
+        COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb
+        || CASE
+          WHEN COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb @> '["AddressLetter"]'::jsonb
+          THEN '[]'::jsonb ELSE '["AddressLetter"]'::jsonb
+        END
+      )::text, "updated" = NOW()
+    `);
   }
 
   /** @param {QueryRunner} queryRunner */
   async down(queryRunner) {
+    await queryRunner.query(`
+      UPDATE "setting"
+      SET "value" = COALESCE((
+        SELECT jsonb_agg(process)
+        FROM jsonb_array_elements_text(COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb) AS processes(process)
+        WHERE process <> 'AddressLetter'
+      ), '[]'::jsonb)::text,
+      "updated" = NOW()
+      WHERE "key" = 'disabledProcess'
+    `);
     await queryRunner.query(`ALTER TABLE "user_data" DROP COLUMN "letterFailures"`);
     await queryRunner.query(`ALTER TABLE "user_data" DROP COLUMN "letterClaimDate"`);
   }
