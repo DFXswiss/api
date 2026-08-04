@@ -188,8 +188,8 @@ export class BankTxReturn extends IEntity {
       chargebackAsset,
       // No chargebackOutput here on purpose. It is a relation column whose inverse side this code
       // saves — saving the FiatOutput sets the owning FK as a side effect — so passing it here only
-      // duplicates that write, and accepting it at all is what pushed the save out of the state
-      // write's transaction in the first place. See BankTxReturnService.refundBankTx.
+      // duplicates that write, and needing it in hand beforehand is what forced the output-first
+      // ordering the old code had. See BankTxReturnService.refundBankTx.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,

@@ -242,12 +242,14 @@ export class BankTxReturnService {
       // the shared transaction fixes — is commit the FK separately from the state write: a failure
       // in between left chargebackOutputId set with chargebackAllowedDate still null, which drops
       // the row out of chargebackTx's `chargebackOutput: IsNull()` selection and makes every manual
-      // retry fail validateRefund, stranding the return while its payout row stays queued.
+      // retry fail validateRefund. The return is stranded and its output stalls too: the same
+      // failed write leaves chargebackRemittanceInfo null, so setFiatAmounts never picks it up and
+      // the payout job skips it on the missing amounts forever.
       //
       // Creating it after the state write is not required for that — inside one transaction either
       // order commits the same row. It is kept as the convention BuyCryptoService.refundBankTx
-      // establishes, so that adding a claim predicate here later (see the PR discussion) cannot
-      // reintroduce the conflict-with-own-write bug that #4656 fixed.
+      // establishes, so that adding a claim predicate here later cannot reintroduce the
+      // conflict-with-own-write bug that #4656 fixed.
       if (createsChargebackOutput) {
         bankTxReturn.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BANK_TX_RETURN,

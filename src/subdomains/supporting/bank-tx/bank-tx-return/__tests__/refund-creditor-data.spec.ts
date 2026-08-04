@@ -180,8 +180,10 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
       expect(bankTxReturnRepo.manager.transaction).toHaveBeenCalledTimes(1);
       expect(bankTxReturnRepo.update).not.toHaveBeenCalled();
-      // Pin every slot that shifted when the chargebackOutput parameter was removed. The two dates
-      // sit either side of it and are both Date, so a swap would type-check silently.
+      // Removing the chargebackOutput parameter closed the gap between chargebackAllowedBy and
+      // chargebackRemittanceInfo, which are both string and now adjacent, so a swap there would
+      // type-check silently. The two Date parameters carry the same risk between themselves. Pin
+      // the payload so either swap fails.
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BankTxReturn,
@@ -193,6 +195,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
           chargebackAllowedDate,
           chargebackAllowedDateUser: undefined,
           chargebackAllowedBy: 'BatchJob',
+          chargebackRemittanceInfo: mockBankTxReturn.chargebackBankRemittanceInfo,
           chargebackCreditorData: JSON.stringify(mockCreditorData),
         }),
       );
