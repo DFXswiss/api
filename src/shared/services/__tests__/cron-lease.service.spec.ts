@@ -1210,9 +1210,10 @@ describe('CronLeaseService', () => {
     });
 
     it('reports a non-Error throw without losing its text', async () => {
-      // The restructure routes failures through `e instanceof Error ? e : new Error(String(e))`,
-      // and `recordFailure` runs in the renewal's catch — not in `renew` itself — so this has to
-      // be driven through a real run to exercise it.
+      // `recordFailure` runs in the renewal's catch, not in `renew` itself, so this has to be
+      // driven through a real run. What it pins is that the text survives to the heartbeat; the
+      // `e instanceof Error` conversion is enforced by the `Error | undefined` type, not here —
+      // `recordFailure` applies `String(e)` of its own accord.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {

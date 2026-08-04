@@ -63,9 +63,12 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 /**
  * How long a renewal round trip may take before it is reported.
  *
- * The cadence above bounds when the next attempt STARTS, not how long an attempt takes, and the
- * claim goes unextended for the whole round trip either way: a renewal answering in 40 s leaves the
- * row 40 s closer to its expiry than the schedule suggests. Only a renewal that FAILED was ever
+ * The cadence above bounds when the next attempt STARTS, not how long one takes, and a slow round
+ * trip pushes the row's next EXTENSION out by its own length: consecutive executions land
+ * `max(interval, round trip)` apart rather than an interval apart, so a renewal answering in 40 s
+ * leaves the claim closer to its expiry than the schedule suggests. Not because the row goes
+ * unextended for the whole trip — a renewal that succeeds extends it mid-flight, as the block above
+ * says — but because the NEXT one is that much further away. Only a renewal that FAILED was ever
  * visible, so that span was reported as nothing at all.
  *
  * Five seconds is far outside the normal shape of the statement it times: a single-row UPDATE by
@@ -558,8 +561,9 @@ export class CronLeaseService implements OnModuleInit {
    * line stays one per run whichever sees it. See `releasing`.
    *
    * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every
-   * attempt. The run carries on to its own end — up to two hours for the longest timeouts — and an unlatched
-   * line would repeat every 20 s for all of it, turning one event into some 360 lines. Counting
+   * attempt. The run carries on to its own end — up to two hours for the longest timeouts — and
+   * an unlatched line would repeat every 20 s for all of it, turning one event into some 360
+   * lines. Counting
    * lines would then measure how LONG the affected runs were, not how OFTEN the claim was lost,
    * which is the number the TTL has to be dimensioned on.
    *
