@@ -27,21 +27,33 @@ def chain_at(rel, line):
     if not m: return ''
     return text[start + m.end():start + m.end() + 1500].split(';')[0]
 
-def _split_top(s):
-    """Split on commas that are not inside a bracket, a call or a string."""
-    out, depth, quote, cur = [], 0, None, ''
-    for ch in s:
+def _scan(s, i):
+    """Walk from the '[' at s[i] to its matching ']', yielding the top-level elements.
+
+    Written as one scanner rather than a search for the next ']' because both a nested call and a
+    string may carry one: `.select(['a', fn(x[0])])` closes three brackets before the array's own.
+    An escaped quote does not end a string either — `\'` inside one would otherwise open a second.
+    """
+    depth, quote, esc, cur, out = 0, None, False, '', []
+    for j in range(i, len(s)):
+        ch = s[j]
         if quote:
             cur += ch
-            if ch == quote: quote = None
+            if esc: esc = False
+            elif ch == '\\': esc = True
+            elif ch == quote: quote = None
             continue
-        if ch in '\'"`': quote = ch; cur += ch; continue
-        if ch in '([{': depth += 1
-        elif ch in ')]}': depth -= 1
-        if ch == ',' and depth == 0: out.append(cur); cur = ''; continue
+        if ch in '\'"`':
+            quote = ch; cur += ch; continue
+        if ch in '([{':
+            depth += 1
+            if depth == 1: continue          # the opening bracket itself
+        elif ch in ')]}':
+            depth -= 1
+            if depth == 0: out.append(cur); return out
+        if ch == ',' and depth == 1: out.append(cur); cur = ''; continue
         cur += ch
-    out.append(cur)
-    return out
+    return None                              # unterminated: the caller must not guess
 
 
 def named_columns(rel, line, chain):
@@ -50,12 +62,11 @@ def named_columns(rel, line, chain):
     # A variable argument names a column too: `.select(bucketExpr, 'bucket')`.
     for m in re.finditer(r'\.(?:select|addSelect)\s*\(\s*(\[|[\'"`]|[A-Za-z_$][\w$]*\s*[,)])', chain):
         if m.group(1) == '[':
-            body = chain[m.end() - 1:]
-            end = body.find(']')
-            inner = body[1:end] if end > 0 else body[1:]
             # Count the elements, not the string literals: `.select([col, 'a.b'])` names two
             # columns, and counting quotes would report one without saying that it had guessed.
-            total += len([x for x in _split_top(inner) if x.strip()])
+            parts = _scan(chain, m.end() - 1)
+            if parts is None: return None    # the list does not close in view: do not guess
+            total += len([x for x in parts if x.strip()])
         else:
             total += 1
     if total: return total
@@ -79,7 +90,7 @@ for s in fresh:
         rec['cols'] = 0; rec['joins'] = 0; counted += 1
     elif s['kind'] == 'query-builder' and s['select'] in ('field-list', 'named-columns'):
         n = named_columns(s['file'], s['line'], chain_at(s['file'], s['line']))
-        if n: rec['cols'] = n; rec['joins'] = 0; counted += 1
+        if n is not None: rec['cols'] = n; rec['joins'] = 0; counted += 1
         else: missing += 1; unknown.append(f"{s['file']}:{s['line']}")
     else:
         pool = by_key.get((s['file'], s['cls'], s['method'], s['call'], s['entity']))

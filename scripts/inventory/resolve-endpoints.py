@@ -40,9 +40,9 @@ def body_start(s, i):
     """First '{' AFTER the return-type annotation, from position i (past the parameter list).
 
     `Promise<{ data: X; capReached: boolean }>` contains a brace that looks like the start of a
-    method body. The rule is exact rather than heuristic: if the candidate closes a bracket
-    bracket group and another '{' follows immediately, the first one was the type annotation.
-    A real body is never followed immediately by an opening brace.
+    method body. The rule is exact rather than heuristic: if the candidate closes a bracket group
+    and another '{' follows immediately, the first one was the type annotation. A real body is
+    never followed immediately by an opening brace.
     """
     lt, j = 0, i
     while j < len(s):
@@ -104,10 +104,10 @@ def is_projection(chain, body=''):
     but loads every column. The dot in the first argument is what separates them.
     """
     joined = re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain)
-    # `.select(bucketExpr, 'bucket')` — the argument sits in a variable. The one in the body
-    # assigned in the body decides: a bare identifier would be the root alias, anything
-    # the other names something. Without resolving this, a projected aggregate query would count
-    # as "loads whole rows".
+    # `.select(bucketExpr, 'bucket')` — the argument sits in a variable, so what that variable is
+    # assigned in the body decides: a bare identifier would be the root alias, anything else names
+    # something. Without resolving it, a projected aggregate query would count as "loads whole
+    # rows".
     v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
     if v:
         a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", body)
@@ -123,10 +123,10 @@ def is_projection(chain, body=''):
     # no longer helps.
     return not re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain)
 
-SITES_OF = {}                    # (cls, meth) -> {(datei, zeile)}
+SITES_OF = {}                    # (cls, meth) -> {(file, line)}
 METHODS = defaultdict(dict)      # cls -> meth -> list[body]
 INJECT = defaultdict(dict)       # cls -> field -> type
-DIRECT = defaultdict(dict)       # cls -> meth -> set(kategorien)
+DIRECT = defaultdict(dict)       # cls -> meth -> set(categories)
 
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
@@ -166,7 +166,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
         ob = body_start(s, i)
         if ob < 0: continue
         mb, _ = brace(s, ob)
-        METHODS[cls].setdefault(name, []).append(mb)   # Namenskollisionen: vereinigen
+        METHODS[cls].setdefault(name, []).append(mb)   # a name collision: keep both bodies
 
         kinds = DIRECT[cls].setdefault(name, set())
         sites = SITES_OF.setdefault((cls, name), set())
@@ -178,8 +178,8 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
         for qm in QB.finditer(mb):
             chain = mb[qm.end():qm.end() + 1500].split(';')[0]
             # `PROJECTION.apply(this.createQueryBuilder('x'), fields)` — the field list lives in
-            # the projection constant, not in the chain. Without this case every load going
-            # built through ReadProjection would count as "loads whole rows".
+            # the projection constant, not in the chain. Without this case every load built
+            # through ReadProjection would count as "loads whole rows".
             before = mb[max(0, qm.start() - 160):qm.start()]
             if re.search(r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$', before):
                 kinds.add('proj'); sites.add(at(qm.start())); continue
@@ -207,8 +207,8 @@ for cls in METHODS:
         ok = True
         for body in bodies:
             # locally constructed objects: `const txLogRepo = new LogRepository(manager)` and
-            # then `txLogRepo.getFoo(...)` — without this kind of edge a load stays
-            # transaction that constructs its own repository invisible.
+            # then `txLogRepo.getFoo(...)` — without this kind of edge, a transaction that
+            # constructs its own repository stays invisible.
             local = {m.group(1): m.group(2)
                      for m in re.finditer(r'\b(?:const|let|var)\s+(\w+)\s*=\s*new\s+(\w+)\s*\(', body)}
             for lm in re.finditer(r'\b(\w+)\s*\.\s*(\w+)\s*\(', body):
@@ -223,7 +223,7 @@ for cls in METHODS:
                     t = INJECT.get(sub_cls, {}).get(fld)
                     if t in EXTERNAL: external = True; break
                     if t is None:
-                        ok = False              # Feldtyp unbekannt: ehrlicher Zweifelsfall
+                        ok = False              # unknown field type: an honest doubtful case
                         external = True; break
                     sub_cls = t
                 if external or sub_cls in EXTERNAL: continue
@@ -241,7 +241,11 @@ MEAS = {(s['file'], s['line']): s.get('cols')
 
 KINDS = {k: set(DIRECT[k[0]].get(k[1], set())) for k in LOCAL_OK}
 OK = dict(LOCAL_OK)
-MAXCOL = {k: max([MEAS.get(x, 0) for x in SITES_OF.get(k, ())] or [0]) for k in LOCAL_OK}
+# `None` where no reachable site carries a measurement, a number where one does — and that number
+# may be 0, because a getCount() chain materialises no row. Collapsing the two into 0 would print
+# a measured zero and an unmeasurable site the same way.
+MAXCOL = {k: (max(_m) if (_m := [MEAS[x] for x in SITES_OF.get(k, ()) if x in MEAS]) else None)
+          for k in LOCAL_OK}
 REACH = {k: set(SITES_OF.get(k, ())) for k in LOCAL_OK}
 changed = True
 while changed:
@@ -252,7 +256,7 @@ while changed:
                 KINDS[n] |= KINDS[t]; changed = True
             if OK[n] and not OK[t]:
                 OK[n] = False; changed = True
-            if MAXCOL[t] > MAXCOL[n]:
+            if MAXCOL[t] is not None and (MAXCOL[n] is None or MAXCOL[t] > MAXCOL[n]):
                 MAXCOL[n] = MAXCOL[t]; changed = True
             if not REACH.get(t, set()) <= REACH.setdefault(n, set()):
                 REACH[n] |= REACH[t]; changed = True
@@ -303,11 +307,12 @@ for r in eps:
     if not k and not ok and key in MANUAL_NO_DB:
         ok, manual = True, MANUAL_NO_DB[key]
     out.append({**r, 'kinds': sorted(k), 'complete': ok, 'manual': manual,
-                'maxcol': MAXCOL.get((r['controller'], r['handler']), 0),
+                # No measurable site is `None`; a measured zero is 0 and must survive as one.
+                'maxcol': MAXCOL.get((r['controller'], r['handler'])),
                 'sites': sorted(f'{f}:{l}' for f, l in REACH.get(key, set()))})
-# Does any spec touch this endpoint at all? Strict: the same file names the controller
-# AND calls the handler. A weak signal and a lower bound — specs driving a route over HTTP
-# a route over HTTP without naming the handler are missed.
+# Does any spec touch this endpoint at all? Strict: the same file names the controller AND calls
+# the handler. A weak signal and a lower bound — a spec that drives a route over HTTP without
+# naming the handler is missed.
 SPECS = [open(f, encoding='utf-8', errors='replace').read()
          for f in glob.glob(os.path.join(SRC, '**', '*.spec.ts'), recursive=True)]
 for r in out:
@@ -335,14 +340,14 @@ for k in ['loads whole rows', 'no database access', 'projects', 'caller-defined'
     if c[k]: print(f"  {k:20s} {c[k]:4d}  ({100*c[k]/len(out):.0f} %)")
 
 ineff = [e for e in out if cat(e) == 'loads whole rows']
-mc = sorted((e['maxcol'] for e in ineff if e['maxcol']), reverse=True)
+mc = sorted((e['maxcol'] for e in ineff if e['maxcol'] is not None), reverse=True)
 print(f"\nWidest query triggered (measured columns), {len(mc)} of {len(ineff)} measurable:")
 print(f"  over 1000 columns: {sum(1 for x in mc if x > 1000)}")
 print(f"  over  500 columns: {sum(1 for x in mc if x > 500)}")
 print(f"  over  100 columns: {sum(1 for x in mc if x > 100)}")
 print(f"  Median: {mc[len(mc)//2]}")
 print("\nwidest endpoints:")
-for e in sorted(ineff, key=lambda x: -x['maxcol'])[:8]:
+for e in sorted((x for x in ineff if x['maxcol'] is not None), key=lambda x: -x['maxcol'])[:8]:
     print(f"  {e['maxcol']:5d}  {e['verb']:6s} {e['path']}")
 print("\nprojecting endpoints:")
 for e in out:

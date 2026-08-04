@@ -149,9 +149,9 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 select = 'field-list'
             elif re.search(r'\.select\(\s*\[', chain): select = 'field-list'
             elif re.search(r'\.select\(\s*[A-Za-z_$][\w$]*\s*[,)]', chain):
-                # `.select(bucketExpr, 'bucket')` — the argument sits in a variable. The one in
-                # body decides: a bare identifier would be the root alias,
-                # anything else names something.
+                # `.select(bucketExpr, 'bucket')` — the argument sits in a variable, so what
+                # that variable is assigned in the body decides: a bare identifier would be the
+                # root alias, anything else names something.
                 v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
                 a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", s[max(0, m.start() - 1500):m.start()])
                 if a and not re.fullmatch(r"['\"`]\w+['\"`]", a.group(1).strip()):

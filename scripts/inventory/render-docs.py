@@ -70,7 +70,7 @@ raw_write = sum(1 for x in sites if x['rawkind'] == 'write')
 raw_read = sum(1 for x in sites if x['rawkind'] == 'read')
 
 # Column count before the conversion, taken from the baseline run, so the text can state the
-# effect can be stated rather than asserted.
+# effect rather than assert it.
 _before = {('GET', '/user/profile'): 253, ('GET', '/buy/:id/history'): 497,
            ('GET', '/swap/:id/history'): 509, ('GET', '/sell/:id/history'): 470,
            ('GET', '/support/issue/:id/data'): 951, ('GET', '/support/issue'): 450,
@@ -94,9 +94,9 @@ internal = sum(1 for e in eps if e['internal'])
 files = len({e['file'] for e in eps})
 acc = Counter(access(e) for e in eps)
 ver = Counter(e['version'] for e in eps)
-# Converted endpoints with their test state. An entry means: a spec file exists that checks
-# checks exactly this endpoint against the four levels. Without an entry a projection counts
-# as untested — that is the point of the Tests column.
+# Converted endpoints with their test state. An entry means a spec file exists that checks this
+# endpoint against the four levels. Without one, a projection counts as untested — that is the
+# point of the Tests column.
 CONVERTED = {
     ('GET', '/user/profile'): '4/4',
     ('GET', '/buy/:id/history'): '4/4',
@@ -139,13 +139,13 @@ _after.update({(e['verb'], e['path']): e['maxcol'] for e in eps
                if (e['verb'], e['path']) in CONVERTED})
 
 whole = [e for e in eps if access(e) == 'whole rows']
-mc = sorted((e['maxcol'] for e in whole if e['maxcol']), reverse=True)
+mc = sorted((e['maxcol'] for e in whole if e['maxcol'] is not None), reverse=True)
 
 dep_total = sum(1 for e in eps if e['deprecated'])
 dep_acc = Counter(access(e) for e in eps if e['deprecated'])
 incomplete = sum(1 for e in eps if not e['complete'])
 manual_n = sum(1 for e in eps if e.get('manual'))
-nomeas_list = [e for e in eps if access(e) == 'whole rows' and not e['maxcol']]
+nomeas_list = [e for e in eps if access(e) == 'whole rows' and e['maxcol'] is None]
 nomeas = len(nomeas_list)
 
 MANUAL_EN = {
@@ -319,7 +319,7 @@ for e in sorted(eps, key=lambda r: (r['path'], r['verb'], r['version'])):
     o.append(f"| {e['verb']} | {e['version']} | {'yes' if e['deprecated'] else ''} | "
              f"`{e['path']}`{note} | "
              f"{'hidden' if e['internal'] else 'public'} | {access(e)} | "
-             f"{e['maxcol'] or '—'} | {tests(e)} | {'yes' if e['spec'] else ''} | "
+             f"{e['maxcol'] if e['maxcol'] is not None else '—'} | {tests(e)} | {'yes' if e['spec'] else ''} | "
              f"`{e['controller']}.{e['handler']}` | "
              f"`{e['file'].replace('src/','')}` |")
 o += ["", "⚠️ = not registered at runtime, see *Known discrepancy* above."]

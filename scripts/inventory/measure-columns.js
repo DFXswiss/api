@@ -1,9 +1,13 @@
 /**
  * Measures, per load site, the real SELECT column count from the TypeORM metadata.
  *
- * Parameterised through DIST and three positional arguments:
+ * Parameterised through DIST and four positional arguments:
  *
- *   DIST=<built tree> node measure-columns.js <sites.json> <measured.json> <meta-tables.json>
+ *   DIST=<built tree> node measure-columns.js \\
+ *     <sites.json> <measured.json> <meta-tables.json> <projections.json>
+ *
+ * It also reads each ReadProjection constant off the built tree and writes its size, so the width
+ * of a projected read is derived rather than copied.
  *
  * No database is involved. `buildMetadatas()` is enough, and a connection would only add a
  * failure source that has nothing to do with the measurement.
@@ -132,7 +136,8 @@ async function main() {
     for (const u of unresolved) console.error(`  ${u.file}:${u.line}  ${u.entity}  ${u.error}`);
   }
 
-  const ok = out.filter((o) => o.columns);
+  // A width of 0 is a measurement, not a failure: a getCount() chain materialises no row.
+  const ok = out.filter((o) => o.columns != null);
   const tables = Object.keys(perTable).length;
   const columns = Object.values(perTable).reduce((a, t) => a + t.cols, 0);
   console.log(JSON.stringify({ step: 'done', measured: ok.length, failed: out.length - ok.length, tables, columns }));

@@ -13,29 +13,32 @@ npm run build                 # the column counts come from the compiled entitie
 node scripts/inventory/run.js # writes to .inventory-out/ by default
 ```
 
-No database is involved. Where a query loads whole rows, the width is measured against the real
-schema — the query is built from the TypeORM metadata and its SELECT list counted. Where a query
-names its columns, the width is the number of names, counted in the source; and where the field
-list comes from a `ReadProjection` constant, it is that constant's size, which
-`join-measurements.py` holds in a table. So two of the three are source counts, not measurements,
-and the table is the one part of the chain that can silently go out of date. It does not go
-silently: a query that names columns and yields no count stops the run.
+No database is involved, and a width comes from one of three places. Where a query loads whole
+rows it is measured against the real schema: the query is built from the TypeORM metadata and its
+SELECT list counted. Where a query names its columns it is the number of names, counted in the
+source. Where the field list comes from a `ReadProjection` constant it is that constant's size,
+read off the built tree by `measure-columns.js` rather than copied into a table — a copy is right
+on the day it is written and wrong on the day a projection gains a field.
+
+Two of the three are therefore source counts rather than measurements against the schema. None of
+them is silent when it fails: a query that names columns and yields no width stops the run and
+names the site.
 
 Python 3 and Node are the only prerequisites. The chain takes a few minutes, most of it in the
 call-graph resolution.
 
 ## What each stage does
 
-| Stage                   | Reads                    | Writes                                                                   |
-| ----------------------- | ------------------------ | ------------------------------------------------------------------------ |
-| `extract-load-sites.py` | `src/**/*.ts`            | `sites.json` — every call that reads from the database                   |
-| `measure-columns.js`    | `dist`, `sites.json`     | `measured.json` — the SELECT width of each site                          |
-| `join-measurements.py`  | both of the above        | `sites-measured.json`                                                    |
-| `extract-routes.py`     | `src/**/*.controller.ts` | `table.json` — one row per routing decorator                             |
-| `add-flags.py`          | `table.json`             | the API version per route and `@ApiOperation({ deprecated })`            |
-| `resolve-endpoints.py`  | both trees               | `endpoint-eff.json` — the union over every load site an endpoint reaches |
-| `render-docs.py`        | the two JSON files       | `endpoints.md`, `load-sites.md`                                          |
-| `probe-claims.js`       | `dist`                   | the schema-wide figures the prose quotes                                 |
+| Stage                   | Reads                    | Writes                                                                                                               |
+| ----------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `extract-load-sites.py` | `src/**/*.ts`            | `sites.json` — every call that reads from the database                                                               |
+| `measure-columns.js`    | `dist`, `sites.json`     | `measured.json` — the SELECT width of each site, and `projections.json` — the size of each `ReadProjection` constant |
+| `join-measurements.py`  | both of the above        | `sites-measured.json`                                                                                                |
+| `extract-routes.py`     | `src/**/*.controller.ts` | `table.json` — one row per routing decorator                                                                         |
+| `add-flags.py`          | `table.json`             | the API version per route and `@ApiOperation({ deprecated })`                                                        |
+| `resolve-endpoints.py`  | both trees               | `endpoint-eff.json` — the union over every load site an endpoint reaches                                             |
+| `render-docs.py`        | the two JSON files       | `endpoints.md`, `load-sites.md`                                                                                      |
+| `probe-claims.js`       | `dist`                   | the schema-wide figures the prose quotes                                                                             |
 
 The output goes to a directory, not over `docs/`. That is deliberate — see below.
 
@@ -89,7 +92,7 @@ per file.
 One site projects on its root and pulls a joined entity in whole (`query-builder (projected, full
 join)`). Its true width is neither the root entity nor the projection, and the chain is not
 reconstructed here — the number shown is the root entity's width, and it is a lower bound like the
-455 others the document already marks as such.
+457 others the document already marks as such.
 
 ## What this cannot check
 
