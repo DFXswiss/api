@@ -49,7 +49,7 @@ import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/suppo
 import { getVisibleDepartments } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
-import { SupportIssueRepository } from '../repositories/support-issue.repository';
+import { MAX_SEARCH_TERMS, SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
@@ -549,7 +549,7 @@ export class SupportIssueService {
         .split(/\s+/)
         .map((t) => t.trim())
         .filter((t) => t.length > 0)
-        .slice(0, 10),
+        .slice(0, MAX_SEARCH_TERMS),
       orderBy: filter.orderBy ?? SupportIssueListOrderBy.CREATED,
       orderDir: filter.orderDir ?? ListOrderDirection.DESC,
       take: filter.take,

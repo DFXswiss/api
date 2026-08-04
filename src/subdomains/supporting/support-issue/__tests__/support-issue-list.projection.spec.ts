@@ -23,6 +23,7 @@ import {
   SupportIssueType,
 } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import {
+  MAX_SEARCH_TERMS,
   SUPPORT_ISSUE_LIST_PROJECTION,
   SUPPORT_ISSUE_LIST_RESPONSE_FIELDS,
   SupportIssueListQuery,
@@ -323,5 +324,31 @@ describeProjection('support issue list — read-path projection', () => {
     expect(projected.data).toEqual(
       full.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row, stats.get(row.id))),
     );
+  }, 120000);
+
+  // --- The bound on the search predicate --- //
+
+  it('applies at most MAX_SEARCH_TERMS terms, whatever the caller passes', async () => {
+    const matching = Array.from({ length: MAX_SEARCH_TERMS }, (_, i) => `q${i}`);
+    const { issue } = await seedIssue({ name: matching.join(' ') });
+
+    // The caller asks for one term more than the bound, and that extra term matches nothing. With
+    // the bound the statement never sees it and the issue is found; without it the search is an AND
+    // over all terms and the issue drops out. That difference is what this test is here to hold.
+    const beyond = await listOf({ terms: [...matching, 'no-issue-contains-this'] });
+
+    expect(beyond.data.map((row) => row.id)).toContain(issue.id);
+  }, 120000);
+
+  it('still applies every term up to the bound', async () => {
+    const { issue } = await seedIssue({ name: 'alpha beta' });
+
+    // The guard above must not be a blanket "ignore the terms": within the bound each one still
+    // narrows, so a term the row does not carry excludes it.
+    const both = await listOf({ terms: ['alpha', 'beta'] });
+    const missing = await listOf({ terms: ['alpha', 'no-issue-contains-this'] });
+
+    expect(both.data.map((row) => row.id)).toContain(issue.id);
+    expect(missing.data.map((row) => row.id)).not.toContain(issue.id);
   }, 120000);
 });
