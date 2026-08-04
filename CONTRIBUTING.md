@@ -525,6 +525,8 @@ Two details are easy to get wrong when editing the list by hand:
 - `@Controller()` without an argument puts its routes at the root, not under a prefix
 - a route's version comes from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default — six paths exist twice under different versions, so method and path alone do not identify a row
 
+Both inventories are produced by [scripts/inventory](scripts/inventory) — `npm run build && node scripts/inventory/run.js`. It writes to a directory of its own rather than over `docs/`, because the `Tests` and `Spec` columns of `docs/endpoints.md` and the prose of both documents are maintained by hand: run it, then transfer what changed. Its README states what it cannot reproduce.
+
 To verify a change, compare against the routes the framework logs at startup: every `Mapped {<path>, <METHOD>}` line is one registered route. If a route you added does not appear there, it is not reachable — two routing decorators on the same handler, for instance, keep only one path.
 
 [docs/load-sites.md](docs/load-sites.md) is the companion inventory: every place in the code that reads from the database, with the mechanism and the measured column count. It is generated, not hand-maintained, but the rule it documents is worth knowing before writing a query:

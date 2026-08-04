@@ -111,10 +111,10 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:615` | `BuyFiatPreparationService.chargebackTx` |
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:486` | `BuyFiatService.retriggerScorechain` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:65` | `PaymentLinkRepository.getAllPaymentLinks` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:72` | `PaymentLinkRepository.getAllPaymentLinks` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:79` | `PaymentLinkRepository.getAllPaymentLinksByExternalLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:72` | `PaymentLinkRepository.getAllPaymentLinksByExternalLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:79` | `PaymentLinkRepository.getAllPaymentLinksByExternalPaymentId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:116` | `PaymentLinkRepository.getPaymentLinkByLinkId` |
-| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:123` | `PaymentLinkRepository.getPaymentLinkByLinkId` |
+| 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:123` | `PaymentLinkRepository.getPaymentLinkByExternalId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:133` | `PaymentLinkRepository.getPaymentLinkByExternalPaymentId` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/services/payment-link.service.ts:430` | `PaymentLinkService.updatePaymentLinkAdmin` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/services/payment-link.service.ts:485` | `PaymentLinkService.getActivePaymentLink` |
@@ -796,8 +796,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 2 | 0 | query-builder (named columns) | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:133` | `SupportIssueService.getSupportIssueActivity` |
 | 2 | 0 | query-builder (named columns) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:198` | `SupportIssueService.getSupportIssueStatistics` |
 | 2 | 0 | query-builder (named columns) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:516` | `BankTxService.getBankTxFee` |
-| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
-| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
+| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:165` | `LogRepository.getFinancialChangesLogs` |
+| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:214` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:244` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (named columns) | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:528` | `BankTxService.getBankTxFee` |
 | 1 | 0 | query-builder (named columns) | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:245` | `SupportIssueService.getSupportIssueStatistics` |
@@ -838,8 +838,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1 | 0 | query-builder (named columns) | `Deposit` | `subdomains/supporting/address-pool/deposit/deposit.service.ts:189` | `DepositService.getNextDepositIndex` |
 | 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:97` | `LogRepository.cleanup` |
 | 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:104` | `LogRepository.cleanup` |
-| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
-| 1 | 0 | query-builder (no select) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
+| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:158` | `LogRepository.getFinancialChangesLogs` |
+| 1 | 0 | query-builder (named columns) | `Log` | `subdomains/supporting/log/log.repository.ts:206` | `LogRepository.getFinancialLogs` |
 | 1 | 0 | query-builder (named columns) | `—` | `subdomains/supporting/payin/services/payin.service.ts:246` | `PayInService.getPayInFee` |
 | 1 | 0 | query-builder (named columns) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:358` | `TransactionRequestService.getLegacySettlementTxIds` |
 | 1 | 0 | query-builder (named columns) | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:412` | `TransactionRequestService.getActiveDepositAddresses` |
