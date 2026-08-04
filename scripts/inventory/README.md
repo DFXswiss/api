@@ -69,7 +69,6 @@ These scripts were developed outside this repository and checked in here for the
 
 A review also found the following properties of the recovered scripts. They were deliberately left unchanged because changing their behavior could shift the generated figures and would need separate validation:
 
-- `sites.py` swallows parse errors in a `relations` tree with `except Exception: pass`. The affected load site then enters the inventory without relations information instead of aborting the run or being marked.
 - `make_table.py` records an unresolved handler as the placeholder `'?'`, using it as the fallback during handler and scope detection, instead of aborting.
 - `add_version_deprecated.py` silently assigns `DEFAULT_VERSION` (`'1'`) and `deprecated = False` when no decorator match exists for a route, via the `(DEFAULT_VERSION, False)` fallback for route keys absent from `flags`, instead of marking the row.
 - `fix_handlers.py` visibly overlaps with `make_table.py` in handler detection: both independently implement similar decorator and parenthesis skipping through `skip_trivia` and `skip_args`. Whether that step can be removed has not been established without a differential run, so it remains in the pipeline.

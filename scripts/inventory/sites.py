@@ -128,7 +128,11 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             try:
                 t2, _ = parse_obj(tail, rm.end() - 1)
                 if t2: tree = norm(t2)
-            except Exception: pass
+            except Exception as exc:
+                # Ein unlesbarer relations-Baum darf den Scan nicht abbrechen - die Ladestelle
+                # zaehlt weiterhin, nur ohne Relationsinfo. Gemeldet wird er trotzdem, sonst
+                # faellt eine stillschweigend unvollstaendige Messung niemandem auf.
+                print(f"WARN {rel}:{line} relations-Baum nicht lesbar: {exc}")
 
         # Bei einem QueryBuilder: folgt eine explizite Feldliste?
         select = None
