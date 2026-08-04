@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { FileSubType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { AddressLetterObserver } from '../address-letter.observer';
 
 describe('AddressLetterObserver', () => {
@@ -79,9 +80,14 @@ describe('AddressLetterObserver', () => {
     const conditions = queries[3].conditions.join(' ');
     expect(conditions).toContain('userData.letterClaimDate IS NOT NULL');
     expect(conditions).toContain('userData.letterSentDate IS NOT NULL');
-    // camelCase identifiers of the raw alias must stay quoted, or PostgreSQL folds them to lower case
-    expect(conditions).toContain('kf."userDataId"');
-    expect(conditions).toContain('kf."subType"');
+    // anti-join over the mapped relation, so TypeORM owns table path and quoting
+    expect(conditions).toContain('kycFile.id IS NULL');
+    expect(queries[3].leftJoin).toHaveBeenCalledWith(
+      'userData.kycFiles',
+      'kycFile',
+      'kycFile.subType = :subType AND kycFile.valid = :valid',
+      expect.objectContaining({ subType: FileSubType.POST_DISPATCH, valid: true }),
+    );
   });
 
   it('keeps accounts without a printable address out of the backlog', async () => {

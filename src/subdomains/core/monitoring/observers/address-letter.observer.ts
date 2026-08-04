@@ -133,26 +133,22 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
     return +exhausted;
   }
 
+  // Anti-join rather than a raw `NOT EXISTS` subquery: written by hand, the subquery would name the
+  // table and its camelCase columns as literal SQL, which is unqualified by schema and unquoted unless
+  // every identifier is escaped by hand - both failures are invisible in a mocked unit test and only
+  // surface at runtime. Joining the mapped relation leaves table path and quoting to TypeORM. The join
+  // condition carries the file filter, so the anti-join keeps exactly the accounts with no such file.
   private async getSentWithoutFile(): Promise<number> {
     const { sentWithoutFile } = await this.repos.userData
       .createQueryBuilder('userData')
       .select('COUNT(userData.id)', 'sentWithoutFile')
+      .leftJoin('userData.kycFiles', 'kycFile', 'kycFile.subType = :subType AND kycFile.valid = :valid', {
+        subType: FileSubType.POST_DISPATCH,
+        valid: true,
+      })
       .where('userData.letterClaimDate IS NOT NULL')
       .andWhere('userData.letterSentDate IS NOT NULL')
-      .andWhere(
-        // `kf` is a raw table alias, not a TypeORM-registered one, so TypeORM does not quote its
-        // identifiers. PostgreSQL folds unquoted identifiers to lower case, which would turn the
-        // camelCase columns into non-existent `userdataid`/`subtype` ("column does not exist" at
-        // runtime, invisible in a mocked unit test). They are therefore double-quoted by hand;
-        // `valid` is lower case anyway, and `userData` is the alias TypeORM already quotes.
-        `NOT EXISTS (
-          SELECT 1 FROM kyc_file kf
-          WHERE kf."userDataId" = "userData"."id"
-            AND kf."subType" = :subType
-            AND kf.valid = :valid
-        )`,
-        { subType: FileSubType.POST_DISPATCH, valid: true },
-      )
+      .andWhere('kycFile.id IS NULL')
       .getRawOne<{ sentWithoutFile: string }>();
 
     return +sentWithoutFile;
