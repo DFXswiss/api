@@ -31,9 +31,16 @@ export class BankTxReturnService {
   private readonly logger = new DfxLogger(BankTxReturnService);
 
   // Compare-and-swap predicate for a refund: every column validateRefund rejects on, plus the
-  // user-request marker as observed. Pinning that marker to its current value rather than IsNull()
-  // keeps a user re-submitting their refund details working, while still losing to a concurrent
-  // claim. Callers must not write any of these columns before the claim runs.
+  // user-request marker as observed.
+  //
+  // The marker is pinned to its stored value, not to IsNull(): the approval legs run on rows the
+  // user has already requested a refund for — chargebackTx selects chargebackAllowedDateUser as
+  // Not(IsNull()) — so pinning it null would make every automatic chargeback in the system claim
+  // nothing and 409 forever. Pinning the observed value still detects a concurrent write, and also
+  // stops an approval from paying out against details the user changed after it read them.
+  //
+  // Build this before chargebackFillUp runs: it assigns the new state onto the entity, so a
+  // predicate built afterwards would pin the values this refund is about to write.
   private static refundClaimWhere(entity: BankTxReturn): FindOptionsWhere<BankTxReturn> {
     return {
       id: entity.id,

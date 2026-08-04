@@ -256,24 +256,28 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         }),
       ).rejects.toThrow(ConflictException);
 
-      // Without the claim both the cron and an admin refund would pass validateRefund on their own
-      // stale read, and each would mint a FiatOutput; only one can own chargebackOutputId, so the
-      // other would be orphaned and still pay out.
+      // Without the claim, the cron and an admin refund would each pass validateRefund on their own
+      // stale read and each mint a FiatOutput. Only one can own chargebackOutputId; the other is
+      // stuck forever, since the payout job skips outputs with no origin entity.
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
     });
 
-    it('pins the user request marker so a re-submitted refund still claims', async () => {
-      const chargebackAllowedDateUser = new Date();
-      const resubmitted = createBankTxReturn({ chargebackAllowedDateUser });
+    it('claims the approval leg against the marker the user leg already wrote', async () => {
+      // The approval legs only ever run on rows carrying chargebackAllowedDateUser — chargebackTx
+      // selects on it. Pinning that column to IsNull() would make every automatic chargeback claim
+      // nothing, which is why it is pinned to the stored value instead.
+      const chargebackAllowedDateUser = new Date('2026-08-01T10:00:00.000Z');
+      const requested = createBankTxReturn({ chargebackAllowedDateUser });
 
-      await service.refundBankTx(resubmitted, { chargebackAllowedDateUser, chargebackAllowedBy: 'User' });
+      await service.refundBankTx(requested, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'API' });
 
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BankTxReturn,
-        expect.objectContaining({ chargebackAllowedDateUser }),
+        expect.objectContaining({ id: 1, chargebackAllowedDateUser }),
         expect.anything(),
       );
+      expect(fiatOutputService.createInternal).toHaveBeenCalledTimes(1);
     });
 
     it('propagates a failed output creation so the state write rolls back with it', async () => {
