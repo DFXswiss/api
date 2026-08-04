@@ -96,14 +96,65 @@ function assertHandlebarsResolvable() {
 }
 
 const markedModule = loadMarked();
-const markedParse =
-  typeof markedModule.parse === 'function'
-    ? (md) => markedModule.parse(md)
-    : typeof markedModule.marked?.parse === 'function'
-      ? (md) => markedModule.marked.parse(md)
+const MarkedRenderer =
+  typeof markedModule.Renderer === 'function'
+    ? markedModule.Renderer
+    : markedModule.marked && typeof markedModule.marked.Renderer === 'function'
+      ? markedModule.marked.Renderer
       : null;
-if (!markedParse) {
+const markedParseImpl =
+  typeof markedModule.parse === 'function'
+    ? (md, opts) => markedModule.parse(md, opts)
+    : typeof markedModule.marked?.parse === 'function'
+      ? (md, opts) => markedModule.marked.parse(md, opts)
+      : null;
+if (!markedParseImpl) {
   fail('handbook: marked loaded but no parse() API found (expected marked@15).');
+}
+if (!MarkedRenderer) {
+  fail('handbook: marked loaded but no Renderer class found (expected marked@15).');
+}
+
+// GitHub-compatible heading slug: lowercase; strip chars that are not letters
+// (\p{L}), digits (\p{N}), marks (\p{M}), underscore (\p{Pc}), hyphen or space;
+// spaces → '-'. No collapsing of multiple hyphens, no trim of leading/trailing
+// hyphens. Unicode letters/digits/marks/underscore are kept. Duplicate slugs
+// within one document get -1, -2, … (first occurrence keeps the bare slug).
+// Counter is per parse call only.
+function createHeadingRenderer() {
+  const renderer = new MarkedRenderer();
+  const seen = new Map();
+  renderer.heading = function ({ tokens, depth }) {
+    const text = this.parser.parseInline(tokens, this.parser.textRenderer);
+    let slug = String(text)
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, '')
+      .replace(/ /g, '-');
+    if (seen.has(slug)) {
+      const n = seen.get(slug);
+      seen.set(slug, n + 1);
+      slug = slug + '-' + n;
+    } else {
+      seen.set(slug, 1);
+    }
+    return (
+      '<h' +
+      depth +
+      ' id="' +
+      slug +
+      '">' +
+      this.parser.parseInline(tokens) +
+      '</h' +
+      depth +
+      '>\n'
+    );
+  };
+  return renderer;
+}
+
+// Renderer is created per call so heading-id counters never leak across documents.
+function markedParse(md) {
+  return markedParseImpl(md, { renderer: createHeadingRenderer() });
 }
 
 function escapeHtml(str) {
@@ -124,6 +175,23 @@ function escapeHtml(str) {
 // escapeHtml is still needed as a separate step to make the attribute value HTML-safe.
 function encodeHtmlPath(p) {
   return String(p).split('/').map(encodeURIComponent).join('/');
+}
+
+// Inverse of encodeHtmlPath: decodeURIComponent per path segment (mirrors the
+// encoder). Whole-string decodeURIComponent is equivalent for most paths, but
+// segment-wise matches the encoder and keeps behaviour consistent if a segment
+// is malformed (only that segment is left as-is).
+function decodeHtmlPath(p) {
+  return String(p)
+    .split('/')
+    .map((seg) => {
+      try {
+        return decodeURIComponent(seg);
+      } catch {
+        return seg;
+      }
+    })
+    .join('/');
 }
 
 function ensureDir(dir) {
@@ -285,23 +353,18 @@ function collectRelativeRefs(html) {
   // Only match real attribute names (after start-of-string, whitespace, or '<').
   // A word boundary alone also matches after '-' / ':', so data-src, xlink:href,
   // ng-src etc. would be treated as resources even though they are not browser-resolved.
-  // Accept single- or double-quoted attribute values (inline HTML in Markdown).
-  const re = /(?:^|[\s<])(?:src|href)=("|')([^"']+)\1/g;
+  // Alternation per quote style so a double-quoted value may contain apostrophes
+  // (e.g. href="docs/Bank's%20Guide.md" from marked link parsing).
+  const re = /(?:^|[\s<])(?:src|href)=(?:"([^"]*)"|'([^']*)')/g;
   let m;
   while ((m = re.exec(html)) !== null) {
-    const raw = m[2];
+    const raw = m[1] !== undefined ? m[1] : m[2];
     if (ABSOLUTE_SCHEME_RE.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
       continue;
     }
     let cleaned = raw.split('#')[0].split('?')[0];
     if (!cleaned) continue;
-    cleaned = decodeHtmlEntities(cleaned);
-    try {
-      cleaned = decodeURIComponent(cleaned);
-    } catch {
-      // Malformed percent-encoding — keep as-is; the existence check below
-      // will simply fail to find it, which is the correct fail-loud outcome.
-    }
+    cleaned = decodeHtmlPath(decodeHtmlEntities(cleaned));
     refs.push(cleaned);
   }
   return refs;
@@ -318,13 +381,17 @@ function resolveDocRefCandidate(cleanedRef, sourcePath) {
     : path.posix.normalize(path.posix.join(baseDir, cleanedRef));
 }
 
-// Rewrite href/src in rendered doc body so links to other handbook markdown
-// sources point at their .html output paths (relative to this page's output).
-// Fragment/query suffixes are preserved. Absolute URIs, protocol-relative, and
-// pure anchors are left untouched. bodyHtml for integrity stays unre-written.
-function rewriteDocBodyRefs(bodyHtml, sourcePath, outputPath, docSourceToOutput) {
-  const re = /((?:^|[\s<])(?:src|href)=)("|')([^"']+)\2/g;
-  return bodyHtml.replace(re, (match, prefix, quote, raw) => {
+// Rewrite href/src in rendered doc body so links to handbook artifacts
+// (other docs, assets, diagrams, …) point at their output paths relative to
+// this page. Fragment/query suffixes are preserved. Absolute URIs,
+// protocol-relative, and pure anchors are left untouched. bodyHtml for
+// integrity stays unre-written.
+function rewriteDocBodyRefs(bodyHtml, sourcePath, outputPath, sourceToOutput) {
+  // Alternation per quote style (same rule as collectRelativeRefs). Prefix is
+  // its own group so the replace callback can rewrite only the attribute value.
+  const re = /((?:^|[\s<])(?:src|href)=)(?:"([^"]*)"|'([^']*)')/g;
+  return bodyHtml.replace(re, (match, prefix, doubleQ, singleQ) => {
+    const raw = doubleQ !== undefined ? doubleQ : singleQ;
     if (ABSOLUTE_SCHEME_RE.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
       return match;
     }
@@ -339,21 +406,17 @@ function rewriteDocBodyRefs(bodyHtml, sourcePath, outputPath, docSourceToOutput)
     const suffix = suffixStart >= 0 ? raw.slice(suffixStart) : '';
     if (!cleanedRaw) return match;
 
-    let cleaned = decodeHtmlEntities(cleanedRaw);
-    try {
-      cleaned = decodeURIComponent(cleaned);
-    } catch {
-      // Malformed percent-encoding — keep as-is (will not match a known doc).
-    }
+    const cleaned = decodeHtmlPath(decodeHtmlEntities(cleanedRaw));
 
     const candidate = resolveDocRefCandidate(cleaned, sourcePath);
     // Escapes are hard failures in the integrity check, not rewritten here.
     if (candidate === '..' || candidate.startsWith('../')) return match;
-    if (!docSourceToOutput.has(candidate)) return match;
+    if (!sourceToOutput.has(candidate)) return match;
 
-    const targetOut = docSourceToOutput.get(candidate);
+    const targetOut = sourceToOutput.get(candidate);
     const rel = path.posix.relative(path.posix.dirname(outputPath), targetOut);
-    return prefix + quote + encodeHtmlPath(rel) + suffix + quote;
+    // Always emit double quotes; value is percent-encoded so this is valid HTML.
+    return prefix + '"' + encodeHtmlPath(rel) + suffix + '"';
   });
 }
 
@@ -617,13 +680,9 @@ function main() {
     return true;
   });
 
-  // Source path → handbook output path for markdown docs only. Built before the
-  // render loop so .md→.html href rewrites do not need the later full artifact map.
-  const docSourceToOutput = new Map();
-  for (const rel of mdFiltered) {
-    docSourceToOutput.set(rel, docOutputPath(rel));
-  }
-
+  // Render docs but defer rewrite + disk write until the full sourceToOutput
+  // map exists (after Source F). Integrity uses unre-written bodyHtml; the
+  // emitted page rewrites refs against every handbook artifact (docs, assets, …).
   const docEntries = [];
   for (const rel of mdFiltered) {
     const src = path.join(repoRoot, rel);
@@ -635,19 +694,6 @@ function main() {
     let body = markedParse(md);
     if (typeof body !== 'string') body = String(body);
     body = wrapTablesInScrollContainer(body);
-    // Integrity check uses unre-written body (source-path resolution).
-    // Emitted page gets .md handbook links rewritten to relative .html outputs.
-    const bodyForPage = rewriteDocBodyRefs(body, rel, outRel, docSourceToOutput);
-    const page =
-      '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-      `<title>${escapeHtml(title)} — DFX API Handbook</title>\n` +
-      `<style>${MD_PAGE_STYLE}</style>\n</head>\n<body>\n` +
-      bodyForPage +
-      '\n</body>\n</html>\n';
-    const dest = path.join(outDir, outRel);
-    ensureDir(path.dirname(dest));
-    fs.writeFileSync(dest, page, 'utf8');
     docEntries.push({
       sourcePath: rel,
       outputPath: outRel,
@@ -779,11 +825,31 @@ function main() {
 
   // Map from repo-relative source path -> output-relative path, built from
   // every artifact this build has produced (PDFs, mails, docs, diagrams,
-  // assets, specs). Used to validate markdown-authored relative references
-  // without re-parsing HTML-escaped output.
+  // assets, specs). Used for doc href rewrites and integrity checks.
   const sourceToOutput = new Map();
   for (const a of artifacts) {
     sourceToOutput.set(a.sourcePath, a.outputPath);
+  }
+
+  // Write doc pages now that sourceToOutput covers all handbook artifacts
+  // (not only .md sources), so e.g. PNG links rewrite to assets/… correctly.
+  for (const entry of docEntries) {
+    const bodyForPage = rewriteDocBodyRefs(
+      entry.bodyHtml,
+      entry.sourcePath,
+      entry.outputPath,
+      sourceToOutput,
+    );
+    const page =
+      '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+      `<title>${escapeHtml(entry.title)} — DFX API Handbook</title>\n` +
+      `<style>${MD_PAGE_STYLE}</style>\n</head>\n<body>\n` +
+      bodyForPage +
+      '\n</body>\n</html>\n';
+    const dest = path.join(outDir, entry.outputPath);
+    ensureDir(path.dirname(dest));
+    fs.writeFileSync(dest, page, 'utf8');
   }
 
   // =========================================================================
@@ -1483,17 +1549,19 @@ function main() {
     return sortStrings(a.title, b.title);
   });
 
+  // counts from finished artifacts[] so extra registrations (e.g. mails/index.html)
+  // stay consistent with the manifest artifact list.
+  const counts = { pdfs: 0, mails: 0, docs: 0, diagrams: 0, assets: 0, specs: 0 };
+  for (const a of artifacts) {
+    if (Object.prototype.hasOwnProperty.call(counts, a.category)) {
+      counts[a.category] += 1;
+    }
+  }
+
   const manifest = {
     artifacts,
     gitSha,
-    counts: {
-      pdfs: pdfEntries.length,
-      mails: mailEntries.length,
-      docs: docEntries.length,
-      diagrams: diagramEntries.length,
-      assets: assetEntries.length,
-      specs: specEntries.length,
-    },
+    counts,
   };
   const manifestPath = path.join(outDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
