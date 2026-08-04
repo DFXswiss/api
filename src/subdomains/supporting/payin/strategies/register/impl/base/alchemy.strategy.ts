@@ -1,5 +1,5 @@
 import { Inject, OnModuleInit } from '@nestjs/common';
-import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
+import { AssetTransfersCategory, AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { AlchemyTransactionDto } from 'src/integration/alchemy/dto/alchemy-transaction.dto';
 import { AlchemyTransactionMapper } from 'src/integration/alchemy/dto/alchemy-transaction.mapper';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
@@ -12,6 +12,12 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PayInEntry } from '../../../../interfaces';
 import { EvmStrategy } from './evm.strategy';
+
+const NFT_CATEGORIES: string[] = [
+  AssetTransfersCategory.ERC721,
+  AssetTransfersCategory.ERC1155,
+  AssetTransfersCategory.SPECIALNFT,
+];
 
 export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleInit {
   protected addressWebhookMessageQueue: QueueHandler;
@@ -60,7 +66,12 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
 
     const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
-    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
+    const fungibleTransactions = this.filterOutNftWebhookTransactions(dto);
+    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(
+      fromAddresses,
+      toAddresses,
+      fungibleTransactions,
+    );
     const transactions = AlchemyTransactionMapper.mapWebhookActivities(relevantTransactions);
 
     const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
@@ -71,14 +82,23 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     }
   }
 
+  // NFT activities (mass airdrop spam) carry the raw event data (tokenId ++ value) in rawContract.rawValue,
+  // which mapAlchemyTransaction would misread as an 18-decimal token amount (~1.16e59) — they are never pay-ins.
+  // The category label alone is not sufficient: the collective 'token' category covers ERC-20 AND ERC-721
+  // transfers, so any NFT marker field also disqualifies an activity.
+  private filterOutNftWebhookTransactions(dto: AlchemyWebhookDto): AlchemyWebhookActivityDto[] {
+    return dto.event.activity.filter(
+      (tx) =>
+        !NFT_CATEGORIES.includes(tx.category?.toLowerCase()) && tx.erc721TokenId == null && !tx.erc1155Metadata?.length,
+    );
+  }
+
   private filterWebhookTransactionsByRelevantAddresses(
     fromAddresses: string[],
     toAddresses: string[],
-    dto: AlchemyWebhookDto,
+    activities: AlchemyWebhookActivityDto[],
   ): AlchemyWebhookActivityDto[] {
-    const notFromOwnAddresses = dto.event.activity.filter(
-      (tx) => !Util.includesIgnoreCase(fromAddresses, tx.fromAddress),
-    );
+    const notFromOwnAddresses = activities.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.fromAddress));
 
     return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.toAddress));
   }
