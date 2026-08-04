@@ -135,6 +135,20 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
 
   protected abstract dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, token?: Asset): Promise<string>;
 
+  // The broadcast step of `send`, isolated so that a chain can split it. The default is the node's
+  // atomic build-and-relay call. MoneroStrategy overrides it: that wallet can sign without relaying, so
+  // it persists the signed transaction's id on every designated order BEFORE relaying, which turns a
+  // relay failure into a lookup instead of an inference (#4673). That is why the designated orders are
+  // handed over here and not just their asset — a chain that splits the two needs somewhere to persist
+  // in between. The error contract is unchanged: whatever this throws is classified by `send` below.
+  protected broadcastPayout(
+    context: PayoutOrderContext,
+    payout: PayoutGroup,
+    designated: PayoutOrder[],
+  ): Promise<string> {
+    return this.dispatchPayout(context, payout, designated[0].asset);
+  }
+
   protected async send(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     let payoutTxId: string;
 
@@ -147,7 +161,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     try {
       const payout = this.aggregatePayout(designated);
 
-      payoutTxId = await this.dispatchPayout(context, payout, designated[0].asset);
+      payoutTxId = await this.broadcastPayout(context, payout, designated);
     } catch (e) {
       this.logger.error(
         `Error on sending ${designated[0].asset.name} for payout. Order ID(s): ${designated.map((o) => o.id)}:`,

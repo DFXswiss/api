@@ -103,6 +103,22 @@ export class PayoutOrder extends IEntity {
   @Column({ length: 2048, nullable: true })
   releasedPayoutTxIds?: string;
 
+  // #4673: the id of a payout transaction that has been built and SIGNED but whose relay has not (yet)
+  // returned. Monero's wallet can perform those two steps separately, so the id is durable before
+  // anything is submitted and a failed relay becomes a lookup instead of a judgement call. `transferTxId`
+  // above is deliberately not reused: it means "the transaction that funded the payout wallet", and the
+  // two must stay distinguishable at exactly the moment a relay outcome is in question. `payoutTxId`
+  // stays empty until a relay has actually returned, so the pair also records which of the two happened.
+  @Column({ length: 256, nullable: true })
+  signedPayoutTxId?: string;
+
+  // The wallet's tx_metadata blob for the transaction above, and the sole input to `relay_tx` - which
+  // re-submits that exact transaction rather than building a competing one over the same inputs. Every
+  // recovery path relays this instead of rebuilding, so it is kept until the order completes. Hex, a few
+  // kB: hence `text` rather than a bounded varchar, and excluded from the gs/debug column allowlist.
+  @Column({ type: 'text', nullable: true })
+  signedPayoutTxMetadata?: string;
+
   pendingPreparation(transferTxId: string): this {
     this.transferTxId = transferTxId;
     this.status = PayoutOrderStatus.PREPARATION_PENDING;
@@ -140,6 +156,16 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
+  recordSignedPayoutTx(signedPayoutTxId: string, signedPayoutTxMetadata: string): this {
+    if (!signedPayoutTxId || !signedPayoutTxMetadata)
+      throw new Error('No signed tx provided to PayoutOrder #recordSignedPayoutTx(...)');
+
+    this.signedPayoutTxId = signedPayoutTxId;
+    this.signedPayoutTxMetadata = signedPayoutTxMetadata;
+
+    return this;
+  }
+
   pendingPayout(payoutTxId: string) {
     if (!payoutTxId) throw new Error('No payoutTxId provided to PayoutOrder #pendingPayout(...)');
 
@@ -166,6 +192,9 @@ export class PayoutOrder extends IEntity {
 
   complete(): this {
     this.status = PayoutOrderStatus.COMPLETE;
+    // The metadata blob exists only to re-relay an unresolved payout; a completed one is mined, so drop
+    // the multi-kB payload and keep signedPayoutTxId as the forensic record of the pre-relay id.
+    this.signedPayoutTxMetadata = null;
 
     return this;
   }
