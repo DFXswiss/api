@@ -110,6 +110,17 @@ export class WidgetService {
     return this.widgetRepo.createQueryBuilder('w').select('w.id').getRawOne();
   }
 
+  async namedColumnsAcrossStatements(dailySample: boolean): Promise<unknown> {
+    const bucketExpr = dailySample ? 'CAST(w.createdAt AS DATE)' : `'all'`;
+    const qb = this.widgetRepo
+      .createQueryBuilder('w')
+      .select(bucketExpr, 'bucket')
+      .addSelect('w.name', 'name');
+    if (dailySample) qb.addSelect('SUM(w.amount)', 'total');
+    else qb.addSelect('SUM(w.amount)', 'total');
+    return qb.getRawMany();
+  }
+
   async aliasOnly(): Promise<Widget[]> {
     return this.widgetRepo.createQueryBuilder('w').select('w').getMany();
   }
@@ -201,6 +212,11 @@ def test_select_categories(src, work):
           by_method['viaProjectionHelper'].get('projection'), 'WIDGET_PROJECTION')
     check('literal field list counted', by_method['fieldList'].get('select_count'), 2)
     check('named columns counted', by_method['namedColumns'].get('select_count'), 1)
+    # A variable as the first argument, a later addSelect in its own statement, and the same
+    # column added in both branches of an if/else: three columns, five calls, one of them
+    # unmatched by a string-literal rule.
+    check('columns counted across statements and branches',
+          by_method['namedColumnsAcrossStatements'].get('select_count'), 3)
     check('count only marked unmeasurable', by_method['countOnly'].get('unmeasurable'), True)
     check('named columns', by_method['namedColumns']['select'], classify.SEL_NAMED_COLUMNS)
     check('alias only', by_method['aliasOnly']['select'], classify.SEL_ALIAS_ONLY)
@@ -281,6 +297,54 @@ def test_endpoint_matches_site_classification(src, work):
           classify.raw_kind_of("query('INSERT INTO widget VALUES (1)')"), 'write')
 
 
+def test_measure_reports_unresolvable_projection(work):
+    """An unresolvable projection must produce an error, never a number.
+
+    `measure.js` used to fall through to the default-query measurement when a projection could
+    not be resolved — which is the very bug the projection branch exists to fix, reappearing
+    silently as a full-width count with exit 0. This is also the only check here that runs
+    `measure.js` at all; the rest of the self-test deliberately needs no `dist/`.
+    """
+    print("measure.js reports an unresolvable projection")
+    repo = os.path.dirname(os.path.dirname(HERE))
+    dist = os.path.join(repo, 'dist')
+    # Needs a built tree, unlike the rest of this file. Skipped rather than failed without one.
+    if not shutil.which('node') or not os.path.isdir(os.path.join(dist, 'src')):
+        print("  skip  needs node and a built dist/ (npm run build)")
+        return
+    # Any module exporting a ReadProjection will do; this one is referenced by the pipeline
+    # itself, so if it moves the pipeline notices too.
+    holder = 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository.ts'
+    if not os.path.exists(os.path.join(dist, holder.replace('.ts', '.js'))):
+        print(f"  skip  {holder} not in dist/")
+        return
+    site = {'file': holder, 'line': 1, 'cls': 'R', 'method': None, 'call': 'createQueryBuilder',
+            'kind': 'query-builder', 'entity': None, 'via': None, 'relations': None,
+            'select': classify.SEL_FIELD_LIST}
+    sites = [
+        {**site, 'method': 'ok', 'projection': 'BUY_CRYPTO_BUY_HISTORY_PROJECTION'},
+        {**site, 'method': 'gone', 'projection': 'RENAMED_PROJECTION'},
+    ]
+    sites_path = os.path.join(work, 'measure-sites.json')
+    measured_path = os.path.join(work, 'measure-out.json')
+    json.dump(sites, open(sites_path, 'w'))
+    r = subprocess.run(['node', os.path.join(HERE, 'measure.js'), sites_path, measured_path,
+                        os.path.join(work, 'measure-tables.json')],
+                       capture_output=True, text=True, env=dict(os.environ, DIST=dist), cwd=repo)
+    if not os.path.exists(measured_path):
+        print(f"  FAIL measure.js wrote nothing: {r.stderr.strip()[:300]}")
+        FAILURES.append('measure.js')
+        return
+    out = {m['method']: m for m in json.load(open(measured_path))}
+    cols = out['ok'].get('cols')
+    check('resolvable projection measured at its field list', isinstance(cols, int) and cols > 0, True)
+    # The entity is 300+ columns wide; the projection selects a dozen. A fall-through to the
+    # default-query measurement would show up here as a number in the hundreds.
+    check('projection width is not the entity width', bool(cols and cols < 100), True)
+    check('unresolvable projection has no column count', out['gone'].get('cols'), None)
+    check('unresolvable projection is reported', bool(out['gone'].get('error')), True)
+
+
 def test_drift_excludes_writes(src, root, work):
     """A newly appeared write site must not reach the published document.
 
@@ -359,6 +423,7 @@ def main():
         test_write_classification(src, sites)
         test_route_table(src, work)
         test_endpoint_matches_site_classification(src, work)
+        test_measure_reports_unresolvable_projection(work)
         test_drift_excludes_writes(src, root, work)
         test_missing_ref_is_reported(src, work)
     finally:

@@ -116,12 +116,17 @@ async function main() {
     }
     if (s.projection) {
       const width = projectionWidth(s);
-      if (width !== null) {
-        // The projection joins with `leftJoin`, not `leftJoinAndSelect`: no relation is
-        // loaded whole, so nothing widens the row beyond the field list.
-        out.push({ ...s, cols: width, joins: 0, over: false });
+      if (width === null) {
+        // Falling through to the default-query measurement here would reproduce exactly the
+        // bug this branch exists to fix: a projected site reported at the full entity width.
+        // An unresolvable projection is a missing measurement, not a wide one.
+        out.push({ ...s, error: `cannot resolve projection ${s.projection}` });
         continue;
       }
+      // The projection joins with `leftJoin`, not `leftJoinAndSelect`: no relation is loaded
+      // whole, so nothing widens the row beyond the field list.
+      out.push({ ...s, cols: width, joins: 0, over: false });
+      continue;
     }
     if (s.select_count) {
       out.push({ ...s, cols: s.select_count, joins: 0, over: false });

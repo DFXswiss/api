@@ -101,7 +101,10 @@ def select_kind(text, m_start, m_end):
 
 APPLY_NAME = re.compile(r'\b([A-Z][A-Z0-9_]*)\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$')
 SELECT_LIST = re.compile(r'\.select\(\s*\[([^\]]*)\]')
-NAMED_CALL = re.compile(r'\.(?:select|addSelect)\(\s*[\'"`][^\'"`]*[\'"`]')
+# A select/addSelect call. The first argument may be a variable holding an expression
+# (`.select(bucketExpr, 'bucket')`), so matching only string literals undercounts.
+NAMED_CALL = re.compile(r'\.(?:select|addSelect)\s*\(')
+ASSIGNED_TO = re.compile(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;]*$')
 
 
 def selected_columns(text, m_start, m_end, kind):
@@ -129,10 +132,37 @@ def selected_columns(text, m_start, m_end, kind):
     lst = SELECT_LIST.search(chain)
     if lst:
         return {'select_count': len([x for x in lst.group(1).split(',') if x.strip()])}
-    named = NAMED_CALL.findall(chain)
-    if named:
-        return {'select_count': len(named)}
-    return {}
+    count = _named_column_count(text, m_start, m_end, chain)
+    return {'select_count': count} if count else {}
+
+
+def _alias_at(text, paren):
+    """The column a select/addSelect call whose '(' is at `paren` contributes.
+
+    `.addSelect(expr, 'alias')` binds an alias — the last string literal of the call.
+    `.select('leg.id')` has none, and the expression itself identifies the column.
+    """
+    from tsparse import skip_args
+    args = text[paren:skip_args(text, paren)]
+    strings = re.findall(r'[\'"`]([^\'"`]*)[\'"`]', args)
+    return strings[-1] if strings else args
+
+
+def _named_column_count(text, m_start, m_end, chain):
+    """How many distinct columns a column-by-column query selects.
+
+    Counted by column rather than by call, for two reasons. The chain up to the first `;` is
+    not the whole story — a query builder assigned to a variable is often widened by later
+    `qb.addSelect(...)` statements. And a query built across an if/else adds the same column in
+    every branch, which is one column in the result and several calls in the source.
+    """
+    aliases = {_alias_at(chain, m.end() - 1) for m in NAMED_CALL.finditer(chain)}
+    assigned = ASSIGNED_TO.search(text[max(0, m_start - 200):m_start])
+    if assigned:
+        rest = text[m_end:m_end + 6000]
+        later = re.compile(r'\b' + re.escape(assigned.group(1)) + r'\s*\.\s*(?:select|addSelect)\s*\(')
+        aliases |= {_alias_at(rest, m.end() - 1) for m in later.finditer(rest)}
+    return len(aliases)
 
 
 def raw_statement(text, start):
