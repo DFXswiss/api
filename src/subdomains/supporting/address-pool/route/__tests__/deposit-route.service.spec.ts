@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -77,6 +78,18 @@ describe('DepositRouteService', () => {
       expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
 
+    // The falsy-label cases above all pass userId=undefined, which leaves `!label` weakenable to
+    // `!label && !userId` without any test noticing. A user-scoped call with no label still has to
+    // skip the query, or a caller-supplied where survives alongside the user predicate, unscoped by route.
+    it('does not query for a falsy label even when a userId is supplied', async () => {
+      const route = await service.getByLabel(7, undefined, {
+        where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+      } as FindOneOptions<DepositRoute>);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('still queries when a label is supplied', async () => {
       jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
 
@@ -138,13 +151,13 @@ describe('DepositRouteService', () => {
     // Same degenerate shape as the guarded lookups: the ownership predicate is a nested relation
     // object, so a falsy userId drops it and the query stops being scoped to the caller.
     it.each([undefined, null, 0])('get does not query when the userId is %p', async (userId) => {
-      await expect(service.get(userId as number, 42)).rejects.toThrow('Route not found');
+      await expect(service.get(userId as number, 42)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
 
     it('get does not query when the id is missing', async () => {
-      await expect(service.get(7, undefined)).rejects.toThrow('Route not found');
+      await expect(service.get(7, undefined)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
