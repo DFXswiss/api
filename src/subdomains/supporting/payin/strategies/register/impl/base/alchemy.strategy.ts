@@ -89,9 +89,7 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
   private filterOutNftWebhookTransactions(dto: AlchemyWebhookDto): AlchemyWebhookActivityDto[] {
     return dto.event.activity.filter(
       (tx) =>
-        !NFT_CATEGORIES.includes(tx.category?.toLowerCase()) &&
-        tx.erc721TokenId == null &&
-        !tx.erc1155Metadata?.length,
+        !NFT_CATEGORIES.includes(tx.category?.toLowerCase()) && tx.erc721TokenId == null && !tx.erc1155Metadata?.length,
     );
   }
 
