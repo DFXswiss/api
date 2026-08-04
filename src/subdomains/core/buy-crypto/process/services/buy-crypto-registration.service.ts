@@ -9,6 +9,13 @@ import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoService } from './buy-crypto.service';
 
+// The three columns the route match reads, mirroring BuyFiatRegistrationService.
+interface RouteIdentifier {
+  id: number;
+  address: string;
+  blockchains: string;
+}
+
 @Injectable()
 export class BuyCryptoRegistrationService {
   private readonly logger = new DfxLogger(BuyCryptoRegistrationService);
@@ -65,39 +72,57 @@ export class BuyCryptoRegistrationService {
 
   //*** HELPER METHODS ***//
 
-  // Matching reads nothing but the route id and its deposit, so the candidate scan is projected down
-  // to those columns with the eager relations (asset, deposit, route) switched off. Loading every
-  // route as a full entity here was the single most expensive statement of the cron run — measured at
-  // 7.0-13.0 s against the whole swap table (DFXServer/server#1223) — because a whole-row select of
-  // the routes fans out over asset, deposit, route, user, userData and wallet, and hydrating that
-  // result set into entities blocks the event loop. Only the routes that actually match are then
-  // re-read in full, since createFromCryptoInput / ignorePayIn / acknowledgePayIn need the user
-  // relations. In practice that is a handful of rows instead of the entire table.
+  // Matching reads three values per route, so the candidate scan selects exactly those and returns
+  // raw rows — no entity is constructed. Reading every route as a full entity here was the single
+  // most expensive statement of the cron run, measured at 7.0-13.0 s against the whole swap table
+  // (DFXServer/server#1223): Swap declares four eager relations (asset, deposit, targetDeposit,
+  // route) and the call added user, userData and wallet on top, so a whole-row select fanned out
+  // over seven joined tables for every route in the table. The blocking part is not the SQL, which
+  // is asynchronous, but turning that result set into entities, which is not — hence getRawMany
+  // rather than a projected find(), matching BuyFiatRegistrationService.filterSellPayIns. Only the
+  // routes that actually matched are then read back as entities, because createFromCryptoInput
+  // reads the Swap's eager asset (buy-crypto.service.ts) and ignorePayIn / acknowledgePayIn need
+  // the user relations.
   private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Swap][]> {
-    const candidates = await this.swapRepository.find({
-      where: { deposit: Not(IsNull()) },
-      select: { id: true, deposit: { id: true, address: true, blockchains: true } },
-      relations: { deposit: true },
-      loadEagerRelations: false,
-    });
+    // innerJoin carries the `deposit IS NOT NULL` restriction the previous find() spelled out, so a
+    // route without a deposit stays unmatched — including on the payment branch, which matches by id.
+    const candidates = await this.swapRepository
+      .createQueryBuilder('swap')
+      .innerJoin('swap.deposit', 'deposit')
+      .select('swap.id', 'id')
+      .addSelect('deposit.address', 'address')
+      .addSelect('deposit.blockchains', 'blockchains')
+      .getRawMany<RouteIdentifier>();
 
     const matches = this.pairRoutesWithPayIns(candidates, allPayIns);
     if (matches.length === 0) return [];
 
     const routes = await this.swapRepository.find({
-      where: { id: In(matches.map(([_, route]) => route.id)) },
+      where: { id: In([...new Set(matches.map(([, route]) => route.id))]) },
       relations: { deposit: true, user: { userData: true, wallet: true } },
     });
     const routeById = new Map(routes.map((route) => [route.id, route]));
 
-    // A route can disappear between the two reads; such a pay-in is left for the next run rather
-    // than registered against a half-loaded route.
-    return matches
-      .map(([payIn, match]) => [payIn, routeById.get(match.id)] as [CryptoInput, Swap])
-      .filter(([_, route]) => route != null);
+    const pairs: [CryptoInput, Swap][] = [];
+
+    for (const [payIn, match] of matches) {
+      const route = routeById.get(match.id);
+
+      // A route that disappeared between the two reads leaves its pay-in for the next run rather
+      // than registering it against a half-loaded route. Logged because the pay-in would otherwise
+      // be retried every minute without a trace.
+      if (!route) {
+        this.logger.warn(`Swap route ${match.id} vanished before read-back, skipping pay-in ${payIn.id}`);
+        continue;
+      }
+
+      pairs.push([payIn, route]);
+    }
+
+    return pairs;
   }
 
-  private pairRoutesWithPayIns(routes: Swap[], allPayIns: CryptoInput[]): [CryptoInput, Swap][] {
+  private pairRoutesWithPayIns(routes: RouteIdentifier[], allPayIns: CryptoInput[]): [CryptoInput, RouteIdentifier][] {
     const result = [];
 
     for (const payIn of allPayIns) {
@@ -108,7 +133,7 @@ export class BuyCryptoRegistrationService {
     return result;
   }
 
-  private findMatchingRoute(payIn: CryptoInput, routes: Swap[]): Swap | undefined {
+  private findMatchingRoute(payIn: CryptoInput, routes: RouteIdentifier[]): RouteIdentifier | undefined {
     if (payIn.isPayment) {
       const paymentRouteId =
         payIn.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? payIn.paymentLinkPayment?.link.route.id;
@@ -117,8 +142,10 @@ export class BuyCryptoRegistrationService {
     } else {
       return routes.find(
         (r) =>
-          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          r.deposit.blockchainList.includes(payIn.address.blockchain),
+          payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
+          // Split rather than the substring test the sell side uses: `blockchains` is a
+          // semicolon-joined list, and `'BitcoinCash'.includes('Bitcoin')` would match the wrong chain.
+          r.blockchains.split(';').includes(payIn.address.blockchain),
       );
     }
   }
