@@ -33,7 +33,7 @@ This service loads far more data than it returns. Measured against the real enti
 - Of the 537 route entries, **444 reach at least one load site that fetches whole rows**; 89 read
   nothing at all, 2 read only the fields they need, and 2 more project only when the caller
   supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
-  median of the recorded maxima, and at least 19 of them exceed 1,000 — the call graph does not
+  median of the recorded maxima, and at least 21 of them exceed 1,000 — the call graph does not
   fully resolve, and an unresolved edge can only widen a query.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
