@@ -115,6 +115,17 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// URL-encode a relative output path for safe use inside an href/src attribute.
+// encodeURIComponent (applied per path segment, so '/' stays a separator) is used
+// instead of encodeURI, because encodeURI leaves the reserved characters '#' and '?'
+// untouched — a filename containing either would otherwise silently produce a broken
+// link (the browser truncates the URL at '#' / treats '?' as a query string start).
+// Applied BEFORE escapeHtml — encodeURIComponent still leaves '&' untouched, so
+// escapeHtml is still needed as a separate step to make the attribute value HTML-safe.
+function encodeHtmlPath(p) {
+  return String(p).split('/').map(encodeURIComponent).join('/');
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -1174,7 +1185,7 @@ function main() {
       body += '<ul class="link-list">';
       for (const p of items) {
         body +=
-          `<li><a href="${escapeHtml(encodeURI(p.outputPath))}">${escapeHtml(p.name)}</a>` +
+          `<li><a href="${escapeHtml(encodeHtmlPath(p.outputPath))}">${escapeHtml(p.name)}</a>` +
           `<span class="src">${escapeHtml(p.outputPath)}</span></li>`;
       }
       body += '</ul>';
@@ -1200,7 +1211,7 @@ function main() {
       cards +=
         `<div class="test" id="${escapeHtml(cardId)}">` +
         `<div class="head"><span class="name">${escapeHtml(m.name)}</span></div>` +
-        `<div class="body"><a href="${escapeHtml(encodeURI(m.outputPath))}">Vorschau öffnen</a></div>` +
+        `<div class="body"><a href="${escapeHtml(encodeHtmlPath(m.outputPath))}">Vorschau öffnen</a></div>` +
         `</div>`;
     }
     cards += '</div>';
@@ -1236,7 +1247,7 @@ function main() {
       const list = byGroup.get(g).slice().sort((a, b) => sortStrings(a.title, b.title));
       for (const d of list) {
         body +=
-          `<li><a href="${escapeHtml(encodeURI(d.outputPath))}">${escapeHtml(d.title)}</a>` +
+          `<li><a href="${escapeHtml(encodeHtmlPath(d.outputPath))}">${escapeHtml(d.title)}</a>` +
           `<span class="src">${escapeHtml(d.sourcePath)}</span>` +
           (d.beschreibung
             ? `<div style="margin-top:4px;font-size:12.5px;color:var(--ink-3)">${escapeHtml(d.beschreibung)}</div>`
@@ -1264,8 +1275,8 @@ function main() {
     for (const d of diagramEntries) {
       if (d.kind === 'image') {
         body +=
-          `<div><a href="${escapeHtml(encodeURI(d.outputPath))}">` +
-          `<img src="${escapeHtml(encodeURI(d.outputPath))}" alt="${escapeHtml(d.title)}" loading="lazy"></a>` +
+          `<div><a href="${escapeHtml(encodeHtmlPath(d.outputPath))}">` +
+          `<img src="${escapeHtml(encodeHtmlPath(d.outputPath))}" alt="${escapeHtml(d.title)}" loading="lazy"></a>` +
           `<p class="regen">${escapeHtml(d.sourcePath)}</p></div>`;
       }
     }
@@ -1273,7 +1284,7 @@ function main() {
     for (const d of diagramEntries) {
       if (d.kind === 'download') {
         body +=
-          `<li><a href="${escapeHtml(encodeURI(d.outputPath))}" download>${escapeHtml(d.title)}</a>` +
+          `<li><a href="${escapeHtml(encodeHtmlPath(d.outputPath))}" download>${escapeHtml(d.title)}</a>` +
           `<span class="src">Download</span></li>`;
       }
     }
@@ -1296,8 +1307,8 @@ function main() {
     let ag = '<div class="asset-grid">';
     for (const a of assetEntries) {
       ag +=
-        `<div class="asset-card"><a href="${escapeHtml(encodeURI(a.outputPath))}">` +
-        `<img src="${escapeHtml(encodeURI(a.outputPath))}" alt="${escapeHtml(a.name)}" loading="lazy"></a>` +
+        `<div class="asset-card"><a href="${escapeHtml(encodeHtmlPath(a.outputPath))}">` +
+        `<img src="${escapeHtml(encodeHtmlPath(a.outputPath))}" alt="${escapeHtml(a.name)}" loading="lazy"></a>` +
         `<div class="an">${escapeHtml(a.name)}</div></div>`;
     }
     ag += '</div>';
@@ -1323,7 +1334,7 @@ function main() {
           ? `Download ${s.title}`
           : `Dokumentation: ${s.title}`;
       body +=
-        `<li><a href="${escapeHtml(encodeURI(s.outputPath))}">${escapeHtml(label)}</a>` +
+        `<li><a href="${escapeHtml(encodeHtmlPath(s.outputPath))}">${escapeHtml(label)}</a>` +
         `<span class="src">${escapeHtml(s.sourcePath)}</span></li>`;
     }
     body += '</ul>';
