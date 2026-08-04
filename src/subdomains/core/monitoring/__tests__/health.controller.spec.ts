@@ -132,6 +132,13 @@ describe('HealthController — address letter check', () => {
     expect(body.checks.addressLetter.detail).toContain('provider balance unknown');
   });
 
+  it('treats a balance that is not a number as unknown', async () => {
+    // `getBalance` coerces with `+`, so a non-numeric provider value arrives as NaN
+    const body = await respond({ ...healthy, letterBalance: Number.NaN });
+
+    expect(body.checks.addressLetter.detail).toContain('provider balance unknown');
+  });
+
   it('stays quiet about the balance while there is nothing to send', async () => {
     const body = await respond({ ...healthy, backlog: 0, letterBalance: null });
 

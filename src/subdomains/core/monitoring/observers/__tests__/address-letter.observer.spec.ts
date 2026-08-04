@@ -145,6 +145,16 @@ describe('AddressLetterObserver', () => {
     expect(data.backlog).toBe(7);
   });
 
+  it('publishes an unusable balance as unknown rather than as a number', async () => {
+    // the provider value is coerced with `+`, so a non-numeric answer arrives as NaN - which compares
+    // false against every threshold and would read as "nothing wrong"
+    jest.spyOn(letterService, 'getBalance').mockResolvedValue(Number.NaN);
+
+    const data = await observer.fetch();
+
+    expect(data.letterBalance).toBeNull();
+  });
+
   it('does not call an unconfigured provider', async () => {
     Object.defineProperty(letterService, 'isConfigured', { get: () => false, configurable: true });
 

@@ -238,7 +238,10 @@ export class HealthController {
     // every send simply fails. Only reported while there is something to send, and `null` counts -
     // it means the provider is unconfigured or did not answer, which blocks the queue just the same.
     if (data.backlog > 0) {
-      if (data.letterBalance == null) issues.push('provider balance unknown');
+      // `Number.isFinite` rather than a null check: `getBalance` coerces the provider's value with `+`,
+      // so a non-numeric answer arrives as NaN - and NaN passes both `== null` and `<= minBalance`,
+      // reading as healthy. Unusable and absent are the same thing here.
+      if (!Number.isFinite(data.letterBalance)) issues.push('provider balance unknown');
       else if (data.letterBalance <= minBalance) issues.push(`provider balance ${data.letterBalance}`);
     }
     if (data.claimedWithoutLetter > 0) issues.push(`${data.claimedWithoutLetter} claims with unknown outcome`);

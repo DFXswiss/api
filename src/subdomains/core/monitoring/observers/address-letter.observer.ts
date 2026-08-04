@@ -186,13 +186,21 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
     return lastSent ? Util.round(Util.hoursDiff(lastSent), 1) : null;
   }
 
-  /** Never lets the provider break the whole metric set - a missing balance is reported as unknown. */
+  /**
+   * Never lets the provider break the whole metric set - a missing balance is reported as unknown.
+   *
+   * `getBalance` coerces the provider's value with `+`, so a non-numeric answer arrives as NaN. That is
+   * not a balance and must not be published as one: NaN compares false against every threshold, so a
+   * consumer reading it sees nothing wrong. Unusable and absent mean the same thing here.
+   */
   private async getLetterBalance(): Promise<number | null> {
     if (!this.letterService.isConfigured) return null;
 
-    return this.letterService.getBalance().catch((e) => {
+    const balance = await this.letterService.getBalance().catch((e) => {
       this.logger.error('Failed to read the letter provider balance', e);
       return null;
     });
+
+    return Number.isFinite(balance) ? balance : null;
   }
 }
