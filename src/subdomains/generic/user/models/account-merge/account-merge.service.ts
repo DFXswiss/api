@@ -132,7 +132,10 @@ export class AccountMergeService {
     await this.accountMergeRepo.update(...request.startProcessing());
 
     try {
-      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+      // notifyUser: a merge confirmed via the e-mailed code is the one path an outside party can
+      // trigger (IDENT_DOCUMENT merges mail the code to the slave, not the master), so the master
+      // must be told its account gained an address/mail — same as the AML and admin merge callers.
+      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail, true);
     } catch (e) {
       // clear the processing marker so a failed merge does not leave the client stuck on a
       // never-ending waiting state (isProcessing would otherwise stay true until expiration)
