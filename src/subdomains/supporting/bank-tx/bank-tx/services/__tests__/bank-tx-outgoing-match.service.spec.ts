@@ -332,7 +332,9 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
     query.getMany.mockResolvedValue([createCustomBankTx({ id: 11, remittanceInfo: 'Facture du 4.8.2026' })]);
     await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 4.8 })).resolves.toBeUndefined();
     query.getMany.mockResolvedValue([createCustomBankTx({ id: 12, remittanceInfo: 'Valuta 2026-08-04' })]);
-    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 })).resolves.toBeUndefined();
+    await expect(
+      service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 }),
+    ).resolves.toBeUndefined();
 
     // Swiss thousand grouping: "1'234,56" must not quote 234.56
     query.getMany.mockResolvedValue([createCustomBankTx({ id: 9, remittanceInfo: "Betrag 1'234,56" })]);
