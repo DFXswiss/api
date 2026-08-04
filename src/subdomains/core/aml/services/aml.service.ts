@@ -28,6 +28,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { AmlError } from '../enums/aml-error.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
@@ -76,6 +77,15 @@ export class AmlService {
     }
 
     if (entity.amlCheck === CheckStatus.PASS) {
+      // A Scorechain hit is never cleared automatically — it only ever passes because compliance reviewed
+      // the finding with the customer. That release IS the review, so record it on the account: the next
+      // deposit from the same permanently tainted source would otherwise run into the identical manual
+      // review again (see UserData.hasValidScorechainReview for how long it counts).
+      if (entity.comment?.includes(AmlError.SCORECHAIN_HIGH_RISK))
+        entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
+          scorechainCheckDate: new Date(),
+        });
+
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
       if (entity.bankTx && entity instanceof BuyCrypto && !entity.userData.hasBankTx)
         await this.userDataService.updateUserDataInternal(entity.userData, { hasBankTx: true });
