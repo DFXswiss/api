@@ -29,12 +29,16 @@ const LEASE_TTL_SECONDS = 60;
  * answered: whatever the database has already spent comes off the next wait, and an answer that
  * took longer than the interval re-arms immediately.
  *
- * Measuring from the answer is what this replaced, and it spent the margin twice. An attempt fired
- * at 20 s whose answer arrived at 45 s put the next at 65 s — five seconds after the claim had
- * already lapsed, so a database slow enough to be worth surviving was the very thing that
- * guaranteed the loss. Attempts now start every `max(interval, round trip)` instead of every
- * `interval + round trip`: unchanged while the database answers promptly, and no longer adding the
- * latency on top of a wait that was already sized to absorb it.
+ * Measuring from the answer is what this replaced, and it spent the margin twice. An attempt that
+ * FAILS slowly spends it before it reports: one fired at 20 s that comes back at 45 s put the next
+ * at 65 s, five seconds after the claim had already lapsed. The precondition matters — an attempt
+ * that SUCCEEDS extends the row when the database executes it, so the claim is good past 80 s and
+ * 65 s is well inside it. A database slow enough to be worth surviving was therefore the very thing
+ * that guaranteed the loss, in exactly the case that had no margin left to give.
+ *
+ * Attempts now start every `max(interval, round trip)` instead of every `interval + round trip`:
+ * unchanged while the database answers promptly, and no longer adding the latency on top of a wait
+ * that was already sized to absorb it.
  *
  * It does not restore the three-attempts-per-TTL the interval was chosen for. Nothing can, once a
  * single round trip approaches the TTL — attempts then run back to back, one per round trip, and
@@ -543,8 +547,8 @@ export class CronLeaseService implements OnModuleInit {
    * The wait that follows is measured from when the attempt STARTED, so a slow answer no longer
    * pushes the next attempt out behind it — it comes due sooner, or at once if the interval has
    * already passed. Re-arming from the ANSWER instead added the database's latency to a wait that
-   * was already sized to include it, which is how an answer arriving at 45 s used to put the next
-   * attempt five seconds past the expiry. See RENEWAL_INTERVAL_MS.
+   * was already sized to include it, which is how a failed attempt answering at 45 s used to put
+   * the next one five seconds past the expiry. See RENEWAL_INTERVAL_MS.
    *
    * Losing the claim does not stop the run. There is nothing here that could stop it, and the
    * timer deliberately keeps going: this process holds the claim for as long as it can renew it.
@@ -553,8 +557,8 @@ export class CronLeaseService implements OnModuleInit {
    * a run that has no renewal left to notice — and both report through one latched path, so the
    * line stays one per run whichever sees it. See `releasing`.
    *
-   * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every attempt. The
-   * run carries on to its own end — up to two hours for the longest timeouts — and an unlatched
+   * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every
+   * attempt. The run carries on to its own end — up to two hours for the longest timeouts — and an unlatched
    * line would repeat every 20 s for all of it, turning one event into some 360 lines. Counting
    * lines would then measure how LONG the affected runs were, not how OFTEN the claim was lost,
    * which is the number the TTL has to be dimensioned on.
@@ -739,7 +743,7 @@ export class CronLeaseService implements OnModuleInit {
         void release
           .then((removed) => {
             // A release that threw says nothing either way, and `run` reports that separately.
-            if (!removed && !reportedLoss) reportLoss(Math.max(0, Date.now() - acceptedAt));
+            if (!removed) reportLoss(Math.max(0, Date.now() - acceptedAt));
           })
           .catch(() => undefined);
       },

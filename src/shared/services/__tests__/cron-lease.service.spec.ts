@@ -462,7 +462,9 @@ describe('CronLeaseService', () => {
 
     it('re-arms at once after an answer that outran the interval', async () => {
       // Waiting a further interval from the ANSWER added the database's latency to a wait already
-      // sized to include it: a 45 s answer put the next attempt at 65 s, past the 60 s expiry.
+      // sized to include it: an attempt answering at 45 s put the next at 65 s. For a FAILED
+      // attempt that is past the 60 s expiry; this fixture answers success, so what it pins is the
+      // cadence itself — the next attempt comes due at once rather than 20 s after the answer.
       const { afterAnswer, immediately } = await cadenceAfterAnswerTaking(45_000);
 
       expect(afterAnswer).toEqual(1);
@@ -1157,6 +1159,83 @@ describe('CronLeaseService', () => {
 
         // 20 s since the last accepted renewal, not the 100 s since the claim.
         expect(error.mock.calls[0][0]).toContain('20.0 s since the claim was last confirmed');
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('a renewal that fails outright', () => {
+    it('reports every failure and counts each one for the heartbeat', async () => {
+      // Deliberately unlatched, unlike the two lines above it: each failure is a distinct event
+      // with its own cause, and `takeFailures` counts per window, so collapsing them would
+      // under-report a persistent outage. The branch was restructured by this change and neither
+      // half of that contract was asserted.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) return Promise.reject(new Error('connection terminated'));
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        service.takeFailures();
+
+        for (let i = 0; i < 3; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        const failed = error.mock.calls.map((c) => c[0] as string).filter((l) => l.includes('Could not extend'));
+        expect(failed).toHaveLength(3);
+        expect(service.takeFailures().count).toEqual(3);
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('reports a non-Error throw without losing its text', async () => {
+      // The restructure routes failures through `e instanceof Error ? e : new Error(String(e))`,
+      // and `recordFailure` runs in the renewal's catch — not in `renew` itself — so this has to
+      // be driven through a real run to exercise it.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) return Promise.reject('pool drained');
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        service.takeFailures();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        expect(service.takeFailures().last).toContain('pool drained');
 
         finish();
         await run;
