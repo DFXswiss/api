@@ -9,10 +9,10 @@ import re, glob, os, json
 
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
-    raise SystemExit("INVENTORY_WORK is not set - run this through tools/inventory/run.sh")
+    raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
 SRC = os.environ.get("API_SRC")
 if not SRC:
-    raise SystemExit("API_SRC is not set - run this through tools/inventory/run.sh")
+    raise SystemExit("API_SRC is not set - run this through scripts/inventory/run.sh")
 DEFAULT_VERSION = '1'
 NAMED = {'GetConfig().kycVersion': '2'}
 

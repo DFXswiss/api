@@ -30,4 +30,4 @@ cp "$INVENTORY_WORK/load-sites.md" "$ROOT/docs/load-sites.md"
 
 echo "Wrote $ROOT/docs/endpoints.md"
 echo "Wrote $ROOT/docs/load-sites.md"
-echo "These are freshly generated inventories and do not carry the hand-adjusted passages of the published docs - see tools/inventory/README.md before treating them as a replacement."
+echo "These are freshly generated inventories and do not carry the hand-adjusted passages of the published docs - see scripts/inventory/README.md before treating them as a replacement."

@@ -35,7 +35,7 @@ These arguments are passed to `main(pub_ref, pub_path, out_path)`.
 
 ## Full pipeline
 
-`tools/inventory/run.sh` runs the following steps in order, writing intermediates under a temporary `INVENTORY_WORK` directory. The directory is printed on stdout and kept after the run for inspection.
+`scripts/inventory/run.sh` runs the following steps in order, writing intermediates under a temporary `INVENTORY_WORK` directory. The directory is printed on stdout and kept after the run for inspection.
 
 1. `sites.py` extracts every load site from `src/` and writes `sites.json`.
 2. `measure.js` measures SELECT column counts from TypeORM metadata in `dist/` and writes `sites-measured.json` and `meta-tables.json`. The latter contains per-table TypeORM metadata: column counts and entity names, one entry per table.
@@ -66,5 +66,13 @@ These scripts were developed outside this repository and checked in here for the
 
 - The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked.
 - The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided, as described in the `table.json`/`meta-tables.json` note above.
+
+A review also found the following properties of the recovered scripts. They were deliberately left unchanged because changing their behavior could shift the generated figures and would need separate validation:
+
+- `sites.py` swallows parse errors in a `relations` tree with `except Exception: pass`. The affected load site then enters the inventory without relations information instead of aborting the run or being marked.
+- `make_table.py` records an unresolved handler as the placeholder `'?'`, using it as the fallback during handler and scope detection, instead of aborting.
+- `add_version_deprecated.py` silently assigns `DEFAULT_VERSION` (`'1'`) and `deprecated = False` when no decorator match exists for a route, via the `(DEFAULT_VERSION, False)` fallback for route keys absent from `flags`, instead of marking the row.
+- `fix_handlers.py` visibly overlaps with `make_table.py` in handler detection: both independently implement similar decorator and parenthesis skipping through `skip_trivia` and `skip_args`. Whether that step can be removed has not been established without a differential run, so it remains in the pipeline.
+- The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are now additionally reported on stderr.
 
 The renderer does not exactly match the version that produced the published documents. See "Do not simply regenerate" above.

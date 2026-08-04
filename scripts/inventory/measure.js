@@ -30,8 +30,11 @@ Module._load = function (request) {
   try {
     return _load.apply(this, arguments);
   } catch (e) {
-    if (String(e && e.code) === 'ERR_REQUIRE_ESM' || /native module|\.node'|prebuilds/.test(String(e && e.message)))
+    if (String(e && e.code) === 'ERR_REQUIRE_ESM' || /native module|\.node'|prebuilds/.test(String(e && e.message))) {
+      // Missing native modules must not fail the run, but the proxy substitution should stay visible.
+      console.error(`[inventory] replacing module "${request}" with proxy stub: ${String((e && (e.message || e.code)) || e)}`);
       return deep();
+    }
     throw e;
   }
 };
@@ -45,7 +48,7 @@ const INPUT = process.argv[2];
 const OUT_MEASURED = process.argv[3];
 const OUT_TABLES = process.argv[4];
 if (!DIST || !INPUT || !OUT_MEASURED || !OUT_TABLES) {
-  console.error('Aufruf: DIST=<dist> node measure2.js <sites.json> <measured.json> <meta-tables.json>');
+  console.error('Aufruf: DIST=<dist> node measure.js <sites.json> <measured.json> <meta-tables.json>');
   process.exit(2);
 }
 
@@ -95,7 +98,7 @@ async function main() {
     }
   }
   fs.writeFileSync(OUT_MEASURED, JSON.stringify(out, null, 1));
-  const ok = out.filter((o) => o.columns);
+  const ok = out.filter((o) => o.cols !== undefined);
   const tables = Object.keys(perTable).length;
   const columns = Object.values(perTable).reduce((a, t) => a + t.cols, 0);
   console.log(JSON.stringify({ step: 'done', measured: ok.length, failed: out.length - ok.length, tables, columns }));

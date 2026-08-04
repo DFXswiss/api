@@ -16,10 +16,10 @@ import re, glob, os, json
 
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
-    raise SystemExit("INVENTORY_WORK is not set - run this through tools/inventory/run.sh")
+    raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
 SRC = os.environ.get("API_SRC")
 if not SRC:
-    raise SystemExit("API_SRC is not set - run this through tools/inventory/run.sh")
+    raise SystemExit("API_SRC is not set - run this through scripts/inventory/run.sh")
 HTTP = re.compile(r"@(Get|Post|Put|Delete|Patch)\(\s*(?:['\"]([^'\"]*)['\"])?\s*\)")
 DEC = re.compile(r'@(\w+)')
 METH = re.compile(r'(?:public\s+|private\s+|protected\s+)?(?:async\s+)?(\w+)\s*(?:<[^>]*>)?\s*\(')

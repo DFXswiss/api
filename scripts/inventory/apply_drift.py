@@ -19,10 +19,10 @@ from collections import defaultdict
 
 S = os.environ.get("INVENTORY_WORK")
 if not S:
-    raise SystemExit("INVENTORY_WORK is not set - see tools/inventory/README.md")
+    raise SystemExit("INVENTORY_WORK is not set - see scripts/inventory/README.md")
 REPO = os.environ.get("INVENTORY_REPO")
 if not REPO:
-    raise SystemExit("INVENTORY_REPO is not set - see tools/inventory/README.md")
+    raise SystemExit("INVENTORY_REPO is not set - see scripts/inventory/README.md")
 
 # Deutsche Generator-Labels auf die englischen der veroeffentlichten Tabelle abbilden.
 LABEL = {
