@@ -894,3 +894,129 @@ describe('KycService updateFinancialData response fields', () => {
     expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
   });
 });
+
+// KycStep.update() always puts sequenceNumber into the Partial; omitting the 4th arg Object.assign-wipes
+// it on the entity so toStepBase drops it from the response. These two paths return the mapped step.
+describe('KycService updateFileData response fields', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let documentService: jest.Mocked<KycDocumentService>;
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    documentService = createMock<KycDocumentService>();
+    documentService.uploadUserFile.mockResolvedValue({ url: 'https://example.com/file.pdf' } as any);
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).documentService = documentService;
+  });
+
+  it('keeps sequenceNumber on the response after a file upload', async () => {
+    // STATUTES is not in KycStepIdentRequiredForReview, so reviewStatusForIdentLevel returns the fallback
+    // without reading userData.kycLevel
+    const kycStep = Object.assign(new KycStep(), {
+      id: 55,
+      name: KycStepName.STATUTES,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 7,
+    });
+
+    const user = createMock<UserData>({ kycHash: 'hash' });
+    user.getPendingStepOrThrow.mockReturnValue(kycStep);
+
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+
+    const result = await service.updateFileData(
+      'hash',
+      55,
+      KycStepName.STATUTES,
+      { fileName: 'statutes.pdf', file: 'data:application/pdf;base64,YQ==' },
+      FileType.STATUTES,
+    );
+
+    expect(result.sequenceNumber).toBe(7);
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('KycService updateKycStepAndLog response fields', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('keeps sequenceNumber on the response after updating the step', async () => {
+    const kycStep = Object.assign(new KycStep(), {
+      id: 88,
+      name: KycStepName.SIGNATORY_POWER,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 4,
+    });
+
+    const user = createMock<UserData>({ kycHash: 'hash' });
+
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+
+    const result = await service.updateKycStepAndLog(kycStep, user, { key: 'value' }, ReviewStatus.MANUAL_REVIEW);
+
+    expect(result.sequenceNumber).toBe(4);
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+// reviewNationalityData's update() calls omitted sequenceNumber; updateNationalityStep then maps the
+// step via toStepBase. Residence-permit path hits one of the four data-bearing update() sites cleanly
+// (no checkDfxApproval). Config.kyc.residencePermitCountries is required for that branch.
+describe('KycService updateNationalityStep response fields', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let countryService: jest.Mocked<CountryService>;
+
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    countryService = createMock<CountryService>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).countryService = countryService;
+  });
+
+  it('keeps sequenceNumber on the response after a nationality submit', async () => {
+    const nationality = createCustomCountry({ symbol: 'RU', nationalityEnable: true });
+    countryService.getCountry.mockResolvedValue(nationality);
+
+    const kycStep = Object.assign(new KycStep(), {
+      id: 12,
+      name: KycStepName.NATIONALITY_DATA,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 5,
+    });
+
+    const user = createMock<UserData>({ kycHash: 'hash' });
+    user.getPendingStepOrThrow.mockReturnValue(kycStep);
+
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+
+    const result = await service.updateNationalityStep('hash', 12, {
+      nationality: { id: nationality.id } as any,
+    });
+
+    expect(result.sequenceNumber).toBe(5);
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+  });
+});
