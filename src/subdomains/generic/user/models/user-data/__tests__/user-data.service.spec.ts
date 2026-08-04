@@ -47,11 +47,14 @@ import {
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanIssuanceIntentStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent-status.enum';
 import { VirtualIbanIssuanceIntent } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban-issuance-intent.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UserData } from '../user-data.entity';
+import { KycIdentificationType } from '../kyc-identification-type.enum';
 import { KycStatus, KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
 import {
@@ -717,6 +720,88 @@ describe('UserDataService', () => {
         expect(preExisting.has(`${committedSlaveSteps.find((s) => s.id === id).name}|${seq}`)).toBe(false);
       }
       expect(new Set(assigned.map(([, s]) => s)).size).toBe(assigned.length);
+    });
+
+    // COMPLETED video ident steps are not in the cancel list, so update() receives status undefined;
+    // that must not wipe status — a cleared status would be silent data loss on the merge path.
+    describe.each([KycStepType.VIDEO, KycStepType.SUMSUB_VIDEO])('completed %s slave ident step', (identType) => {
+      const prepareVideoMerge = async (master: UserData, slave: UserData, videoStep: KycStep): Promise<void> => {
+        userDataRepo.findOne.mockResolvedValueOnce(master).mockResolvedValueOnce(slave);
+        transactionService.getAllTransactionsForUserData.mockResolvedValue([]);
+        userRepo.find.mockResolvedValue([]);
+        bankDataService.getAllBankDatasForUser.mockResolvedValue([]);
+        virtualIbanService.getFrickVirtualIbansForAccount.mockResolvedValue([]);
+        kycAdminService.getKycSteps.mockResolvedValueOnce([]).mockResolvedValueOnce([videoStep]);
+        documentService.copyFiles.mockResolvedValue(undefined);
+        jest.spyOn(service, 'updateVolumes').mockResolvedValue(undefined);
+        jest
+          .spyOn(service as unknown as { updateBankTxTime: () => Promise<void> }, 'updateBankTxTime')
+          .mockResolvedValue(undefined);
+      };
+
+      const buildCompletedVideoStep = (): KycStep =>
+        Object.assign(new KycStep(), {
+          id: 1,
+          name: KycStepName.IDENT,
+          type: identType,
+          status: ReviewStatus.COMPLETED,
+          sequenceNumber: 0,
+        });
+
+      // Master empty + slave step at 0 → min floor 0, seed 100 below → first reassigned number is -100.
+      const expectedMergedSequenceNumber = -100;
+
+      // updateKycStepInternal receives KycStep.update()'s [id, partial]; proves the step entered the renumber loop.
+      const assignedSequenceFor = (stepId: number): number | undefined => {
+        const call = kycAdminService.updateKycStepInternal.mock.calls.find((c) => {
+          const [id] = c[0] as unknown as [number, Partial<KycStep>];
+          return id === stepId;
+        });
+        if (!call) return undefined;
+        const [, update] = call[0] as unknown as [number, Partial<KycStep>];
+        return update.sequenceNumber;
+      };
+
+      it('keeps the completed video ident step status through the merge', async () => {
+        const master = buildAccount(1000, 50);
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
+        await service.mergeUserData(master.id, slave.id);
+
+        expect(assignedSequenceFor(videoStep.id)).toBe(expectedMergedSequenceNumber);
+        expect(videoStep.sequenceNumber).toBe(expectedMergedSequenceNumber);
+        expect(videoStep.status).toBe(ReviewStatus.COMPLETED);
+      });
+
+      it('does not derive identificationType or bankTransactionVerification from a completed video ident step', async () => {
+        const master = buildAccount(1000, 50);
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
+        await service.mergeUserData(master.id, slave.id);
+
+        expect(assignedSequenceFor(videoStep.id)).toBe(expectedMergedSequenceNumber);
+        expect(master.identificationType).toBeUndefined();
+        expect(master.bankTransactionVerification).toBeUndefined();
+      });
+
+      it('does not overwrite master identificationType or bankTransactionVerification when already set', async () => {
+        const master = buildAccount(1000, 50);
+        master.identificationType = KycIdentificationType.ONLINE_ID;
+        master.bankTransactionVerification = CheckStatus.PASS;
+        const slave = buildAccount(2000, 20);
+        const videoStep = buildCompletedVideoStep();
+
+        await prepareVideoMerge(master, slave, videoStep);
+        await service.mergeUserData(master.id, slave.id);
+
+        expect(assignedSequenceFor(videoStep.id)).toBe(expectedMergedSequenceNumber);
+        expect(master.identificationType).toBe(KycIdentificationType.ONLINE_ID);
+        expect(master.bankTransactionVerification).toBe(CheckStatus.PASS);
+      });
     });
   });
 

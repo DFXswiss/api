@@ -214,17 +214,20 @@ export class KycStep extends IEntity {
   }
 
   update(
-    status: ReviewStatus,
+    status?: ReviewStatus,
     result?: KycStepResult,
     comment?: string,
     sequenceNumber?: number,
   ): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = {
-      status,
-      result: this.setResult(result),
-      comment: this.addComment(comment),
-      sequenceNumber,
-    };
+    // Callers pass undefined to leave a field unchanged; Object.assign would overwrite those properties.
+    const update = Object.fromEntries(
+      Object.entries({
+        status,
+        result: this.setResult(result),
+        comment: this.addComment(comment),
+        sequenceNumber,
+      }).filter(([, v]) => v !== undefined),
+    ) as Partial<KycStep>;
 
     Object.assign(this, update);
 
@@ -365,7 +368,7 @@ export class KycStep extends IEntity {
     return this.result;
   }
 
-  addComment(comment: string): string | undefined {
+  addComment(comment: string): string {
     return [this.comment, comment].filter((c) => c).join(';');
   }
 
