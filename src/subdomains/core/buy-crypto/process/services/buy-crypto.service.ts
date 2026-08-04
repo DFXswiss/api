@@ -8,7 +8,6 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';

@@ -262,7 +262,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          retry_on: error
+          retry_on: any
           command: npm ci
 
       # Separate from the sharded run because it compiles with full type information; see

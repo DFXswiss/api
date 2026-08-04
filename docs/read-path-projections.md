@@ -25,11 +25,11 @@ is treated as the latter.
 
 This service loads far more data than it returns. Measured against the real entity metadata:
 
-- The whole database schema has **1,736 columns across 99 tables**.
+- The whole database schema has **1,742 columns across 100 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
   render a PDF containing a handful of values. That is exactly Postgres' limit of 1,664 columns per
   statement, so one further column in that query would have made it fail outright.
-- Of the 534 endpoints, **398 reach at least one load site that fetches whole rows**; 98 read
+- Of the 537 route entries, **410 reach at least one load site that fetches whole rows**; 89 read
   nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
   can trigger is 308 columns at the median, and 19 of them exceed 1,000.
 
@@ -46,12 +46,12 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the load sites in this repository — at most 1,105, see
-[load-sites.md](load-sites.md#measurements) — **116** load less than a whole row: 108 query builders
+**No read model.** Of the load sites in this repository — at most 1,158, see
+[load-sites.md](load-sites.md#measurements) — **118** load less than a whole row: 108 query builders
 that name their columns, three that end in `getCount()` or `getExists()` and materialise none, and
-the five raw statements. Those 116 are counted, not estimated. At most 989 request whole rows — 957 through the
-`find` family, and of the 143 query builders, 17 pass the root alias to `.select(...)`, which reads
-like a projection but is not, 14 pass no select at all, and one projects its root but pulls a
+the seven raw statements. Those 118 are counted, not estimated. At most 1,040 request whole rows — 1,007 through the
+`find` family, and of the 144 query builders, 17 pass the root alias to `.select(...)`, which reads
+like a projection but is not, 15 pass no select at all, and one projects its root but pulls a
 relation in whole. The same entities serve persistence, business logic and pure output paths such
 as invoices, receipts, history and exports — which need fields, not objects.
 
@@ -205,7 +205,7 @@ Leave `surname` out of the projection and `isInvoiceDataComplete` returns `false
 load returns `true`. The invoice is refused with "user data is not complete" although the data is
 complete. No error, no log entry.
 
-This service carries **234 such getters across 50 of its 112 entities**. In an application moving
+This service carries **238 such getters across 50 of its 113 entities**. In an application moving
 money, a silent wrong value is the expensive kind of defect: nothing reports it, so it runs until
 someone notices the answer is wrong.
 
@@ -370,8 +370,8 @@ So among the six reads this section is about, the gap is narrow and specific:
 batching into blocks of 100, the audit trail, rejection of fabricated audit records, the block on
 changing validity through the generic update path.
 
-That was the whole picture when this document was written. It no longer is: 113 sites now name their
-columns — the 18 with an explicit field list and the 90 that name them one at a time, plus the five
+That was the whole picture when this document was written. It no longer is: 115 sites now name their
+columns — the 18 with an explicit field list and the 90 that name them one at a time, plus the seven
 raw statements — and each of them can drop a field silently. The 17 conversions below carry the four
 levels. Of the endpoints behind the others, 18 record that they do not, as `0/4`; three stay `n/a`
 because their field list comes from the request rather than the code, so there is no fixed
@@ -401,7 +401,7 @@ The projection tests use that same gate. What they add lives in
 - **The schema.** Each spec file creates its own Postgres schema (`const SCHEMA = '…'`) so parallel
   specs cannot collide, and fills it from the entity metadata via `synchronize` rather than from
   replayed migrations — the reference for a projection is the entity definition, not the migration
-  history. Measured: 112 entities, 99 tables, 1,736 columns, about half a minute per spec file.
+  history. Measured: 113 entities, 100 tables, 1,742 columns, about half a minute per spec file.
 - **The fixtures**, generated from the same metadata. Every scalar column gets a non-empty value and
   required relations are created recursively, so an empty field in a response proves the query
   failed to load something. Three kinds of value have to be pinned by hand, and all three are the
