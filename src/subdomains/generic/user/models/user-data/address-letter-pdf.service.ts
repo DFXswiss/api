@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { Util } from 'src/shared/utils/util';
 import { mm2pt } from 'swissqrbill/utils';
 
 export interface AddressLetterPdfInput {
@@ -14,6 +15,13 @@ export interface AddressLetterPdfInput {
   country: string;
   date: Date;
 }
+
+/**
+ * The recipient block does not fit the envelope window. Account-specific by nature (over-long or
+ * multi-line address data), so the job counts it against that one account instead of treating it as a
+ * broken template.
+ */
+export class AddressLetterOverflowError extends Error {}
 
 export interface AddressLetterPdf {
   base64: string;
@@ -41,6 +49,9 @@ export interface AddressLetterPdf {
 // Module scope, not a class field: reading `Config` in a field initializer of an @Injectable runs
 // before `ConfigService` exists and would crash the bootstrap. Every entry that needs configuration is
 // a function, so it is evaluated when the letter is rendered.
+/** The letter is dated where it is sent from, independent of where the worker runs. */
+const SENDER_TIME_ZONE = 'Europe/Zurich';
+
 const TEXT = {
   subject: 'Adressverifikation',
   salutation: (name: string) => `Guten Tag ${name}`,
@@ -65,6 +76,8 @@ export class AddressLetterPdfService {
   private static readonly ADDRESS_TOP = 45;
   private static readonly ADDRESS_WIDTH = 85;
   private static readonly BODY_TOP = 100;
+  // Space the recipient block may take before it would run into the date line below it.
+  private static readonly ADDRESS_MAX_HEIGHT = 40;
 
   private static readonly TEXT_COLOR = '#000000';
 
@@ -81,9 +94,20 @@ export class AddressLetterPdfService {
 
         pdf.on('data', (chunk) => chunks.push(chunk));
         pdf.on('end', () => resolve({ base64: Buffer.concat(chunks).toString('base64'), pageCount }));
+        // Without this the stream's own async failures are unhandled `error` events, which Node turns
+        // into an uncaught exception: the worker dies and the claim is never released.
+        pdf.once('error', reject);
 
-        const { MARGIN_LEFT, MARGIN_RIGHT, SENDER_LINE_TOP, ADDRESS_TOP, ADDRESS_WIDTH, BODY_TOP, TEXT_COLOR } =
-          AddressLetterPdfService;
+        const {
+          MARGIN_LEFT,
+          MARGIN_RIGHT,
+          SENDER_LINE_TOP,
+          ADDRESS_TOP,
+          ADDRESS_WIDTH,
+          ADDRESS_MAX_HEIGHT,
+          BODY_TOP,
+          TEXT_COLOR,
+        } = AddressLetterPdfService;
         const left = mm2pt(MARGIN_LEFT);
         const contentWidth = pdf.page.width - mm2pt(MARGIN_LEFT + MARGIN_RIGHT);
 
@@ -95,7 +119,17 @@ export class AddressLetterPdfService {
 
         // recipient block inside the envelope window
         pdf.fontSize(11).font('Helvetica').fillColor(TEXT_COLOR);
-        pdf.text(this.recipientBlock(input).join('\n'), left, mm2pt(ADDRESS_TOP), { width: mm2pt(ADDRESS_WIDTH) });
+        const recipient = this.recipientBlock(input).join('\n');
+        // Every field behind this is a free-text column of up to 256 characters and may contain line
+        // breaks. Unchecked, a long name or street wraps down into the date and body and the sections
+        // print on top of each other - a malformed letter that would still open the AML gate. Measured
+        // rather than truncated: a shortened address is undeliverable, and not sending is the safer
+        // failure.
+        if (pdf.heightOfString(recipient, { width: mm2pt(ADDRESS_WIDTH) }) > mm2pt(ADDRESS_MAX_HEIGHT))
+          throw new AddressLetterOverflowError(
+            `Recipient block of account ${input.userDataId} does not fit the envelope window`,
+          );
+        pdf.text(recipient, left, mm2pt(ADDRESS_TOP), { width: mm2pt(ADDRESS_WIDTH) });
 
         // place and date, right aligned, below the window
         pdf.fontSize(11).font('Helvetica');
@@ -149,7 +183,10 @@ export class AddressLetterPdfService {
     return [input.name, streetLine, `${input.zip} ${input.city}`, input.country].filter((line) => line);
   }
 
+  // Dated in the sender's timezone, not the host's: a worker running in UTC would otherwise print
+  // yesterday's date on every letter rendered after midnight Swiss time.
   private germanDate(date: Date): string {
-    return `${`${date.getDate()}`.padStart(2, '0')}.${`${date.getMonth() + 1}`.padStart(2, '0')}.${date.getFullYear()}`;
+    const [year, month, day] = Util.isoDateInTimeZone(SENDER_TIME_ZONE, date).split('-');
+    return `${day}.${month}.${year}`;
   }
 }

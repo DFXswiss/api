@@ -2,7 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { AddressLetterPdfInput, AddressLetterPdfService } from '../address-letter-pdf.service';
+import {
+  AddressLetterOverflowError,
+  AddressLetterPdfInput,
+  AddressLetterPdfService,
+} from '../address-letter-pdf.service';
 
 describe('AddressLetterPdfService', () => {
   let service: AddressLetterPdfService;
@@ -107,6 +111,34 @@ describe('AddressLetterPdfService', () => {
     const texts = await render();
 
     expect(texts.some((t) => t.includes(Config.mail.contact.supportMail))).toBe(true);
+  });
+
+  it('refuses a recipient block that would overflow the envelope window', async () => {
+    // 256 characters is what the columns allow; unchecked it wraps down into the date and body
+    await expect(service.generatePdf({ ...input, street: 'A'.repeat(256) })).rejects.toBeInstanceOf(
+      AddressLetterOverflowError,
+    );
+  });
+
+  it('refuses a recipient block made long by line breaks rather than length', async () => {
+    await expect(service.generatePdf({ ...input, name: Array(20).fill('Zeile').join('\n') })).rejects.toBeInstanceOf(
+      AddressLetterOverflowError,
+    );
+  });
+
+  it('rejects when the document stream fails asynchronously', async () => {
+    const originalEnd = PDFDocument.prototype.end;
+    jest.spyOn(PDFDocument.prototype, 'end').mockImplementation(function (this: PDFKit.PDFDocument) {
+      // an error after construction reaches the promise only through an `error` listener; without one
+      // Node turns it into an uncaught exception and the worker dies
+      setImmediate(() => this.emit('error', new Error('stream boom')));
+    });
+
+    try {
+      await expect(service.generatePdf(input)).rejects.toThrow('stream boom');
+    } finally {
+      PDFDocument.prototype.end = originalEnd;
+    }
   });
 
   it('rejects instead of resolving when rendering fails', async () => {

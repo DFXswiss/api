@@ -17,7 +17,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { FindOptionsWhere, IsNull, SelectQueryBuilder } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { AccountType } from './account-type.enum';
-import { AddressLetterPdf, AddressLetterPdfService } from './address-letter-pdf.service';
+import { AddressLetterOverflowError, AddressLetterPdf, AddressLetterPdfService } from './address-letter-pdf.service';
 import { UserData } from './user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
@@ -94,6 +94,17 @@ class ClaimLostError extends Error {
   constructor(userDataId: number) {
     super(`Address letter claim lost for account ${userDataId}`);
   }
+}
+
+/**
+ * What became of a transition. `LOST` is benign - another worker owns the row, so this run moves on.
+ * `FAILED` means the trail could not be written, which is systemic: the run stops rather than change
+ * state it cannot account for.
+ */
+enum TransitionResult {
+  APPLIED = 'applied',
+  LOST = 'lost',
+  FAILED = 'failed',
 }
 
 /**
@@ -184,12 +195,9 @@ export class AddressLetterJobService {
 
       // Claim-first CAS: the cron lock is per process, so the claim - not the lock - is what keeps a
       // second replica from dispatching the same letter. Only an affected row count of 1 wins it.
-      // Claiming writes a NULL column, so nothing is overwritten and no audit has to precede it.
-      const claim = await this.userDataRepo.update(
-        { id: candidate.id, letterSentDate: IsNull(), letterClaimDate: IsNull() },
-        { letterClaimDate: claimedAt },
-      );
-      if (!claim.affected) continue;
+      const claim = await this.claim(candidate, claimedAt);
+      if (claim === TransitionResult.LOST) continue;
+      if (claim === TransitionResult.FAILED) break;
 
       // Re-read under the claim: the candidate list was selected before it, so an address corrected in
       // between would otherwise be printed from the stale row and then stamped as verified.
@@ -204,7 +212,7 @@ export class AddressLetterJobService {
 
       if (!isStillEligible(userData)) {
         this.logger.info(`Address letter skipped for account ${userData.id}: no longer eligible under its claim`);
-        if (!(await this.unclaim(userData, claimedAt, 'no longer eligible'))) break;
+        if ((await this.unclaim(userData, claimedAt, 'no longer eligible')) === TransitionResult.FAILED) break;
         continue;
       }
 
@@ -221,13 +229,15 @@ export class AddressLetterJobService {
           date: claimedAt,
         });
       } catch (e) {
-        // Nothing was handed over, so the claim is released and the attempt counted. The run stops:
-        // the same template renders every letter, so a rendering failure is systemic until proven
-        // otherwise, and letting it run on would spend every candidate's retry budget at once.
+        // Nothing was handed over, so the claim is released and the attempt counted.
         lastError = `PDF rendering failed for account ${userData.id}: ${e.message}`;
         this.logger.error(`Address letter PDF failed for account ${userData.id}`, e);
-        await this.countFailure(userData, claimedAt, lastError, exhausted, unknown);
-        break;
+        const stop = await this.countFailure(userData, claimedAt, lastError, exhausted, unknown);
+        // An overflowing recipient block is this account's data, not a broken template, so the run
+        // carries on. Anything else renders the same way for everyone and is treated as systemic:
+        // continuing would spend every remaining candidate's retry budget on the same fault.
+        if (stop || !(e instanceof AddressLetterOverflowError)) break;
+        continue;
       }
 
       if (pdf.pageCount !== 1)
@@ -316,7 +326,7 @@ export class AddressLetterJobService {
     values: QueryDeepPartialEntity<UserData>,
     result: string,
     comment: string,
-  ): Promise<boolean> {
+  ): Promise<TransitionResult> {
     try {
       await this.userDataRepo.manager.transaction(async (manager) => {
         await this.kycLogService.createAddressLetterLog(userData, result, comment, manager);
@@ -329,16 +339,33 @@ export class AddressLetterJobService {
         if (!update.affected) throw new ClaimLostError(userData.id);
       });
 
-      return true;
+      return TransitionResult.APPLIED;
     } catch (e) {
       if (e instanceof ClaimLostError) {
         this.logger.warn(e.message);
-        return false;
+        return TransitionResult.LOST;
       }
 
       this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
-      return false;
+      return TransitionResult.FAILED;
     }
+  }
+
+  /**
+   * Claims the account and records the attempt in the same transaction.
+   *
+   * The claim writes a NULL column, so nothing is overwritten - but it is the only trace an attempt
+   * leaves when the dispatch then goes unanswered, and that is exactly the state someone has to
+   * investigate. Recording it makes the trail cover every attempt, not only the ones that resolved.
+   */
+  private async claim(userData: UserData, claimedAt: Date): Promise<TransitionResult> {
+    return this.recordTransition(
+      userData,
+      { letterClaimDate: IsNull() },
+      { letterClaimDate: claimedAt },
+      `claimed: claimDate null -> ${claimedAt.toISOString()}`,
+      `attempt ${userData.letterFailures + 1}`,
+    );
   }
 
   /**
@@ -364,7 +391,7 @@ export class AddressLetterJobService {
       reason,
     );
 
-    if (!released) {
+    if (released !== TransitionResult.APPLIED) {
       unknown.push(userData.id);
       return true;
     }
@@ -381,7 +408,7 @@ export class AddressLetterJobService {
    * attempt — nothing was sent and nothing was wrong with the dispatch. Returns false when the claim
    * was left in place, in which case the caller stops.
    */
-  private async unclaim(userData: UserData, claimedAt: Date, reason: string): Promise<boolean> {
+  private async unclaim(userData: UserData, claimedAt: Date, reason: string): Promise<TransitionResult> {
     return this.recordTransition(
       userData,
       { letterClaimDate: claimedAt },
@@ -403,10 +430,10 @@ export class AddressLetterJobService {
 
     // The letter is already out. A missing stamp leaves the claim standing, which is the honest state:
     // the observer reports it as an unknown outcome and a human reconciles it with the provider.
-    if (!stamped)
+    if (stamped !== TransitionResult.APPLIED)
       this.logger.critical(`Address letter dispatched for account ${userData.id} but the proof was not stamped`);
 
-    return stamped;
+    return stamped === TransitionResult.APPLIED;
   }
 
   /**

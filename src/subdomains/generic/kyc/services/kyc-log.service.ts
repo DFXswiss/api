@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { EntityManager } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -111,6 +111,7 @@ export class KycLogService {
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Log not found');
+    this.assertMutable(entity);
 
     await this.kycLogRepo.save(Object.assign({ ...entity, ...dto }));
   }
@@ -118,8 +119,20 @@ export class KycLogService {
   async updateLogPdfUrl(id: number, url: string): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('KycLog not found');
+    this.assertMutable(entity);
 
     await this.kycLogRepo.update(...entity.setPdfUrl(url));
+  }
+
+  /**
+   * Address letter events are the evidence that a physical letter went out and that the AML proof
+   * behind it is honest. They are written append-only inside the transaction that changes the state
+   * they describe, so editing one afterwards would make the trail say something the database never
+   * did. `PUT /kycAdmin/log/:id` reaches every log by id, hence the guard here rather than there.
+   */
+  private assertMutable(entity: KycLog): void {
+    if (entity.type === KycLogType.ADDRESS_LETTER)
+      throw new BadRequestException('Address letter logs are append-only and cannot be changed');
   }
 
   async createMailChangeLog(user: UserData, oldMail: string, newMail: string) {

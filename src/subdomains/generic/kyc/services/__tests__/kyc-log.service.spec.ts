@@ -45,3 +45,33 @@ describe('KycLogService merge effect markers', () => {
     expect(kycLogRepo.save).not.toHaveBeenCalled();
   });
 });
+
+describe('KycLogService address letter logs', () => {
+  const repoWith = (entity: Partial<KycLog>) =>
+    ({
+      findOneBy: jest.fn().mockResolvedValue(entity),
+      save: jest.fn(),
+      update: jest.fn(),
+    }) as unknown as KycLogRepository;
+
+  it('refuses to change an address letter log', async () => {
+    // `PUT /kycAdmin/log/:id` reaches every log by id, and these rows are the evidence that a physical
+    // letter went out - editing one would make the trail say something the database never did
+    const kycLogRepo = repoWith({ id: 1, type: KycLogType.ADDRESS_LETTER });
+    const service = new KycLogService(kycLogRepo, undefined as never, undefined as never);
+
+    await expect(service.updateLog(1, { comment: 'edited' } as never)).rejects.toThrow('append-only');
+    await expect(service.updateLogPdfUrl(1, 'https://example.invalid/x.pdf')).rejects.toThrow('append-only');
+    expect(kycLogRepo.save).not.toHaveBeenCalled();
+    expect(kycLogRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('still allows changing every other log type', async () => {
+    const kycLogRepo = repoWith({ id: 1, type: KycLogType.MANUAL });
+    const service = new KycLogService(kycLogRepo, undefined as never, undefined as never);
+
+    await service.updateLog(1, { comment: 'edited' } as never);
+
+    expect(kycLogRepo.save).toHaveBeenCalledTimes(1);
+  });
+});
