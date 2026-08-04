@@ -20,6 +20,7 @@
  */
 
 import { mock } from 'jest-mock-extended';
+import { IsNull } from 'typeorm';
 import { Config, ConfigService } from 'src/config/config';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -67,6 +68,9 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       .mockResolvedValue({ txId: SIGNED_TX_ID, metadata: SIGNED_METADATA });
     relayTransferSpy = jest.spyOn(payoutMoneroService, 'relayTransfer').mockResolvedValue(SIGNED_TX_ID);
     isTxKnownSpy = jest.spyOn(payoutMoneroService, 'isTxKnown').mockResolvedValue(false);
+    // doPayout skips a context whose service reports unhealthy, which would silently empty the tests
+    // below that drive the whole run.
+    jest.spyOn(payoutMoneroService, 'isHealthy').mockResolvedValue(true);
 
     // The designation claim updates a single row; the signed-tx persist updates the whole group in one
     // statement and is the only caller passing an id ARRAY as criteria, which is what distinguishes them.
@@ -331,12 +335,143 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
     });
   });
 
+  // The wallet does not mark a signed transaction's inputs spent until commit_tx completes, so
+  // getUnlockedBalance keeps counting them. Building the next group against that balance would hand the
+  // same outputs out twice and leave two transactions racing for them — one of which is then rejected
+  // for good, with its orders stuck on metadata that can never relay.
+  describe('unrelayed signed tx blocks further building', () => {
+    function unlockedBalance(xmr: number) {
+      jest.spyOn(payoutMoneroService, 'getUnlockedBalance').mockResolvedValue(xmr);
+    }
+
+    it('stops the round after a relay failure instead of building the next group', async () => {
+      // Two groups: the balance admits one order at a time.
+      const orders = [
+        confirmedOrder({ id: 1, amount: 1, destinationAddress: 'DEST_1' }),
+        confirmedOrder({ id: 2, amount: 1, destinationAddress: 'DEST_2' }),
+      ];
+      unlockedBalance(1);
+      relayTransferSpy.mockRejectedValue(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
+
+      await strategy.doPayoutWrapper(orders);
+
+      // One build only. A second would be signed over inputs the first one still holds.
+      expect(buildTransferSpy).toHaveBeenCalledTimes(1);
+      expect(orders[1].signedPayoutTxId).toBeUndefined();
+      expect(orders[1].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    it('keeps building once a relay returns, because commit_tx has then run set_spent', async () => {
+      const orders = [
+        confirmedOrder({ id: 1, amount: 1, destinationAddress: 'DEST_1' }),
+        confirmedOrder({ id: 2, amount: 1, destinationAddress: 'DEST_2' }),
+      ];
+      unlockedBalance(1);
+
+      await strategy.doPayoutWrapper(orders);
+
+      expect(buildTransferSpy).toHaveBeenCalledTimes(2);
+      expect(orders.map((o) => o.status)).toEqual([PayoutOrderStatus.PAYOUT_PENDING, PayoutOrderStatus.PAYOUT_PENDING]);
+    });
+
+    // A lookup hit means the earlier relay reached the daemon but lost its response — and commit_tx
+    // throws on that response, before set_spent. The balance is still overstated.
+    it('stops the round after resolving a resumed tx by lookup', async () => {
+      const resumed = confirmedOrder({
+        id: 1,
+        signedPayoutTxId: SIGNED_TX_ID,
+        signedPayoutTxMetadata: SIGNED_METADATA,
+      });
+      const fresh = confirmedOrder({ id: 2, amount: 1, destinationAddress: 'DEST_2' });
+      isTxKnownSpy.mockResolvedValue(true);
+      unlockedBalance(100);
+
+      await strategy.doPayoutWrapper([resumed, fresh]);
+
+      expect(resumed.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(buildTransferSpy).not.toHaveBeenCalled();
+      expect(fresh.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    // Contexts of one run share a single wallet, so the latch has to span them.
+    it('does not build for a second context while the first context left a tx unrelayed', async () => {
+      const first = confirmedOrder({ id: 1, context: PayoutOrderContext.BUY_CRYPTO, destinationAddress: 'DEST_1' });
+      const second = confirmedOrder({ id: 2, context: PayoutOrderContext.REF_PAYOUT, destinationAddress: 'DEST_2' });
+      unlockedBalance(100);
+      relayTransferSpy.mockRejectedValue(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
+
+      await strategy.doPayoutWrapper([first, second]);
+
+      expect(buildTransferSpy).toHaveBeenCalledTimes(1);
+      expect(second.signedPayoutTxId).toBeUndefined();
+    });
+
+    // The latch must not survive the run: the next one re-reads the orders and resumes the transaction
+    // through the resume path, which is where it belongs.
+    it('clears the latch for the next run', async () => {
+      const order = confirmedOrder({ id: 1 });
+      unlockedBalance(100);
+      relayTransferSpy.mockRejectedValueOnce(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
+
+      await strategy.doPayoutWrapper([order]);
+      await strategy.doPayoutWrapper([confirmedOrder({ id: 2, destinationAddress: 'DEST_2' })]);
+
+      expect(buildTransferSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // The rebuild-vs-resume decision is made from the queried snapshot, which a concurrent run can
+  // invalidate before the claim lands — it can sign a transaction for the order, fail to relay it and
+  // roll it back to PREPARATION_CONFIRMED, all of which a status-only claim wins. Pinning the
+  // snapshot's view of the signed tx makes the row the authority.
+  describe('designation claim pins the signed tx', () => {
+    it('pins signedPayoutTxId IS NULL when the snapshot has no signed tx', async () => {
+      await strategy.sendWrapper(CONTEXT, [confirmedOrder({ id: 7 })]);
+
+      expect(repoUpdateSpy.mock.calls[0][0]).toEqual({
+        id: 7,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        signedPayoutTxId: IsNull(),
+      });
+    });
+
+    it('pins the exact signed tx id when resuming', async () => {
+      const order = confirmedOrder({
+        id: 7,
+        signedPayoutTxId: SIGNED_TX_ID,
+        signedPayoutTxMetadata: SIGNED_METADATA,
+      });
+
+      await strategy.sendWrapper(CONTEXT, [order]);
+
+      expect(repoUpdateSpy.mock.calls[0][0]).toEqual({
+        id: 7,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        signedPayoutTxId: SIGNED_TX_ID,
+      });
+    });
+
+    it('skips an order whose row gained a signed tx since the snapshot, rather than rebuilding it', async () => {
+      const staleOrder = confirmedOrder({ id: 7 });
+      repoUpdateSpy.mockResolvedValue({ affected: 0 } as any);
+
+      await strategy.sendWrapper(CONTEXT, [staleOrder]);
+
+      expect(buildTransferSpy).not.toHaveBeenCalled();
+      expect(relayTransferSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses the atomic dispatch path outright', () => {
     expect(() => strategy.dispatchPayoutWrapper()).toThrow('Monero payouts are broadcast via broadcastPayout');
   });
 });
 
 class MoneroStrategyWrapper extends MoneroStrategy {
+  doPayoutWrapper(orders: PayoutOrder[]): Promise<void> {
+    return this.doPayout(orders);
+  }
+
   sendWrapper(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     return this.send(context, orders);
   }

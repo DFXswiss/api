@@ -8,6 +8,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { PayoutOrder, PayoutOrderStatus } from '../../../../entities/payout-order.entity';
 import { PayoutBroadcastException } from '../../../../exceptions/payout-broadcast.exception';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
+import { FindOptionsWhere } from 'typeorm';
 import { PayoutStrategyRegistry } from './payout.strategy-registry';
 
 export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
@@ -56,10 +57,18 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   // therefore re-selectable by the next cron run: skipping it here is the self-healing direction,
   // while letting the error escape would run rollback/failure handling on an order this run does
   // not own and stale-overwrite a concurrent run's state.
-  protected async claimForBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
+  // `extraCriteria` pins additional columns the caller read BEFORE the claim and is about to make a
+  // decision on. Status alone does not cover that: an order a concurrent run rolled back is
+  // PREPARATION_CONFIRMED again, so the claim succeeds while the row has moved on underneath the
+  // caller's snapshot. Failing the claim instead leaves the order re-selectable with fresh data.
+  protected async claimForBroadcast(
+    order: PayoutOrder,
+    repo: PayoutOrderRepository,
+    extraCriteria: FindOptionsWhere<PayoutOrder> = {},
+  ): Promise<boolean> {
     try {
       const result = await repo.update(
-        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED, ...extraCriteria },
         { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
       );
       if (!result.affected) {

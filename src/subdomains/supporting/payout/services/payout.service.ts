@@ -158,9 +158,21 @@ export class PayoutService {
     // Restore the pre-broadcast retry budget: orders that escalated via the cap still carry
     // retryCount = maxPreBroadcastRetries; without this reset the first transient pre-broadcast
     // error on the manual retry would silently re-escalate to PayoutUncertain.
+    //
+    // Discarding a signed-but-unrelayed transaction (#4673) belongs to the same transition. The
+    // automatic path re-relays such a transaction, which is always safe — but one that can no longer
+    // be relayed at all would loop forever, since nothing else ever clears these columns. It is
+    // noBroadcastVerified that licenses the discard: the operator has confirmed signedPayoutTxId is
+    // absent from the chain, the same assertion every other chain's retry already rebuilds on, and
+    // now a lookup rather than an inference. The discarded id is logged below.
     const result = await this.payoutOrderRepo.update(
       { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-      { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
+      {
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        retryCount: 0,
+        signedPayoutTxId: null,
+        signedPayoutTxMetadata: null,
+      },
     );
     if (!result.affected) throw new ConflictException(`Payout order ${dto.id} changed state concurrently, not retried`);
 
@@ -168,7 +180,7 @@ export class PayoutService {
     // until the next broadcast attempt overwrites it; the retry BUDGET is restored above so a
     // verified manual retry tolerates transient pre-broadcast errors instead of re-escalating.
     this.logger.info(
-      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', reference: ${dto.verificationReference}`,
+      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', discarded signedPayoutTxId '${order.signedPayoutTxId}', reference: ${dto.verificationReference}`,
     );
   }
 

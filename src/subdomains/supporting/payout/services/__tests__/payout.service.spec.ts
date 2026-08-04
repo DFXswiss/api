@@ -133,9 +133,37 @@ describe('PayoutService', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(
         { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
+        {
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          retryCount: 0,
+          signedPayoutTxId: null,
+          signedPayoutTxMetadata: null,
+        },
       );
       expect(infoSpy).toHaveBeenCalled();
+    });
+
+    // #4673: the automatic path re-relays a signed-but-unrelayed transaction, which is always safe, so
+    // nothing else ever clears these columns — a transaction that can no longer be relayed at all would
+    // loop forever. noBroadcastVerified is the operator's assertion that the id is absent from the
+    // chain, and that is what licenses discarding it here. The discarded id goes into the audit log.
+    it('discards a verified-absent signed tx so the order can be rebuilt, and logs the discarded id', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+        retryCount: 3,
+        signedPayoutTxId: 'DEAD_XMR_TX',
+        signedPayoutTxMetadata: 'DEAD_META',
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      const infoSpy = jest.spyOn(service['logger'], 'info');
+
+      await service.retryUncertainPayout(accountId, baseDto);
+
+      expect(updateSpy.mock.calls[0][1]).toMatchObject({ signedPayoutTxId: null, signedPayoutTxMetadata: null });
+      expect(infoSpy.mock.calls[0][0]).toContain("discarded signedPayoutTxId 'DEAD_XMR_TX'");
     });
 
     it('throws ConflictException when the conditional update affects no rows (concurrent state change)', async () => {
