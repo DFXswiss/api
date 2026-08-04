@@ -19,7 +19,7 @@ import { AccountingModule } from '../../accounting.module';
 // cron to carry its own Process flag regardless.
 const LEDGER_PROCESSES = new Set<Process>(
   (Object.keys(Process) as (keyof typeof Process)[])
-    .filter((key) => key.startsWith('LEDGER'))
+    .filter((key) => key.startsWith('LEDGER_'))
     .map((key) => Process[key]),
 );
 
