@@ -92,33 +92,44 @@ per file.
 One site projects on its root and pulls a joined entity in whole (`query-builder (projected, full
 join)`). Its true width is neither the root entity nor the projection, and the chain is not
 reconstructed here — the number shown is the root entity's width, and it is a genuine lower bound.
-It is not alone in that: 24 further query-builder sites carry a `leftJoinAndSelect` without being
+It is not alone in that: 22 further query-builder sites carry a `leftJoinAndSelect` without being
 classified as one, which is part of what the next section is about.
 
 ## Two things it gets wrong, measured but not changed here
 
-Both predate this tool being committed, both would move numbers the documents already publish, and
-both are now fixable by anyone because the code is here. They are stated rather than fixed so the
-change stays what it says it is.
+Both predate this tool being committed, both would move numbers the two documents already publish,
+and both are now fixable by anyone because the code is here. They are stated rather than fixed so
+the change stays what it says it is. Every figure below comes from one run against `develop`, the
+same basis `render-docs.py` uses.
 
-**`exact` and `lower bound` are split on the wrong criterion.** `render-docs.py` calls a site exact
-when a `relations` tree is written at the call, and a lower bound otherwise. That reads correctly
-for the 324 `find` sites in the second group, whose tree can arrive as a parameter. It does not for
-the other 135: a query builder has no relations tree and none can arrive, and its width is either
-the number of names it lists or the root entity's own columns. Of those 135, **24 genuinely are
-lower bounds** — they carry a `leftJoinAndSelect`, which pulls a joined entity in whole — so the
-correct split is roughly 452 exact against 349 lower bounds, not 341 against 458. The prose
-sentence that explains the second group is false for 111 of the sites it counts.
+**`exact` and `lower bound` are split on the wrong criterion.** A site counts as exact when a
+`relations` tree is written at the call, and as a lower bound otherwise. That run measured 799
+sites: 340 exact, 459 lower bounds. The second group is 324 `find` sites, 132 query builders and 3
+raw statements. For the `find` sites the label is right — the tree can arrive as a parameter, and
+only the base query is visible. For the other 135 it is not: a query builder has no relations tree
+and none can arrive, and a raw statement lists its columns. Of those 135, **22 are lower bounds for
+a different reason** — they carry a `leftJoinAndSelect`, which pulls a joined entity in whole. So
+the split should read **453 exact against 346 lower bounds**, and the sentence explaining the
+second group is false for the 113 sites it wrongly counts.
 
 **The call graph keys symbols by class and method name alone.** 64 class names in this repository
 are declared more than once — `KycService` and `KycController` in the deprecated and the current
-generation, and 57 strategy classes that repeat a name once per family. Where two of them share a
-method name, their bodies, injected fields and load sites merge. Measured on this tree: **5 names
-collide** (`KycService.getUser` and `getFeeAsset` on four strategy families) and **none of the five
-contains a load site**, so the effect on the current inventory is nil. The direction is also the
-conservative one — merging can only add reachability, never remove it, which is why the whole-rows
-group is a lower bound and stated as such. It is still the wrong key, and a future collision on a
-method that does load would contaminate an unrelated endpoint silently.
+generation, and the strategy families that repeat a name once per blockchain. Two consequences,
+both measured:
+
+- Where two of them share a **method** name, their bodies and load sites merge. That happens for 5
+  names (`KycService.getUser`, and `getFeeAsset` on four strategy families), and **none of the five
+  contains a load site**, so the effect on the current inventory is nil.
+- Where two of them share an **injected field** name with different types, the later declaration
+  overwrites the earlier one and every merged body resolves through the survivor. That happens for
+  4 names — `BitcoinStrategy.bitcoinService` is `PayInBitcoinService` in one copy and
+  `PayoutBitcoinService` in another, and `FiroStrategy`, `SolanaStrategy` and `TronStrategy` are
+  the same shape. An edge through such a field can therefore resolve to the wrong service, which
+  **removes** a real path rather than adding a spurious one.
+
+That second case is the one that matters, because it is not conservative: a load site can go
+missing rather than be over-reported. It does not show up in the current inventory — none of the
+four collides on a method name — but the key is wrong, and the next collision would be silent.
 
 ## What this cannot check
 
