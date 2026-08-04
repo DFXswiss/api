@@ -248,14 +248,18 @@ function walkFiles(rootDir, predicate, extraExcludeDirs) {
   return results;
 }
 
+// Inverse of escapeHtml. The &amp; rule MUST come last: undoing it first would
+// turn an escaped "&lt;" (written as "&amp;lt;") into "&lt;" and then into "<",
+// double-unescaping text that was never a tag. Escaping runs &amp; first, so
+// unescaping runs it last.
 function decodeHtmlEntities(str) {
-  return str
-    .replace(/&amp;/g, '&')
+  return String(str)
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'");
+    .replace(/&#x27;/gi, "'")
+    .replace(/&amp;/g, '&');
 }
 
 // Matches any absolute URI scheme (http:, https:, mailto:, data:,
