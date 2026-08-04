@@ -70,21 +70,21 @@ export class BuyFiatPreparationService {
     // must never route an unscreened-because-off tx to manual review.
     if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return ScorechainOutcome.PASS;
 
-    // See the buy-crypto gate: a compliance-reviewed account (`scorechainCheckDate`) is not screened
-    // again, otherwise every further deposit from the same permanently tainted source repeats the
-    // identical manual review.
-    if (entity.userData?.scorechainCheckDate) {
-      this.logger.verbose(
-        `Skipping Scorechain screening for buy-fiat ${entity.id}: account ${entity.userData.id} reviewed on ${entity.userData.scorechainCheckDate.toISOString()}`,
-      );
-      return ScorechainOutcome.PASS;
-    }
-
     const blockchain = entity.cryptoInput?.asset.blockchain;
     const txHash = entity.cryptoInput?.inTxId;
     if (!txHash || !toScorechainBlockchain(blockchain)) return ScorechainOutcome.PASS;
 
     try {
+      // See the buy-crypto gate: a compliance-reviewed account (`scorechainCheckDate`) is not screened
+      // again, otherwise every further deposit from the same permanently tainted source repeats the
+      // identical manual review. Inside the try for the same reason as there.
+      if (entity.userData?.scorechainCheckDate) {
+        this.logger.info(
+          `Skipping Scorechain screening for buy-fiat ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
+        );
+        return ScorechainOutcome.PASS;
+      }
+
       const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
 
       // Persist a compliance report for every fresh (non-cached) screening tied to a customer.

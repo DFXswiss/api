@@ -80,6 +80,7 @@ export function toUserDataDetailDto(u: UserData): UserDataDetailDto {
     highRisk: u.highRisk,
     pep: u.pep,
     bankTransactionVerification: u.bankTransactionVerification,
+    scorechainCheckDate: u.scorechainCheckDate,
     olkypayAllowed: u.olkypayAllowed,
 
     paymentLinksAllowed: u.paymentLinksAllowed,
@@ -88,7 +89,6 @@ export function toUserDataDetailDto(u: UserData): UserDataDetailDto {
 
     phoneCallStatus: u.phoneCallStatus,
     phoneCallAccepted: u.phoneCallAccepted,
-    scorechainCheckDate: u.scorechainCheckDate,
     phoneCallCheckDate: u.phoneCallCheckDate,
     phoneCallExternalAccountCheckDate: u.phoneCallExternalAccountCheckDate,
     phoneCallExternalAccountCheckValues: u.phoneCallExternalAccountCheckValues,

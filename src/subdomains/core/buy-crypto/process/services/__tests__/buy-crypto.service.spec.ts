@@ -308,6 +308,24 @@ describe('BuyCryptoService', () => {
       expect(result).toBe(screening);
     });
 
+    // The account-level exemption (`scorechainCheckDate`) must never reach the manual re-trigger: an
+    // explicit re-screen is a request for a fresh provider verdict, and pushing the exemption down into
+    // the screening service later would silently disable exactly that.
+    it('still reaches the provider for a compliance-reviewed account', async () => {
+      const entity = {
+        id: 42,
+        outputAsset: { blockchain: Blockchain.ETHEREUM },
+        targetAddress: '0xabc',
+        userData: { id: 5, scorechainCheckDate: new Date('2026-08-04') },
+      } as unknown as BuyCrypto;
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      const screening = Object.assign(new ScorechainScreening(), { isNewlyScreened: false });
+      jest.spyOn(scorechainScreeningService, 'rescreenWithdrawalAddress').mockResolvedValue(screening);
+
+      await expect(service.retriggerScorechain(42)).resolves.toBe(screening);
+      expect(scorechainScreeningService.rescreenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
+    });
+
     it('throws NotFoundException when the buy-crypto does not exist', async () => {
       jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(null);
 

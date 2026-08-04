@@ -77,18 +77,6 @@ export class BuyCryptoPreparationService {
     // must never route an unscreened-because-off tx to manual review.
     if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return ScorechainOutcome.PASS;
 
-    // Compliance has reviewed this account's Scorechain findings with the customer and released them
-    // (`scorechainCheckDate`). The on-chain verdict never changes for a permanently tainted source, so
-    // without this every further payment would be routed to the same manual review again. Skips the
-    // billable provider call for both directions — deposit tx and withdrawal address. Deliberately NOT
-    // fail-closed on a missing userData: no account means no review, so the screening runs.
-    if (entity.userData?.scorechainCheckDate) {
-      this.logger.verbose(
-        `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed on ${entity.userData.scorechainCheckDate.toISOString()}`,
-      );
-      return ScorechainOutcome.PASS;
-    }
-
     const [blockchain, objectId, isDeposit] = entity.cryptoInput
       ? [entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId, true]
       : [entity.outputAsset.blockchain, entity.targetAddress, false];
@@ -96,6 +84,20 @@ export class BuyCryptoPreparationService {
     if (!objectId || !toScorechainBlockchain(blockchain)) return ScorechainOutcome.PASS;
 
     try {
+      // Compliance has reviewed this account's Scorechain findings with the customer and released them
+      // (`scorechainCheckDate`). The on-chain verdict never changes for a permanently tainted source, so
+      // without this every further payment would be routed to the same manual review again. Skips the
+      // billable provider call for both directions — deposit tx and withdrawal address. Deliberately NOT
+      // fail-closed on a missing userData: no account means no review, so the screening runs. Inside the
+      // try on purpose: like every other userData access here, a failure must become UNAVAILABLE (manual
+      // review), never an exception that leaves the transaction without any AML verdict.
+      if (entity.userData?.scorechainCheckDate) {
+        this.logger.info(
+          `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
+        );
+        return ScorechainOutcome.PASS;
+      }
+
       const screening = isDeposit
         ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
         : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);

@@ -538,6 +538,7 @@ export class UserDataDetailDto {
   highRisk?: boolean;
   pep?: boolean;
   bankTransactionVerification?: CheckStatus;
+  scorechainCheckDate?: Date;
   olkypayAllowed?: boolean;
 
   // PaymentLink Data
@@ -548,7 +549,6 @@ export class UserDataDetailDto {
   // PhoneCall
   phoneCallStatus?: PhoneCallStatus;
   phoneCallAccepted?: boolean;
-  scorechainCheckDate?: Date;
   phoneCallCheckDate?: Date;
   phoneCallExternalAccountCheckDate?: Date;
   phoneCallExternalAccountCheckValues?: string;

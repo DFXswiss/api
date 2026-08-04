@@ -197,6 +197,36 @@ describe('BuyCryptoPreparationService', () => {
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
+    // The two date columns sit next to each other on the entity, so reading the wrong one is the
+    // realistic copy-paste error — and it would exempt every account that ever had a phone check.
+    it('is not triggered by a phone-call check date', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue({ id: 42, scorechainCheckDate: null, phoneCallCheckDate: new Date('2026-08-04') } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
+    // No account means no review; the comment in the gate states this explicitly, so pin it rather
+    // than relying on the default fixture happening to have no userData.
+    it('screens a transaction without an account', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue(undefined as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
     // Without a date the account was never reviewed: the screening has to run, or the exemption would
     // silently cover every account.
     it('still screens an account without a review date', async () => {

@@ -902,11 +902,11 @@ export const KycCompletedStates = [KycStatus.COMPLETED];
 export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
 export const UserDataComplianceUpdateCols = [
   'kycStatus',
-  'scorechainCheckDate',
   'depositLimit',
   'amlAccountType',
   'complexOrgStructure',
   'highRisk',
+  'scorechainCheckDate',
   'phoneCallStatus',
   'phoneCallCheckDate',
   'phoneCallIpCheckDate',

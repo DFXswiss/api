@@ -270,6 +270,20 @@ describe('BuyFiatPreparationService', () => {
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
+    it('is not triggered by a phone-call check date', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue({ id: 42, scorechainCheckDate: null, phoneCallCheckDate: new Date('2026-08-04') } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
     it('still screens an account without a review date', async () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
