@@ -608,7 +608,7 @@ describe('BuyCryptoService', () => {
       );
       // The claim has to be the transaction's first write to buy_crypto. FiatOutput.buyCrypto is the
       // inverse side of the BuyCrypto.chargebackOutput one-to-one, so saving the output writes
-      // chargebackOutputId onto this very row -- doing that first defeats the claim's own
+      // chargebackOutputId onto this very row — doing that first defeats the claim's own
       // `chargebackOutput: IsNull()` condition and the bank chargeback fails with a bogus conflict.
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
