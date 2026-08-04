@@ -7,7 +7,7 @@ describe('WalletService', () => {
   let repo: jest.Mocked<Partial<WalletRepository>>;
 
   beforeEach(() => {
-    repo = { findOneCachedBy: jest.fn() };
+    repo = { findOneCachedBy: jest.fn(), findOneCached: jest.fn() };
 
     service = new WalletService(repo as unknown as WalletRepository);
   });
@@ -32,7 +32,41 @@ describe('WalletService', () => {
       // discards the result is indistinguishable from the guard's own `return undefined`.
       await expect(service.getByAddress('0xabc')).resolves.toBe(wallet);
 
-      expect(repo.findOneCachedBy).toHaveBeenCalledWith('0xabc', { address: '0xabc' });
+      expect(repo.findOneCachedBy).toHaveBeenCalledWith('address:0xabc', { address: '0xabc' });
+    });
+  });
+
+  describe('getByIdOrName', () => {
+    // The cache is keyed per repository, so an unnamespaced key shares a namespace with getDefault's
+    // 'default' and getKycClients' 'kycClients'. It also has to include the relations shape: without
+    // it a caller needing no relations and one needing `users` share an entry, and whichever asks
+    // first decides what the other gets — the second then dereferences a relation that is not there.
+    it('keys separately for the same wallet requested with different relations', async () => {
+      repo.findOneCached.mockResolvedValue(undefined);
+
+      await service.getByIdOrName(7);
+      await service.getByIdOrName(7, undefined, { users: true });
+
+      const [bare, withRelations] = repo.findOneCached.mock.calls.map((c) => c[0]);
+      expect(bare).not.toEqual(withRelations);
+    });
+
+    it('does not query when neither id nor name is supplied', async () => {
+      const wallet = await service.getByIdOrName();
+
+      expect(wallet).toBeUndefined();
+      expect(repo.findOneCached).not.toHaveBeenCalled();
+    });
+
+    it('still queries when an id is supplied', async () => {
+      repo.findOneCached.mockResolvedValue(undefined);
+
+      await service.getByIdOrName(7);
+
+      expect(repo.findOneCached).toHaveBeenCalledWith(
+        expect.stringContaining('idOrName:'),
+        expect.objectContaining({ where: [{ id: 7 }, { name: undefined }] }),
+      );
     });
   });
 });
