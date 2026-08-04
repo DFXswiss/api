@@ -95,6 +95,9 @@ describe('BuyCryptoRegistrationService', () => {
 
     await service.registerCryptoPayIn();
 
+    // asserted positively so the two negatives below cannot be satisfied by the body throwing:
+    // registerCryptoPayIn swallows every exception
+    expect(builder.getRawMany).toHaveBeenCalled();
     expect(swapRepo.find).not.toHaveBeenCalled();
     expect(buyCryptoService.createFromCryptoInput).not.toHaveBeenCalled();
   });
@@ -148,11 +151,12 @@ describe('BuyCryptoRegistrationService', () => {
 
     await service.registerCryptoPayIn();
 
+    expect(builder.getRawMany).toHaveBeenCalled();
     expect(swapRepo.find).not.toHaveBeenCalled();
     expect(buyCryptoService.createFromCryptoInput).not.toHaveBeenCalled();
   });
 
-  it('matches a later entry of a multi-chain deposit without matching on a prefix', async () => {
+  it('matches a later entry of a multi-chain deposit', async () => {
     payInService.getNewPayIns.mockResolvedValue([depositPayIn(1, 'addr-7', Blockchain.ARBITRUM)]);
     builder.getRawMany.mockResolvedValue([
       candidate(7, 'addr-7', `${Blockchain.ETHEREUM};${Blockchain.ARBITRUM};${Blockchain.BASE}`),
@@ -162,6 +166,20 @@ describe('BuyCryptoRegistrationService', () => {
     await service.registerCryptoPayIn();
 
     expect(routesPairedWith()).toEqual([[1, 7]]);
+  });
+
+  // The sell side matches chains with a plain substring test on the joined string. This case is the
+  // reason the buy side splits instead: 'BitcoinTestnet4'.includes('Bitcoin') is true, so a substring
+  // match would route a mainnet pay-in to a testnet deposit.
+  it('does not match a chain that is only a prefix of the deposit chain', async () => {
+    payInService.getNewPayIns.mockResolvedValue([depositPayIn(1, 'addr-7', Blockchain.BITCOIN)]);
+    builder.getRawMany.mockResolvedValue([candidate(7, 'addr-7', Blockchain.BITCOIN_TESTNET4)]);
+
+    await service.registerCryptoPayIn();
+
+    expect(builder.getRawMany).toHaveBeenCalled();
+    expect(swapRepo.find).not.toHaveBeenCalled();
+    expect(buyCryptoService.createFromCryptoInput).not.toHaveBeenCalled();
   });
 
   it('matches a payment pay-in by route id, which the projection must still carry', async () => {

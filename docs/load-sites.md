@@ -153,7 +153,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 450 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:642` | `SupportIssueService.getUserIssues` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:475` | `LedgerCutoverService.openBuyCryptoReceived` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:536` | `LedgerCutoverService.openBuyCryptoOwed` |
-| 449 | 13 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:25` | `BuyCryptoRegistrationService.syncReturnTxId` |
+| 449 | 13 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:32` | `BuyCryptoRegistrationService.syncReturnTxId` |
 | 444 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts:37` | `SupportIssueJobService.autoOnHold` |
 | 444 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts:117` | `SupportIssueJobService.getAutoResponseIssues` |
 | 441 | 15 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:504` | `SupportIssueService.createMessage` |
