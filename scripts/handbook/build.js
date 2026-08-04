@@ -285,10 +285,11 @@ function collectRelativeRefs(html) {
   // Only match real attribute names (after start-of-string, whitespace, or '<').
   // A word boundary alone also matches after '-' / ':', so data-src, xlink:href,
   // ng-src etc. would be treated as resources even though they are not browser-resolved.
-  const re = /(?:^|[\s<])(?:src|href)="([^"]+)"/g;
+  // Accept single- or double-quoted attribute values (inline HTML in Markdown).
+  const re = /(?:^|[\s<])(?:src|href)=("|')([^"']+)\1/g;
   let m;
   while ((m = re.exec(html)) !== null) {
-    const raw = m[1];
+    const raw = m[2];
     if (ABSOLUTE_SCHEME_RE.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
       continue;
     }
@@ -306,15 +307,67 @@ function collectRelativeRefs(html) {
   return refs;
 }
 
+// Resolve a cleaned relative ref from a markdown source path to a repo-root-relative
+// candidate (posix). Leading '/' is repo-root-relative. Shared by rewrite + integrity.
+function resolveDocRefCandidate(cleanedRef, sourcePath) {
+  const baseDir = path.posix.dirname(sourcePath);
+  // A leading '/' is repo-root-relative (common in Markdown). path.posix.join
+  // would otherwise append it under baseDir (e.g. docs/ + /package.json → docs/package.json).
+  return cleanedRef.startsWith('/')
+    ? path.posix.normalize(cleanedRef.slice(1))
+    : path.posix.normalize(path.posix.join(baseDir, cleanedRef));
+}
+
+// Rewrite href/src in rendered doc body so links to other handbook markdown
+// sources point at their .html output paths (relative to this page's output).
+// Fragment/query suffixes are preserved. Absolute URIs, protocol-relative, and
+// pure anchors are left untouched. bodyHtml for integrity stays unre-written.
+function rewriteDocBodyRefs(bodyHtml, sourcePath, outputPath, docSourceToOutput) {
+  const re = /((?:^|[\s<])(?:src|href)=)("|')([^"']+)\2/g;
+  return bodyHtml.replace(re, (match, prefix, quote, raw) => {
+    if (ABSOLUTE_SCHEME_RE.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
+      return match;
+    }
+    let suffixStart = -1;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] === '?' || raw[i] === '#') {
+        suffixStart = i;
+        break;
+      }
+    }
+    const cleanedRaw = suffixStart >= 0 ? raw.slice(0, suffixStart) : raw;
+    const suffix = suffixStart >= 0 ? raw.slice(suffixStart) : '';
+    if (!cleanedRaw) return match;
+
+    let cleaned = decodeHtmlEntities(cleanedRaw);
+    try {
+      cleaned = decodeURIComponent(cleaned);
+    } catch {
+      // Malformed percent-encoding — keep as-is (will not match a known doc).
+    }
+
+    const candidate = resolveDocRefCandidate(cleaned, sourcePath);
+    // Escapes are hard failures in the integrity check, not rewritten here.
+    if (candidate === '..' || candidate.startsWith('../')) return match;
+    if (!docSourceToOutput.has(candidate)) return match;
+
+    const targetOut = docSourceToOutput.get(candidate);
+    const rel = path.posix.relative(path.posix.dirname(outputPath), targetOut);
+    return prefix + quote + encodeHtmlPath(rel) + suffix + quote;
+  });
+}
+
 function checkDocPageReferences(doc, repoRoot, sourceToOutput) {
   const refs = collectRelativeRefs(doc.bodyHtml);
-  const baseDir = path.posix.dirname(doc.sourcePath);
   for (const ref of refs) {
-    // A leading '/' is repo-root-relative (common in Markdown). path.posix.join
-    // would otherwise append it under baseDir (e.g. docs/ + /package.json → docs/package.json).
-    const candidate = ref.startsWith('/')
-      ? path.posix.normalize(ref.slice(1))
-      : path.posix.normalize(path.posix.join(baseDir, ref));
+    const candidate = resolveDocRefCandidate(ref, doc.sourcePath);
+    // path.posix.normalize does not strip a leading ".." — clamp escapes so a
+    // link like /../outside never checks (or warns about) a path outside the repo.
+    if (candidate === '..' || candidate.startsWith('../')) {
+      fail(
+        `handbook integrity check failed (${doc.sourcePath}): reference escapes the repo root: ${ref} (resolved: ${candidate})`,
+      );
+    }
     if (sourceToOutput.has(candidate)) continue; // known handbook artifact (incl. other docs)
     if (fs.existsSync(path.join(repoRoot, candidate))) {
       console.error(
@@ -469,9 +522,19 @@ function main() {
     });
   }
   // Duplicate 00_index.html as index.html for directory listing entry.
+  // Register as artifact only when the source exists so the manifest check
+  // covers the copy; the index link is emitted under the same condition.
   const index00 = path.join(mailSrcDir, '00_index.html');
+  let hasMailIndex = false;
   if (fs.existsSync(index00)) {
     copyFile(index00, path.join(outDir, 'mails', 'index.html'));
+    hasMailIndex = true;
+    artifacts.push({
+      category: 'mails',
+      outputPath: 'mails/index.html',
+      sourcePath: path.posix.join('scripts/email-previews/realunit', '00_index.html'),
+      title: 'mails/index.html',
+    });
   }
   if (mailEntries.length < MIN_MAILS) {
     fail(
@@ -554,6 +617,13 @@ function main() {
     return true;
   });
 
+  // Source path → handbook output path for markdown docs only. Built before the
+  // render loop so .md→.html href rewrites do not need the later full artifact map.
+  const docSourceToOutput = new Map();
+  for (const rel of mdFiltered) {
+    docSourceToOutput.set(rel, docOutputPath(rel));
+  }
+
   const docEntries = [];
   for (const rel of mdFiltered) {
     const src = path.join(repoRoot, rel);
@@ -565,12 +635,15 @@ function main() {
     let body = markedParse(md);
     if (typeof body !== 'string') body = String(body);
     body = wrapTablesInScrollContainer(body);
+    // Integrity check uses unre-written body (source-path resolution).
+    // Emitted page gets .md handbook links rewritten to relative .html outputs.
+    const bodyForPage = rewriteDocBodyRefs(body, rel, outRel, docSourceToOutput);
     const page =
       '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
       `<title>${escapeHtml(title)} — DFX API Handbook</title>\n` +
       `<style>${MD_PAGE_STYLE}</style>\n</head>\n<body>\n` +
-      body +
+      bodyForPage +
       '\n</body>\n</html>\n';
     const dest = path.join(outDir, outRel);
     ensureDir(path.dirname(dest));
@@ -1215,10 +1288,12 @@ function main() {
         `</div>`;
     }
     cards += '</div>';
-    cards +=
-      `<p class="regen" style="margin-top:16px">Index: ` +
-      `<a href="mails/index.html">mails/index.html</a> ` +
-      `(Kopie von <code>00_index.html</code>)</p>`;
+    if (hasMailIndex) {
+      cards +=
+        `<p class="regen" style="margin-top:16px">Index: ` +
+        `<a href="mails/index.html">mails/index.html</a> ` +
+        `(Kopie von <code>00_index.html</code>)</p>`;
+    }
     pushSection(
       'mails',
       catMeta.titel || 'Mail-Vorschauen',
