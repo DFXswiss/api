@@ -36,13 +36,25 @@ import { TransactionRequestType } from 'src/subdomains/supporting/payment/entiti
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyPaymentInfoDto, PersonalIbanProvider } from './dto/get-buy-payment-info.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
+
+// Single relation set for the whole payment-info request, loaded once and passed down. Both halves of
+// the request used to load the user separately with different relations, which is how `user.wallet`
+// went missing in createBuyPaymentInfo (buyCheck reads it) while toPaymentInfoDto had it.
+//   - userData.organization: `UserData.address` reads organization.street/country for ORGANIZATION and
+//     SOLE_PROPRIETORSHIP accounts. TypeORM joins the eager relations of a requested relation one level
+//     only, so organization.country is joined only when organization is requested explicitly.
+//   - wallet: read as user.wallet (not userData.wallet) by buyCheck and getTxDetails.
+const PAYMENT_INFO_USER_RELATIONS: FindOptionsRelations<User> = {
+  userData: { organization: true },
+  wallet: true,
+};
 
 @Injectable()
 export class BuyService {
@@ -144,7 +156,7 @@ export class BuyService {
   }
 
   async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    const user = await this.userService.getUser(jwt.user, PAYMENT_INFO_USER_RELATIONS);
     if (dto.personalIbanProvider === PersonalIbanProvider.FRICK && dto.paymentMethod !== FiatPaymentMethod.BANK) {
       throw new BadRequestException(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
     }
@@ -157,7 +169,7 @@ export class BuyService {
       (e) => e.message?.includes('duplicate key'),
     );
 
-    return this.toPaymentInfoDto(jwt.user, buy, dto);
+    return this.toPaymentInfoDto(jwt.user, buy, dto, user);
   }
 
   async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
@@ -270,11 +282,21 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, {
-      userData: { users: true, organization: true },
-      wallet: true,
-    });
+  /**
+   * @param preloadedUser the user for `userId`, saving a second load. Must be loaded with the relations
+   * `{ userData: { organization: true }, wallet: true }` — `getTxErrors` dereferences `user.wallet`
+   * without optional chaining, so a differently-loaded user fails at runtime rather than degrading.
+   */
+  async toPaymentInfoDto(
+    userId: number,
+    buy: Buy,
+    dto: GetBuyPaymentInfoDto,
+    preloadedUser?: User,
+  ): Promise<BuyPaymentInfoDto> {
+    // the request is attributed to userId further down, so a mismatch would book it against another account
+    if (preloadedUser && preloadedUser.id !== userId) throw new Error('Preloaded user does not match userId');
+
+    const user = preloadedUser ?? (await this.userService.getUser(userId, PAYMENT_INFO_USER_RELATIONS));
 
     // Explicit personal-IBAN selector dispatch is exhaustive and fail-closed. Frick resolves the
     // deposit destination before fee calculation so bankInOverride can pass the Frick bank name
@@ -330,6 +352,7 @@ export class BuyService {
       feeSource,
       feeTarget,
       priceSteps,
+      activeVirtualIban,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -357,6 +380,8 @@ export class BuyService {
         buy,
         dto.asset,
         user.wallet,
+        undefined,
+        activeVirtualIban,
       );
     }
 
@@ -479,6 +504,7 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
     personalIbanProvider?: PersonalIbanProvider,
+    activeVirtualIban?: VirtualIban,
   ): Promise<{
     bankInfo: BankInfoDto & { isPersonalIban: boolean; reference?: string };
     bankId: number;
@@ -565,11 +591,19 @@ export class BuyService {
       }
     }
 
-    // user-level vIBAN
-    let virtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(
-      selector.userData,
-      selector.currency,
-    );
+    // user-level vIBAN — reuse the caller's lookup only when it actually found one. A negative result is
+    // deliberately NOT reused: it is up to a full getTxDetails (pricing, fees, limits) old by now, and the
+    // branch below issues an IBAN. A vIBAN issued concurrently in that window would be missed here. On the
+    // non-EUR path that is a real misroute: createForUser throws ConflictException,
+    // infrastructureFailureOrRethrow swallows it (it rethrows only BadRequestException), and the request
+    // degrades to the shared collection account — a customer who does hold a personal IBAN is shown the
+    // collection one, and an ERROR is logged for a provider outage that never happened. EUR is covered by
+    // getOrCreateFrickForUser, which returns the existing vIBAN under its issuance lock instead of
+    // throwing. Re-reading costs one SELECT on a path that is about to make an external issuance call
+    // anyway, and it keeps the two currencies from behaving differently here.
+    let virtualIban =
+      activeVirtualIban ??
+      (await this.virtualIbanService.getActiveReceivingForUserAndCurrency(selector.userData, selector.currency));
 
     // create a personal IBAN for an eligible KYC 50+ user
     if (

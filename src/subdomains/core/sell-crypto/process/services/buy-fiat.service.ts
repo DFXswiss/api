@@ -1,5 +1,4 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
@@ -46,7 +45,6 @@ import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from '../../../aml/services/transaction-aml-check.service';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
-import { PaymentStatus } from '../../../history/dto/history.dto';
 import { CryptoInputRefund, RefundInternalDto } from '../../../history/dto/refund-internal.dto';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../../route/dto/sell-history.dto';
@@ -55,6 +53,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatHistoryMapper } from 'src/subdomains/core/sell-crypto/process/dto/buy-fiat-history.mapper';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
@@ -631,14 +630,9 @@ export class BuyFiatService implements OnModuleInit {
   }
 
   async getSellHistory(userId: number, sellId?: number): Promise<SellHistoryDto[]> {
-    const where = Util.removeNullFields({ user: { id: userId }, id: sellId });
-
     return this.buyFiatRepo
-      .find({
-        where: { sell: where },
-        relations: { sell: { user: true }, cryptoInput: true, fiatOutput: true },
-      })
-      .then((buyFiats) => buyFiats.map(this.toHistoryDto));
+      .findSellHistory(userId, sellId)
+      .then((buyFiats) => buyFiats.map(BuyFiatHistoryMapper.toDto));
   }
 
   async getPendingTransactions(): Promise<BuyFiat[]> {
@@ -663,21 +657,6 @@ export class BuyFiatService implements OnModuleInit {
     }
 
     return request;
-  }
-
-  private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
-    return {
-      inputAmount: buyFiat.inputAmount,
-      inputAsset: buyFiat.inputAsset,
-      outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAsset.name,
-      txId: buyFiat.cryptoInput.inTxId,
-      txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
-      date: buyFiat.fiatOutput?.outputDate,
-      amlCheck: buyFiat.amlCheck,
-      isComplete: buyFiat.isComplete,
-      status: buyFiat.isComplete ? PaymentStatus.COMPLETE : PaymentStatus.PENDING,
-    };
   }
 
   private async getSell(sellId: number): Promise<Sell> {

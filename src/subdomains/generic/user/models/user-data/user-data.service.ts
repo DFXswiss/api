@@ -1090,7 +1090,7 @@ export class UserDataService {
 
   // --- API KEY --- //
   async createApiKey(userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    const userData = await this.userDataRepo.getForApiKey(userDataId);
     if (!userData) throw new BadRequestException('User not found');
     if (userData.apiKeyCT) throw new ConflictException('API key already exists');
 

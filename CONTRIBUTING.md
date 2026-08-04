@@ -33,6 +33,10 @@ Every PR must include:
 
 Missing any of these = changes requested.
 
+Routes carry a sixth obligation: any change to the set of endpoints — added, removed, renamed or
+re-scoped — must be reflected in [docs/endpoints.md](docs/endpoints.md) in the same PR, together
+with the `Tests` state of anything converted. See *Endpoint Inventory* below.
+
 ### Before Merge
 
 - Fix all linter errors and warnings (never disable lint rules without justification)
@@ -510,6 +514,32 @@ export class SupportIssueController {
 
 - Status 200 for GET (not 201)
 - Plain string responses are annoying — return JSON objects
+
+### Endpoint Inventory
+
+[docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
+
+Two details are easy to get wrong when editing the list by hand:
+
+- a file may declare more than one `@Controller` class, and a route belongs to the scope that **precedes** it, not to the first one in the file — `custody.controller.ts` declares both `custody` and `custody/admin`
+- `@Controller()` without an argument puts its routes at the root, not under a prefix
+- a route's version comes from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default — six paths exist twice under different versions, so method and path alone do not identify a row
+
+To verify a change, compare against the routes the framework logs at startup: every `Mapped {<path>, <METHOD>}` line is one registered route. If a route you added does not appear there, it is not reachable — two routing decorators on the same handler, for instance, keep only one path.
+
+[docs/load-sites.md](docs/load-sites.md) is the companion inventory: every place in the code that reads from the database, with the mechanism and the measured column count. It is generated, not hand-maintained, but the rule it documents is worth knowing before writing a query:
+
+- the `find` family applies eager relations and expands them recursively — a plain `findOne()` on `UserData` already selects 253 columns across 8 joins
+- `createQueryBuilder` does not, but still loads every column of the root entity unless the select list narrows it — a bare identifier is the entity alias and narrows nothing, a qualified column or an expression does
+- `.select('alias')` is **not** a projection — the argument is the entity alias, not a field list
+- a query builder carrying `.update()`, `.delete()` or `.insert()` is a write statement and loads nothing — the same goes for a raw `SELECT pg_advisory_xact_lock(...)`, which returns no rows; neither is part of that inventory
+
+The target state is that every read path selects the fields it needs and nothing more — a field a guard, a branch or a column-scoped write reads without returning it belongs in the projection too. Two rules apply while we get there, and both are checked in review:
+
+- **A read path is converted only when its tests reach `4/4`** against the four levels in [docs/read-path-projections.md](docs/read-path-projections.md). A projection that drops a field does not crash — it answers 200 with a wrong value. Converting without the tests trades a slow query for a silent defect.
+- **Record the state in the `Tests` column of [docs/endpoints.md](docs/endpoints.md) in the same PR that changes the code.** An unrecorded conversion is treated as untested.
+
+See [docs/read-path-projections.md](docs/read-path-projections.md) for the reasoning, the criteria for converting an endpoint, and what each of the four levels asserts.
 
 ### Cron Jobs
 

@@ -264,10 +264,7 @@ export class UserService {
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
-    const userData = await this.userDataRepo.findOne({
-      where: { id: userDataId },
-      relations: { users: { wallet: true } },
-    });
+    const userData = await this.userDataRepo.getUserV2(userDataId);
     if (!userData) throw new NotFoundException('User not found');
     if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
@@ -317,10 +314,7 @@ export class UserService {
   }
 
   async getUserProfile(userDataId: number): Promise<UserProfileDto> {
-    const userData = await this.userDataRepo.findOne({
-      where: { id: userDataId },
-      relations: { organization: true },
-    });
+    const userData = await this.userDataRepo.getProfile(userDataId);
     if (!userData) throw new NotFoundException('User not found');
     if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 

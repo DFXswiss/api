@@ -97,7 +97,10 @@ export class LedgerDtoMapper {
     const { leg } = row;
     return {
       legId: leg.id,
-      txId: leg.txId,
+      // Read off the joined transaction rather than through the `@RelationId`: that property is
+      // filled from the foreign-key column of the leg row, which a query selecting named fields does
+      // not carry. Every other value here already comes from `leg.tx`, and it is the same number.
+      txId: leg.tx?.id,
       bookingDate: row.bookingDate.toISOString(),
       description: leg.tx?.description,
       sourceType: leg.tx?.sourceType,

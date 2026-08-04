@@ -132,8 +132,53 @@ describe('Query Builder Alias Enforcement', () => {
   /**
    * Extract all aliases defined in a query chain (main alias + joins + subqueries)
    */
-  const extractAllAliases = (queryChain: string, mainAlias: string): Set<string> => {
-    const aliases = new Set<string>([mainAlias]);
+  /**
+   * Aliases declared by a `ReadProjection` constant rather than in the chain.
+   *
+   * `PROJECTION.apply(this.createQueryBuilder('x'))` applies its joins from the constant, so the
+   * aliases they introduce never appear in the chain the scan sees. Without this the chain's own
+   * `where('joinedAlias.id = :id')` looks like a bare column reference — the opposite of what this
+   * test is for.
+   */
+  const extractProjectionAliases = (fileContent: string, queryChain: string): Set<string> => {
+    const aliases = new Set<string>();
+
+    // Only the projection this chain applies. Taking every projection in the file would let a query
+    // reference an alias declared by a different one - the file often holds several - and the check
+    // would pass on a query that never joined it.
+    const applied = new Set<string>();
+    const applyPattern = /\b([A-Z][A-Z0-9_]*)\s*\.\s*apply\s*\(/g;
+    let applyMatch;
+    while ((applyMatch = applyPattern.exec(queryChain)) !== null) applied.add(applyMatch[1]);
+    if (!applied.size) return aliases;
+
+    // The root alias, then every `['relation.path', 'alias']` pair up to the end of the declaration.
+    // Reading the join array with a lazy match would stop at the first inner `]` and pick up only
+    // one of the joins.
+    const projectionPattern = /export const ([A-Z][A-Z0-9_]*) = new ReadProjection<[^>]*>\(\s*['"`](\w+)['"`]/g;
+    let match;
+    while ((match = projectionPattern.exec(fileContent)) !== null) {
+      if (!applied.has(match[1])) continue;
+      aliases.add(match[2]);
+      const end = fileContent.indexOf('\n);', match.index);
+      const declaration = fileContent.slice(match.index, end < 0 ? undefined : end);
+      // The third element is the optional join kind. Without it in the pattern a projection that
+      // declares an inner join contributes no alias at all, and every reference to it is reported
+      // as a bare column.
+      const joinPattern = /\[\s*['"`][^'"`]+\.[^'"`]+['"`]\s*,\s*['"`](\w+)['"`]\s*(?:,\s*['"`]\w+['"`]\s*)?\]/g;
+      let joinMatch;
+      while ((joinMatch = joinPattern.exec(declaration)) !== null) aliases.add(joinMatch[1]);
+    }
+    return aliases;
+  };
+
+  const extractAllAliases = (
+    queryChain: string,
+    mainAlias: string,
+    fileContent = '',
+    applyContext = '',
+  ): Set<string> => {
+    const aliases = new Set<string>([mainAlias, ...extractProjectionAliases(fileContent, applyContext + queryChain)]);
 
     // Find join aliases: .leftJoin('relation', 'alias') or .innerJoin('relation', 'alias')
     // This handles both relation joins and entity joins
@@ -210,7 +255,10 @@ describe('Query Builder Alias Enforcement', () => {
 
       // Get all valid aliases (main + joins + subqueries)
       // Also include all query aliases from the file for correlated subquery support
-      const validAliases = extractAllAliases(queryChain, mainAlias);
+      // `PROJECTION.apply(this.createQueryBuilder('x'), fields)` wraps the builder, so the constant
+      // stands before the chain rather than inside it. The preceding text is passed along for that.
+      const applyContext = content.slice(Math.max(0, chainStartIndex - 200), chainStartIndex);
+      const validAliases = extractAllAliases(queryChain, mainAlias, content, applyContext);
       for (const alias of allQueryAliases) {
         validAliases.add(alias);
       }
@@ -491,6 +539,64 @@ describe('Query Builder Alias Enforcement', () => {
         WHERE s2.name = :approvalName
       )`;
       expect(findInvalidReferenceWithAliases(sql, validAliases)).toBeNull();
+    });
+  });
+
+  describe('projection aliases', () => {
+    // A repository file usually declares several projections. Their aliases are not
+    // interchangeable: a query applying one of them has joined only that one's relations.
+    const twoProjections = `
+export const FIRST_PROJECTION = new ReadProjection<Thing>(
+  'thing',
+  [['thing.owner', 'firstOwner']],
+  ['thing.id'],
+);
+
+export const SECOND_PROJECTION = new ReadProjection<Thing>(
+  'thing',
+  [['thing.other', 'secondOther']],
+  ['thing.id'],
+);
+
+export const THIRD_PROJECTION = new ReadProjection<Thing>(
+  'thing',
+  [
+    ['thing.inner', 'innerJoined', 'inner'],
+    ['thing.left', 'leftJoined'],
+  ],
+  ['thing.id'],
+);
+`;
+
+    it('accepts an alias declared by the projection the query applies', () => {
+      const chain = `FIRST_PROJECTION.apply(this.createQueryBuilder('thing')).where('firstOwner.id = :id', { id })`;
+
+      expect(extractAllAliases(chain, 'thing', twoProjections).has('firstOwner')).toBe(true);
+    });
+
+    it('rejects an alias declared by a different projection in the same file', () => {
+      const chain = `FIRST_PROJECTION.apply(this.createQueryBuilder('thing')).where('secondOther.id = :id', { id })`;
+
+      // Without this the query would pass the scan while referencing a relation it never joined.
+      expect(extractAllAliases(chain, 'thing', twoProjections).has('secondOther')).toBe(false);
+    });
+
+    it('takes the aliases of a projection declaring a join kind', () => {
+      // A join carrying `'inner'` is a three-element tuple. Read with a two-element pattern it
+      // matches nothing, and the scan then rejects every reference to the relation it joined.
+      const chain = `THIRD_PROJECTION.apply(this.createQueryBuilder('thing')).where('innerJoined.id = :id', { id })`;
+
+      const aliases = extractAllAliases(chain, 'thing', twoProjections);
+
+      expect(aliases.has('innerJoined')).toBe(true);
+      // The plain join beside it still resolves — the optional element must not swallow the pair.
+      expect(aliases.has('leftJoined')).toBe(true);
+    });
+
+    it('takes no projection aliases at all when the chain applies none', () => {
+      const chain = `this.createQueryBuilder('thing').where('thing.id = :id', { id })`;
+
+      expect(extractAllAliases(chain, 'thing', twoProjections)).toEqual(new Set(['thing']));
     });
   });
 
