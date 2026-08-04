@@ -713,7 +713,7 @@ describe('BuyCryptoPreparationService', () => {
       });
     }
 
-    it('claims the matched bank TX and types it as BuyCryptoReturn', async () => {
+    it('claims the matched bank TX, completes the entity and types it as BuyCryptoReturn', async () => {
       const entity = createFailedEntity();
       jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
       jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(chargebackBankTx);
@@ -733,17 +733,25 @@ describe('BuyCryptoPreparationService', () => {
           id: entity.id,
           amlCheck: CheckStatus.FAIL,
           isComplete: false,
+          batch: IsNull(),
+          outputAmount: IsNull(),
           chargebackOutput: IsNull(),
           chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
           chargebackDate: IsNull(),
           chargebackCryptoTxId: IsNull(),
           chargebackBankTx: IsNull(),
         }),
         expect.objectContaining({
-          chargebackBankTx: { id: chargebackBankTx.id },
+          chargebackBankTx: chargebackBankTx,
           chargebackDate: chargebackBankTx.created,
+          chargebackAllowedDate: chargebackBankTx.created,
           chargebackAmount: incomingBankTx.amount,
+          chargebackAsset: chargebackBankTx.currency,
           chargebackIban: chargebackBankTx.iban,
+          mailSendDate: null,
+          isComplete: true,
+          status: BuyCryptoStatus.COMPLETE,
         }),
       );
       expect(bankTxService.updateInternal).toHaveBeenCalledWith(
@@ -751,6 +759,42 @@ describe('BuyCryptoPreparationService', () => {
         { type: BankTxType.BUY_CRYPTO_RETURN },
         entity.transaction.user,
       );
+      expect(buyCryptoWebhookService.triggerWebhook).toHaveBeenCalledWith(
+        expect.objectContaining({ id: entity.id, isComplete: true, status: BuyCryptoStatus.COMPLETE }),
+      );
+    });
+
+    it('matches on the deposit amount when a prepared chargeback amount is denominated in another currency', async () => {
+      const entity = createFailedEntity();
+      entity.chargebackAmount = 90;
+      entity.chargebackAsset = 'CHF';
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(undefined);
+
+      await service.matchExternalChargebacks();
+
+      expect(bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: incomingBankTx.amount }),
+      );
+    });
+
+    it('claims nothing when one bank TX fits several failed buy-cryptos', async () => {
+      const first = createFailedEntity();
+      const second = createCustomBuyCrypto({
+        id: 9,
+        amlCheck: CheckStatus.FAIL,
+        bankTx: incomingBankTx,
+        chargebackAmount: null,
+        transaction: { user: { id: 13 } } as never,
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([first, second]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(chargebackBankTx);
+      const update = jest.spyOn(buyCryptoRepo, 'update');
+
+      await service.matchExternalChargebacks();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
     });
 
     it('never types the bank TX when the claim is lost to a concurrent chargeback', async () => {
@@ -762,6 +806,7 @@ describe('BuyCryptoPreparationService', () => {
       await service.matchExternalChargebacks();
 
       expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+      expect(buyCryptoWebhookService.triggerWebhook).not.toHaveBeenCalled();
     });
 
     it('does nothing without a unique bank TX match', async () => {

@@ -23,7 +23,11 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { BankTxType, BankTxUnassignedTypes } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  BankTx,
+  BankTxType,
+  BankTxUnassignedTypes,
+} from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -753,6 +757,10 @@ export class BuyCryptoPreparationService {
       chargebackAllowedDate: IsNull(),
       chargebackAllowedDateUser: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
+      // a refund that already left the bank (externally executed and matched, or linked manually)
+      // must never be paid again by the automatic promotion
+      chargebackDate: IsNull(),
+      chargebackBankTx: IsNull(),
       isComplete: false,
       transaction: {
         userData: {
@@ -852,16 +860,20 @@ export class BuyCryptoPreparationService {
   // and can never be paid a second time. Claim-first: the chargeback marks are written via a guarded
   // UPDATE (all chargeback fields still NULL) before the bank TX is typed - a concurrent manual
   // chargeback loses exactly one of the two races, never both. The DB-side backstop is the UNIQUE
-  // constraint on buy_crypto.chargebackBankTxId.
+  // constraint on buy_crypto.chargebackBankTxId. The claim completes the entity like the regular
+  // chargebackFillUp (isComplete/COMPLETE + webhook + chargeback mail): the ledger opens
+  // buyCrypto-owed on completion and closes it on the BuyCryptoReturn typing of the DBIT - one
+  // without the other leaves owed permanently open.
   async matchExternalChargebacks(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       amlCheck: CheckStatus.FAIL,
       isComplete: false,
       batch: IsNull(),
       outputAmount: IsNull(),
+      // the ledger consumers anchor both owed legs on amountInChf and fail loud without it
+      amountInChf: Not(IsNull()),
       chargebackOutput: IsNull(),
       chargebackAllowedDate: IsNull(),
-      chargebackAllowedDateUser: IsNull(),
       chargebackDate: IsNull(),
       chargebackCryptoTxId: IsNull(),
       chargebackBankTx: IsNull(),
@@ -869,38 +881,83 @@ export class BuyCryptoPreparationService {
     };
     const entities = await this.buyCryptoRepo.find({
       where: { ...request, bankTx: { id: Not(IsNull()) } },
-      relations: { bankTx: true, transaction: { user: { userData: true } } },
+      relations: {
+        bankTx: true,
+        cryptoInput: true,
+        checkoutTx: true,
+        chargebackOutput: true,
+        transaction: { user: { wallet: true, userData: true }, userData: true },
+      },
     });
 
+    // collect first, claim second: an IBAN-less DBIT that fits several candidates (same amount from
+    // two customers) must not be claimed first-come-first-served
+    const matched: { entity: BuyCrypto; chargebackTx: BankTx; matchAmount: number }[] = [];
     for (const entity of entities) {
       try {
+        // the bank refunds the deposit, so match its amount; a prepared chargebackAmount only
+        // overrides it when denominated in the deposit currency
+        const matchAmount =
+          entity.chargebackAsset && entity.chargebackAsset !== entity.bankTx.currency
+            ? entity.bankTx.amount
+            : (entity.chargebackAmount ?? entity.bankTx.amount);
         const chargebackTx = await this.bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx({
           counterpartyIban: entity.bankTx.iban,
           accountIban: entity.bankTx.accountIban,
-          amount: entity.chargebackAmount ?? entity.bankTx.amount,
+          amount: matchAmount,
           currency: entity.bankTx.currency,
           earliestDate: entity.bankTx.created,
         });
-        if (!chargebackTx) continue;
+        if (chargebackTx) matched.push({ entity, chargebackTx, matchAmount });
+      } catch (e) {
+        this.logger.error(`Failed to match external chargeback for buy-crypto ${entity.id}:`, e);
+      }
+    }
 
+    const matchCounts = new Map<number, number>();
+    for (const { chargebackTx } of matched) {
+      matchCounts.set(chargebackTx.id, (matchCounts.get(chargebackTx.id) ?? 0) + 1);
+    }
+
+    for (const { entity, chargebackTx, matchAmount } of matched) {
+      if (matchCounts.get(chargebackTx.id) > 1) {
+        this.logger.verbose(
+          `Skipping ambiguous external chargeback bank TX ${chargebackTx.id} (fits multiple failed buy-cryptos)`,
+        );
+        continue;
+      }
+
+      try {
+        const update: Partial<BuyCrypto> = {
+          chargebackBankTx: chargebackTx,
+          chargebackDate: chargebackTx.created,
+          chargebackAllowedDate: chargebackTx.created,
+          chargebackAllowedBy: 'API (bank TX match)',
+          chargebackAmount: matchAmount,
+          chargebackAsset: chargebackTx.currency,
+          chargebackIban: chargebackTx.iban ?? entity.bankTx.iban,
+          chargebackRemittanceInfo: chargebackTx.remittanceInfo?.substring(0, 256),
+          // mail + completion mirror the regular chargeback path (chargebackInitiated mail keys on
+          // chargebackAllowedDate + mailSendDate)
+          mailSendDate: null,
+          isComplete: true,
+          status: BuyCryptoStatus.COMPLETE,
+        };
         const claim = await this.buyCryptoRepo.update(
           {
             id: entity.id,
             amlCheck: CheckStatus.FAIL,
             isComplete: false,
+            batch: IsNull(),
+            outputAmount: IsNull(),
             chargebackOutput: IsNull(),
             chargebackAllowedDate: IsNull(),
+            chargebackAllowedDateUser: entity.chargebackAllowedDateUser ?? IsNull(),
             chargebackDate: IsNull(),
             chargebackCryptoTxId: IsNull(),
             chargebackBankTx: IsNull(),
           },
-          {
-            chargebackBankTx: { id: chargebackTx.id },
-            chargebackDate: chargebackTx.created,
-            chargebackAmount: entity.chargebackAmount ?? entity.bankTx.amount,
-            chargebackIban: chargebackTx.iban,
-            chargebackAllowedBy: 'API (bank TX match)',
-          },
+          update,
         );
         if (claim.affected !== 1) continue;
 
@@ -910,6 +967,8 @@ export class BuyCryptoPreparationService {
           entity.transaction?.user,
         );
         this.logger.info(`Matched external chargeback bank TX ${chargebackTx.id} to buy-crypto ${entity.id}`);
+
+        await this.buyCryptoWebhookService.triggerWebhook(Object.assign(entity, update));
       } catch (e) {
         this.logger.error(`Failed to match external chargeback for buy-crypto ${entity.id}:`, e);
       }

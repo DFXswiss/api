@@ -185,17 +185,22 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
     expect(bankTxRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  it('constrains matches to unassigned debits on counterparty, account, currency, net amount and date', async () => {
-    const bankTx = createCustomBankTx({ id: 208278 });
+  function bracketCalls(brackets: Brackets): { where: jest.Mock; orWhere: jest.Mock } {
+    const spy = { where: jest.fn(), orWhere: jest.fn() };
+    spy.where.mockReturnValue(spy);
+    spy.orWhere.mockReturnValue(spy);
+    brackets.whereFactory(spy as never);
+    return spy;
+  }
+
+  it('constrains matches to unassigned, matured debits on counterparty, account, currency, net amount and date', async () => {
+    const bankTx = createCustomBankTx({ id: 208278, iban: 'DE12500105170648489890' });
     query.getMany.mockResolvedValue([bankTx]);
 
     await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(bankTx);
 
     expect(query.where).toHaveBeenCalledWith('bankTx.creditDebitIndicator = :indicator', {
       indicator: BankTxIndicator.DEBIT,
-    });
-    expect(query.andWhere).toHaveBeenCalledWith(`UPPER(REPLACE(bankTx.iban, ' ', '')) = :counterpartyIban`, {
-      counterpartyIban: 'DE12500105170648489890',
     });
     expect(query.andWhere).toHaveBeenCalledWith(`UPPER(REPLACE(bankTx.accountIban, ' ', '')) = :accountIban`, {
       accountIban: 'LU116060002000005040',
@@ -208,28 +213,107 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
     expect(query.andWhere).toHaveBeenCalledWith('bankTx.created >= :earliestDate', {
       earliestDate: completeMatch.earliestDate,
     });
-    // bank TXs already linked as chargeback of a buy-crypto are excluded
+    // in-flight DBITs of our own fiat_output payments must have been claimable by the fiat-output
+    // matcher first
+    expect(query.andWhere).toHaveBeenCalledWith('bankTx.created <= :maturedDate', {
+      maturedDate: expect.any(Date),
+    });
+    // bank TXs already linked as chargeback of a buy-crypto or belonging to a fiat_output payment
+    // (linked, same remittance text or same end-to-end ID) are excluded
     expect(query.leftJoin).toHaveBeenCalledWith(
       expect.anything(),
       'chargebackOf',
       'chargebackOf.chargebackBankTxId = bankTx.id',
     );
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'linkedFiatOutput',
+      'linkedFiatOutput.bankTxId = bankTx.id',
+    );
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'remittanceFiatOutput',
+      `REPLACE(remittanceFiatOutput.remittanceInfo, ' ', '') = REPLACE(bankTx.remittanceInfo, ' ', '')`,
+    );
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'endToEndFiatOutput',
+      'endToEndFiatOutput.endToEndId = bankTx.endToEndId',
+    );
     expect(query.andWhere).toHaveBeenCalledWith('chargebackOf.id IS NULL');
-    expect(query.take).toHaveBeenCalledWith(2);
+    expect(query.andWhere).toHaveBeenCalledWith('linkedFiatOutput.id IS NULL');
+    expect(query.andWhere).toHaveBeenCalledWith('remittanceFiatOutput.id IS NULL');
+    expect(query.andWhere).toHaveBeenCalledWith('endToEndFiatOutput.id IS NULL');
+    expect(query.take).toHaveBeenCalledWith(5);
 
-    const typeBrackets = query.andWhere.mock.calls.map(([condition]) => condition).find((v) => v instanceof Brackets);
-    const type = { where: jest.fn(), orWhere: jest.fn() };
-    type.where.mockReturnValue(type);
-    type.orWhere.mockReturnValue(type);
-    (typeBrackets as Brackets).whereFactory(type as never);
+    const brackets = query.andWhere.mock.calls.map(([condition]) => condition).filter((v) => v instanceof Brackets);
+    expect(brackets).toHaveLength(2);
+    const [type, iban] = brackets.map(bracketCalls);
     expect(type.where).toHaveBeenCalledWith('bankTx.type IS NULL');
     expect(type.orWhere).toHaveBeenCalledWith('bankTx.type IN (:...unassignedTypes)', expect.any(Object));
+    expect(iban.where).toHaveBeenCalledWith(`UPPER(REPLACE(bankTx.iban, ' ', '')) = :counterpartyIban`, {
+      counterpartyIban: 'DE12500105170648489890',
+    });
+    expect(iban.orWhere).toHaveBeenCalledWith('bankTx.iban IS NULL');
+  });
+
+  it('matches an IBAN-less DBIT only when the remittance text quotes the refunded amount', async () => {
+    const externalRefund = createCustomBankTx({
+      id: 208278,
+      remittanceInfo: 'Montant initial : 83,39, Montant retourne : 83,39, Charges : 0',
+    });
+    query.getMany.mockResolvedValue([externalRefund]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(externalRefund);
+
+    // a bank-fee DBIT (also IBAN-less) with a coincidentally equal amount quotes no amount
+    query.getMany.mockResolvedValue([
+      createCustomBankTx({ id: 208943, remittanceInfo: 'Facture intermediaire du 04/08/2026' }),
+    ]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+
+    // no remittance at all
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 188959 })]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+  });
+
+  it('quotes integer and dot-decimal amounts, delimited by non-digits', async () => {
+    const integerRefund = createCustomBankTx({
+      id: 190663,
+      remittanceInfo: 'Montant initial : 500, Montant retourne : 500, Charges : 0',
+    });
+    query.getMany.mockResolvedValue([integerRefund]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 500 })).resolves.toBe(
+      integerRefund,
+    );
+
+    // '1500' must not count as '500', '83,391' not as '83,39'
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 2, remittanceInfo: 'Montant initial : 1500' })]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 500 })).resolves.toBeUndefined();
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 3, remittanceInfo: 'Ref 83,391' })]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+
+    const dotRefund = createCustomBankTx({ id: 4, remittanceInfo: 'Refund of 83.39 EUR' });
+    query.getMany.mockResolvedValue([dotRefund]);
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(dotRefund);
   });
 
   it('returns undefined for no match and for ambiguous matches instead of guessing', async () => {
     await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
 
-    query.getMany.mockResolvedValue([createCustomBankTx({ id: 1 }), createCustomBankTx({ id: 2 })]);
+    query.getMany.mockResolvedValue([
+      createCustomBankTx({ id: 1, iban: 'DE12500105170648489890' }),
+      createCustomBankTx({ id: 2, iban: 'DE12500105170648489890' }),
+    ]);
     await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
+  });
+
+  it('keeps an implausible IBAN-less candidate from blocking the unique plausible one', async () => {
+    const ibanMatch = createCustomBankTx({ id: 5, iban: 'DE12500105170648489890' });
+    query.getMany.mockResolvedValue([
+      ibanMatch,
+      createCustomBankTx({ id: 6, remittanceInfo: 'Facture intermediaire du 04/08/2026' }),
+    ]);
+
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(ibanMatch);
   });
 });
