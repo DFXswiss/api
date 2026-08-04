@@ -167,6 +167,54 @@ describe('BuyService', () => {
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
     });
 
+    // The user is loaded once and handed to toPaymentInfoDto. Loading it a second time there costs two
+    // extra queries, and letting the two loads drift apart is what left user.wallet unloaded for buyCheck.
+    it('loads the user once and reuses it for the payment-info DTO', async () => {
+      const loadedUser = { id: 1, userData, wallet: {} } as any;
+      const getUser = jest.spyOn(userService, 'getUser').mockResolvedValue(loadedUser);
+      jest.spyOn(paymentInfoService, 'buyCheck').mockImplementation(async (d) => d as any);
+      jest.spyOn(service, 'createBuy').mockResolvedValue(buy);
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(virtualIban);
+      const fees = { min: 0, rate: 0.01, fixed: 0, dfx: 1, network: 0, platform: 0, bank: 0, total: 1 };
+      jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+        timestamp: new Date('2026-07-24T00:00:00Z'),
+        minVolume: 10,
+        minVolumeTarget: 0.001,
+        maxVolume: 10000,
+        maxVolumeTarget: 1,
+        exchangeRate: 100000,
+        rate: 101000,
+        estimatedAmount: 0.00099,
+        sourceAmount: 100,
+        isValid: false,
+        exactPrice: false,
+        feeSource: fees,
+        feeTarget: fees,
+        priceSteps: [],
+      } as any);
+
+      await service.createBuyPaymentInfo({ user: 1, address: '0x123' } as any, dto());
+
+      expect(getUser).toHaveBeenCalledTimes(1);
+      // wallet is the relation buyCheck reads (as user.wallet, not userData.wallet) and organization is
+      // what UserData.address needs - asserted explicitly, because getUser is mocked and would otherwise
+      // hand back a fully-populated user no matter which relations were requested.
+      expect(getUser).toHaveBeenCalledWith(1, { userData: { organization: true }, wallet: true });
+      // and the fee calculation sees the very same instance
+      expect((transactionHelper.getTxDetails as jest.Mock).mock.calls[0][7]).toBe(loadedUser);
+    });
+
+    // the transaction request is attributed to userId, so a preloaded user for someone else would book
+    // the request against the wrong account instead of failing
+    it('refuses a preloaded user that does not match the requested user', async () => {
+      await expect(service.toPaymentInfoDto(1, buy, dto(), { id: 2 } as any)).rejects.toThrow(
+        'Preloaded user does not match userId',
+      );
+
+      expect(transactionHelper.getTxDetails).not.toHaveBeenCalled();
+      expect(transactionRequestService.create).not.toHaveBeenCalled();
+    });
+
     it('selects Frick once before fee calculation, persists exact IDs, and does not leak IDs publicly', async () => {
       const events: string[] = [];
       jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
@@ -1657,6 +1705,87 @@ describe('BuyService', () => {
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
       expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
       expect(bankService.getBank).not.toHaveBeenCalled();
+    });
+
+    // getTxDetails already resolves the user's active vIBAN to pick the receiving bank for the fee. It
+    // hands that result back so the deposit-destination step reuses it instead of repeating the query.
+    describe('active vIBAN reuse between fee calculation and deposit destination', () => {
+      const userLevelVirtualIban = {
+        id: 778,
+        iban: 'CH4431999123000889013',
+        bank: defaultRouteBank,
+        currency,
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+
+      beforeEach(() => {
+        jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet } as any);
+        jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
+      });
+
+      it('does not repeat the lookup when getTxDetails resolved an active vIBAN', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: userLevelVirtualIban } as any);
+
+        const response = await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.BANK,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      });
+
+      // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
+      // follows. The fresh read here returns a vIBAN, standing in for one issued concurrently in that
+      // window — reusing the stale negative would lose it, send a customer who holds a personal IBAN to
+      // the shared collection account, and log an ERROR for a provider outage that never happened.
+      it('re-resolves when getTxDetails found none, so a concurrently issued vIBAN is not missed', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(userLevelVirtualIban);
+
+        const response = await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.BANK,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+        // the freshly-read IBAN must reach the response, not the stale "none"
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      });
+
+      // CARD on purpose: a BANK transfer that resolves no personal IBAN degrades through
+      // collectionAccountOrThrow, so it never reaches the plain bank resolution. CARD is the payment
+      // method that skips that fallback, which is what makes the "nothing found either way" outcome
+      // observable at all.
+      it('resolves it itself when getTxDetails ran no lookup', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+
+        await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.CARD,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
