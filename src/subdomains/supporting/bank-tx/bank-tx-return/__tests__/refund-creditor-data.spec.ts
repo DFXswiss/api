@@ -7,6 +7,7 @@ import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-outpu
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { EntityManager } from 'typeorm';
 import { BankTxReturn } from '../bank-tx-return.entity';
 import { BankTxReturnRepository } from '../bank-tx-return.repository';
 import { BankTxReturnService } from '../bank-tx-return.service';
@@ -23,6 +24,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
   let bankTxReturnRepo: jest.Mocked<BankTxReturnRepository>;
   let fiatOutputService: jest.Mocked<FiatOutputService>;
   let transactionUtilService: jest.Mocked<TransactionUtilService>;
+  let manager: { update: jest.Mock };
 
   const mockCreditorData = {
     name: 'Max Mustermann',
@@ -63,6 +65,17 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     fiatOutputService.createInternal.mockResolvedValue({ id: 1 } as any);
     bankTxReturnRepo.update.mockResolvedValue(undefined);
 
+    (mockBankTxReturn.chargebackFillUp as jest.Mock).mockClear();
+    manager = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
+    Object.defineProperty(bankTxReturnRepo, 'manager', {
+      configurable: true,
+      value: {
+        transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+          run(manager as unknown as EntityManager),
+        ),
+      },
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BankTxReturnService,
@@ -102,6 +115,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
           city: mockCreditorData.city,
           country: mockCreditorData.country,
         }),
+        manager,
       );
     });
 
@@ -134,6 +148,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
           city: 'Bern',
           country: 'CH',
         }),
+        manager,
       );
     });
 
@@ -156,6 +171,72 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       await expect(service.refundBankTx(bankTxReturnWithoutCreditor, dto)).rejects.toThrow(
         'Creditor data is required for chargeback',
       );
+    });
+  });
+
+  describe('refundBankTx - chargeback output atomicity', () => {
+    // FiatOutput.bankTxReturn is the inverse side of BankTxReturn.chargebackOutput, so saving the
+    // output writes chargebackOutputId onto the row. Committing that ahead of the state write, in
+    // its own transaction, left a window where a failure in between stranded the return: the FK is
+    // set while chargebackAllowedDate is still null, which drops it out of chargebackTx's
+    // `chargebackOutput: IsNull()` selection and makes every manual retry fail validateRefund.
+    it('writes the chargeback state and creates the output in one transaction, state first', async () => {
+      await service.refundBankTx(mockBankTxReturn, {
+        chargebackAllowedDate: new Date(),
+        chargebackAllowedBy: 'BatchJob',
+      });
+
+      expect(bankTxReturnRepo.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(bankTxReturnRepo.update).not.toHaveBeenCalled();
+      expect(manager.update).toHaveBeenCalledWith(BankTxReturn, { id: 1 }, {});
+      expect(fiatOutputService.createInternal).toHaveBeenCalledWith(
+        FiatOutputType.BANK_TX_RETURN,
+        { bankTxReturn: mockBankTxReturn },
+        mockBankTxReturn.id,
+        false,
+        expect.anything(),
+        manager,
+      );
+      expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(
+        fiatOutputService.createInternal.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not carry the chargeback output into the state write', async () => {
+      await service.refundBankTx(mockBankTxReturn, {
+        chargebackAllowedDate: new Date(),
+        chargebackAllowedBy: 'BatchJob',
+      });
+
+      // The output must reach the row through the FiatOutput save's inverse-side FK write, never
+      // through chargebackFillUp — chargebackTx selects on that column being NULL.
+      const fillUpArgs = (mockBankTxReturn.chargebackFillUp as jest.Mock).mock.calls[0];
+      expect(fillUpArgs).toHaveLength(9);
+      expect(fillUpArgs).not.toContainEqual(expect.objectContaining({ id: expect.anything() }));
+      expect(mockBankTxReturn.chargebackOutput).toEqual({ id: 1 });
+    });
+
+    it('creates no chargeback output when the state write fails', async () => {
+      manager.update.mockRejectedValueOnce(new Error('deadlock detected'));
+
+      await expect(
+        service.refundBankTx(mockBankTxReturn, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'BatchJob',
+        }),
+      ).rejects.toThrow('deadlock detected');
+
+      expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
+    });
+
+    it('skips the output on the user-initiated leg but still writes the chargeback state', async () => {
+      await service.refundBankTx(mockBankTxReturn, {
+        chargebackAllowedDateUser: new Date(),
+        chargebackAllowedBy: 'User',
+      });
+
+      expect(manager.update).toHaveBeenCalledWith(BankTxReturn, { id: 1 }, {});
+      expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
     });
   });
 });

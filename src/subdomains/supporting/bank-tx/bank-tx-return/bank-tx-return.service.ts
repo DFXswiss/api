@@ -215,34 +215,50 @@ export class BankTxReturnService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset)) {
-      dto.chargebackOutput = await this.fiatOutputService.createInternal(
-        FiatOutputType.BANK_TX_RETURN,
-        { bankTxReturn },
-        bankTxReturn.id,
-        false,
-        {
-          iban: chargebackIban,
-          amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? bankTxReturn.chargebackAsset,
-          ...creditorData,
-        },
-      );
-    }
-
-    await this.bankTxReturnRepo.update(
-      ...bankTxReturn.chargebackFillUp(
-        chargebackIban,
-        chargebackReferenceAmount,
-        chargebackAmount,
-        chargebackAsset,
-        dto.chargebackAllowedDate,
-        dto.chargebackAllowedDateUser,
-        dto.chargebackAllowedBy,
-        dto.chargebackOutput,
-        bankTxReturn.chargebackBankRemittanceInfo,
-        creditorData,
-      ),
+    // Both reads have to happen before chargebackFillUp assigns over the entity below.
+    const createsChargebackOutput = Boolean(
+      dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset),
     );
+    const chargebackOutputCurrency = dto.chargebackCurrency ?? bankTxReturn.chargebackAsset;
+
+    await this.bankTxReturnRepo.manager.transaction(async (manager) => {
+      await manager.update(
+        BankTxReturn,
+        ...bankTxReturn.chargebackFillUp(
+          chargebackIban,
+          chargebackReferenceAmount,
+          chargebackAmount,
+          chargebackAsset,
+          dto.chargebackAllowedDate,
+          dto.chargebackAllowedDateUser,
+          dto.chargebackAllowedBy,
+          bankTxReturn.chargebackBankRemittanceInfo,
+          creditorData,
+        ),
+      );
+
+      // The chargeback output is created inside the same transaction, and only after the state
+      // write. FiatOutput.bankTxReturn is the inverse side of BankTxReturn.chargebackOutput, so
+      // saving it writes chargebackOutputId onto this row as a side effect. Creating it first and
+      // in its own transaction meant a failure in between committed that FK with
+      // chargebackAllowedDate still null, which drops the row out of chargebackTx's
+      // `chargebackOutput: IsNull()` selection and makes every manual retry fail validateRefund —
+      // stranding the return silently while its payout row stays queued.
+      if (createsChargebackOutput) {
+        bankTxReturn.chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BANK_TX_RETURN,
+          { bankTxReturn },
+          bankTxReturn.id,
+          false,
+          {
+            iban: chargebackIban,
+            amount: chargebackAmount,
+            currency: chargebackOutputCurrency,
+            ...creditorData,
+          },
+          manager,
+        );
+      }
+    });
   }
 }

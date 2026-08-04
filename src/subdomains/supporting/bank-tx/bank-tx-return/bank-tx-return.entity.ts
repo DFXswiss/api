@@ -173,7 +173,6 @@ export class BankTxReturn extends IEntity {
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
-    chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     creditorData?: CreditorData,
   ): UpdateResult<BankTxReturn> {
@@ -187,7 +186,10 @@ export class BankTxReturn extends IEntity {
       chargebackReferenceAmount,
       chargebackAmount,
       chargebackAsset,
-      chargebackOutput,
+      // No chargebackOutput here on purpose. It is a relation column whose inverse side this code
+      // saves — saving the FiatOutput sets the owning FK as a side effect — and chargebackTx
+      // selects on `chargebackOutput: IsNull()`, so it must not be written ahead of, or apart
+      // from, the state write. See BankTxReturnService.refundBankTx.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
