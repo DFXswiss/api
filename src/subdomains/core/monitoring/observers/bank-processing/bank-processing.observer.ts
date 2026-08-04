@@ -33,7 +33,11 @@ export class BankProcessingObserver extends MetricObserver<BankProcessingData> {
   // be read as "all ok".
   // The finite lock timeout is mandatory (an infinite lock would let one hung run block the job
   // silently forever); 1800s matches the sibling observers and keeps overlap unlikely at a 5-minute cadence.
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_PROCESSING_MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.BANK_PROCESSING_MONITORING,
+    timeout: 1800,
+  })
   async fetch(): Promise<BankProcessingData> {
     const now = new Date();
     const results: BankProcessingRuleResult[] = [];
