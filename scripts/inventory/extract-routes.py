@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Builds table.json from the controllers (verb, path, controller, handler, file, hidden).
 
-Decorators between the route decorator and the method are skipped by counting brackets, with
-string literals skipped whole so a bracket inside one does not count. Comments are NOT skipped:
-a bracket inside a comment between the decorator and the method would count. A window of a fixed
-number of lines would instead read the guard of a multi-line @UseGuards( as the handler.
+Decorators between the route decorator and the method are skipped by counting brackets. Whitespace
+and comments BETWEEN two decorators are skipped whole, and inside a decorator's argument list a
+string literal is skipped whole — but a comment inside that argument list is not, so a bracket in
+one would count. A window of a fixed number of lines would instead read the guard of a multi-line
+@UseGuards( as the handler.
 """
 import re, glob, os, json
 

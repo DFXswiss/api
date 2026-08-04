@@ -6,10 +6,15 @@ site reachable from the handler — the aggregation that matches the question: a
 one of them overloads, the endpoint loads more than it needs.
 
 Categories per load site (verified against the TypeORM metadata):
-  find*(...)                                -> every column plus eager relations -> over
-  createQueryBuilder() without .select([...]) -> every column of the root entity -> over
-  createQueryBuilder().select([...])        -> only the listed fields             -> proj
-  .query(...)  raw SQL                             -> depends on the statement       -> raw
+  find*(...)                                  -> every column plus eager relations -> over
+  createQueryBuilder() naming no column       -> every column of the root entity   -> over
+  createQueryBuilder() naming any column      -> only what it names                -> proj
+  .query(...)  raw SQL                        -> depends on the statement          -> raw
+
+"Naming a column" covers more than `.select([...])`: a single `.select('alias.column')`, an
+expression, a field list arriving through `PROJECTION.apply(...)`, and a chain ending in
+`getCount()` or `getExists()` all narrow the query. A bare `.select('alias')` does not — the
+argument is the root alias.
 """
 import re, glob, os, json
 from collections import defaultdict
