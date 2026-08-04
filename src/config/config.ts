@@ -722,6 +722,10 @@ export class Configuration {
       maxHoursWithoutLetter: +(process.env.LETTER_MAX_HOURS_WITHOUT ?? 24),
       // Queue size above which the health check reports a backlog.
       backlogThreshold: +(process.env.LETTER_BACKLOG_THRESHOLD ?? 100),
+      // How old the observation itself may be before the health check calls it stale. A few times the
+      // observer's ten-minute interval: the metrics freeze at their last good values when the observer
+      // stops running, and frozen healthy values are indistinguishable from healthy ones.
+      maxObservationAgeMinutes: +(process.env.LETTER_MAX_OBSERVATION_AGE_MINUTES ?? 45),
     },
   };
 

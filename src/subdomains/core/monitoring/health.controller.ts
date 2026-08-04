@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode, HttpStatus, Res, VERSION_NEUTRAL, Version } 
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { MonitoringService } from './monitoring.service';
 import { SystemState } from './system-state-snapshot.entity';
 
@@ -200,7 +201,8 @@ export class HealthController {
    * `/health` with 503 and let a load balancer take a perfectly healthy API process out of service.
    */
   private checkAddressLetter(state: SystemState | null): { status: HealthStatus; detail?: string } {
-    const data = state?.addressLetter?.dispatch?.data as {
+    const metric = state?.addressLetter?.dispatch;
+    const data = metric?.data as {
       backlog?: number;
       claimedWithoutLetter?: number;
       exhausted?: number;
@@ -209,9 +211,18 @@ export class HealthController {
     };
     if (!data) return { status: HealthStatus.DEGRADED, detail: 'No address letter data' };
 
-    const { maxHoursWithoutLetter, backlogThreshold } = Config.letter.addressLetter;
+    const { maxHoursWithoutLetter, backlogThreshold, maxObservationAgeMinutes } = Config.letter.addressLetter;
 
     const issues: string[] = [];
+    // The values below are only as current as the observation they come from. When the observer stops
+    // running, the snapshot freezes at its last good values and every check below keeps answering `ok`
+    // - a stalled dispatch behind healthy-looking numbers, which is the failure this job exists to end.
+    // Parsed JSON carries `updated` as a string, the in-memory state as a Date; an unreadable one
+    // counts as stale rather than as fresh.
+    const observedAt = metric.updated ? new Date(metric.updated).getTime() : NaN;
+    const observationAge = Util.minutesDiff(new Date(observedAt));
+    if (!Number.isFinite(observedAt) || observationAge > maxObservationAgeMinutes)
+      issues.push(`observation ${Number.isFinite(observedAt) ? `${Util.round(observationAge, 0)}min old` : 'undated'}`);
     // A few dozen letters a day is the normal load, so a day without one is a broken dispatch. Checked
     // only while there is something to send - a genuinely empty queue must not raise an alert. A null
     // age means no letter was EVER sent, which with a non-empty queue is the same broken dispatch: it

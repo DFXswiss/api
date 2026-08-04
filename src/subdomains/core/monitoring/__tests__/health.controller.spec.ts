@@ -8,10 +8,16 @@ describe('HealthController — address letter check', () => {
   let controller: HealthController;
   let monitoringService: MonitoringService;
 
-  function respond(dispatch: unknown): Promise<{ status: string; checks: Record<string, any> }> {
+  function respond(
+    dispatch: unknown,
+    updated: unknown = new Date(),
+  ): Promise<{
+    status: string;
+    checks: Record<string, any>;
+  }> {
     jest
       .spyOn(monitoringService, 'getState')
-      .mockResolvedValue({ addressLetter: { dispatch: { data: dispatch, updated: new Date() } } });
+      .mockResolvedValue({ addressLetter: { dispatch: { data: dispatch, updated } } } as never);
 
     return new Promise((resolve) => {
       const res = {
@@ -82,6 +88,28 @@ describe('HealthController — address letter check', () => {
     const body = await respond({ ...healthy, sentWithoutFile: 3 });
 
     expect(body.checks.addressLetter.detail).toContain('3 letters without a document');
+  });
+
+  it('reports an observation that stopped being refreshed', async () => {
+    // the metrics freeze at their last good values when the observer stops running, and frozen healthy
+    // values look exactly like healthy ones
+    const body = await respond(healthy, new Date(Date.now() - 3 * 60 * 60 * 1000));
+
+    expect(body.checks.addressLetter.status).toBe('degraded');
+    expect(body.checks.addressLetter.detail).toContain('180min old');
+  });
+
+  it('accepts a timestamp that survived JSON as a string', async () => {
+    const body = await respond(healthy, new Date().toISOString());
+
+    expect(body.checks.addressLetter).toEqual({ status: 'ok' });
+  });
+
+  it('treats an undated observation as stale rather than fresh', async () => {
+    // `null`, not `undefined`: passing `undefined` would fall back to the default parameter above
+    const body = await respond(healthy, null);
+
+    expect(body.checks.addressLetter.detail).toContain('undated');
   });
 
   it('reports missing data instead of silently passing', async () => {
