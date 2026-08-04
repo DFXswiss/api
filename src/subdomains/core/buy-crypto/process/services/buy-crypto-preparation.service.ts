@@ -987,17 +987,16 @@ export class BuyCryptoPreparationService {
     // expects are typed (complete + priced): the BuyCryptoReturn booking debits owed against the
     // completion opening and hard-fails without amountInChf - a manual link on an incomplete or
     // unpriced entity stays visibly untyped until the entity is completed in the tool.
-    const healBase: FindOptionsWhere<BuyCrypto> = {
-      isComplete: true,
-      amountInChf: Not(IsNull()),
-      created: MoreThan(Util.daysBefore(90)),
-    };
+    const healBase: FindOptionsWhere<BuyCrypto> = { isComplete: true, amountInChf: Not(IsNull()) };
+    // the window is measured on the DBIT (always recent when a refund was just booked or linked),
+    // not on the buy-crypto - a manual link on an old entity must still be healed
+    const healWindow = MoreThan(Util.daysBefore(90));
     const unhealed = await this.buyCryptoRepo.find({
       where: [
         // id guard: without it, the LEFT JOIN would satisfy `type IS NULL` for every buy-crypto
         // that has NO chargeback bank TX at all
-        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: IsNull() } },
-        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: In(BankTxUnassignedTypes) } },
+        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: IsNull(), created: healWindow } },
+        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: In(BankTxUnassignedTypes), created: healWindow } },
       ],
       relations: { chargebackBankTx: { transaction: true }, transaction: { user: { userData: true } } },
     });

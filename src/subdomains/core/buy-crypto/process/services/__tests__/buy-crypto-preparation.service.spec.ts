@@ -27,7 +27,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EntityManager, IsNull } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -805,6 +805,34 @@ describe('BuyCryptoPreparationService', () => {
       expect(bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx).toHaveBeenCalledWith(
         expect.objectContaining({ amount: 80 }),
       );
+    });
+
+    it('pins the candidate and heal query guards', async () => {
+      const find = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      await service.matchExternalChargebacks();
+
+      expect(find.mock.calls[0][0].where).toMatchObject({
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        batch: IsNull(),
+        outputAmount: IsNull(),
+        amountInChf: Not(IsNull()),
+        chargebackOutput: IsNull(),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackCryptoTxId: IsNull(),
+        chargebackBankTx: IsNull(),
+      });
+      const healWhere = find.mock.calls[1][0].where as object[];
+      expect(healWhere).toHaveLength(2);
+      for (const branch of healWhere) {
+        expect(branch).toMatchObject({
+          isComplete: true,
+          amountInChf: Not(IsNull()),
+          chargebackBankTx: expect.objectContaining({ id: Not(IsNull()) }),
+        });
+      }
     });
 
     it('claims nothing when one bank TX fits several failed buy-cryptos', async () => {

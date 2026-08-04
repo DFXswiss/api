@@ -281,5 +281,20 @@ describe('FiatOutputService', () => {
         'Chargeback already executed for this buy-crypto (chargeback bank TX linked)',
       );
     });
+
+    it('lets the admin route proceed past the guard when no chargeback bank TX is linked', async () => {
+      buyCryptoRepo.existsBy.mockResolvedValue(false);
+
+      await expect(service.create({ type: FiatOutputType.BUY_CRYPTO_FAIL, buyCryptoId: 7 } as never)).rejects.toThrow(
+        'Missing required creditor fields',
+      );
+    });
+
+    it('does not consult the double-refund guard for other output types', async () => {
+      await expect(service.create({ type: FiatOutputType.BUY_FIAT } as never)).rejects.toThrow(
+        'Missing required creditor fields',
+      );
+      expect(buyCryptoRepo.existsBy).not.toHaveBeenCalled();
+    });
   });
 });

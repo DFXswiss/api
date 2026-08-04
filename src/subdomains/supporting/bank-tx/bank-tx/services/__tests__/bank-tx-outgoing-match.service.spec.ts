@@ -318,6 +318,22 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
       service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 }),
     ).resolves.toBeUndefined();
 
+    // an integer prefix of another number is no quote: '500,50' must not quote 500, '83,39' not 83
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 13, remittanceInfo: 'Facture 500,50' })]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 500 })).resolves.toBeUndefined();
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 14, remittanceInfo: 'Montant initial : 83,39' })]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 83 })).resolves.toBeUndefined();
+
+    // dot dates must not quote 'dd.mm', dash dates must not quote the year
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 10, remittanceInfo: 'Rechnung vom 15.08.2026' })]);
+    await expect(
+      service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 15.08 }),
+    ).resolves.toBeUndefined();
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 11, remittanceInfo: 'Facture du 4.8.2026' })]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 4.8 })).resolves.toBeUndefined();
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 12, remittanceInfo: 'Valuta 2026-08-04' })]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 })).resolves.toBeUndefined();
+
     // Swiss thousand grouping: "1'234,56" must not quote 234.56
     query.getMany.mockResolvedValue([createCustomBankTx({ id: 9, remittanceInfo: "Betrag 1'234,56" })]);
     await expect(

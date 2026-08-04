@@ -183,10 +183,12 @@ export class BankTxOutgoingMatchService {
   }
 
   // Whether the remittance text quotes the given amount ('83.39'/'83,39', integers also plain
-  // '500'), delimited by non-digits so '1500'/'83,391' never count as '500'/'83,39'. Slashes and
-  // apostrophes are delimiters too: date tokens ('du 04/08/2026') must not quote a year-valued
-  // amount and Swiss thousand grouping ("1'234,56") must not quote its tail. Conservative by
-  // design: a miss only leaves the case for manual assignment.
+  // '500'), delimited by non-digits so '1500'/'83,391' never count as '500'/'83,39'. Date tokens
+  // in any separator style ('04/08/2026', '15.08.2026', '2026-08-04') and Swiss thousand grouping
+  // ("1'234,56") must not quote an amount: slash, apostrophe and dash are hard delimiters, and a
+  // match may not continue with '<separator><digit>' (kills '15.08' inside '15.08.2026' while
+  // keeping '83,39' in '... 83,39, Charges ...'). Conservative by design: a miss only leaves the
+  // case for manual assignment.
   private static remittanceQuotesAmount(remittanceInfo: string | undefined, amount: number): boolean {
     if (!remittanceInfo) return false;
     const compact = remittanceInfo.replace(/\s/g, '');
@@ -198,7 +200,7 @@ export class BankTxOutgoingMatchService {
       rounded.toFixed(2).replace('.', ','),
     ]);
     return [...variants].some((variant) =>
-      new RegExp(`(?<![\\d.,/'])${variant.replace('.', '\\.')}(?![\\d/'])`).test(compact),
+      new RegExp(`(?<![\\d.,/'-])${variant.replace('.', '\\.')}(?![\\d/'-])(?![.,]\\d)`).test(compact),
     );
   }
 }

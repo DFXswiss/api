@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
+import { CustomCronExpression } from 'src/shared/utils/custom-cron-expression';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
@@ -34,9 +35,19 @@ export class BuyCryptoJobService {
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoPreparationService.chargebackTx();
     await this.buyCryptoPreparationService.chargebackFillUp();
-    if (!DisabledProcess(Process.EXTERNAL_CHARGEBACK_MATCH))
-      await this.buyCryptoPreparationService.matchExternalChargebacks();
     await this.buyCryptoNotificationService.sendNotificationMails();
+  }
+
+  // Own, coarser cadence: matching latency is dominated by the matcher's 60-minute maturity delay
+  // anyway, and each candidate costs a ~50ms query (three fiat_output anti-join scans) - running
+  // it every minute would buy nothing but DB load.
+  @DfxCron(CustomCronExpression.EVERY_15_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.EXTERNAL_CHARGEBACK_MATCH,
+    timeout: 1800,
+  })
+  async matchExternalChargebacks() {
+    await this.buyCryptoPreparationService.matchExternalChargebacks();
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, {
