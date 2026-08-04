@@ -1531,7 +1531,7 @@ export class Configuration {
   // Every ledger `Process`, derived from the enum's OWN key names rather than a hand-maintained list —
   // a future `Process.LEDGER_*` entry is covered without an edit here.
   private ledgerProcesses = (): Process[] =>
-    (Object.keys(Process) as (keyof typeof Process)[]).filter((k) => k.startsWith('LEDGER')).map((k) => Process[k]);
+    (Object.keys(Process) as (keyof typeof Process)[]).filter((k) => k.startsWith('LEDGER_')).map((k) => Process[k]);
 
   // The ledger master switch (`ledger.enabled`) reaches its jobs through the per-process kill-switch,
   // not only through the job bodies. `skipWhenDisabled` sits OUTSIDE the cron lease
@@ -1539,10 +1539,10 @@ export class Configuration {
   // of claiming a lease, waiting out the jitter and releasing it again every tick — nine minute-jobs
   // writing to `cron_lease` twice a minute to do nothing, long enough for lease renewals to fall due.
   //
-  // The in-body `isLedgerReady()` guards stay as they are: they are the cutover gate and also cover the
-  // paths that are not cron jobs. This only removes the jobs' participation in cron while the switch is
-  // off, and does not make the switch settable at runtime — it stays hard-coded in the config, and the
-  // `disabledProcess` setting can still disable individual ledger processes when it is back on.
+  // The in-body `isLedgerReady()` guards stay as they are: they are the cutover gate, which this does not
+  // replace — it only decides whether the jobs take part in cron at all. Nor does it make the switch
+  // settable at runtime: it stays hard-coded in the config, and the `disabledProcess` setting can still
+  // disable individual ledger processes once it is back on.
   disabledProcesses = (): Process[] =>
     process.env.DISABLED_PROCESSES === '*'
       ? Object.values(Process)

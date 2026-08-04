@@ -4,7 +4,7 @@ import { GetConfig } from '../config';
 // Ledger `Process` values, derived from the enum's OWN key names (never hardcoded), the same way the
 // config derives them — a future `Process.LEDGER_*` entry is covered here without an edit to this file.
 const LEDGER_PROCESSES = (Object.keys(Process) as (keyof typeof Process)[])
-  .filter((k) => k.startsWith('LEDGER'))
+  .filter((k) => k.startsWith('LEDGER_'))
   .map((k) => Process[k]);
 
 describe('Ledger master switch → disabled processes', () => {
