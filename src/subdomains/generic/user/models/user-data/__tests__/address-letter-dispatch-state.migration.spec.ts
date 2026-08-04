@@ -117,10 +117,12 @@ describeDb('AddAddressLetterDispatchState migration (real Postgres)', () => {
     const afterDown = await disabledProcesses();
     await queryRunner.commitTransaction();
 
-    expect(afterDown).toEqual([]);
+    // Rollback leaves the switch in place on purpose: `up()` cannot tell whether it added the entry or
+    // found it, so removing it could re-enable physical mail behind an operator who set it themselves.
+    expect(afterDown).toEqual(['AddressLetter']);
   });
 
-  it('appends to an existing list without disturbing or duplicating entries', async () => {
+  it('appends to an existing list without disturbing or duplicating entries, and never removes it', async () => {
     await queryRunner.query(
       `INSERT INTO "setting" ("key", "value") VALUES ('disabledProcess', '["ExistingProcess","AddressLetter"]')`,
     );
@@ -138,7 +140,7 @@ describeDb('AddAddressLetterDispatchState migration (real Postgres)', () => {
     const afterDown = await disabledProcesses();
     await queryRunner.commitTransaction();
 
-    // rollback removes only its own entry
-    expect(afterDown).toEqual(['ExistingProcess']);
+    // an operator-set switch survives the rollback untouched
+    expect(afterDown).toEqual(['ExistingProcess', 'AddressLetter']);
   });
 });

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -9,6 +10,8 @@ import { LetterColor, LetterMode, LetterShip } from 'src/subdomains/generic/admi
 import { FileSubType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
+import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, SelectQueryBuilder } from 'typeorm';
@@ -17,15 +20,6 @@ import { AddressLetterPdf, AddressLetterPdfService } from './address-letter-pdf.
 import { UserData } from './user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
-
-/** Countries the dispatch provider bills as a national shipment. */
-export const NATIONAL_LETTER_COUNTRIES = ['DE'];
-
-/** Failed attempts after which an account stops being retried and is escalated instead. */
-export const MAX_LETTER_FAILURES = 3;
-
-/** Accounts served per run — see the class doc on why the throughput is bounded. */
-export const LETTER_BATCH_SIZE = 10;
 
 /**
  * Who needs an address verification letter at all — the selection of the automation this job replaces,
@@ -36,6 +30,9 @@ export const LETTER_BATCH_SIZE = 10;
  * would report a backlog the job never works on (or hide one it does), which is the exact class of
  * silent failure this replacement exists to end. Expects the query alias `userData`, and is a `where`,
  * not an `andWhere` — call it first.
+ *
+ * The name is tested for emptiness, not just for NULL: the automation aborted a row on an empty cell,
+ * and a blank string would otherwise pass as a valid recipient.
  */
 export function applyLetterEligibility(qb: SelectQueryBuilder<UserData>): SelectQueryBuilder<UserData> {
   return qb
@@ -46,20 +43,30 @@ export function applyLetterEligibility(qb: SelectQueryBuilder<UserData>): Select
     .andWhere('(userData.accountType IS NULL OR userData.accountType != :organization)', {
       organization: AccountType.ORGANIZATION,
     })
-    .andWhere('userData.firstname IS NOT NULL');
+    .andWhere(`NULLIF(BTRIM(userData.firstname), '') IS NOT NULL`);
 }
 
 /**
  * A postal address complete enough to print an envelope from. The automation only ever checked this
  * implicitly (an empty field aborted the row), so an incomplete account looked like an endless
  * candidate. Expects `userData.country` to be joined as `country`.
+ *
+ * Every part is tested for emptiness rather than for NULL alone: a blank street or city passes an
+ * `IS NOT NULL` check, produces an undeliverable envelope, and would still earn an AML proof.
  */
 export function applyCompleteAddress(qb: SelectQueryBuilder<UserData>): SelectQueryBuilder<UserData> {
   return qb
-    .andWhere('userData.street IS NOT NULL')
-    .andWhere('userData.zip IS NOT NULL')
-    .andWhere('userData.location IS NOT NULL')
-    .andWhere('country.id IS NOT NULL');
+    .andWhere(`NULLIF(BTRIM(userData.street), '') IS NOT NULL`)
+    .andWhere(`NULLIF(BTRIM(userData.zip), '') IS NOT NULL`)
+    .andWhere(`NULLIF(BTRIM(userData.location), '') IS NOT NULL`)
+    .andWhere(`NULLIF(BTRIM(country.name), '') IS NOT NULL`);
+}
+
+/** The address parts the envelope needs, tested the same way the SQL predicate tests them. */
+function hasPrintableAddress(userData: UserData): boolean {
+  return [userData.firstname, userData.street, userData.zip, userData.location, userData.country?.name].every((part) =>
+    part?.trim(),
+  );
 }
 
 /**
@@ -87,6 +94,13 @@ export function applyCompleteAddress(qb: SelectQueryBuilder<UserData>): SelectQu
  * The middle state is the deliberate cost of not sending twice: it needs a human, and
  * `AddressLetterObserver.claimedWithoutLetter` is what puts one there.
  *
+ * ## Audit trail
+ *
+ * Releasing a claim clears `letterClaimDate` and overwrites `letterFailures` — a destructive write on
+ * mutable snapshot columns. Every such transition is therefore recorded as an append-only
+ * `AddressLetterLog` BEFORE the columns change, and the columns stay untouched when that write fails.
+ * The dispatch itself is logged too, which is what replaces the archive the automation kept.
+ *
  * ## Failure handling
  *
  * `LetterService.sendLetter` distinguishes the two cases by itself: it returns `false` when the
@@ -96,12 +110,13 @@ export function applyCompleteAddress(qb: SelectQueryBuilder<UserData>): SelectQu
  * a throw means exactly one unanswered attempt.
  *
  * Retries are bounded by `letterFailures`; the automation retried forever in an unbounded loop.
- * On top of that, the run stops at the first send failure of any kind: a provider outage or an empty
- * balance would otherwise burn the retry budget of every open candidate within minutes.
+ * On top of that, the run stops at the first failure of any kind — dispatch, rendering or audit: a
+ * provider outage, a broken template or an unavailable audit store would otherwise burn the retry
+ * budget of every open candidate within minutes.
  *
  * ## Throughput
  *
- * `LETTER_BATCH_SIZE` per run at a ten-minute interval caps the job at 60 letters an hour. Normal load
+ * `Config.letter.addressLetter.batchSize` per run at a ten-minute interval caps the job. Normal load
  * is a few dozen letters a day, so the cap only bites on a backlog — the multi-day outage that
  * prompted this replacement left about a hundred accounts waiting, and that drains in roughly twenty
  * minutes rather than in one uncontrolled burst.
@@ -115,6 +130,8 @@ export class AddressLetterJobService {
     private readonly addressLetterPdfService: AddressLetterPdfService,
     private readonly letterService: LetterService,
     private readonly kycDocumentService: KycDocumentService,
+    private readonly kycFileService: KycFileService,
+    private readonly kycLogService: KycLogService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -135,16 +152,34 @@ export class AddressLetterJobService {
     const unknown: number[] = [];
     let lastError: string;
 
-    for (const userData of candidates) {
-      const now = new Date();
+    for (const candidate of candidates) {
+      const claimedAt = new Date();
 
       // Claim-first CAS: the cron lock is per process, so the claim - not the lock - is what keeps a
       // second replica from dispatching the same letter. Only an affected row count of 1 wins it.
+      // Claiming writes a NULL column, so nothing is overwritten and no audit has to precede it.
       const claim = await this.userDataRepo.update(
-        { id: userData.id, letterSentDate: IsNull(), letterClaimDate: IsNull() },
-        { letterClaimDate: now },
+        { id: candidate.id, letterSentDate: IsNull(), letterClaimDate: IsNull() },
+        { letterClaimDate: claimedAt },
       );
       if (!claim.affected) continue;
+
+      // Re-read under the claim: the candidate list was selected before it, so an address corrected in
+      // between would otherwise be printed from the stale row and then stamped as verified.
+      const userData = await this.userDataRepo.findOneBy({ id: candidate.id });
+
+      // The claim just matched this row, so it existed a moment ago. Guarded anyway: a null here would
+      // throw out of the loop and take the whole run with it, including the escalation below.
+      if (!userData) {
+        this.logger.error(`Address letter skipped: account ${candidate.id} vanished after it was claimed`);
+        continue;
+      }
+
+      if (!hasPrintableAddress(userData)) {
+        this.logger.info(`Address letter skipped for account ${userData.id}: address no longer printable`);
+        if (!(await this.unclaim(userData, claimedAt, 'address no longer printable'))) break;
+        continue;
+      }
 
       let pdf: AddressLetterPdf;
       try {
@@ -156,15 +191,16 @@ export class AddressLetterJobService {
           zip: userData.zip,
           city: userData.location,
           country: userData.country.name,
-          date: now,
+          date: claimedAt,
         });
       } catch (e) {
-        // Nothing was handed over, so the claim is released and the attempt counted. Counting it
-        // matters: a document that fails to render fails to render again next run.
+        // Nothing was handed over, so the claim is released and the attempt counted. The run stops:
+        // the same template renders every letter, so a rendering failure is systemic until proven
+        // otherwise, and letting it run on would spend every candidate's retry budget at once.
         lastError = `PDF rendering failed for account ${userData.id}: ${e.message}`;
         this.logger.error(`Address letter PDF failed for account ${userData.id}`, e);
-        if (await this.releaseClaim(userData)) exhausted.push(userData.id);
-        continue;
+        await this.countFailure(userData, claimedAt, lastError, exhausted, unknown);
+        break;
       }
 
       if (pdf.pageCount !== 1)
@@ -177,7 +213,7 @@ export class AddressLetterJobService {
           page: pdf.pageCount,
           color: LetterColor.COLOR,
           mode: LetterMode.SIMPLEX,
-          ship: NATIONAL_LETTER_COUNTRIES.includes(userData.country.symbol?.toUpperCase())
+          ship: Config.letter.addressLetter.nationalCountries.includes(userData.country.symbol?.toUpperCase())
             ? LetterShip.NATIONAL
             : LetterShip.INTERNATIONAL,
         });
@@ -193,15 +229,16 @@ export class AddressLetterJobService {
       if (!sent) {
         lastError = `Letter provider rejected the job for account ${userData.id}`;
         this.logger.error(lastError);
-        if (await this.releaseClaim(userData)) exhausted.push(userData.id);
+        await this.countFailure(userData, claimedAt, lastError, exhausted, unknown);
         break;
       }
 
       // The AML proof, and only now: everything above can still fail without a letter existing,
-      // everything below cannot undo one that does.
-      await this.userDataRepo.update({ id: userData.id, letterSentDate: IsNull() }, { letterSentDate: now });
+      // everything below cannot undo one that does. Writing a NULL column overwrites nothing.
+      const sentAt = new Date();
+      await this.userDataRepo.update({ id: userData.id, letterSentDate: IsNull() }, { letterSentDate: sentAt });
 
-      await this.attachKycFile(userData, pdf.base64, now);
+      await this.attachKycFile(userData, pdf.base64, sentAt);
     }
 
     await this.escalate(exhausted, unknown, lastError);
@@ -212,26 +249,85 @@ export class AddressLetterJobService {
   /**
    * Open candidates, filtered exactly like the automation this job replaces (see
    * `applyLetterEligibility`), plus what that one only ever checked implicitly: a postal address
-   * complete enough to print. An account missing part of its address is
-   * never claimed and never retried — it is counted separately by `AddressLetterObserver` so it
-   * cannot masquerade as a stuck backlog.
+   * complete enough to print. An account missing part of its address is never claimed and never
+   * retried — it is counted separately by `AddressLetterObserver` so it cannot masquerade as a stuck
+   * backlog.
    */
   private async getCandidates(): Promise<UserData[]> {
+    const { batchSize, maxFailures } = Config.letter.addressLetter;
     const query = this.userDataRepo.createQueryBuilder('userData').innerJoinAndSelect('userData.country', 'country');
 
     return applyCompleteAddress(applyLetterEligibility(query))
       .andWhere('userData.letterClaimDate IS NULL')
-      .andWhere('userData.letterFailures < :maxFailures', { maxFailures: MAX_LETTER_FAILURES })
+      .andWhere('userData.letterFailures < :maxFailures', { maxFailures })
       .orderBy('userData.id', 'ASC')
-      .take(LETTER_BATCH_SIZE)
+      .take(batchSize)
       .getMany();
   }
 
-  /** Releases the claim of an attempt that provably did not send. Returns true if the retries ran out. */
-  private async releaseClaim(userData: UserData): Promise<boolean> {
+  /**
+   * Counts a provably failed attempt and releases the claim. Returns true when the audit trail could
+   * not be written — the caller then stops, because the columns were deliberately left untouched.
+   */
+  private async countFailure(
+    userData: UserData,
+    claimedAt: Date,
+    reason: string,
+    exhausted: number[],
+    unknown: number[],
+  ): Promise<boolean> {
+    const { maxFailures } = Config.letter.addressLetter;
     const failures = userData.letterFailures + 1;
-    await this.userDataRepo.update({ id: userData.id }, { letterClaimDate: null, letterFailures: failures });
-    return failures >= MAX_LETTER_FAILURES;
+
+    try {
+      // Event before snapshot: the claim timestamp is about to be cleared and the counter overwritten,
+      // and neither previous value exists anywhere else.
+      await this.kycLogService.createAddressLetterLog(
+        userData,
+        `dispatch failed: claimDate ${claimedAt.toISOString()} -> null, failures ${userData.letterFailures} -> ${failures}`,
+        reason,
+      );
+    } catch (e) {
+      // Fail closed: no audit, no column change. The claim stays and is reported as unknown outcome.
+      this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
+      unknown.push(userData.id);
+      return true;
+    }
+
+    // The counter guard makes the release idempotent against a run that overlaps this one: a second
+    // writer that already incremented leaves this update without effect instead of losing its increment.
+    const release = await this.userDataRepo.update(
+      { id: userData.id, letterFailures: userData.letterFailures },
+      { letterClaimDate: null, letterFailures: failures },
+    );
+    if (!release.affected)
+      this.logger.warn(`Address letter claim release had no effect for account ${userData.id}, failure count moved`);
+
+    if (failures >= maxFailures) exhausted.push(userData.id);
+
+    return false;
+  }
+
+  /**
+   * Releases a claim for an account that turned out not to be dispatchable, without counting a failed
+   * attempt — nothing was sent and nothing was wrong with the dispatch. Returns false when the audit
+   * trail could not be written, in which case the claim was deliberately left in place.
+   */
+  private async unclaim(userData: UserData, claimedAt: Date, reason: string): Promise<boolean> {
+    try {
+      await this.kycLogService.createAddressLetterLog(
+        userData,
+        `claim released: claimDate ${claimedAt.toISOString()} -> null`,
+        reason,
+      );
+    } catch (e) {
+      this.logger.critical(`Address letter audit write failed for account ${userData.id}`, e);
+      return false;
+    }
+
+    await this.userDataRepo.update({ id: userData.id }, { letterClaimDate: null });
+
+    return true;
   }
 
   /**
@@ -262,9 +358,33 @@ export class AddressLetterJobService {
 
       // de-facto audit trail, replacing the archive the previous automation kept
       this.logger.info(`Address letter sent for account ${userData.id}: ${name} (file ${file.id})`);
+      await this.logDispatch(userData, date, `file ${file.id} (${name})`);
     } catch (e) {
       this.logger.error(`Address letter file upload failed for account ${userData.id} after dispatch`, e);
+      // `uploadUserFile` writes the row before the blob, so a failed storage upload leaves a valid row
+      // without a blob behind. Left alone, the observer's anti-join would count the document as present
+      // and `sentWithoutFile` would stay silent about the very case it exists for.
+      await this.invalidateOrphanFile(userData, name);
+      await this.logDispatch(userData, date, `document upload failed: ${e.message}`);
     }
+  }
+
+  /** The dispatch itself, for the record. Never lets a failed trail write undo a letter already sent. */
+  private async logDispatch(userData: UserData, sentAt: Date, detail: string): Promise<void> {
+    await this.kycLogService
+      .createAddressLetterLog(userData, `dispatched: letterSentDate null -> ${sentAt.toISOString()}`, detail)
+      .catch((e) => this.logger.error(`Address letter dispatch log failed for account ${userData.id}`, e));
+  }
+
+  private async invalidateOrphanFile(userData: UserData, name: string): Promise<void> {
+    const files = await this.kycFileService
+      .getUserDataKycFiles(userData.id)
+      .catch(() => [] as { id: number; name: string }[]);
+    const orphan = files.find((f) => f.name === name);
+    if (orphan)
+      await this.kycFileService
+        .invalidateKycFile(orphan.id)
+        .catch((e) => this.logger.error(`Address letter orphan invalidation failed for file ${orphan.id}`, e));
   }
 
   /**
@@ -278,11 +398,10 @@ export class AddressLetterJobService {
   private async escalate(exhausted: number[], unknown: number[], lastError?: string): Promise<void> {
     if (!exhausted.length && !unknown.length) return;
 
+    const { maxFailures } = Config.letter.addressLetter;
     const ids = [...exhausted, ...unknown].sort((a, b) => a - b);
     const errors = [
-      exhausted.length
-        ? `Retries exhausted (${MAX_LETTER_FAILURES}) for account(s) ${exhausted.join(', ')}`
-        : undefined,
+      exhausted.length ? `Retries exhausted (${maxFailures}) for account(s) ${exhausted.join(', ')}` : undefined,
       unknown.length ? `Dispatch outcome unknown, claim kept for account(s) ${unknown.join(', ')}` : undefined,
       lastError,
     ].filter((e) => e);

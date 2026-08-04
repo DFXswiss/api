@@ -23,6 +23,15 @@ export class KycFileService {
     return saved;
   }
 
+  // Flags a previously created file as invalid. `uploadFile` writes the database row before the blob,
+  // so a failing storage upload leaves a row pointing at a blob that does not exist - and reporting,
+  // which only counts valid files, would treat the document as present. This keeps the store honest
+  // instead of leaving that orphan behind.
+  async invalidateKycFile(id: number): Promise<void> {
+    await this.kycFileRepository.update(id, { valid: false });
+    this.kycFileRepository.invalidateCache();
+  }
+
   async getKycFile(uid: string, relations?: FindOptionsRelations<KycFile>): Promise<KycFile> {
     return this.kycFileRepository.findOne({
       where: { uid },

@@ -19,6 +19,26 @@ export class KycLogService {
     private readonly kycDocumentService: KycDocumentService,
   ) {}
 
+  /**
+   * Records one address letter dispatch transition, append-only.
+   *
+   * Written BEFORE the snapshot columns on the account change (`letterClaimDate`, `letterFailures`,
+   * `letterSentDate`), so the previous value and the reason for a change stay reconstructible from the
+   * database alone. Deliberately not swallowing errors: the caller must fail closed and leave the
+   * columns untouched when the trail cannot be written.
+   */
+  async createAddressLetterLog(userData: UserData, result: string, comment?: string): Promise<void> {
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.ADDRESS_LETTER,
+      eventDate: new Date(),
+      result,
+      comment,
+      userData,
+    });
+
+    await this.kycLogRepo.save(entity);
+  }
+
   async createMergeLog(user: UserData, log: string, manager?: EntityManager): Promise<void> {
     const repo = manager?.getRepository(KycLog) ?? this.kycLogRepo;
     const entity = repo.create({

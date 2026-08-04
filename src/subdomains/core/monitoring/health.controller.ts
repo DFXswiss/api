@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, HttpStatus, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config } from 'src/config/config';
 import { MonitoringService } from './monitoring.service';
 import { SystemState } from './system-state-snapshot.entity';
 
@@ -203,18 +204,29 @@ export class HealthController {
       backlog?: number;
       claimedWithoutLetter?: number;
       exhausted?: number;
+      sentWithoutFile?: number;
       hoursSinceLastLetter?: number | null;
     };
     if (!data) return { status: HealthStatus.DEGRADED, detail: 'No address letter data' };
 
+    const { maxHoursWithoutLetter, backlogThreshold } = Config.letter.addressLetter;
+
     const issues: string[] = [];
     // A few dozen letters a day is the normal load, so a day without one is a broken dispatch. Checked
-    // while there is something to send - a genuinely empty queue must not raise an alert.
-    if (data.backlog > 0 && data.hoursSinceLastLetter > 24)
-      issues.push(`no letter sent for ${data.hoursSinceLastLetter}h`);
+    // only while there is something to send - a genuinely empty queue must not raise an alert. A null
+    // age means no letter was EVER sent, which with a non-empty queue is the same broken dispatch: it
+    // has to be tested explicitly, because `null > n` is false and would otherwise read as healthy.
+    if (data.backlog > 0) {
+      if (data.hoursSinceLastLetter == null) issues.push('no letter ever sent');
+      else if (data.hoursSinceLastLetter > maxHoursWithoutLetter)
+        issues.push(`no letter sent for ${data.hoursSinceLastLetter}h`);
+    }
     if (data.claimedWithoutLetter > 0) issues.push(`${data.claimedWithoutLetter} claims with unknown outcome`);
     if (data.exhausted > 0) issues.push(`${data.exhausted} accounts out of retries`);
-    if (data.backlog > 100) issues.push(`${data.backlog} letters queued`);
+    // A dispatched letter whose document never reached the store: the letter is out, the compliance
+    // record is not. Reported, because nothing else would ever surface it.
+    if (data.sentWithoutFile > 0) issues.push(`${data.sentWithoutFile} letters without a document`);
+    if (data.backlog > backlogThreshold) issues.push(`${data.backlog} letters queued`);
 
     if (issues.length === 0) return { status: HealthStatus.OK };
     return { status: HealthStatus.DEGRADED, detail: issues.join(', ') };

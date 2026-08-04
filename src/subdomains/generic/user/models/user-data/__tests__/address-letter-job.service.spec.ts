@@ -1,14 +1,17 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config, ConfigService } from 'src/config/config';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { LetterColor, LetterMode, LetterShip } from 'src/subdomains/generic/admin/dto/send-letter.dto';
 import { FileSubType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
+import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
-import { AddressLetterJobService, LETTER_BATCH_SIZE, MAX_LETTER_FAILURES } from '../address-letter-job.service';
+import { AddressLetterJobService } from '../address-letter-job.service';
 import { AddressLetterPdfService } from '../address-letter-pdf.service';
 import { UserDataRepository } from '../user-data.repository';
 
@@ -19,6 +22,8 @@ describe('AddressLetterJobService', () => {
   let addressLetterPdfService: AddressLetterPdfService;
   let letterService: LetterService;
   let kycDocumentService: KycDocumentService;
+  let kycFileService: KycFileService;
+  let kycLogService: KycLogService;
   let notificationService: NotificationService;
 
   let queryBuilder: any;
@@ -60,11 +65,25 @@ describe('AddressLetterJobService', () => {
     return (userDataRepo.update as jest.Mock).mock.calls;
   }
 
+  /** The candidates a run works on, and the row each one is re-read as under its claim. */
+  function withCandidates(...candidates: any[]): void {
+    queryBuilder.getMany.mockResolvedValue(candidates);
+    jest
+      .spyOn(userDataRepo, 'findOneBy')
+      .mockImplementation((where: any) => Promise.resolve(candidates.find((c) => c.id === where.id)));
+  }
+
+  beforeAll(() => {
+    new ConfigService();
+  });
+
   beforeEach(async () => {
     userDataRepo = createMock<UserDataRepository>();
     addressLetterPdfService = createMock<AddressLetterPdfService>();
     letterService = createMock<LetterService>();
     kycDocumentService = createMock<KycDocumentService>();
+    kycFileService = createMock<KycFileService>();
+    kycLogService = createMock<KycLogService>();
     notificationService = createMock<NotificationService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,6 +93,8 @@ describe('AddressLetterJobService', () => {
         { provide: AddressLetterPdfService, useValue: addressLetterPdfService },
         { provide: LetterService, useValue: letterService },
         { provide: KycDocumentService, useValue: kycDocumentService },
+        { provide: KycFileService, useValue: kycFileService },
+        { provide: KycLogService, useValue: kycLogService },
         { provide: NotificationService, useValue: notificationService },
       ],
     }).compile();
@@ -83,8 +104,11 @@ describe('AddressLetterJobService', () => {
     queryBuilder = createQueryBuilder([]);
     jest.spyOn(userDataRepo, 'createQueryBuilder').mockReturnValue(queryBuilder);
     jest.spyOn(userDataRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+    jest.spyOn(userDataRepo, 'findOneBy').mockResolvedValue(null);
     jest.spyOn(addressLetterPdfService, 'generatePdf').mockResolvedValue({ base64: 'cGRm', pageCount: 1 });
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockResolvedValue({ file: { id: 1 } as any, url: 'url' });
+    jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
+    jest.spyOn(kycLogService, 'createAddressLetterLog').mockResolvedValue(undefined);
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(true);
     Object.defineProperty(letterService, 'isConfigured', { get: () => true, configurable: true });
   });
@@ -111,29 +135,39 @@ describe('AddressLetterJobService', () => {
     expect(where).toContain('userData.kycType = :kycType');
     expect(where).toContain('userData.status != :merged');
     expect(where).toContain('(userData.accountType IS NULL OR userData.accountType != :organization)');
-    expect(where).toContain('userData.firstname IS NOT NULL');
     expect(where).toContain('userData.letterClaimDate IS NULL');
     expect(where).toContain('userData.letterFailures < :maxFailures');
-    expect(where).toContain('userData.street IS NOT NULL');
-    expect(where).toContain('userData.zip IS NOT NULL');
-    expect(where).toContain('userData.location IS NOT NULL');
-    expect(where).toContain('country.id IS NOT NULL');
-    expect(queryBuilder.take).toHaveBeenCalledWith(LETTER_BATCH_SIZE);
+    expect(queryBuilder.take).toHaveBeenCalledWith(Config.letter.addressLetter.batchSize);
     expect(queryBuilder.orderBy).toHaveBeenCalledWith('userData.id', 'ASC');
   });
 
+  it('rejects blank name and address parts, not only NULL ones', async () => {
+    await service.sendAddressLetters();
+
+    // a blank string passes IS NOT NULL, prints an undeliverable envelope and would still be stamped
+    for (const column of ['userData.firstname', 'userData.street', 'userData.zip', 'userData.location', 'country.name'])
+      expect(conditions()).toContain(`NULLIF(BTRIM(${column}), '') IS NOT NULL`);
+  });
+
   it('claims the account before it renders or sends anything', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
 
     await service.sendAddressLetters();
 
     const [criteria, values] = updateCalls()[0];
     expect(criteria).toEqual({ id: 7, letterSentDate: IsNull(), letterClaimDate: IsNull() });
     expect(values).toEqual({ letterClaimDate: expect.any(Date) });
+
+    // order, not just presence: rendering or sending before the claim would allow a double dispatch
+    const claimOrder = (userDataRepo.update as jest.Mock).mock.invocationCallOrder[0];
+    const renderOrder = (addressLetterPdfService.generatePdf as jest.Mock).mock.invocationCallOrder[0];
+    const sendOrder = (letterService.sendLetter as jest.Mock).mock.invocationCallOrder[0];
+    expect(claimOrder).toBeLessThan(renderOrder);
+    expect(renderOrder).toBeLessThan(sendOrder);
   });
 
   it('skips the account entirely when another replica won the claim', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(userDataRepo, 'update').mockResolvedValue({ affected: 0 } as any);
 
     await service.sendAddressLetters();
@@ -142,8 +176,29 @@ describe('AddressLetterJobService', () => {
     expect(letterService.sendLetter).not.toHaveBeenCalled();
   });
 
-  it('sends, stamps the AML proof and attaches the document, in that order', async () => {
+  it('renders from the row re-read under the claim, not from the selected one', async () => {
+    const selected = createUserData(7, { street: 'Alte Strasse' });
+    queryBuilder.getMany.mockResolvedValue([selected]);
+    jest.spyOn(userDataRepo, 'findOneBy').mockResolvedValue(createUserData(7, { street: 'Neue Strasse' }) as any);
+
+    await service.sendAddressLetters();
+
+    expect((addressLetterPdfService.generatePdf as jest.Mock).mock.calls[0][0].street).toBe('Neue Strasse');
+  });
+
+  it('releases the claim without counting a failure when the address stopped being printable', async () => {
     queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    jest.spyOn(userDataRepo, 'findOneBy').mockResolvedValue(createUserData(7, { street: '   ' }) as any);
+
+    await service.sendAddressLetters();
+
+    expect(letterService.sendLetter).not.toHaveBeenCalled();
+    expect(updateCalls()[1][1]).toEqual({ letterClaimDate: null });
+    expect(notificationService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('sends, stamps the AML proof and attaches the document, in that order', async () => {
+    withCandidates(createUserData(7));
 
     await service.sendAddressLetters();
 
@@ -163,10 +218,17 @@ describe('AddressLetterJobService', () => {
     expect(upload[1]).toBe(FileType.USER_NOTES);
     expect(upload[4]).toBe(ContentType.PDF);
     expect(upload[7]).toBe(FileSubType.POST_DISPATCH);
+
+    // the proof may only be written after the dispatch, and the upload only after the proof
+    const sendOrder = (letterService.sendLetter as jest.Mock).mock.invocationCallOrder[0];
+    const stampOrder = (userDataRepo.update as jest.Mock).mock.invocationCallOrder[1];
+    const uploadOrder = (kycDocumentService.uploadUserFile as jest.Mock).mock.invocationCallOrder[0];
+    expect(sendOrder).toBeLessThan(stampOrder);
+    expect(stampOrder).toBeLessThan(uploadOrder);
   });
 
   it('names the file so the residence-address compliance report keeps finding it', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
 
     await service.sendAddressLetters();
 
@@ -177,9 +239,7 @@ describe('AddressLetterJobService', () => {
   });
 
   it('ships nationally only for the countries the provider bills as national', async () => {
-    queryBuilder.getMany.mockResolvedValue([
-      createUserData(7, { country: { id: 2, symbol: 'de', name: 'Deutschland' } }),
-    ]);
+    withCandidates(createUserData(7, { country: { id: 2, symbol: 'de', name: 'Deutschland' } }));
 
     await service.sendAddressLetters();
 
@@ -187,7 +247,7 @@ describe('AddressLetterJobService', () => {
   });
 
   it('never writes the AML proof when the provider rejected the job', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
 
     await service.sendAddressLetters();
@@ -196,31 +256,49 @@ describe('AddressLetterJobService', () => {
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
 
-  it('releases the claim and counts the attempt when the provider rejected the job', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7, { letterFailures: 1 })]);
+  it('records the transition before it clears the claim and counts the attempt', async () => {
+    withCandidates(createUserData(7, { letterFailures: 1 }));
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
 
     await service.sendAddressLetters();
 
     const [criteria, values] = updateCalls()[1];
-    expect(criteria).toEqual({ id: 7 });
+    // guarded by the observed count, so an overlapping run cannot lose an increment
+    expect(criteria).toEqual({ id: 7, letterFailures: 1 });
     expect(values).toEqual({ letterClaimDate: null, letterFailures: 2 });
+
+    const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[0];
+    expect(log[1]).toContain('failures 1 -> 2');
+    // event before snapshot: the audit row is durable before the columns lose their previous values
+    const logOrder = (kycLogService.createAddressLetterLog as jest.Mock).mock.invocationCallOrder[0];
+    expect(logOrder).toBeLessThan((userDataRepo.update as jest.Mock).mock.invocationCallOrder[1]);
+  });
+
+  it('leaves the state untouched when the audit trail cannot be written', async () => {
+    withCandidates(createUserData(7));
+    jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
+    jest.spyOn(kycLogService, 'createAddressLetterLog').mockRejectedValue(new Error('audit store down'));
+
+    await service.sendAddressLetters();
+
+    // only the claim was written; nothing cleared it and no failure was counted
+    expect(updateCalls()).toHaveLength(1);
+    expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the claim when the dispatch went unanswered, so no second letter can follow', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(letterService, 'sendLetter').mockRejectedValue(new Error('gateway timeout'));
 
     await service.sendAddressLetters();
 
-    // the claim is the only write; nothing releases it and nothing stamps a proof
     expect(updateCalls()).toHaveLength(1);
     expect(updateCalls()[0][1]).toEqual({ letterClaimDate: expect.any(Date) });
     expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
   });
 
   it('stops the run at the first send failure instead of burning every retry budget', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7), createUserData(8)]);
+    withCandidates(createUserData(7), createUserData(8));
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
 
     await service.sendAddressLetters();
@@ -228,8 +306,19 @@ describe('AddressLetterJobService', () => {
     expect(letterService.sendLetter).toHaveBeenCalledTimes(1);
   });
 
+  it('stops the run on a rendering failure too — the template is the same for everyone', async () => {
+    withCandidates(createUserData(7), createUserData(8));
+    jest.spyOn(addressLetterPdfService, 'generatePdf').mockRejectedValue(new Error('render boom'));
+
+    await service.sendAddressLetters();
+
+    expect(addressLetterPdfService.generatePdf).toHaveBeenCalledTimes(1);
+    expect(letterService.sendLetter).not.toHaveBeenCalled();
+    expect(updateCalls()[1][1]).toEqual({ letterClaimDate: null, letterFailures: 1 });
+  });
+
   it('escalates once the retries of an account ran out', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7, { letterFailures: MAX_LETTER_FAILURES - 1 })]);
+    withCandidates(createUserData(7, { letterFailures: Config.letter.addressLetter.maxFailures - 1 }));
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
 
     await service.sendAddressLetters();
@@ -239,10 +328,11 @@ describe('AddressLetterJobService', () => {
     expect(mail.input.subject).toContain('7');
     expect(mail.options).toEqual({ suppressRecurring: true });
     expect(mail.correlationId).toBe('AddressLetterDispatch&7');
+    expect(mail.input.errors.join(' ')).toContain(`Retries exhausted (${Config.letter.addressLetter.maxFailures})`);
   });
 
   it('stays quiet while an account still has retries left', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
 
     await service.sendAddressLetters();
@@ -250,18 +340,8 @@ describe('AddressLetterJobService', () => {
     expect(notificationService.sendMail).not.toHaveBeenCalled();
   });
 
-  it('releases the claim and never sends when the letter cannot be rendered', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
-    jest.spyOn(addressLetterPdfService, 'generatePdf').mockRejectedValue(new Error('render boom'));
-
-    await service.sendAddressLetters();
-
-    expect(letterService.sendLetter).not.toHaveBeenCalled();
-    expect(updateCalls()[1][1]).toEqual({ letterClaimDate: null, letterFailures: 1 });
-  });
-
   it('keeps the AML proof when only the document upload failed after dispatch', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockRejectedValue(new Error('storage down'));
 
     await service.sendAddressLetters();
@@ -271,8 +351,22 @@ describe('AddressLetterJobService', () => {
     expect(updateCalls()).toHaveLength(2);
   });
 
+  it('invalidates the row a failed upload left behind, so it cannot pass as a stored document', async () => {
+    withCandidates(createUserData(7));
+    jest.spyOn(kycDocumentService, 'uploadUserFile').mockRejectedValue(new Error('storage down'));
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockImplementation(() =>
+        Promise.resolve([{ id: 42, name: (kycDocumentService.uploadUserFile as jest.Mock).mock.calls[0][2] }] as any),
+      );
+
+    await service.sendAddressLetters();
+
+    expect(kycFileService.invalidateKycFile).toHaveBeenCalledWith(42);
+  });
+
   it('bills the pages it actually rendered', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(7)]);
+    withCandidates(createUserData(7));
     jest.spyOn(addressLetterPdfService, 'generatePdf').mockResolvedValue({ base64: 'cGRm', pageCount: 2 });
 
     await service.sendAddressLetters();
@@ -280,14 +374,13 @@ describe('AddressLetterJobService', () => {
     expect((letterService.sendLetter as jest.Mock).mock.calls[0][0].page).toBe(2);
   });
 
-  it('sends one aggregated alert for the accounts a run left behind', async () => {
-    queryBuilder.getMany.mockResolvedValue([createUserData(9, { letterFailures: MAX_LETTER_FAILURES - 1 })]);
-    jest.spyOn(letterService, 'sendLetter').mockResolvedValue(false);
+  it('records the dispatch itself for the audit trail', async () => {
+    withCandidates(createUserData(7));
 
     await service.sendAddressLetters();
 
-    expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
-    const mail = (notificationService.sendMail as jest.Mock).mock.calls[0][0];
-    expect(mail.input.errors.join(' ')).toContain(`Retries exhausted (${MAX_LETTER_FAILURES})`);
+    const log = (kycLogService.createAddressLetterLog as jest.Mock).mock.calls[0];
+    expect(log[1]).toContain('dispatched');
+    expect(log[2]).toContain('file 1');
   });
 });

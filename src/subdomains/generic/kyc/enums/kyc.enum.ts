@@ -75,6 +75,7 @@ export enum KycLogType {
   FILE = 'KycFileLog',
   MANUAL = 'ManualLog',
   RISK_STATUS = 'RiskStatusLog',
+  ADDRESS_LETTER = 'AddressLetterLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {

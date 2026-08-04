@@ -7,17 +7,14 @@ import { Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
+import { Config } from 'src/config/config';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { FileSubType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import {
   applyCompleteAddress,
   applyLetterEligibility,
-  MAX_LETTER_FAILURES,
 } from 'src/subdomains/generic/user/models/user-data/address-letter-job.service';
 import { IsNull, LessThan } from 'typeorm';
-
-/** How long a claim may stay open before it counts as stray rather than in flight. */
-const CLAIM_GRACE_MINUTES = 15;
 
 interface AddressLetterData {
   // Accounts the job can actually serve right now: eligible, printable address, retries left. The
@@ -26,7 +23,8 @@ interface AddressLetterData {
   // Eligible accounts the job can never serve because part of their postal address is missing. Kept
   // out of `backlog` so a constant, expected population cannot look like a stuck queue.
   incompleteAddress: number;
-  // Accounts that used up their retries (`MAX_LETTER_FAILURES`). They leave the backlog by design and
+  // Accounts that used up their retries (`Config.letter.addressLetter.maxFailures`). They leave the
+  // backlog by design and
   // need a decision, so they are counted rather than hidden.
   exhausted: number;
   // Claimed, still unsent, and older than the grace period: the dispatch outcome is unknown and the
@@ -83,7 +81,7 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
       incompleteAddress: await this.getIncompleteAddress(),
       exhausted: await this.getExhausted(),
       claimedWithoutLetter: await this.repos.userData.countBy({
-        letterClaimDate: LessThan(Util.minutesBefore(CLAIM_GRACE_MINUTES)),
+        letterClaimDate: LessThan(Util.minutesBefore(Config.letter.addressLetter.claimGraceMinutes)),
         letterSentDate: IsNull(),
       }),
       sentWithoutFile: await this.getSentWithoutFile(),
@@ -101,7 +99,11 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
       .leftJoin('userData.country', 'country');
 
     const { backlog, oldestUpdated } = await applyCompleteAddress(applyLetterEligibility(query))
-      .andWhere('userData.letterFailures < :maxFailures', { maxFailures: MAX_LETTER_FAILURES })
+      // The job never picks a claimed account up again, so a claim must leave the servable queue -
+      // otherwise a stray claim shows up as backlog AND as claimedWithoutLetter, and the queue looks
+      // stalled while nothing is actually waiting for the job.
+      .andWhere('userData.letterClaimDate IS NULL')
+      .andWhere('userData.letterFailures < :maxFailures', { maxFailures: Config.letter.addressLetter.maxFailures })
       .getRawOne<{ backlog: string; oldestUpdated: Date | null }>();
 
     return [+backlog, oldestUpdated];
@@ -114,7 +116,10 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
       .leftJoin('userData.country', 'country');
 
     const { incomplete } = await applyLetterEligibility(query)
-      .andWhere('(userData.street IS NULL OR userData.zip IS NULL OR userData.location IS NULL OR country.id IS NULL)')
+      .andWhere(
+        `(NULLIF(BTRIM(userData.street), '') IS NULL OR NULLIF(BTRIM(userData.zip), '') IS NULL
+          OR NULLIF(BTRIM(userData.location), '') IS NULL OR NULLIF(BTRIM(country.name), '') IS NULL)`,
+      )
       .getRawOne<{ incomplete: string }>();
 
     return +incomplete;
@@ -127,7 +132,7 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
       .leftJoin('userData.country', 'country');
 
     const { exhausted } = await applyLetterEligibility(query)
-      .andWhere('userData.letterFailures >= :maxFailures', { maxFailures: MAX_LETTER_FAILURES })
+      .andWhere('userData.letterFailures >= :maxFailures', { maxFailures: Config.letter.addressLetter.maxFailures })
       .getRawOne<{ exhausted: string }>();
 
     return +exhausted;

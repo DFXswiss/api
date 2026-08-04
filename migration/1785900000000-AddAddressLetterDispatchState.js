@@ -41,6 +41,10 @@ module.exports = class AddAddressLetterDispatchState1785900000000 {
 
   /** @param {QueryRunner} queryRunner */
   async up(queryRunner) {
+    // Both ALTERs take an ACCESS EXCLUSIVE lock. Without a bound, the migration waits behind any
+    // long-running transaction on this table while every later query queues behind the migration -
+    // a deploy-time outage. Bounded, the deploy fails fast and is retried instead.
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterClaimDate" TIMESTAMP`);
     await queryRunner.query(`ALTER TABLE "user_data" ADD "letterFailures" integer NOT NULL DEFAULT 0`);
     // Appends without duplicating, and creates the setting when it does not exist yet.
@@ -57,18 +61,18 @@ module.exports = class AddAddressLetterDispatchState1785900000000 {
     `);
   }
 
-  /** @param {QueryRunner} queryRunner */
+  /**
+   * Drops the columns again but deliberately LEAVES `AddressLetter` in the `disabledProcess` setting.
+   *
+   * `up()` cannot tell whether it added the entry or found it already there, so removing it on
+   * rollback can silently delete a switch an operator set themselves. Between an orphaned entry for a
+   * process that no longer exists (harmless - `DisabledProcess` just never matches it) and re-enabling
+   * physical mail behind the operator's back, only one of the two is safe.
+   *
+   * @param {QueryRunner} queryRunner
+   */
   async down(queryRunner) {
-    await queryRunner.query(`
-      UPDATE "setting"
-      SET "value" = COALESCE((
-        SELECT jsonb_agg(process)
-        FROM jsonb_array_elements_text(COALESCE(NULLIF("setting"."value", ''), '[]')::jsonb) AS processes(process)
-        WHERE process <> 'AddressLetter'
-      ), '[]'::jsonb)::text,
-      "updated" = NOW()
-      WHERE "key" = 'disabledProcess'
-    `);
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
     await queryRunner.query(`ALTER TABLE "user_data" DROP COLUMN "letterFailures"`);
     await queryRunner.query(`ALTER TABLE "user_data" DROP COLUMN "letterClaimDate"`);
   }

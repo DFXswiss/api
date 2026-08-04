@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ConfigService } from 'src/config/config';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -27,6 +28,10 @@ describe('AddressLetterObserver', () => {
     query.getRawOne = jest.fn().mockResolvedValue(rawResult);
     return query;
   }
+
+  beforeAll(() => {
+    new ConfigService();
+  });
 
   beforeEach(() => {
     queries = [
@@ -93,10 +98,18 @@ describe('AddressLetterObserver', () => {
   it('keeps accounts without a printable address out of the backlog', async () => {
     await observer.fetch();
 
-    expect(queries[0].conditions).toContain('userData.street IS NOT NULL');
-    expect(queries[1].conditions).toContain(
-      '(userData.street IS NULL OR userData.zip IS NULL OR userData.location IS NULL OR country.id IS NULL)',
-    );
+    expect(queries[0].conditions).toContain(`NULLIF(BTRIM(userData.street), '') IS NOT NULL`);
+    // a blank string is as unprintable as a missing one, and must land in incompleteAddress instead
+    expect(queries[1].conditions.join(' ')).toContain(`NULLIF(BTRIM(userData.street), '') IS NULL`);
+    expect(queries[1].conditions.join(' ')).toContain(`NULLIF(BTRIM(country.name), '') IS NULL`);
+  });
+
+  it('leaves a claimed account out of the servable backlog', async () => {
+    await observer.fetch();
+
+    // the job never picks a claimed account up again, so counting it as backlog would report a queue
+    // as stalled while nothing is actually waiting for the job
+    expect(queries[0].conditions).toContain('userData.letterClaimDate IS NULL');
   });
 
   it('separates accounts out of retries from the servable backlog', async () => {

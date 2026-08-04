@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ConfigService } from 'src/config/config';
 import { Response } from 'express';
 import { HealthController } from '../health.controller';
 import { MonitoringService } from '../monitoring.service';
@@ -22,7 +23,11 @@ describe('HealthController — address letter check', () => {
     });
   }
 
-  const healthy = { backlog: 5, claimedWithoutLetter: 0, exhausted: 0, hoursSinceLastLetter: 2 };
+  const healthy = { backlog: 5, claimedWithoutLetter: 0, exhausted: 0, sentWithoutFile: 0, hoursSinceLastLetter: 2 };
+
+  beforeAll(() => {
+    new ConfigService();
+  });
 
   beforeEach(() => {
     monitoringService = createMock<MonitoringService>();
@@ -66,6 +71,19 @@ describe('HealthController — address letter check', () => {
     expect(body.checks.addressLetter.detail).toContain('101 letters queued');
   });
 
+  it('reports a queue where no letter was ever sent — null is not healthy', async () => {
+    const body = await respond({ ...healthy, hoursSinceLastLetter: null });
+
+    expect(body.checks.addressLetter.status).toBe('degraded');
+    expect(body.checks.addressLetter.detail).toContain('no letter ever sent');
+  });
+
+  it('reports a dispatched letter whose document never reached the store', async () => {
+    const body = await respond({ ...healthy, sentWithoutFile: 3 });
+
+    expect(body.checks.addressLetter.detail).toContain('3 letters without a document');
+  });
+
   it('reports missing data instead of silently passing', async () => {
     const body = await respond(undefined);
 
@@ -73,7 +91,13 @@ describe('HealthController — address letter check', () => {
   });
 
   it('never turns a stalled dispatch into a 503 for the whole API', async () => {
-    const body = await respond({ backlog: 5000, claimedWithoutLetter: 99, exhausted: 99, hoursSinceLastLetter: 999 });
+    const body = await respond({
+      backlog: 5000,
+      claimedWithoutLetter: 99,
+      exhausted: 99,
+      sentWithoutFile: 99,
+      hoursSinceLastLetter: 999,
+    });
 
     expect(body.checks.addressLetter.status).toBe('degraded');
     expect(body.status).not.toBe('down');
