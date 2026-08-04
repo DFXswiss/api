@@ -418,11 +418,12 @@ describe('CronLeaseService', () => {
             return new Promise((resolve) => (answer = resolve));
           }
 
-          return Promise.resolve([]);
+          return Promise.resolve([[], 1]);
         });
 
         const { service } = buildService({ onQuery });
         jest.spyOn(service['logger'], 'warn').mockImplementation();
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
 
         let finish: () => void;
         const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
@@ -445,6 +446,10 @@ describe('CronLeaseService', () => {
 
         finish();
         await run;
+
+        // A renewal is still outstanding at release time here, so a false loss would be silent
+        // without this — the shape that hid one behind an unwatched logger before.
+        expect(error).not.toHaveBeenCalled();
 
         return { afterAnswer, immediately };
       } finally {
@@ -1061,6 +1066,55 @@ describe('CronLeaseService', () => {
       expect(warn.mock.calls[0][0]).toContain('6.0 s');
     });
 
+    it('does not count the release it waits for as part of the renewal', async () => {
+      // A renewal that matches nothing waits for the release before deciding. That wait is the
+      // round trip this change exists to survive, and folding it into the renewal's own duration
+      // would print a slow release as a slow renewal — corrupting the one number a statement
+      // timeout on `renew` would be sized against.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let answerRenewal: (result: [unknown[], number]) => void;
+        let answerRelease: (result: [unknown[], number]) => void;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) return new Promise((resolve) => (answerRenewal = resolve));
+          if (sql.includes('DELETE')) return new Promise((resolve) => (answerRelease = resolve));
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        const warn = jest.spyOn(service['logger'], 'warn').mockImplementation();
+        jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        // The renewal must be OUTSTANDING when the release goes out — `stop` clears the timer, so
+        // finishing first would mean no renewal ever fires and the test would prove nothing.
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        finish();
+        await settle();
+
+        // It answers at once, matching nothing, and then waits on the stalled release for 90 s.
+        answerRenewal([[], 0]);
+        await settle();
+
+        jest.advanceTimersByTime(90_000);
+        answerRelease([[], 1]);
+        await run;
+        await settle();
+
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('reports only a new worst, keeping the largest rather than the first', async () => {
       // Latching on the first would freeze the number at 6 s for a run that later renewed in 300 s,
       // and 300 s is what a timeout would have to be sized against. A line per attempt would
@@ -1072,6 +1126,62 @@ describe('CronLeaseService', () => {
         expect.stringContaining('7.0 s'),
         expect.stringContaining('300.0 s'),
       ]);
+    });
+  });
+
+  describe('a claim that was slow to answer', () => {
+    /** Acquire takes `acquireMs` to answer; then reports when the first renewal fires. */
+    async function firstRenewalAfterAcquireTaking(acquireMs: number) {
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let renewals = 0;
+        let answerAcquire: (rows: unknown[]) => void;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return new Promise((resolve) => (answerAcquire = resolve));
+          if (sql.includes('UPDATE')) {
+            renewals++;
+            return Promise.resolve([[], 1]);
+          }
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(acquireMs);
+        answerAcquire([{ owner: 'worker:1' }]);
+        await settle();
+
+        // No time passes: only a renewal that is already due can fire.
+        jest.advanceTimersByTime(0);
+        await settle();
+
+        const immediately = renewals;
+
+        finish();
+        await run;
+
+        return immediately;
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+
+    it('brings the first renewal due at once when the claim outran the interval', async () => {
+      // `keepAlive` is reached only once the claim has ANSWERED, so a flat first wait would add the
+      // claim's round trip to a wait already sized to contain it: a claim issued at 0 and answered
+      // at 45 s expires at ~60 s, and the first renewal would land at 65 s.
+      expect(await firstRenewalAfterAcquireTaking(45_000)).toEqual(1);
+    });
+
+    it('still waits out the interval after a prompt claim', async () => {
+      expect(await firstRenewalAfterAcquireTaking(100)).toEqual(0);
     });
   });
 

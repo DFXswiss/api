@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config, CronRole } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { DataSource } from 'typeorm';
 import { DfxLogger } from './dfx-logger';
 
@@ -75,6 +74,11 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
  * would freeze the number at 6 s for a run whose renewals then went to 300 s, and 300 s is what a
  * timeout would have to be sized against. The high-water mark costs a handful of lines per run and
  * keeps the largest. A run that reports none had every renewal inside the threshold.
+ *
+ * It is wall time, so one blocked event loop or one forward clock step sets a mark no real renewal
+ * beats, and the rest of that run's slow renewals go unreported. Reading these as a lower bound per
+ * run rather than a census is the honest use; the loss line, not this one, is what has to be
+ * countable.
  */
 const SLOW_RENEWAL_MS = 5 * 1000;
 
@@ -612,32 +616,40 @@ export class CronLeaseService implements OnModuleInit {
       timer = setTimeout(async () => {
         const startedAt = Date.now();
 
+        let renewed: boolean | undefined;
+        let failure: Error | undefined;
         try {
-          const stillOurs = await this.renew(job, owner);
-
-          if (stillOurs) {
-            acceptedAt = startedAt;
-          } else if (!reportedLoss && !(await ourReleaseTookTheRow())) {
-            reportedLoss = true;
-            this.logger.error(
-              `Lost the lease for ${job} (owner ${owner}, ` +
-                `${Util.secondsDiff(new Date(acceptedAt)).toFixed(1)} s since the claim was last confirmed)`,
-            );
-          }
+          renewed = await this.renew(job, owner);
         } catch (e) {
-          // Deliberately unrestricted, unlike the loss line above and the slow line below. Each
+          failure = e instanceof Error ? e : new Error(String(e));
+        }
+
+        // Sampled the instant the RENEWAL settles, before anything else is awaited. Taken as raw
+        // deltas rather than through `Util.secondsDiff`, which reads the clock itself: the whole
+        // point is WHEN these are measured, and the age additionally needs clamping — a backward
+        // clock step would otherwise print a negative one. Both numbers
+        // below describe the renewal, and the branch under them waits on the release — whose round
+        // trip is the very thing this change exists to survive. Reading the clock after that wait
+        // would print a slow release as a slow renewal, and inflate the claim's age with it.
+        const elapsed = Date.now() - startedAt;
+        const unconfirmedFor = Math.max(0, Date.now() - acceptedAt);
+
+        if (failure) {
+          // Deliberately unrestricted, unlike the loss line below and the slow line under it. Each
           // failure is a distinct event carrying its own cause, and it also feeds `takeFailures`
           // for the heartbeat, which counts per window and would under-report a persistent outage
           // if this line were latched or held to a high-water mark.
-          this.recordFailure(e);
-          this.logger.error(`Could not extend the lease for ${job}`, e);
+          this.recordFailure(failure);
+          this.logger.error(`Could not extend the lease for ${job}`, failure);
+        } else if (renewed) {
+          acceptedAt = startedAt;
+        } else if (!reportedLoss && !(await ourReleaseTookTheRow())) {
+          reportedLoss = true;
+          this.logger.error(
+            `Lost the lease for ${job} (owner ${owner}, ` +
+              `${(unconfirmedFor / 1000).toFixed(1)} s since the claim was last confirmed)`,
+          );
         }
-
-        // One sample, read once, used for both the threshold and the number that gets printed —
-        // and outside the try, because a renewal that is slow and then REJECTS is exactly what the
-        // statement timeout this threshold is named after would produce. Measuring inside the arm
-        // that answered would report nothing at all for precisely that case.
-        const elapsed = Date.now() - startedAt;
 
         // Reported only when it is the worst this run has seen. Slowness persists, so a line per
         // attempt would emit some 360 of them for a two-hour run and count run length rather than
@@ -660,7 +672,13 @@ export class CronLeaseService implements OnModuleInit {
       timer.unref();
     };
 
-    schedule(RENEWAL_INTERVAL_MS);
+    // Measured from when the claim was ISSUED, for the same reason every later arm is measured from
+    // when its attempt started. `keepAlive` is reached only once `acquire` has ANSWERED, so a flat
+    // interval here would add the claim's round trip to a wait already sized to contain it — the
+    // exact arithmetic this change removes everywhere else. A claim issued at 0 and answered at 45 s
+    // expires at ~60 s; a flat arm puts the first renewal at 65 s, five seconds too late, while this
+    // brings it due at once.
+    schedule(Math.min(RENEWAL_INTERVAL_MS, Math.max(0, RENEWAL_INTERVAL_MS - (Date.now() - claimedAt))));
 
     return {
       stop: () => {
