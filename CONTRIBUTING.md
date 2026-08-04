@@ -519,6 +519,8 @@ export class SupportIssueController {
 
 [docs/endpoints.md](docs/endpoints.md) lists every route this service exposes. **Any change to the set of routes must be reflected there in the same PR** — adding, removing, renaming or re-scoping an endpoint, and equally a change to a `@Controller` base path, which moves every route beneath it.
 
+Both inventories (`docs/endpoints.md` and `docs/load-sites.md`) are produced by the scripts under `tools/inventory/`. Run `npm run build && npm run docs:inventory` to regenerate them. A PR that moves load sites or adds new ones should re-run that command so the inventories stay in sync.
+
 Two details are easy to get wrong when editing the list by hand:
 
 - a file may declare more than one `@Controller` class, and a route belongs to the scope that **precedes** it, not to the first one in the file — `custody.controller.ts` declares both `custody` and `custody/admin`
