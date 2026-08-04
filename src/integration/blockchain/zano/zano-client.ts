@@ -29,7 +29,7 @@ import { ZanoHelper } from './zano-helper';
 // numeric RPC error is deliberately fail-closed.
 const ZANO_PRE_BROADCAST_RPC_CODES: number[] = [];
 
-const ZANO_REQUEST_TIMEOUT = 30000;
+const ZANO_REQUEST_TIMEOUT_MS = 30_000;
 
 export class ZanoClient extends BlockchainClient {
   private readonly tokens = new AsyncCache<BlockchainToken>();
@@ -49,7 +49,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: { status: string } }>(`${Config.blockchain.zano.node.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result.status);
   }
@@ -65,7 +65,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: { status: string } }>(`${Config.blockchain.zano.node.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result?.status === 'OK');
   }
@@ -73,7 +73,7 @@ export class ZanoClient extends BlockchainClient {
   async getNodeBlockHeight(): Promise<number> {
     return this.http
       .get<{ height: number }>(`${Config.blockchain.zano.node.url}/getheight`, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.height - 1);
   }
@@ -93,7 +93,7 @@ export class ZanoClient extends BlockchainClient {
           `${Config.blockchain.zano.node.url}/json_rpc`,
           params,
           {
-            timeout: ZANO_REQUEST_TIMEOUT,
+            timeout: ZANO_REQUEST_TIMEOUT_MS,
           },
         )
         .then((r) => r.result.asset_descriptor);
@@ -112,7 +112,7 @@ export class ZanoClient extends BlockchainClient {
         `${Config.blockchain.zano.node.url}/json_rpc`,
         params,
         {
-          timeout: ZANO_REQUEST_TIMEOUT,
+          timeout: ZANO_REQUEST_TIMEOUT_MS,
         },
       )
       .then((r) => this.mapTransaction(r.result.tx_info));
@@ -144,7 +144,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: { current_height: number } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result.current_height);
   }
@@ -154,7 +154,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: { address: string } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => ({ address: r.result.address }));
   }
@@ -172,7 +172,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: ZanoGetBalanceResultDto }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => this.convertNativeCoinBalanceAuToZano(r.result));
   }
@@ -207,7 +207,7 @@ export class ZanoClient extends BlockchainClient {
 
     const balanceResult = await this.http
       .post<{ result: ZanoGetBalanceResultDto }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result);
 
@@ -231,7 +231,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: ZanoAssetWhitelistResultDto }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result);
   }
@@ -246,7 +246,7 @@ export class ZanoClient extends BlockchainClient {
         `${Config.blockchain.zano.wallet.url}/json_rpc`,
         params,
         {
-          timeout: ZANO_REQUEST_TIMEOUT,
+          timeout: ZANO_REQUEST_TIMEOUT_MS,
         },
       )
       .then((r) => r.result.asset_descriptor);
@@ -259,7 +259,7 @@ export class ZanoClient extends BlockchainClient {
 
     return this.http
       .post<{ result: { sig: string } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => r.result.sig);
   }
@@ -325,7 +325,7 @@ export class ZanoClient extends BlockchainClient {
         result?: { tx_details: { tx_hash: string } };
         error?: { code: number; message: string };
       }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       });
 
       // Response mapping stays inside the boundary: a malformed/empty body throwing while reading
@@ -370,7 +370,7 @@ export class ZanoClient extends BlockchainClient {
       .post<{
         result: { transfers: ZanoGetTransferResultDto[] };
       }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params, {
-        timeout: ZANO_REQUEST_TIMEOUT,
+        timeout: ZANO_REQUEST_TIMEOUT_MS,
       })
       .then((r) => (r.result.transfers ? this.mapTransfer(r.result.transfers) : []));
   }

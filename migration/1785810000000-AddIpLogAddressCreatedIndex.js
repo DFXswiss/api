@@ -9,9 +9,10 @@
  *
  * What this replaces. `IpLogService.updateUserIpLogs` used to bound its update by id: it first
  * resolved the newest row older than the retention window (`WHERE created <= $1 ORDER BY id DESC
- * LIMIT 1`) and then updated `id > thatId AND address = ...`. Neither column in either predicate
- * was indexed - `ip_log` carried indexes on `userId` and `userDataId` only - so the bounding
- * lookup itself became the dominant cost of the sign-up path. In production traces that statement
+ * LIMIT 1`) and then updated `id > thatId AND address = ...`. Neither `created` nor `address` had
+ * a supporting index - `ip_log` carried indexes on `userId` and `userDataId` only, besides the
+ * primary key on `id` - so the bounding lookup had to find its row through an unindexed `created`
+ * and became the dominant cost of the sign-up path. In production traces that statement
  * was observed at 1.65 s and, on a colder cache, 7.51 s (measured externally against production
  * traces; not reproducible from this repository). The lookup was memoised, but its cache key was
  * derived from the retention date and therefore rotated daily, so the cost recurred.
