@@ -224,7 +224,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/dashboard/accounting/ledger/suspense` | hidden | projected | 10 | 4/4 | yes | `LedgerController.getSuspense` | `subdomains/core/accounting/controllers/ledger.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/changes` | hidden | whole rows | 11 | not yet |  | `DashboardFinancialController.getFinancialChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/changes/latest` | hidden | whole rows | 11 | not yet |  | `DashboardFinancialController.getLatestChanges` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
-| GET | 1 |  | `/dashboard/financial/latest` | hidden | whole rows | 33 | n/a |  | `DashboardFinancialController.getLatestBalance` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
+| GET | 1 |  | `/dashboard/financial/latest` | hidden | whole rows | 33 | not yet |  | `DashboardFinancialController.getLatestBalance` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/log` | hidden | whole rows | 33 | not yet | yes | `DashboardFinancialController.getFinancialLog` | `subdomains/supporting/dashboard/dashboard-financial.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/reconciliation` | hidden | whole rows | 229 | not yet |  | `DashboardReconciliationController.getReconciliation` | `subdomains/supporting/dashboard/dashboard-reconciliation.controller.ts` |
 | GET | 1 |  | `/dashboard/financial/reconciliation/overview` | hidden | whole rows | 229 | not yet |  | `DashboardReconciliationController.getOverview` | `subdomains/supporting/dashboard/dashboard-reconciliation.controller.ts` |
@@ -264,12 +264,12 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/gs/evm/rawTransaction` | hidden | whole rows | 6 | not yet |  | `GsEvmController.sendRawTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | POST | 1 |  | `/gs/evm/tokenTransaction` | hidden | whole rows | 33 | not yet |  | `GsEvmController.sendTokenTransaction` | `subdomains/generic/gs/gs-evm.controller.ts` |
 | GET | 1 |  | `/gs/support` | hidden | whole rows | 906 | not yet | yes | `GsController.getSupportData` | `subdomains/generic/gs/gs.controller.ts` |
-| GET | neutral |  | `/health` | public | whole rows | 4 | n/a |  | `HealthController.getHealth` | `subdomains/core/monitoring/health.controller.ts` |
-| GET | neutral |  | `/health/banking` | public | whole rows | 4 | n/a |  | `HealthController.getBankingHealth` | `subdomains/core/monitoring/health.controller.ts` |
-| GET | neutral |  | `/health/external` | public | whole rows | 4 | n/a |  | `HealthController.getExternalHealth` | `subdomains/core/monitoring/health.controller.ts` |
-| GET | neutral |  | `/health/liquidity` | public | whole rows | 4 | n/a |  | `HealthController.getLiquidityHealth` | `subdomains/core/monitoring/health.controller.ts` |
-| GET | neutral |  | `/health/nodes` | public | whole rows | 4 | n/a |  | `HealthController.getNodeHealth` | `subdomains/core/monitoring/health.controller.ts` |
-| GET | neutral |  | `/health/payment` | public | whole rows | 4 | n/a |  | `HealthController.getPaymentHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health` | public | whole rows | 4 | not yet |  | `HealthController.getHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health/banking` | public | whole rows | 4 | not yet |  | `HealthController.getBankingHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health/external` | public | whole rows | 4 | not yet |  | `HealthController.getExternalHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health/liquidity` | public | whole rows | 4 | not yet |  | `HealthController.getLiquidityHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health/nodes` | public | whole rows | 4 | not yet |  | `HealthController.getNodeHealth` | `subdomains/core/monitoring/health.controller.ts` |
+| GET | neutral |  | `/health/payment` | public | whole rows | 4 | not yet |  | `HealthController.getPaymentHealth` | `subdomains/core/monitoring/health.controller.ts` |
 | GET | 1 |  | `/history` | hidden | whole rows | 1363 | not yet |  | `HistoryController.getHistory` | `subdomains/core/history/controllers/history.controller.ts` |
 | GET | 1 |  | `/history/:exportType` | hidden | whole rows | 1363 | not yet |  | `HistoryController.getApiHistory` | `subdomains/core/history/controllers/history.controller.ts` |
 | GET | 1 |  | `/history/csv` | hidden | none | — | n/a |  | `HistoryController.getCsv` | `subdomains/core/history/controllers/history.controller.ts` |
@@ -368,7 +368,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/log/:id` | hidden | whole rows | 11 | not yet |  | `LogController.update` | `subdomains/supporting/log/log.controller.ts` |
 | POST | 1 |  | `/log/clientError` | public | none | — | n/a | yes | `ClientErrorController.logError` | `subdomains/supporting/log/client-error.controller.ts` |
 | PUT | 1 |  | `/log/financial/validity` | hidden | projected | 2 | 0/4 |  | `LogController.setFinancialLogValidity` | `subdomains/supporting/log/log.controller.ts` |
-| GET | 1 |  | `/monitoring/data` | hidden | whole rows | 4 | n/a |  | `MonitoringController.getSystemState` | `subdomains/core/monitoring/monitoring.controller.ts` |
+| GET | 1 |  | `/monitoring/data` | hidden | whole rows | 4 | not yet |  | `MonitoringController.getSystemState` | `subdomains/core/monitoring/monitoring.controller.ts` |
 | POST | 1 |  | `/monitoring/data` | hidden | none | — | n/a |  | `MonitoringController.onWebhook` | `subdomains/core/monitoring/monitoring.controller.ts` |
 | GET | 1 |  | `/mros` | hidden | whole rows | 243 | not yet |  | `MrosController.getAll` | `subdomains/supporting/mros/mros.controller.ts` |
 | POST | 1 |  | `/mros` | hidden | whole rows | 253 | not yet |  | `MrosController.createMros` | `subdomains/supporting/mros/mros.controller.ts` |
@@ -521,7 +521,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/setting/disabledProcesses` | hidden | none | — | n/a |  | `SettingController.updateProcess` | `shared/models/setting/setting.controller.ts` |
 | GET | 1 |  | `/setting/infoBanner` | public | none | — | n/a |  | `SettingController.getInfoBanner` | `shared/models/setting/setting.controller.ts` |
 | POST | 1 |  | `/specialExternalAccount` | hidden | whole rows | 7 | not yet |  | `SpecialExternalAccountController.createSpecialExternalAccount` | `subdomains/supporting/payment/controllers/special-external-account.controller.ts` |
-| GET | 1 |  | `/statistic` | public | whole rows | 5 | n/a |  | `StatisticController.getAll` | `subdomains/core/statistic/statistic.controller.ts` |
+| GET | 1 |  | `/statistic` | public | whole rows | 5 | not yet |  | `StatisticController.getAll` | `subdomains/core/statistic/statistic.controller.ts` |
 | GET | 1 |  | `/statistic/status` | public | whole rows | 5 | not yet |  | `StatisticController.getStatus` | `subdomains/core/statistic/statistic.controller.ts` |
 | GET | 1 |  | `/statistic/transactions` | public | whole rows | 416 | not yet |  | `StatisticController.getTransactions` | `subdomains/core/statistic/statistic.controller.ts` |
 | GET | 1 |  | `/support` | hidden | whole rows | 594 | not yet |  | `SupportController.searchUserByKey` | `subdomains/generic/support/support.controller.ts` |

@@ -31,7 +31,7 @@ This service loads far more data than it returns. Measured against the real enti
   statement, so one further column in that query would have made it fail outright.
 - Of the 537 route entries, **410 reach at least one load site that fetches whole rows**; 89 read
   nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
-  can trigger is 308 columns at the median, and 19 of them exceed 1,000.
+  can trigger is 308 columns at the median, and at least 21 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
 equally wasteful under a limit of 4,096 — it simply would not have failed yet.

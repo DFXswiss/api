@@ -21,7 +21,7 @@ module.exports = {
   // would exclude them here too — this run is the one that must find them.
   testPathIgnorePatterns: ['/node_modules/'],
   // Each spec file creates and drops its own Postgres schema, which is what allows them to run in
-  // parallel — but the schema is built by `synchronize` over 112 entities and costs about half a
+  // parallel — but the schema is built by `synchronize` over 113 entities and costs about half a
   // minute, so the wall clock is dominated by how many files there are, not by how many assertions.
   testTimeout: 300000,
 };
