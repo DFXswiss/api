@@ -378,7 +378,9 @@ export class BuyCryptoService implements OnModuleInit {
         if (entity.checkoutTx) throw new BadRequestException('Checkout refunds must use the dedicated refund endpoint');
         // the refund already left the bank (executed externally and matched, or linked manually -
         // including a link in this very request) - creating a fiat output on top would pay the
-        // customer a second time
+        // customer a second time. Deliberately a hard reject (not a silent skip-payout): the
+        // operator must see that nothing will be paid; the auto-match cron sets the date (and
+        // thereby the chargeback mail) itself, so a date-only update is not needed here.
         if (entity.chargebackBankTx ?? update.chargebackBankTx)
           throw new BadRequestException('Chargeback already executed (chargeback bank TX linked)');
         if (entity.bankTx && !entity.chargebackOutput) {

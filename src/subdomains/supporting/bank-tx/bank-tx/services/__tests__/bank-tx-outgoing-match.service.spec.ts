@@ -237,12 +237,18 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
     );
     expect(query.leftJoin).toHaveBeenCalledWith(
       expect.anything(),
+      'frickReferenceFiatOutput',
+      `REPLACE(frickReferenceFiatOutput.frickReference, ' ', '') = REPLACE(bankTx.remittanceInfo, ' ', '')`,
+    );
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
       'endToEndFiatOutput',
       'endToEndFiatOutput.endToEndId = bankTx.endToEndId',
     );
     expect(query.andWhere).toHaveBeenCalledWith('chargebackOf.id IS NULL');
     expect(query.andWhere).toHaveBeenCalledWith('linkedFiatOutput.id IS NULL');
     expect(query.andWhere).toHaveBeenCalledWith('remittanceFiatOutput.id IS NULL');
+    expect(query.andWhere).toHaveBeenCalledWith('frickReferenceFiatOutput.id IS NULL');
     expect(query.andWhere).toHaveBeenCalledWith('endToEndFiatOutput.id IS NULL');
     expect(query.take).toHaveBeenCalledWith(5);
 
@@ -295,6 +301,32 @@ describe('BankTxOutgoingMatchService.getUniqueExternalChargebackBankTx', () => {
     const dotRefund = createCustomBankTx({ id: 4, remittanceInfo: 'Refund of 83.39 EUR' });
     query.getMany.mockResolvedValue([dotRefund]);
     await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBe(dotRefund);
+  });
+
+  it('never treats date tokens or thousand-grouping tails as an amount quote', async () => {
+    // a year-valued amount must not match the year inside a fee DBIT's date
+    query.getMany.mockResolvedValue([
+      createCustomBankTx({ id: 7, remittanceInfo: 'Facture intermediaire du 04/08/2026' }),
+    ]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 })).resolves.toBeUndefined();
+    query.getMany.mockResolvedValue([
+      createCustomBankTx({ id: 8, remittanceInfo: 'Periode : du 01/07/2026 au 31/07/2026' }),
+    ]);
+    await expect(service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 2026 })).resolves.toBeUndefined();
+
+    // Swiss thousand grouping: "1'234,56" must not quote 234.56
+    query.getMany.mockResolvedValue([createCustomBankTx({ id: 9, remittanceInfo: "Betrag 1'234,56" })]);
+    await expect(
+      service.getUniqueExternalChargebackBankTx({ ...completeMatch, amount: 234.56 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('treats a full result page as ambiguous (rows beyond the cap may exist)', async () => {
+    query.getMany.mockResolvedValue(
+      [11, 12, 13, 14, 15].map((id) => createCustomBankTx({ id, iban: 'DE12500105170648489890' })),
+    );
+
+    await expect(service.getUniqueExternalChargebackBankTx(completeMatch)).resolves.toBeUndefined();
   });
 
   it('returns undefined for no match and for ambiguous matches instead of guessing', async () => {

@@ -272,4 +272,14 @@ describe('FiatOutputService', () => {
       ).rejects.toThrow('Chargeback already executed for this buy-crypto (chargeback bank TX linked)');
     });
   });
+
+  describe('create', () => {
+    it('refuses the admin route for a buy-crypto with a linked chargeback bank TX (double-refund guard)', async () => {
+      buyCryptoRepo.existsBy.mockResolvedValue(true);
+
+      await expect(
+        service.create({ type: FiatOutputType.BUY_CRYPTO_FAIL, buyCryptoId: 7 } as never),
+      ).rejects.toThrow('Chargeback already executed for this buy-crypto (chargeback bank TX linked)');
+    });
+  });
 });

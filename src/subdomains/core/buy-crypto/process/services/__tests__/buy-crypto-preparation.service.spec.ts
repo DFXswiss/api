@@ -684,6 +684,18 @@ describe('BuyCryptoPreparationService', () => {
         expect(refund).toHaveBeenCalledWith(entity, expect.objectContaining({ chargebackAllowedDateUser }));
       },
     );
+
+    it('never promotes a refund whose chargeback already left the bank', async () => {
+      const find = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([]);
+
+      await service.chargebackTx();
+
+      const { where } = find.mock.calls[0][0];
+      expect(where).toHaveLength(3);
+      for (const branch of where as object[]) {
+        expect(branch).toMatchObject({ chargebackDate: IsNull(), chargebackBankTx: IsNull() });
+      }
+    });
   });
 
   describe('matchExternalChargebacks', () => {
@@ -704,10 +716,13 @@ describe('BuyCryptoPreparationService', () => {
     });
 
     function createFailedEntity(): BuyCrypto {
+      // mirrors the candidate query invariants (no batch/output, no chargeback fields yet)
       return createCustomBuyCrypto({
         id: 7,
         amlCheck: CheckStatus.FAIL,
         bankTx: incomingBankTx,
+        batch: null,
+        outputAmount: null,
         chargebackAmount: null,
         transaction: { user: { id: 11 } } as never,
       });
@@ -775,6 +790,20 @@ describe('BuyCryptoPreparationService', () => {
 
       expect(bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx).toHaveBeenCalledWith(
         expect.objectContaining({ amount: incomingBankTx.amount }),
+      );
+    });
+
+    it('matches on a prepared chargeback amount denominated in the deposit currency', async () => {
+      const entity = createFailedEntity();
+      entity.chargebackAmount = 80;
+      entity.chargebackAsset = incomingBankTx.currency;
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]).mockResolvedValueOnce([]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueExternalChargebackBankTx').mockResolvedValue(undefined);
+
+      await service.matchExternalChargebacks();
+
+      expect(bankTxOutgoingMatchService.getUniqueExternalChargebackBankTx).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 80 }),
       );
     });
 

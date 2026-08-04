@@ -82,6 +82,8 @@ export class BankTxOutgoingMatchService {
   // payments are imported untyped and only typed once searchOutgoingBankTx (every minute) matches
   // them by remittance reference - a fresh DBIT could still be such an in-flight payment.
   private static readonly EXTERNAL_CHARGEBACK_MATURITY_MINUTES = 60;
+  // Result cap of the match query - a full page is treated as ambiguous (rows beyond it may exist)
+  private static readonly MAX_EXTERNAL_CHARGEBACK_MATCHES = 5;
 
   // Finds the single unassigned outgoing bank TX that refunded a failed buy-crypto outside the
   // system (booked directly at the bank, so no fiat_output and no remittance reference exists).
@@ -96,7 +98,11 @@ export class BankTxOutgoingMatchService {
   // maturity delay above so the fiat-output matcher claims its own first. Bank TXs already linked
   // as chargeback of any buy-crypto are excluded. Ambiguity yields no match instead of throwing -
   // such cases must stay for manual assignment, auto-matching never guesses (the caller must also
-  // discard a TX matching more than one of its candidates).
+  // discard a TX matching more than one of its candidates). Accepted residual risk: an IBAN-less
+  // refund carries no customer reference, so a foreign customer's bank-direct refund over exactly
+  // the candidate's deposit amount can be mis-claimed when its own buy-crypto is outside the
+  // caller's candidate window - the UNIQUE constraint on chargebackBankTxId then flags the clash
+  // as soon as the real owner is linked.
   async getUniqueExternalChargebackBankTx(match: ExternalChargebackBankTxMatch): Promise<BankTx | undefined> {
     const counterpartyIban = match.counterpartyIban?.replace(/\s/g, '').toUpperCase();
     const accountIban = match.accountIban?.replace(/\s/g, '').toUpperCase();
@@ -123,6 +129,12 @@ export class BankTxOutgoingMatchService {
         FiatOutput,
         'remittanceFiatOutput',
         `REPLACE(remittanceFiatOutput.remittanceInfo, ' ', '') = REPLACE(bankTx.remittanceInfo, ' ', '')`,
+      )
+      // Bank Frick echoes fiat_output.frickReference (not remittanceInfo) into the booked DBIT
+      .leftJoin(
+        FiatOutput,
+        'frickReferenceFiatOutput',
+        `REPLACE(frickReferenceFiatOutput.frickReference, ' ', '') = REPLACE(bankTx.remittanceInfo, ' ', '')`,
       )
       .leftJoin(FiatOutput, 'endToEndFiatOutput', 'endToEndFiatOutput.endToEndId = bankTx.endToEndId')
       .where('bankTx.creditDebitIndicator = :indicator', { indicator: BankTxIndicator.DEBIT })
@@ -155,10 +167,14 @@ export class BankTxOutgoingMatchService {
       .andWhere('chargebackOf.id IS NULL')
       .andWhere('linkedFiatOutput.id IS NULL')
       .andWhere('remittanceFiatOutput.id IS NULL')
+      .andWhere('frickReferenceFiatOutput.id IS NULL')
       .andWhere('endToEndFiatOutput.id IS NULL')
       .orderBy('bankTx.id', 'DESC')
-      .take(5)
+      .take(BankTxOutgoingMatchService.MAX_EXTERNAL_CHARGEBACK_MATCHES)
       .getMany();
+
+    // a full page means rows beyond the cap may exist - the uniqueness check below would be unsound
+    if (matches.length >= BankTxOutgoingMatchService.MAX_EXTERNAL_CHARGEBACK_MATCHES) return undefined;
 
     const plausible = matches.filter(
       (tx) => tx.iban || BankTxOutgoingMatchService.remittanceQuotesAmount(tx.remittanceInfo, match.amount),
@@ -167,8 +183,10 @@ export class BankTxOutgoingMatchService {
   }
 
   // Whether the remittance text quotes the given amount ('83.39'/'83,39', integers also plain
-  // '500'), delimited by non-digits so '1500'/'83,391' never count as '500'/'83,39'. Conservative
-  // by design: a miss only leaves the case for manual assignment.
+  // '500'), delimited by non-digits so '1500'/'83,391' never count as '500'/'83,39'. Slashes and
+  // apostrophes are delimiters too: date tokens ('du 04/08/2026') must not quote a year-valued
+  // amount and Swiss thousand grouping ("1'234,56") must not quote its tail. Conservative by
+  // design: a miss only leaves the case for manual assignment.
   private static remittanceQuotesAmount(remittanceInfo: string | undefined, amount: number): boolean {
     if (!remittanceInfo) return false;
     const compact = remittanceInfo.replace(/\s/g, '');
@@ -180,7 +198,7 @@ export class BankTxOutgoingMatchService {
       rounded.toFixed(2).replace('.', ','),
     ]);
     return [...variants].some((variant) =>
-      new RegExp(`(?<![\\d.,])${variant.replace('.', '\\.')}(?![\\d])`).test(compact),
+      new RegExp(`(?<![\\d.,/'])${variant.replace('.', '\\.')}(?![\\d/'])`).test(compact),
     );
   }
 }

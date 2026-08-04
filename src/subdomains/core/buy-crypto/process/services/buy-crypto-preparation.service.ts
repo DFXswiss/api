@@ -863,7 +863,9 @@ export class BuyCryptoPreparationService {
   // constraint on buy_crypto.chargebackBankTxId. The claim completes the entity like the regular
   // chargebackFillUp (isComplete/COMPLETE + webhook + chargeback mail): the ledger opens
   // buyCrypto-owed on completion and closes it on the BuyCryptoReturn typing of the DBIT - one
-  // without the other leaves owed permanently open.
+  // without the other leaves owed permanently open. Known residual window: a user refund request
+  // promoted by chargebackTx() while the external DBIT is still inside the matcher's maturity
+  // delay can still double-pay - the guards only bite once the DBIT is claimable and linked.
   async matchExternalChargebacks(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       amlCheck: CheckStatus.FAIL,
@@ -921,7 +923,8 @@ export class BuyCryptoPreparationService {
 
     for (const { entity, chargebackTx, matchAmount } of matched) {
       if (matchCounts.get(chargebackTx.id) > 1) {
-        this.logger.verbose(
+        // stays in the unassigned bank TX list for manual assignment
+        this.logger.info(
           `Skipping ambiguous external chargeback bank TX ${chargebackTx.id} (fits multiple failed buy-cryptos)`,
         );
         continue;
@@ -968,7 +971,11 @@ export class BuyCryptoPreparationService {
         );
         this.logger.info(`Matched external chargeback bank TX ${chargebackTx.id} to buy-crypto ${entity.id}`);
 
-        await this.buyCryptoWebhookService.triggerWebhook(Object.assign(entity, update));
+        try {
+          await this.buyCryptoWebhookService.triggerWebhook(Object.assign(entity, update));
+        } catch (e) {
+          this.logger.error(`Failed to trigger webhook for externally charged-back buy-crypto ${entity.id}:`, e);
+        }
       } catch (e) {
         this.logger.error(`Failed to match external chargeback for buy-crypto ${entity.id}:`, e);
       }
@@ -976,16 +983,21 @@ export class BuyCryptoPreparationService {
 
     // heal pass: chargeback bank TX linked (by this cron or manually via chargebackBankTxId), but
     // typing it failed or was skipped - without the type, accounting and the assign cron would keep
-    // treating the booked refund as an open pending TX
+    // treating the booked refund as an open pending TX. Only entities in the state the ledger
+    // expects are typed (complete + priced): the BuyCryptoReturn booking debits owed against the
+    // completion opening and hard-fails without amountInChf - a manual link on an incomplete or
+    // unpriced entity stays visibly untyped until the entity is completed in the tool.
+    const healBase: FindOptionsWhere<BuyCrypto> = {
+      isComplete: true,
+      amountInChf: Not(IsNull()),
+      created: MoreThan(Util.daysBefore(90)),
+    };
     const unhealed = await this.buyCryptoRepo.find({
       where: [
         // id guard: without it, the LEFT JOIN would satisfy `type IS NULL` for every buy-crypto
         // that has NO chargeback bank TX at all
-        { chargebackBankTx: { id: Not(IsNull()), type: IsNull() }, created: MoreThan(Util.daysBefore(90)) },
-        {
-          chargebackBankTx: { id: Not(IsNull()), type: In(BankTxUnassignedTypes) },
-          created: MoreThan(Util.daysBefore(90)),
-        },
+        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: IsNull() } },
+        { ...healBase, chargebackBankTx: { id: Not(IsNull()), type: In(BankTxUnassignedTypes) } },
       ],
       relations: { chargebackBankTx: { transaction: true }, transaction: { user: { userData: true } } },
     });
