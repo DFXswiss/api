@@ -609,11 +609,19 @@ describe('BuyCryptoService', () => {
       expect(manager.update).toHaveBeenCalledWith(
         BuyCrypto,
         expect.objectContaining({ id: 7, chargebackOutput: expect.anything() }),
-        expect.objectContaining({ chargebackAllowedDate, chargebackOutput }),
+        expect.objectContaining({ chargebackAllowedDate }),
       );
+
+      // The claim has to be the transaction's first write to buy_crypto. FiatOutput.buyCrypto is the
+      // inverse side of the BuyCrypto.chargebackOutput one-to-one, so saving the output writes
+      // chargebackOutputId onto this very row -- doing that first defeats the claim's own
+      // `chargebackOutput: IsNull()` condition and every chargeback fails with a bogus conflict.
+      expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(createOutputSpy.mock.invocationCallOrder[0]);
+      expect(manager.update.mock.calls[0][2].chargebackOutput).toBeUndefined();
+      expect(buyCrypto.chargebackOutput).toBe(chargebackOutput);
     });
 
-    it('rolls back a bank refund output when a concurrent AML reset wins', async () => {
+    it('creates no bank refund output when a concurrent AML reset wins the claim', async () => {
       const buyCrypto = createCustomBuyCrypto({
         id: 7,
         amlCheck: CheckStatus.PENDING,
@@ -626,7 +634,7 @@ describe('BuyCryptoService', () => {
       });
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
       jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
-      jest.spyOn(fiatOutputService, 'createInternal').mockResolvedValue({ id: 44 } as any);
+      const createOutputSpy = jest.spyOn(fiatOutputService, 'createInternal').mockResolvedValue({ id: 44 } as any);
       const manager = {
         findOne: jest.fn(async (_type: unknown, options: { select?: { id?: boolean } }) =>
           options.select?.id ? { id: 7 } : buyCrypto,
@@ -658,6 +666,8 @@ describe('BuyCryptoService', () => {
 
       expect(buyCryptoRepo.update).not.toHaveBeenCalled();
       expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+      // A lost claim must not leave a chargeback output behind for the rollback to clean up.
+      expect(createOutputSpy).not.toHaveBeenCalled();
     });
 
     function reviewResetFixture(

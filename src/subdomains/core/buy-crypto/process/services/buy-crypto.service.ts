@@ -875,16 +875,6 @@ export class BuyCryptoService implements OnModuleInit {
         assetMismatch: chargebackAsset && chargebackAsset !== currentBuyCrypto.inputAsset,
       });
 
-      if (dto.chargebackAllowedDate && chargebackAmount && chargebackAsset)
-        dto.chargebackOutput = await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_CRYPTO_FAIL,
-          { buyCrypto: currentBuyCrypto },
-          currentBuyCrypto.id,
-          false,
-          { iban: chargebackIban, amount: chargebackAmount, currency: chargebackAsset, ...creditorData },
-          manager,
-        );
-
       const claimWhere = BuyCryptoService.refundClaimWhere(currentBuyCrypto);
       previousAmlCheck = currentBuyCrypto.amlCheck;
       previousAmlReason = currentBuyCrypto.amlReason;
@@ -896,13 +886,31 @@ export class BuyCryptoService implements OnModuleInit {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
-        dto.chargebackOutput,
+        undefined,
         currentBuyCrypto.chargebackBankRemittanceInfo,
         undefined,
         creditorData,
       );
       const claim = await manager.update(BuyCrypto, claimWhere, update);
       if (claim.affected !== 1) throw new ConflictException('BuyCrypto refund state changed concurrently');
+
+      // The chargeback output is created only after the claim succeeded. FiatOutput.buyCrypto is the
+      // inverse side of the BuyCrypto.chargebackOutput one-to-one, so saving it makes TypeORM write
+      // chargebackOutputId onto this very row. Creating it first therefore violated the claim's own
+      // `chargebackOutput: IsNull()` condition, the claim matched no row, and every chargeback failed
+      // with a bogus "state changed concurrently" conflict against the transaction's own write.
+      if (dto.chargebackAllowedDate && chargebackAmount && chargebackAsset) {
+        dto.chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_CRYPTO_FAIL,
+          { buyCrypto: currentBuyCrypto },
+          currentBuyCrypto.id,
+          false,
+          { iban: chargebackIban, amount: chargebackAmount, currency: chargebackAsset, ...creditorData },
+          manager,
+        );
+        currentBuyCrypto.chargebackOutput = dto.chargebackOutput;
+      }
+
       refundEntity = currentBuyCrypto;
     });
 
