@@ -13,13 +13,13 @@ The job itself is listed in [docs/cron-jobs.md](cron-jobs.md).
 ## Rule model
 
 Rules are grouped into six blocks, each with a base filter and one bundled aggregation query
-(CASE sums — one statement per base table, not one per rule):
+(CASE sums — one statement per block, not one per rule; the two buy-crypto blocks share a base table but run as separate statements):
 
 | Block | Table | Base filter |
 | ----- | ----- | ----------- |
 | `bankTx` | `bank_tx` | type unassigned, `Pending` or `GSheet` |
-| `buyCryptoFiat` | `buy_crypto` | fiat-funded (`bankTxId` set), incomplete |
-| `buyCryptoCrypto` | `buy_crypto` | crypto-funded (`cryptoInputId` set), incomplete |
+| `buyCryptoFiat` | `buy_crypto` | fiat-funded (`bankTxId` set), incomplete, excluding `Ethereum/DEPSPresale` |
+| `buyCryptoCrypto` | `buy_crypto` | crypto-funded (`cryptoInputId` set), incomplete, excluding `MinDepositNotReached` |
 | `buyFiat` | `buy_fiat` | incomplete |
 | `fiatOutput` | `fiat_output` | incomplete |
 | `bankTxReturn` | `bank_tx_return` | chargeback not booked yet |
@@ -36,7 +36,8 @@ the type level:
 
 Tolerances are either fixed minutes or **dynamic**: an hour-of-day table in Europe/Zurich
 (2 h during business hours, up to 18 h at night) plus a weekend surcharge (Sat +1.5 d,
-Sun +2.5 d, Mon before 07:12 +3.5 d).
+Sun +2.5 d, Mon before 07:12 +3.5 d) plus a rule-specific offset (`offsetMinutes` — e.g.
+`bc-chargeback-date-missing` adds about seven days on top of the dynamic base).
 
 ## Log interface
 
