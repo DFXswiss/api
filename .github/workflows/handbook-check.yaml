@@ -1,0 +1,164 @@
+# PR check: build handbook image (no push) and run container smoke tests.
+# Draft PRs are skipped; ready_for_review re-triggers the check.
+
+name: Handbook Build Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'docs/**'
+      - 'scripts/handbook/**'
+      - 'scripts/generate-realunit-previews.js'
+      - 'assets/**'
+      - 'src/subdomains/supporting/notification/templates/realunit.hbs'
+      - 'src/shared/i18n/de/mail-realunit.json'
+      - 'src/shared/i18n/de/mail.json'
+      - 'src/integration/exchange/docs/**'
+      - 'src/subdomains/supporting/dex/docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'Dockerfile.handbook'
+      - 'Dockerfile.handbook.dockerignore'
+      - 'handbook.nginx.conf'
+      - '.github/workflows/handbook-deploy.yaml'
+      - '.github/workflows/handbook-check.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: handbook-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    name: Build handbook image + container smoke
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build handbook image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.handbook
+          push: false
+          load: true
+          tags: dfx-api-handbook:pr-check
+          platforms: linux/arm64
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+      - name: Entrypoint fails without credentials
+        run: |
+          set -euo pipefail
+          # Fail loud: container must not start an unauthenticated handbook.
+          if docker run --rm --name handbook-noauth dfx-api-handbook:pr-check; then
+            echo "expected container to exit non-zero without HANDBOOK_USER/PASSWORD" >&2
+            exit 1
+          fi
+          echo "entrypoint correctly refused start without credentials"
+
+      - name: Container smoke (healthz, auth wall, manifest sample)
+        run: |
+          set -euo pipefail
+          docker rm -f handbook-smoke >/dev/null 2>&1 || true
+          docker run -d --name handbook-smoke -p 8080:8080 \
+            -e HANDBOOK_USER=ci \
+            -e HANDBOOK_PASSWORD=ci \
+            dfx-api-handbook:pr-check
+
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8080/healthz 2>/dev/null | grep -q OK; then
+              break
+            fi
+            sleep 1
+          done
+
+          # /healthz is outside auth_basic
+          body=$(curl -fsS --max-time 5 http://127.0.0.1:8080/healthz)
+          echo "$body" | grep -q OK
+
+          # Gated root must be 401 without credentials
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/)
+          if [ "$code" != "401" ]; then
+            echo "expected 401 from / without auth, got $code" >&2
+            docker logs handbook-smoke >&2 || true
+            exit 1
+          fi
+
+          # With test credentials: 200 (follow redirect to index.html)
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -u ci:ci -L --max-time 5 http://127.0.0.1:8080/)
+          if [ "$code" != "200" ]; then
+            echo "expected 200 from / with auth, got $code" >&2
+            docker logs handbook-smoke >&2 || true
+            exit 1
+          fi
+
+          # Sample one artifact per category from the generated manifest
+          # (no hard-coded filenames — renames must not break this check).
+          docker cp handbook-smoke:/usr/share/nginx/html/manifest.json /tmp/handbook-manifest.json
+          node <<'NODE'
+          const fs = require('fs');
+          const m = JSON.parse(fs.readFileSync('/tmp/handbook-manifest.json', 'utf8'));
+          if (!m.artifacts || !m.artifacts.length) {
+            console.error('manifest has no artifacts');
+            process.exit(1);
+          }
+          const byCat = {};
+          for (const a of m.artifacts) {
+            if (!byCat[a.category]) byCat[a.category] = a;
+          }
+          const paths = Object.values(byCat)
+            .map((a) => a.outputPath)
+            .filter((p) => p && p !== 'index.html');
+          // Always include index.html as a gated page sample
+          paths.unshift('index.html');
+          // Encode per segment: a filename may legitimately contain '#' or '?',
+          // which curl would otherwise read as fragment/query and cut the path short.
+          const encoded = paths.map((p) => p.split('/').map(encodeURIComponent).join('/'));
+          fs.writeFileSync('/tmp/handbook-sample-paths.txt', encoded.join('\n') + '\n');
+          console.log('sampling paths:\n' + paths.join('\n'));
+          NODE
+
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -u ci:ci --max-time 10 \
+              "http://127.0.0.1:8080/${path}")
+            # Anything outside 2xx is a failure. Checking only for 404 let a 401,
+            # 403 or 500 pass as if the artifact were served correctly.
+            case "$code" in
+              2*) echo "ok ${code} ${path}" ;;
+              *)
+                echo "artifact sample ${code}: ${path}" >&2
+                docker logs handbook-smoke >&2 || true
+                exit 1
+                ;;
+            esac
+          done < /tmp/handbook-sample-paths.txt
+
+          # PDF inline disposition sample (first pdfs artifact if any)
+          pdf_path=$(node -e "
+            const m=require('/tmp/handbook-manifest.json');
+            const p=(m.artifacts||[]).find(a=>a.category==='pdfs');
+            if(p) process.stdout.write(p.outputPath);
+          ")
+          if [ -n "$pdf_path" ]; then
+            disp=$(curl -sS -D - -o /dev/null -u ci:ci --max-time 10 \
+              "http://127.0.0.1:8080/${pdf_path}" | tr -d '\r' | grep -i '^content-disposition:' || true)
+            echo "Content-Disposition for ${pdf_path}: ${disp}"
+            echo "$disp" | grep -qi 'inline' || {
+              echo "expected Content-Disposition: inline for PDF" >&2
+              exit 1
+            }
+          fi
+
+          docker stop handbook-smoke
+          docker rm handbook-smoke
