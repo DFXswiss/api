@@ -272,13 +272,11 @@ describe('BuyFiatPreparationService', () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest
-        .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({
-          id: 42,
-          hasValidScorechainReview: false,
-          phoneCallCheckDate: new Date('2026-08-04'),
-        } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({
+        id: 42,
+        hasValidScorechainReview: false,
+        phoneCallCheckDate: new Date('2026-08-04'),
+      } as any);
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
