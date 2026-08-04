@@ -582,6 +582,7 @@ export class CronLeaseService implements OnModuleInit {
     let timer: NodeJS.Timeout;
     let reportedLoss = false;
     let worstReportedMs = 0;
+    let renderedWorst = '';
 
     /**
      * Whether this run's own `release` removed the row — the question the loss line turns on.
@@ -701,14 +702,20 @@ export class CronLeaseService implements OnModuleInit {
         // runs affected; latching the FIRST one instead would hold the number at 6 s for a run
         // whose renewals then went to 300 s, and 300 s is what a timeout would have to be sized
         // against. A monotonic high-water mark is a handful of lines and keeps the largest.
-        // Compared at the granularity it PRINTS. On raw milliseconds a steadily degrading database
-        // sets a new record on almost every attempt — 6000 ms, then 6001, then 6002 — and emits a
-        // line for each, all reading `took 6.0 s`. That is one line per attempt, which is the
-        // unlatched repetition this mark exists to remove, arriving through the rule meant to
-        // prevent it. A record now has to be visibly larger than the one already reported.
-        if (elapsed >= SLOW_RENEWAL_MS && Math.round(elapsed / 100) > Math.round(worstReportedMs / 100)) {
+        // Gated on the RENDERED value, not on a proxy for it. On raw milliseconds a steadily
+        // degrading database sets a new record on almost every attempt — 6000 ms, then 6001, then
+        // 6002 — and emits a line for each, all reading `took 6.0 s`: one line per attempt, which
+        // is the unlatched repetition this mark exists to remove, arriving through the rule meant
+        // to prevent it. Rounding the comparison to 100 ms does not fix it either, because those
+        // buckets sit half a bucket off the printed ones — 6000 and 6050 render the same and land
+        // either side of a boundary. Comparing the string the line will actually carry is exact by
+        // construction: a record is reported only when it reads differently from the last one, and
+        // since it must also be numerically larger, differently can only mean larger.
+        const rendered = (elapsed / 1000).toFixed(1);
+        if (elapsed >= SLOW_RENEWAL_MS && elapsed > worstReportedMs && rendered !== renderedWorst) {
           worstReportedMs = elapsed;
-          this.logger.warn(`Renewing the lease for ${job} took ${(elapsed / 1000).toFixed(1)} s (owner ${owner})`);
+          renderedWorst = rendered;
+          this.logger.warn(`Renewing the lease for ${job} took ${rendered} s (owner ${owner})`);
         }
 
         // Whatever this attempt already spent comes off the next wait, so a slow answer does not

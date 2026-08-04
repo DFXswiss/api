@@ -1394,6 +1394,27 @@ describe('CronLeaseService', () => {
       expect(warn).toHaveBeenCalledTimes(1);
     });
 
+    it('reports a record that IS visible in the line, however small', async () => {
+      // The other side of the same rule, and what stops it being satisfied by any coarse bucket:
+      // 400 ms is a tenth of the threshold, but it renders differently, so it must be reported.
+      // A comparison rounded to whole seconds would swallow it; one rounded to 100 ms buckets
+      // would swallow 6000 vs 6050, which render the same and yet straddle a bucket edge.
+      const warn = await renewalsTaking([6_000, 6_400]);
+
+      expect(warn.mock.calls.map((c) => c[0])).toEqual([
+        expect.stringContaining('6.0 s'),
+        expect.stringContaining('6.4 s'),
+      ]);
+    });
+
+    it('stays silent for a record that renders identically across a bucket edge', async () => {
+      // 6000 and 6050 both print `6.0 s`. Rounding the comparison to 100 ms puts them in
+      // different buckets and emits two identical lines — the degeneracy this rule removes.
+      const warn = await renewalsTaking([6_000, 6_050]);
+
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
     it('reports only a new worst, keeping the largest rather than the first', async () => {
       // Latching on the first would freeze the number at 6 s for a run that later renewed in 300 s,
       // and 300 s is what a timeout would have to be sized against. A line per attempt would
@@ -1434,7 +1455,8 @@ describe('CronLeaseService', () => {
         });
 
         const { service } = buildService({ onQuery });
-        jest.spyOn(service['logger'], 'error').mockImplementation();
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
 
         let finish: () => void;
         const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
@@ -1470,6 +1492,50 @@ describe('CronLeaseService', () => {
         }
 
         expect(renewals).toEqual(3);
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('a run that ends with a renewal merely ARMED', () => {
+    it('cancels the pending timer', async () => {
+      // The other half of `stop`. Its sibling leaves an attempt IN FLIGHT, where `clearTimeout` is
+      // a no-op and only the `stopped` guard can help; here nothing is in flight, so only
+      // `clearTimeout` can stop the armed timer from ever firing. Deleting it left every test in
+      // this file green before this one existed.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let renewals = 0;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) {
+            renewals++;
+            return Promise.resolve([[], 1]);
+          }
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        // Ends well before the first renewal is due, so one is armed and none has fired.
+        await service.run('SomeService::job', () => Promise.resolve());
+        await settle();
+
+        expect(renewals).toEqual(0);
+
+        for (let i = 0; i < 5; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(renewals).toEqual(0);
+        expect(error).not.toHaveBeenCalled();
       } finally {
         jest.useRealTimers();
       }
