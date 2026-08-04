@@ -604,10 +604,19 @@ export class CronLeaseService implements OnModuleInit {
     /**
      * Emits the loss, once per run, from whichever of the two things notices it first.
      *
+     * The latch is checked HERE rather than only at the call sites, and that placement is the
+     * whole point. The renewal discoverer tests it, then awaits the release before deciding — so a
+     * release that answers during that await can report first and leave the renewal resuming into
+     * a stale check. That ordering is the common one, not an exotic one: the renewal's UPDATE is
+     * issued up to an interval before the DELETE, so a stall that queues both answers it first.
+     * Guarding inside makes double reporting unreachable however the two round trips interleave.
+     *
      * `unconfirmedForMs` is passed in rather than read here because the renewal path samples it
      * when the RENEWAL settles, before it waits on the release — see the sampling comment below.
      */
     const reportLoss = (unconfirmedForMs: number): void => {
+      if (reportedLoss) return;
+
       reportedLoss = true;
       this.logger.error(
         `Lost the lease for ${job} (owner ${owner}, ` +

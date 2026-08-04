@@ -62,6 +62,7 @@ describe('CronLeaseService', () => {
     const unreachable = () =>
       jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return Promise.reject(new Error('relation "cron_lease" does not exist'));
+        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
 
@@ -340,6 +341,7 @@ describe('CronLeaseService', () => {
             return new Promise(() => undefined);
           }
 
+          if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
           return Promise.resolve([]);
         });
 
@@ -378,6 +380,7 @@ describe('CronLeaseService', () => {
             return Promise.resolve([[], 1]);
           }
 
+          if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
           return Promise.resolve([]);
         });
 
@@ -619,6 +622,7 @@ describe('CronLeaseService', () => {
       let answerClaim: (rows: unknown[]) => void;
       const onQuery = jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return new Promise((resolve) => (answerClaim = resolve));
+        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
 
@@ -758,6 +762,7 @@ describe('CronLeaseService', () => {
         if (sql.includes('UPDATE')) return opts.renew();
         if (sql.includes('DELETE')) return (opts.release ?? (() => Promise.resolve([[], 1])))();
 
+        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
     }
@@ -897,9 +902,56 @@ describe('CronLeaseService', () => {
       }
     });
 
-    it('does not report twice when the renewal and the release both see the loss', async () => {
-      // Both discoverers share one latch, so the run that has a renewal outstanding AND a release
-      // that removed nothing still produces a single line.
+    it('does not report twice when the RENEWAL answers before the release', async () => {
+      // The ordering the sibling below does NOT cover, and the natural one: the renewal's UPDATE
+      // goes out up to an interval before the DELETE, so a stall that queues both answers it
+      // first. The renewal then tests the latch, awaits the release, and resumes into a check it
+      // read before the release had reported — which is why the latch lives inside `reportLoss`.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let answerRenewal: (result: [unknown[], number]) => void;
+        let answerRelease: (result: [unknown[], number]) => void;
+        const onQuery = lease({
+          renew: () => new Promise((resolve) => (answerRenewal = resolve)),
+          release: () => new Promise((resolve) => (answerRelease = resolve)),
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        // The run ends and the DELETE goes out, still unanswered.
+        finish();
+        await settle();
+
+        // The renewal answers FIRST and starts waiting on the release.
+        answerRenewal([[], 0]);
+        await settle();
+
+        // Only now does the release come back, having removed nothing — both discoverers see it.
+        answerRelease([[], 0]);
+        await run;
+        await settle();
+
+        const lost = error.mock.calls.map((c) => c[0]).filter((line: string) => line.includes('Lost the lease'));
+        expect(lost).toHaveLength(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('does not report twice when the RELEASE answers before the renewal', async () => {
+      // The other ordering. Here the release settles first and reports, and the renewal resumes
+      // into a latch that is already set. Its sibling above covers the reverse, which is the one
+      // that actually broke — this case passed even before the latch moved inside `reportLoss`.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {
