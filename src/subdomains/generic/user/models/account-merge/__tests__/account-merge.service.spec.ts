@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from 'src/config/config';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -25,7 +26,7 @@ describe('AccountMergeService', () => {
   });
 
   beforeEach(() => {
-    accountMergeRepo = { findOneBy: jest.fn(), save: jest.fn() };
+    accountMergeRepo = { findOneBy: jest.fn(), findOne: jest.fn(), save: jest.fn() };
     notificationService = { sendMail: jest.fn() };
     kycLogService = { createMergeLog: jest.fn() };
 
@@ -35,6 +36,26 @@ describe('AccountMergeService', () => {
       kycLogService as unknown as KycLogService,
       {} as unknown as UserDataService,
     );
+  });
+
+  describe('executeMerge', () => {
+    // GET /v1/auth/mail/confirm is reachable without authentication and passes ?code straight
+    // through. TypeORM drops an undefined where value, so an absent code would leave an
+    // unconditioned findOne returning an arbitrary merge request — and the `!request` check would
+    // not fire, because a row genuinely was found. The query must not be issued at all.
+    it.each([undefined, null, ''])('does not query when the code is %p', async (code) => {
+      await expect(service.executeMerge(code as string)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(accountMergeRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a code is supplied', async () => {
+      accountMergeRepo.findOne.mockResolvedValue(undefined);
+
+      await expect(service.executeMerge('some-code')).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(accountMergeRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { code: 'some-code' } }));
+    });
   });
 
   describe('sendMergeRequest', () => {
