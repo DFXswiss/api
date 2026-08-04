@@ -236,6 +236,18 @@ export const SUPPORT_ISSUE_LIST_PROJECTION = new ReadProjection<SupportIssue>(
 );
 
 /**
+ * How many search terms one request may contribute to the predicate.
+ *
+ * Each term adds an OR-group over the searched fields, so the statement grows with the number of
+ * terms a caller sends. Ten is well past what a person types and far short of anything that costs
+ * the database noticeably.
+ *
+ * The bound is enforced in `findIssueList`, where the loop is, rather than only where the terms are
+ * split: this method is public, and a second caller would not inherit a cap that lives in the first.
+ */
+export const MAX_SEARCH_TERMS = 10;
+
+/**
  * The already-authorised shape of a list request.
  *
  * `departments` and `customerIds` are the two scopes the endpoint can be called under, resolved
@@ -275,8 +287,18 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
   ): Promise<[SupportIssue[], number]> {
     const qb = SUPPORT_ISSUE_LIST_PROJECTION.apply(this.createQueryBuilder('issue'), fields);
 
+    // Bounded here rather than only where the terms are split: this method is public, and the
+    // statement grows with every term.
+    //
+    // The array check is not redundant with the type. What the loop below must not meet is an
+    // object carrying a large `length` and no elements — `{ length: 1e100 }` reaching a caller
+    // that passes request data through unshaped. A type annotation does not survive the network,
+    // and such an object has no `slice` to bound it either. Anything that is not an array carries
+    // no search terms.
+    const terms = Array.isArray(query.terms) ? query.terms.slice(0, MAX_SEARCH_TERMS) : [];
+
     // The search predicate and the customer scope both need the account; they share one alias.
-    if (query.terms.length > 0 || query.customerIds) qb.leftJoin('issue.userData', 'userData');
+    if (terms.length > 0 || query.customerIds) qb.leftJoin('issue.userData', 'userData');
 
     // The customer scope replaces the department gate rather than adding to it. With a left join,
     // an issue without an account is never IN the scope list, so it fails closed.
@@ -290,14 +312,14 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
     if (query.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: query.createdFrom });
     if (query.createdTo) qb.andWhere('issue.created <= :createdTo', { createdTo: query.createdTo });
 
-    for (let i = 0; i < query.terms.length; i++) {
+    for (let i = 0; i < terms.length; i++) {
       const param = `term${i}`;
       // Only emit the id branch when the term is fully numeric AND fits int4 (Postgres rejects
       // larger values with 22003, which would fail the whole search rather than answer nothing).
       // Keeps the predicate on the PK index (no cast-to-text) and avoids partial-match surprises
       // (term "42" doesn't match id 142).
-      const numeric = +query.terms[i];
-      const idTerm = /^\d+$/.test(query.terms[i]) && numeric <= 2147483647 ? numeric : null;
+      const numeric = +terms[i];
+      const idTerm = /^\d+$/.test(terms[i]) && numeric <= 2147483647 ? numeric : null;
       const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
       // The message branch goes through the query builder rather than a literal table name, so the
       // table is resolved the way the ORM resolves every other one — a bare `support_message` is
@@ -311,7 +333,7 @@ export class SupportIssueRepository extends BaseRepository<SupportIssue> {
         .getQuery();
       qb.andWhere(
         `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS ${messageMatch}${idClause})`,
-        { [param]: `%${query.terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
+        { [param]: `%${terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
       );
     }
 

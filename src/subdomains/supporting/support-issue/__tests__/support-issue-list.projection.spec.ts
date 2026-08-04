@@ -324,4 +324,38 @@ describeProjection('support issue list — read-path projection', () => {
       full.map((row) => SupportIssueDtoMapper.mapSupportIssueListItem(row, stats.get(row.id))),
     );
   }, 120000);
+
+  // --- The bound on the search predicate --- //
+  //
+  // The counts below are written out rather than derived from MAX_SEARCH_TERMS on purpose. A test
+  // that builds its terms from the constant shrinks with it, so lowering the bound to two would
+  // leave the suite green while quietly dropping terms three to ten from every search. What is
+  // being pinned here is the behaviour the caller sees, not the value the implementation happens
+  // to hold.
+
+  const makeTerms = (n: number, prefix: string): string[] => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+
+  it('applies all ten terms a request may contain', async () => {
+    const ten = makeTerms(10, 'w');
+    // The row carries nine of the ten.
+    const { issue } = await seedIssue({ name: ten.slice(0, 9).join(' ') });
+
+    const nine = await listOf({ terms: ten.slice(0, 9) });
+    const all = await listOf({ terms: ten });
+
+    // The positive control first, so the exclusion below cannot pass for an unrelated reason.
+    expect(nine.data.map((row) => row.id)).toContain(issue.id);
+    expect(all.data.map((row) => row.id)).not.toContain(issue.id);
+  }, 120000);
+
+  it('drops an eleventh term instead of applying it', async () => {
+    const ten = makeTerms(10, 'v');
+    const { issue } = await seedIssue({ name: ten.join(' ') });
+
+    // The eleventh matches nothing. Without the bound the search is an AND over all of them and the
+    // row drops out; with it the statement never sees the extra term.
+    const beyond = await listOf({ terms: [...ten, 'no-issue-contains-this'] });
+
+    expect(beyond.data.map((row) => row.id)).toContain(issue.id);
+  }, 120000);
 });
