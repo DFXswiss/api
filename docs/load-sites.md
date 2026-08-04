@@ -153,7 +153,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 450 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:642` | `SupportIssueService.getUserIssues` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:475` | `LedgerCutoverService.openBuyCryptoReceived` |
 | 449 | 13 | find | `BuyCrypto` | `subdomains/core/accounting/services/ledger-cutover.service.ts:536` | `LedgerCutoverService.openBuyCryptoOwed` |
-| 449 | 13 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:25` | `BuyCryptoRegistrationService.syncReturnTxId` |
+| 449 | 13 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:32` | `BuyCryptoRegistrationService.syncReturnTxId` |
 | 444 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts:37` | `SupportIssueJobService.autoOnHold` |
 | 444 | 16 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue-job.service.ts:117` | `SupportIssueJobService.getAutoResponseIssues` |
 | 441 | 15 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:504` | `SupportIssueService.createMessage` |
@@ -179,7 +179,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 407 | 11 | find | `TransactionRequest` | `subdomains/supporting/payment/services/transaction-request.service.ts:84` | `TransactionRequestService.deleteOldTxRequests` |
 | 406 | 12 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:394` | `UserService.updateUserV1` |
 | 406 | 12 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:448` | `UserService.updateUserData` |
-| 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:69` | `BuyCryptoRegistrationService.filterBuyCryptoPayIns` |
+| 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:100` | `BuyCryptoRegistrationService.filterBuyCryptoPayIns` |
 | 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:260` | `SwapService.updateSwap` |
 | 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:268` | `SwapService.confirmSwap` |
 | 392 | 14 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:639` | `BuyFiatService.getPendingTransactions` |
@@ -762,6 +762,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 3 | 0 | query-builder (named columns) | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:123` | `SwapService.getUserVolume` |
 | 3 | 0 | query-builder (named columns) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:677` | `CustodyService.getHistoricalBalances` |
 | 3 | 0 | query-builder (named columns) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:689` | `CustodyService.getHistoricalBalances` |
+| 3 | 0 | query-builder (named columns) | `Swap` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:90` | `BuyCryptoRegistrationService.filterBuyCryptoPayIns` |
 | 3 | 0 | query-builder (named columns) | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:97` | `BuyFiatRegistrationService.filterSellPayIns` |
 | 3 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:678` | `BuyFiatService.updateSellVolume` |
 | 3 | 0 | query-builder (named columns) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:261` | `SellService.getUserVolume` |
@@ -935,8 +936,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:506` | `BuyCryptoPreparationService.isFiat` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:667` | `BuyCryptoPreparationService.In` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:675` | `BuyCryptoPreparationService.In` |
-| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:93` | `BuyCryptoRegistrationService.findMatchingRoute` |
-| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:95` | `BuyCryptoRegistrationService.findMatchingRoute` |
+| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:141` | `BuyCryptoRegistrationService.findMatchingRoute` |
+| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:143` | `BuyCryptoRegistrationService.findMatchingRoute` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:332` | `BuyCryptoService.update` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:512` | `BuyCryptoService.runWithVersionLock` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:529` | `BuyCryptoService.runIfAmlStateCurrent` |
