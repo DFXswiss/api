@@ -342,6 +342,16 @@ describe('MoneroClient - broadcast boundary', () => {
       await expect(client.relayTransfer('META_01')).rejects.toBe(connectionError);
     });
 
+    // The cases above enter through mapRelayTransfer, which throws a TxBroadcastError that the boundary
+    // then returns untouched — so they never exercise the empty allowlist the relay is configured with.
+    // A THROWN error carrying a numeric RPC code is the shape that does reach it, and it must find
+    // nothing to match: allowlisting any code here would let a possibly-relayed transfer self-heal.
+    it.each([-38, -17, -4])('finds no allowlist to match for a thrown RPC code %i', async (code) => {
+      mockPost.mockRejectedValueOnce({ error: { code, message: 'no connection to daemon' } });
+
+      await expect(client.relayTransfer('META_01')).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
     it.each([
       ['no result', {}, 'No result after relaying the Monero transfer'],
       ['an empty tx hash', { result: { tx_hash: '' } }, 'Monero relay returned an empty tx hash'],

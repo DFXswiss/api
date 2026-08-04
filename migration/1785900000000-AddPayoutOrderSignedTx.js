@@ -16,21 +16,21 @@
  * @implements {MigrationInterface}
  */
 module.exports = class AddPayoutOrderSignedTx1785900000000 {
-    name = 'AddPayoutOrderSignedTx1785900000000'
+  name = 'AddPayoutOrderSignedTx1785900000000';
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async up(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "payout_order" ADD "signedPayoutTxId" character varying(256)`);
-        await queryRunner.query(`ALTER TABLE "payout_order" ADD "signedPayoutTxMetadata" text`);
-    }
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async up(queryRunner) {
+    await queryRunner.query(`ALTER TABLE "payout_order" ADD "signedPayoutTxId" character varying(256)`);
+    await queryRunner.query(`ALTER TABLE "payout_order" ADD "signedPayoutTxMetadata" text`);
+  }
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async down(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "payout_order" DROP COLUMN "signedPayoutTxMetadata"`);
-        await queryRunner.query(`ALTER TABLE "payout_order" DROP COLUMN "signedPayoutTxId"`);
-    }
-}
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async down(queryRunner) {
+    await queryRunner.query(`ALTER TABLE "payout_order" DROP COLUMN "signedPayoutTxMetadata"`);
+    await queryRunner.query(`ALTER TABLE "payout_order" DROP COLUMN "signedPayoutTxId"`);
+  }
+};

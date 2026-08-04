@@ -135,6 +135,39 @@ describe('PayoutOrder', () => {
     });
   });
 
+  describe('#recordSignedPayoutTx(...)', () => {
+    it('records the pre-relay tx id and its relay metadata without touching payoutTxId or status', () => {
+      const entity = createCustomPayoutOrder({
+        payoutTxId: null,
+        status: PayoutOrderStatus.PAYOUT_DESIGNATED,
+      });
+
+      const result = entity.recordSignedPayoutTx('SIGNED_TX_01', 'META_01');
+
+      expect(result).toBe(entity);
+      expect(entity.signedPayoutTxId).toBe('SIGNED_TX_01');
+      expect(entity.signedPayoutTxMetadata).toBe('META_01');
+      // payoutTxId means "a relay returned"; a merely signed transaction must not imply that (#4673).
+      expect(entity.payoutTxId).toBeNull();
+      expect(entity.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+    });
+
+    // An id without metadata cannot be relayed, and recording one would make the order look resumable
+    // while the resume path silently falls through to rebuilding an already-recorded transaction.
+    it.each([
+      ['no tx id', '', 'META_01'],
+      ['no metadata', 'SIGNED_TX_01', ''],
+    ])('throws and leaves the order untouched when given %s', (_, txId, metadata) => {
+      const entity = createCustomPayoutOrder({});
+
+      expect(() => entity.recordSignedPayoutTx(txId, metadata)).toThrowError(
+        'No signed tx provided to PayoutOrder #recordSignedPayoutTx(...)',
+      );
+      expect(entity.signedPayoutTxId).toBeUndefined();
+      expect(entity.signedPayoutTxMetadata).toBeUndefined();
+    });
+  });
+
   describe('#complete(...)', () => {
     it('sets status to PayoutOrderStatus.COMPLETE', () => {
       const entity = createCustomPayoutOrder({
@@ -146,6 +179,20 @@ describe('PayoutOrder', () => {
       entity.complete();
 
       expect(entity.status).toBe(PayoutOrderStatus.COMPLETE);
+    });
+
+    // The metadata is a multi-kB blob whose only purpose is re-relaying an unresolved payout, and a
+    // completed one is mined. The id is kept as the forensic record of what was relayed (#4673).
+    it('drops the relay metadata but keeps the signed tx id', () => {
+      const entity = createCustomPayoutOrder({
+        signedPayoutTxId: 'SIGNED_TX_01',
+        signedPayoutTxMetadata: 'META_01',
+      });
+
+      entity.complete();
+
+      expect(entity.signedPayoutTxMetadata).toBeNull();
+      expect(entity.signedPayoutTxId).toBe('SIGNED_TX_01');
     });
   });
 
