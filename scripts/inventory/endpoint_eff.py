@@ -110,8 +110,7 @@ DIRECT = defaultdict(dict)       # cls -> meth -> set(categories)
 
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
-    s = read_text(f)
-    s = re.sub(r'(?m)(?<!:)//[^\n]*', '', s)          # line comments only, URLs protected
+    s = classify.strip_line_comments(read_text(f))
     rel = rel_path(SRC, f)
     classes = [(m.start(), m.group(1)) for m in
                re.finditer(r'export\s+(?:abstract\s+)?class\s+(\w+)', s)]
@@ -159,12 +158,20 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             chain = mb[qm.end():qm.end() + 1500].split(';')[0]
             # `.update()/.delete()/.insert()` are write statements - they load nothing
             if classify.WRITE_CHAIN.search(chain): continue
-            kinds.add('proj' if re.search(r'\.select\(\s*\[', chain) else 'over')
+            # The same categorisation sites.py records, so the endpoint-level and site-level
+            # views cannot disagree. Recognising only a literal `.select([` here classified
+            # every endpoint projecting through `PROJECTION.apply(...)` or naming its columns
+            # one at a time as loading whole rows - the converted endpoints above all others.
+            kinds.add('proj' if classify.select_kind(mb, qm.start(), qm.end()) in classify.NARROWING
+                      else 'over')
             sites.add(at(qm.start()))
         for rm in RAW.finditer(mb):
             pre = mb[max(0, rm.start() - 60):rm.start()]
             if re.search(r'this\.(\w+)\s*$', pre) or re.search(r'this\s*$', pre):
-                kinds.add('raw')
+                # An advisory lock returns no rows and a raw write loads nothing - neither is
+                # a read, so neither makes the endpoint one.
+                if classify.raw_kind_of(mb[rm.start():rm.start() + 400]) == 'read':
+                    kinds.add('raw')
 
 # ---- build the call graph (edges once, then a fixpoint instead of recursion) ----
 # The fixpoint handles cycles exactly: a recursion with cycle breaking yields different

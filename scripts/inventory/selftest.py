@@ -37,12 +37,34 @@ import { ApiExcludeEndpoint, ApiOperation } from '@nestjs/swagger';
 
 @Controller('widget')
 export class WidgetController {
+  constructor(private readonly service: WidgetService) {}
+
   @Get('list')
   @UseGuards(
     AuthGuard(),
   )
   async listWidgets(): Promise<Widget[]> {
     return this.service.all();
+  }
+
+  @Get('projected')
+  async projectedWidgets(): Promise<Widget[]> {
+    return this.service.viaProjectionHelper([]);
+  }
+
+  @Get('named')
+  async namedWidgets(): Promise<number> {
+    return this.service.namedColumns();
+  }
+
+  @Get('counted')
+  async countedWidgets(): Promise<number> {
+    return this.service.countOnly();
+  }
+
+  @Get('whole')
+  async wholeWidgets(): Promise<Widget[]> {
+    return this.service.noSelect();
   }
 
   @Post('sync')
@@ -78,6 +100,10 @@ export class WidgetService {
 
   async fieldList(): Promise<Widget[]> {
     return this.widgetRepo.createQueryBuilder('w').select(['w.id', 'w.name']).getMany();
+  }
+
+  async viaProjectionHelper(fields: ReadonlyArray<string>): Promise<Widget[]> {
+    return WIDGET_PROJECTION.apply(this.widgetRepo.createQueryBuilder('w'), fields).getMany();
   }
 
   async namedColumns(): Promise<number> {
@@ -144,6 +170,8 @@ def test_select_categories(src, work):
     sites = json.load(open(os.path.join(work, 'sites.json')))
     by_method = {s['method']: s for s in sites}
     check('field list', by_method['fieldList']['select'], classify.SEL_FIELD_LIST)
+    check('field list via PROJECTION.apply', by_method['viaProjectionHelper']['select'],
+          classify.SEL_FIELD_LIST)
     check('named columns', by_method['namedColumns']['select'], classify.SEL_NAMED_COLUMNS)
     check('alias only', by_method['aliasOnly']['select'], classify.SEL_ALIAS_ONLY)
     check('no select', by_method['noSelect']['select'], classify.SEL_NO_SELECT)
@@ -186,6 +214,39 @@ def test_route_table(src, work):
     check('@ApiExcludeEndpoint detected', sync and sync['internal'], True)
     # `deprecated: true` sits inside an @ApiOperation whose text contains a parenthesis.
     check('deprecated found past a parenthesised string', sync and sync['deprecated'], True)
+
+
+def test_endpoint_matches_site_classification(src, work):
+    """The per-endpoint view must agree with the per-site view.
+
+    They are two independent walks over the same code, and they used to decide "does this
+    narrow its columns" separately: the endpoint walk recognised only a literal `.select([`,
+    so an endpoint projecting through `PROJECTION.apply(...)`, naming its columns one at a
+    time, or counting was reported as loading whole rows. Nothing failed — the document simply
+    said the opposite of the truth for every deliberately converted endpoint.
+    """
+    print("endpoint classification agrees with site classification")
+    sites = json.load(open(os.path.join(work, 'sites.json')))
+    # endpoint_eff.py joins on the measurement; widths are irrelevant to the category.
+    json.dump([dict(s, cols=5, joins=0) for s in sites],
+              open(os.path.join(work, 'sites-measured.json'), 'w'))
+    run_step('endpoint_eff.py', src, work)
+    eps = {(e['verb'], e['path']): e for e in
+           json.load(open(os.path.join(work, 'endpoint-eff.json')))}
+
+    def kinds(path):
+        e = eps.get(('GET', path))
+        return set(e['kinds']) if e else None
+
+    check('PROJECTION.apply reaches the endpoint as projected', kinds('/widget/projected'), {'proj'})
+    check('named columns reach the endpoint as projected', kinds('/widget/named'), {'proj'})
+    check('count only reaches the endpoint as projected', kinds('/widget/counted'), {'proj'})
+    check('no select reaches the endpoint as over-fetching', kinds('/widget/whole'), {'over'})
+    # A raw write or lock is not a read and must not make the endpoint one.
+    check('lock and raw write are not reads',
+          classify.raw_kind_of("query('SELECT pg_advisory_xact_lock(1)')"), 'lock')
+    check('raw INSERT is not a read',
+          classify.raw_kind_of("query('INSERT INTO widget VALUES (1)')"), 'write')
 
 
 def test_drift_excludes_writes(src, root, work):
@@ -265,6 +326,7 @@ def main():
         sites = test_select_categories(src, work)
         test_write_classification(src, sites)
         test_route_table(src, work)
+        test_endpoint_matches_site_classification(src, work)
         test_drift_excludes_writes(src, root, work)
         test_missing_ref_is_reported(src, work)
     finally:

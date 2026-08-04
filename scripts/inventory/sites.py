@@ -25,16 +25,6 @@ CLASSRE = re.compile(r'export\s+(?:abstract\s+)?class\s+(\w+)')
 SIG = re.compile(r'^\s{2,}(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*(?:<[^>]*>)?\s*\(', re.M)
 
 
-def strip_comments(s):
-    """Strip line comments only, protecting URLs.
-
-    Block comments are left alone because a regex literal can look like one. `[^\\n]*` never
-    consumes the newline, so line numbers stay identical to the source — every later stage
-    keys on (file, line) and relies on that.
-    """
-    return re.sub(r'(?m)(?<!:)//[^\n]*', '', s)
-
-
 def parse_obj(text, i):
     res, i = {}, i + 1
     while i < len(text):
@@ -77,7 +67,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if f.endswith('projection-test.util.ts'): continue
     raw = read_text(f)
     if not READ.search(raw): continue
-    s = strip_comments(raw)
+    s = classify.strip_line_comments(raw)
     rel = rel_path(SRC, f)
 
     classes = [(m.start(), m.group(1)) for m in CLASSRE.finditer(s)]
@@ -143,57 +133,9 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 # silently incomplete measurement would go unnoticed.
                 print(f"WARN {rel}:{line} relations tree not readable: {exc}")
 
-        # For a query builder: does an explicit field list follow?
-        select = None
-        if call == 'createQueryBuilder':
-            window = s[m.end():m.end() + 1500]
-            # look to the end of the chain (roughly: up to the next ';')
-            chain = window.split(';')[0]
-            # `getCount()` and `getExists()` discard the select list and emit COUNT(...) resp.
-            # SELECT 1 - such chains materialise no row, whatever precedes them.
-            if re.search(r'\.(getCount|getExists)\s*\(\s*\)', chain):
-                sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
-                              'call': call, 'kind': kind, 'entity': entity, 'via': via,
-                              'relations': tree, 'select': classify.SEL_COUNT_ONLY})
-                continue
-            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)`: the field list lives in
-            # the projection constant. Without this case every query built that way would count
-            # as a full read, although it is exactly the opposite. The call may read
-            # `PROJECTION.apply(this.createQueryBuilder(...))` or go through an injected
-            # repository: `PROJECTION.apply(this.orderRepo.createQueryBuilder(...))` - so an
-            # object chain may sit between `apply(` and `createQueryBuilder`.
-            before = s[max(0, m.start() - 160):m.start()]
-            if re.search(r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$', before):
-                select = classify.SEL_FIELD_LIST
-            elif re.search(r'\.select\(\s*\[', chain):
-                select = classify.SEL_FIELD_LIST
-            elif re.search(r'\.select\(\s*[A-Za-z_$][\w$]*\s*[,)]', chain):
-                # `.select(bucketExpr, 'bucket')` - the argument sits in a variable. What the
-                # body assigns decides: a bare identifier would be the root alias, anything
-                # else names something.
-                v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
-                a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", s[max(0, m.start() - 1500):m.start()])
-                if a and not re.fullmatch(r"['\"`]\w+['\"`]", a.group(1).strip()):
-                    select = classify.SEL_NAMED_COLUMNS
-                else:
-                    select = classify.SEL_NO_SELECT
-            elif re.search(r'\.select\(\s*[\'"`]', chain):
-                first = re.search(r'\.select\(\s*[\'"`]([^\'"`]*)[\'"`]', chain)
-                arg = first.group(1) if first else ''
-                # `.select('alias')` loads every column; `.select('alias.column')` names one.
-                # Both are strings - the dot in the first argument is the difference. Without
-                # it every column-wise projection would count as a full read. A bare identifier
-                # is the root alias; anything else names something specific: a column
-                # (`userData.id`) or an expression (`COUNT(*)`, `MAX(tx.seq)`), and both
-                # narrow the query.
-                select = classify.SEL_ALIAS_ONLY if re.fullmatch(r'\w+', arg.strip()) else classify.SEL_NAMED_COLUMNS
-            else:
-                select = classify.SEL_NO_SELECT
-            # A `leftJoinAndSelect` fetches the joined entity whole - the projection on the
-            # root no longer helps then.
-            if select in (classify.SEL_FIELD_LIST, classify.SEL_NAMED_COLUMNS) and \
-                    re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain):
-                select = classify.SEL_PROJECTED_FULL_JOIN
+        # For a query builder: does an explicit field list follow? The same decision the
+        # per-endpoint walk in endpoint_eff.py has to make, so it lives in classify.py.
+        select = classify.select_kind(s, m.start(), m.end()) if call == 'createQueryBuilder' else None
 
         sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
                       'call': call, 'kind': kind, 'entity': entity, 'via': via,

@@ -8,7 +8,7 @@ respecting strings and comments) - a window over a fixed number of lines misses 
 import re, glob, os, json
 
 from tsparse import (HTTP, controller_arg, controller_scopes, decorator_block, full_path,
-                     read_text, skip_args)
+                     read_text, scope_at)
 
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
@@ -45,11 +45,8 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.controller.ts'), recursive=
     versions = [(m.start(), scope_version(controller_arg(s, m.end() - 1)))
                 for m in CTRL_START.finditer(s)]
     for m in HTTP.finditer(s):
-        base, _ = '', None
+        base, _cls = scope_at(scopes, m.start())
         ver = DEFAULT_VERSION
-        for pos, b, _c in scopes:
-            if pos < m.start(): base = b
-            else: break
         for pos, v in versions:
             if pos < m.start(): ver = v
             else: break

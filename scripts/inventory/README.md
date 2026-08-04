@@ -16,7 +16,7 @@ For that reason `npm run docs:inventory` **does not touch `docs/`**. It leaves b
 bash scripts/inventory/run.sh --write-docs
 ```
 
-Treat a fresh run as a data source, not as a replacement for the documents.
+A fresh run does reproduce the published *classification* exactly: all 537 endpoints match the published `Data access` and `Tests` columns, at 410 `whole rows`, 36 `projected`, 89 `none` and 2 `caller-defined`. What it does not reproduce is the hand-written prose around the tables. Treat a fresh run as a data source, not as a replacement for the documents.
 
 ## Keeping the documents current
 
@@ -57,7 +57,9 @@ python3 apply_drift.py <pub_ref> <pub_path> <out_path>
 Two shared modules carry the contracts the steps used to duplicate:
 
 - `tsparse.py` — the decorator walk from a route decorator to its method, plus `@Controller` scope resolution. Steps 3, 4 and 5 all need it; three copies of it are three chances to drift.
-- `classify.py` — the names of the select categories, and the rule that decides whether a site reads or writes. Used by `sites.py`, `build_docs.py` and `apply_drift.py`.
+- `classify.py` — the names of the select categories, the rule that decides whether a query builder narrows its columns, the rule that decides whether a site reads or writes, and the comment stripping that keeps `(file, line)` keys aligned across stages. Used by `sites.py`, `endpoint_eff.py`, `build_docs.py` and `apply_drift.py`.
+
+The site scan and the per-endpoint call-graph walk are two independent passes over the same code, and both have to answer "does this query builder narrow its columns". They answered it separately until the walk was found to recognise only a literal `.select([...])`: an endpoint projecting through the `PROJECTION.apply(...)` helper, naming its columns one at a time, or merely counting was reported as loading whole rows — which described all seventeen of the deliberately converted endpoints as unconverted. Both now call `classify.select_kind`.
 
 `table.json`, the endpoint table used in steps 3–6, and `meta-tables.json`, the TypeORM table metadata produced by `measure.js` in step 2, previously shared the name `table.json`. As a result, step 2 silently overwrote what was supposed to be the endpoint table before anything else could read it. They are now separate files.
 
@@ -100,6 +102,7 @@ These scripts were developed outside this repository and checked in here for the
 - The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked. `measure.js` now exits non-zero when nothing measures at all, so this class of failure cannot pass as a completed run again.
 - The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided.
 - `apply_drift.py` filtered new sites on `write` and `rawkind`, fields that only ever existed inside `build_docs.py` and are absent from `sites-measured.json` — so the filter matched nothing and would have inserted write statements, advisory locks and raw `INSERT`s into the published document. Both callers now share `classify.py`.
+- `endpoint_eff.py` decided "does this narrow its columns" with its own regex, recognising only a literal `.select([...])`. Every endpoint projecting through `PROJECTION.apply(...)`, naming its columns one at a time, or counting was classified as loading whole rows: a run produced 444 `whole rows` / 2 `projected` against the published 410 / 36, marked all seventeen converted endpoints `not yet`, and rendered the sentence "the other -15 were already projecting" without anything failing. It now calls `classify.select_kind`, and `build_docs.py` refuses to render if a `CONVERTED` endpoint does not come out projected.
 
 Remaining properties worth knowing:
 

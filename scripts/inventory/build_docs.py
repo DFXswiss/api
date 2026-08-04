@@ -131,6 +131,18 @@ whole = [e for e in eps if access(e) == 'whole rows']
 mc = sorted((e['maxcol'] for e in whole if e['maxcol']), reverse=True)
 if whole and not mc:
     raise SystemExit("no endpoint in the `whole rows` group carries a measured column count")
+# Every converted endpoint must come out projected, or the prose below subtracts a bigger
+# number from a smaller one and states a negative count. That happened: a classifier that only
+# recognised a literal `.select([` scored all 17 of them as loading whole rows, and the
+# document read "the other -15 were already projecting" without anything failing.
+misclassified = [k for k in CONVERTED
+                 if k not in {(e['verb'], e['path']) for e in eps if access(e) == 'projected'}]
+if misclassified:
+    for v, p in misclassified:
+        print(f"  MISCLASSIFIED {v:6s} {p}")
+    raise SystemExit(f"{len(misclassified)} of {len(CONVERTED)} endpoints listed as converted are "
+                     "not classified as projected - the select detection and the CONVERTED table "
+                     "disagree, so one of them is wrong")
 
 dep_total = sum(1 for e in eps if e['deprecated'])
 dep_acc = Counter(access(e) for e in eps if e['deprecated'])
