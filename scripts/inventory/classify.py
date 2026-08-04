@@ -141,7 +141,14 @@ def selected_columns(text, m_start, m_end, kind):
 # Quote types are not interchangeable: `"SUM(CASE WHEN x = 'a' THEN 'b' END)"` is one double
 # quoted string containing single quotes, not four alternating fragments. A single character
 # class would cut it into pieces and hand back a meaningless tail as the column identifier.
-STRING_LITERAL = re.compile(r"'([^']*)'|\"([^\"]*)\"|`([^`]*)`")
+# Escapes are consumed with the character they escape, so `'it\'s'` stays one string.
+STRING_LITERAL = re.compile(r"'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"|`((?:[^`\\]|\\.)*)`")
+# A method signature at class-body indentation. Used as the end of the region a query builder
+# variable can be widened in. Control structures look the same at this level — `if (` on its
+# own line would otherwise end the region one statement in.
+METHOD_SIG = re.compile(
+    r'^\s{2,}(?:public|private|protected)?\s*(?:async\s+)?'
+    r'(?!(?:if|for|while|switch|catch|return|do|else|try)\b)[\w$]+\s*\(', re.M)
 
 
 def _alias_at(text, paren):
@@ -168,13 +175,15 @@ def _named_column_count(text, m_start, m_end, chain):
     assigned = ASSIGNED_TO.search(text[max(0, m_start - 200):m_start])
     if assigned:
         name = assigned.group(1)
+        # Stop at the next method signature. `qb` and `query` are used in method after method,
+        # and without a bound the lookahead would fold an unrelated query's columns into this
+        # count and be wrong with nothing to show for it. The method boundary is the right
+        # bound rather than a re-declaration of the name: a closure inside this method may
+        # legitimately shadow it and still be followed by a widening call on the outer one.
         rest = text[m_end:m_end + 6000]
-        # Stop at a re-declaration of the same identifier. `qb` and `query` are used in method
-        # after method; without this the lookahead would collect the columns of an unrelated
-        # query into this one's count, and be wrong with nothing to show for it.
-        redecl = re.search(r'\b(?:const|let|var)\s+' + re.escape(name) + r'\b', rest)
-        if redecl:
-            rest = rest[:redecl.start()]
+        end = METHOD_SIG.search(rest)
+        if end:
+            rest = rest[:end.start()]
         later = re.compile(r'\b' + re.escape(name) + r'\s*\.\s*(?:select|addSelect)\s*\(')
         aliases |= {_alias_at(rest, m.end() - 1) for m in later.finditer(rest)}
     return len(aliases)
@@ -226,11 +235,15 @@ def is_write_qb(src, s):
 def raw_kind(src, s):
     """Raw SQL at a recorded site: an advisory lock, a write, or a genuine read."""
     text = '\n'.join(_lines(src, s['file'])[s['line'] - 1:])
-    # Anchor on the `.query(` itself. Starting the bracket walk at the beginning of the line
-    # picks up whatever parenthesis comes first — `const raw = (await this.query(...))` happens
-    # to still enclose the call, but only by luck.
-    call = re.search(r'\.query\s*\(', text)
-    return raw_kind_of(raw_statement(text, call.start() if call else 0))
+    # Anchor on the recorded column when the scan supplied one, so a line carrying more than
+    # one `.query(` classifies the right call. Starting the bracket walk at the beginning of
+    # the line picks up whatever parenthesis comes first — `const raw = (await
+    # this.query(...))` happens to still enclose the call, but only by luck.
+    col = s.get('col')
+    if col is None:
+        call = re.search(r'\.query\s*\(', text)
+        col = call.start() if call else 0
+    return raw_kind_of(raw_statement(text, col))
 
 
 def annotate(src, sites):

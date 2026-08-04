@@ -121,6 +121,16 @@ export class WidgetService {
     return qb.getRawMany();
   }
 
+  async shadowsItsBuilderInAClosure(rows: number[]): Promise<unknown> {
+    const qb = this.widgetRepo.createQueryBuilder('w').select('w.id', 'id');
+    rows.forEach((r) => {
+      const qb = buildSomethingElse(r);
+      qb.touch();
+    });
+    qb.addSelect('w.name', 'name');
+    return qb.getRawMany();
+  }
+
   async reusesTheSameVariableName(): Promise<unknown> {
     const qb = this.widgetRepo.createQueryBuilder('w').select('w.id', 'id');
     return qb.getRawMany();
@@ -186,6 +196,10 @@ export class WidgetService {
   async rawRead(): Promise<unknown> {
     return this.widgetRepo.query('SELECT name FROM widget WHERE id = $1', [1]);
   }
+
+  async twoQueriesOnOneLine(): Promise<unknown> {
+    await this.widgetRepo.query('DELETE FROM widget WHERE id = 0'); return this.widgetRepo.query('SELECT name FROM widget');
+  }
 }
 """
 
@@ -232,6 +246,10 @@ def test_select_categories(src, work):
     # lookahead would pull that query's columns into this one's count and be quietly wrong.
     check('columns of a later same-named builder stay out',
           by_method['reusesTheSameVariableName'].get('select_count'), 1)
+    # A closure shadowing the builder's name must not cut the lookahead short: the widening
+    # call after it applies to the outer builder.
+    check('a shadowing closure does not truncate the count',
+          by_method['shadowsItsBuilderInAClosure'].get('select_count'), 2)
     check('the later builder counts its own',
           by_method['andAgainInTheNextMethod'].get('select_count'), 2)
     check('count only marked unmeasurable', by_method['countOnly'].get('unmeasurable'), True)
@@ -262,6 +280,12 @@ def test_write_classification(src, sites):
     check('raw SELECT is a read', by_method['rawRead']['write'], False)
     check('raw SELECT keeps its rawkind', by_method['rawRead']['rawkind'], 'read')
     check('plain find is a read', by_method['all']['write'], False)
+    # Two `.query(` on one line: anchoring on the first would classify the wrong call.
+    check('second query on a line is classified on its own',
+          by_method['twoQueriesOnOneLine']['rawkind'], 'read')
+    # An escaped quote must not split the string it sits in.
+    check('escaped quote stays inside its string',
+          classify._alias_at(".addSelect('it\\'s', 'label')", 10), 'label')
 
 
 def test_route_table(src, work):

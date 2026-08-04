@@ -142,7 +142,10 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             # reports the width the query was narrowed away from.
             detail = classify.selected_columns(s, m.start(), m.end(), select)
 
-        sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
+        # Offset of the call within its line, so a later stage can anchor on this call rather
+        # than on whichever one comes first on a line carrying several.
+        col = m.start() - (s.rfind('\n', 0, m.start()) + 1)
+        sites.append({'file': rel, 'line': line, 'col': col, 'cls': cls, 'method': meth,
                       'call': call, 'kind': kind, 'entity': entity, 'via': via,
                       'relations': tree, 'select': select, **detail})
 
