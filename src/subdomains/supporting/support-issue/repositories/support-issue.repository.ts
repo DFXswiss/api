@@ -236,12 +236,6 @@ export const SUPPORT_ISSUE_LIST_PROJECTION = new ReadProjection<SupportIssue>(
 );
 
 /**
- * The already-authorised shape of a list request.
- *
- * `departments` and `customerIds` are the two scopes the endpoint can be called under, resolved
- * from the role before they get here — this is the query, not the access decision.
- */
-/**
  * How many search terms one request may contribute to the predicate.
  *
  * Each term adds an OR-group over the searched fields, so the statement grows with the number of
@@ -253,6 +247,12 @@ export const SUPPORT_ISSUE_LIST_PROJECTION = new ReadProjection<SupportIssue>(
  */
 export const MAX_SEARCH_TERMS = 10;
 
+/**
+ * The already-authorised shape of a list request.
+ *
+ * `departments` and `customerIds` are the two scopes the endpoint can be called under, resolved
+ * from the role before they get here — this is the query, not the access decision.
+ */
 export interface SupportIssueListQuery {
   departments?: Department[];
   customerIds?: number[];
