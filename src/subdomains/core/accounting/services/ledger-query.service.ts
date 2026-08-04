@@ -180,13 +180,7 @@ export class LedgerQueryService {
   async getSuspense(): Promise<SuspenseResponseDto> {
     const now = new Date();
 
-    const legs = await this.ledgerLegRepository
-      .createQueryBuilder('leg')
-      .innerJoinAndSelect('leg.tx', 'tx')
-      .innerJoinAndSelect('leg.account', 'account')
-      .where('account.type = :type', { type: AccountType.SUSPENSE })
-      .orderBy('tx.bookingDate', 'ASC')
-      .getMany();
+    const legs = await this.ledgerLegRepository.findSuspenseLegs();
 
     const rows: SuspenseLegRow[] = legs.map((leg) => ({
       leg,

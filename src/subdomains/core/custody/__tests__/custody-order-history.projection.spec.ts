@@ -1,0 +1,233 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import {
+  CUSTODY_ORDER_HISTORY_PROJECTION,
+  CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS,
+  CustodyOrderRepository,
+} from 'src/subdomains/core/custody/repositories/custody-order.repository';
+import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { CustodyOrderHistoryDto } from 'src/subdomains/core/custody/dto/output/custody-order-history.dto';
+import { CustodyOrderHistoryDtoMapper } from 'src/subdomains/core/custody/mappers/custody-order-history-dto.mapper';
+import { CustodyOrderStatus, CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import {
+  createProjectionDataSource,
+  describeProjection,
+  destroyProjectionDataSource,
+  expectEveryFieldRequired,
+  expectNoEmptyFields,
+  projectionFieldsWithout,
+  seedEntity,
+} from 'src/shared/utils/projection-test.util';
+import { DataSource } from 'typeorm';
+
+const SCHEMA = 'custody_order_history_projection_spec';
+
+/**
+ * `GET /custody/order` — the four levels from `docs/read-path-projections.md`.
+ *
+ * The query joins both assets and the transaction request, which the response draws two names and
+ * two amounts from.
+ */
+describeProjection('GET /custody/order — read-path projection', () => {
+  let dataSource: DataSource;
+  let orders: CustodyOrderRepository;
+
+  beforeAll(async () => {
+    dataSource = await createProjectionDataSource(SCHEMA);
+    orders = new CustodyOrderRepository(dataSource.manager);
+  }, 300000);
+
+  afterAll(async () => {
+    await destroyProjectionDataSource(dataSource, SCHEMA);
+  });
+
+  /**
+   * One order of a user, with every column populated.
+   *
+   * `type` and `status` are set explicitly: both are TypeScript enums in text columns, and the
+   * mapper switches on them — a generated value lands in the default branch.
+   */
+  async function seedOrder(
+    type = CustodyOrderType.DEPOSIT,
+    status = CustodyOrderStatus.COMPLETED,
+    withAmounts = true,
+  ): Promise<{ order: CustodyOrder; userData: UserData; transactionRequest: TransactionRequest }> {
+    const userData = await seedEntity<UserData>(dataSource, UserData);
+    const user = await seedEntity<User>(dataSource, User, { values: { userData } });
+    const inputAsset = await seedEntity<Asset>(dataSource, Asset);
+    const outputAsset = await seedEntity<Asset>(dataSource, Asset);
+    const transactionRequest = await seedEntity<TransactionRequest>(dataSource, TransactionRequest);
+    const order = await seedEntity<CustodyOrder>(dataSource, CustodyOrder, {
+      // Without its own amounts the order falls back to the request it came from — the only state in
+      // which the two transactionRequest columns reach the response.
+      values: {
+        user,
+        inputAsset,
+        outputAsset,
+        transactionRequest,
+        type,
+        status,
+        ...(withAmounts ? {} : { inputAmount: null, outputAmount: null }),
+      },
+    });
+    return { order, userData, transactionRequest };
+  }
+
+  /** The response the endpoint produces, through the projected query. */
+  async function historyOf(
+    userDataId: number,
+    fields = CUSTODY_ORDER_HISTORY_PROJECTION.fields,
+  ): Promise<CustodyOrderHistoryDto[]> {
+    return CustodyOrderHistoryDtoMapper.mapList(await orders.findHistoryFor(userDataId, fields));
+  }
+
+  // --- LEVEL 1: completeness --- //
+
+  it('level 1 — a completed order answers with no empty field', async () => {
+    const { userData } = await seedOrder();
+
+    const history = await historyOf(userData.id);
+
+    expect(history).toHaveLength(1);
+    expectNoEmptyFields(history);
+  }, 120000);
+
+  // --- LEVEL 2: variants --- //
+
+  it.each([
+    [CustodyOrderType.DEPOSIT, CustodyOrderStatus.CONFIRMED],
+    [CustodyOrderType.WITHDRAWAL, CustodyOrderStatus.CONFIRMED],
+    [CustodyOrderType.SWAP, CustodyOrderStatus.IN_PROGRESS],
+    [CustodyOrderType.WITHDRAWAL, CustodyOrderStatus.FAILED],
+  ])(
+    'level 2 — %s / %s answers with no empty field',
+    async (type, status) => {
+      const { userData } = await seedOrder(type, status);
+
+      // `mapStatus` reads type and status together, and the incoming/outgoing split only shows on a
+      // confirmed order. `inputAmount` and `outputAmount` fall back to the transaction request for
+      // incoming and swap orders, so both directions have to be covered.
+      expectNoEmptyFields(await historyOf(userData.id));
+    },
+    120000,
+  );
+
+  it('level 2 — an order still in creation is not listed', async () => {
+    const { userData } = await seedOrder(CustodyOrderType.DEPOSIT, CustodyOrderStatus.CREATED);
+
+    expect(await historyOf(userData.id)).toHaveLength(0);
+  }, 120000);
+
+  it('level 2 — a user sees only their own orders', async () => {
+    const mine = await seedOrder();
+    const other = await seedOrder();
+
+    const history = await historyOf(mine.userData.id);
+
+    expect(history).toHaveLength(1);
+    expect(history[0].created).toEqual(mine.order.created);
+    expect(history[0].created).not.toEqual(other.order.created);
+  }, 120000);
+
+  it('level 2 — an order without its optional relations is still listed', async () => {
+    // All three joined relations are nullable, and every other fixture sets them. If one of the
+    // left joins were written as an inner one, orders without that relation would vanish from the
+    // history without a trace — this is the only case that would notice.
+    const userData = await seedEntity<UserData>(dataSource, UserData);
+    const user = await seedEntity<User>(dataSource, User, { values: { userData } });
+    const bare = await seedEntity<CustodyOrder>(dataSource, CustodyOrder, {
+      values: {
+        user,
+        inputAsset: null,
+        outputAsset: null,
+        transactionRequest: null,
+        type: CustodyOrderType.DEPOSIT,
+        status: CustodyOrderStatus.COMPLETED,
+      },
+    });
+
+    const history = await historyOf(userData.id);
+
+    expect(history).toHaveLength(1);
+    expect(history[0].created).toEqual(bare.created);
+    expect(history[0].inputAsset).toBeUndefined();
+    expect(history[0].outputAsset).toBeUndefined();
+    // The full load answers the same, so nothing here depends on the projection either.
+    const full = await dataSource.getRepository(CustodyOrder).find({
+      where: { user: { userData: { id: userData.id } } },
+      relations: { inputAsset: true, outputAsset: true, transactionRequest: true },
+    });
+    expect(history).toEqual(CustodyOrderHistoryDtoMapper.mapList(full));
+  }, 120000);
+
+  // --- LEVEL 3: mutation --- //
+
+  const REQUEST_FALLBACK = ['transactionRequest.estimatedAmount', 'transactionRequest.amount'];
+
+  it.each([
+    // With its own amounts set, an order never reads the request — those two columns are covered by
+    // the row below, where the fallback is the only source the response has.
+    [
+      CustodyOrderType.DEPOSIT,
+      true,
+      CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS.filter((f) => !REQUEST_FALLBACK.includes(f)),
+    ],
+    [
+      CustodyOrderType.WITHDRAWAL,
+      true,
+      CUSTODY_ORDER_HISTORY_RESPONSE_FIELDS.filter((f) => !REQUEST_FALLBACK.includes(f)),
+    ],
+    [CustodyOrderType.SWAP, false, REQUEST_FALLBACK],
+  ] as [CustodyOrderType, boolean, string[]][])(
+    'level 3 — for %s with own amounts=%s every field feeding the response is required',
+    async (type, withAmounts, candidates) => {
+      const { userData, transactionRequest } = await seedOrder(type, CustodyOrderStatus.CONFIRMED, withAmounts);
+
+      // Assert the fallback actually fires before mutating: with an exception list covering the two
+      // amounts, a baseline that answers nothing at all would pass every reduced run as well.
+      if (!withAmounts) {
+        const [row] = await historyOf(userData.id);
+        expect(row.inputAmount).toEqual(transactionRequest.estimatedAmount);
+        expect(row.outputAmount).toEqual(transactionRequest.amount);
+      }
+
+      await expectEveryFieldRequired(candidates, (omitted) =>
+        historyOf(userData.id, projectionFieldsWithout(CUSTODY_ORDER_HISTORY_PROJECTION.fields, omitted)),
+      );
+    },
+    300000,
+  );
+
+  // --- LEVEL 4: consistency against a second source --- //
+
+  it.each([
+    [CustodyOrderType.DEPOSIT, CustodyOrderStatus.COMPLETED],
+    [CustodyOrderType.SWAP, CustodyOrderStatus.CONFIRMED],
+    [CustodyOrderType.WITHDRAWAL, CustodyOrderStatus.FAILED],
+  ])(
+    'level 4 — for %s / %s the projected response equals the one from a full load',
+    async (type, status) => {
+      const { userData } = await seedOrder(type, status);
+
+      const projected = await historyOf(userData.id);
+      // The unprojected load is the second source: `leftJoinAndSelect` on the three relations,
+      // which selects each of them whole.
+      const full = await dataSource
+        .getRepository(CustodyOrder)
+        .createQueryBuilder('custodyOrder')
+        .leftJoinAndSelect('custodyOrder.inputAsset', 'inputAsset')
+        .leftJoinAndSelect('custodyOrder.outputAsset', 'outputAsset')
+        .leftJoinAndSelect('custodyOrder.transactionRequest', 'transactionRequest')
+        .innerJoin('custodyOrder.user', 'user')
+        .innerJoin('user.userData', 'userData')
+        .where('userData.id = :userDataId', { userDataId: userData.id })
+        .andWhere('custodyOrder.status != :createdStatus', { createdStatus: CustodyOrderStatus.CREATED })
+        .getMany();
+
+      expect(projected).toEqual(CustodyOrderHistoryDtoMapper.mapList(full));
+    },
+    120000,
+  );
+});

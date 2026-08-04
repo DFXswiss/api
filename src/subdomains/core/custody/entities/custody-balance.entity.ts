@@ -11,7 +11,7 @@ export class CustodyBalance extends IEntity {
   balance: number;
 
   @Index()
-  @ManyToOne(() => User, (user) => user.custodyBalances, { nullable: false, eager: true })
+  @ManyToOne(() => User, (user) => user.custodyBalances, { nullable: false })
   user: User;
 
   @Index()

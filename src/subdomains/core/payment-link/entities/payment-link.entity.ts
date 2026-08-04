@@ -104,6 +104,22 @@ export class PaymentLink extends IEntity {
     return Object.assign({}, DefaultPaymentLinkConfig, JSON.parse(this.config ?? '{}'));
   }
 
+  /**
+   * The configuration a point-of-sale link reads its access keys from, scoped to the link, to the
+   * account, or merged with the link winning.
+   *
+   * Separate from `configObj` because that one also assembles the recipient — name, contact data
+   * and address of the account — which `PaymentLinkService.createPosLinkFor` discards. Each side is
+   * read lazily: both getters parse their own JSON column, and a scoped call must not fail on the
+   * column it does not use.
+   */
+  accessConfig(scoped?: boolean): PaymentLinkConfig {
+    const account = (): PaymentLinkConfig => this.route.userData.paymentLinksConfigObj;
+    const link = (): PaymentLinkConfig => this.linkConfigObj;
+
+    return scoped == null ? { ...account(), ...link() } : scoped ? link() : account();
+  }
+
   get defaultStandard(): PaymentStandard {
     return this.configObj.standards[0];
   }

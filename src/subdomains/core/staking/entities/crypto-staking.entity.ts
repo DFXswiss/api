@@ -57,7 +57,7 @@ export class CryptoStaking extends IEntity {
   payoutType: PayoutType;
 
   @Index()
-  @ManyToOne(() => Deposit, { eager: true, nullable: true })
+  @ManyToOne(() => Deposit, { nullable: true })
   paybackDeposit?: Deposit;
 
   @OneToOne(() => CryptoInput, { nullable: false })

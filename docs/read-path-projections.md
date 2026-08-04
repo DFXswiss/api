@@ -27,14 +27,11 @@ This service loads far more data than it returns. Measured against the real enti
 
 - The whole database schema has **1,742 columns across 100 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
-  render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
-  columns per statement, so a single column added elsewhere (`settlementEventId` on
-  `transaction_request`) was enough to push it over.
-- Of the 537 route entries, **444 reach at least one load site that fetches whole rows**; 89 read
-  nothing at all, 2 read only the fields they need, and 2 more project only when the caller
-  supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
-  median of the recorded maxima, and at least 21 of them exceed 1,000 — the call graph does not
-  fully resolve, and an unresolved edge can only widen a query.
+  render a PDF containing a handful of values. That is exactly Postgres' limit of 1,664 columns per
+  statement, so one further column in that query would have made it fail outright.
+- Of the 537 route entries, **410 reach at least one load site that fetches whole rows**; 89 read
+  nothing at all, and **36 read only the fields they return**. The widest query a fetching endpoint
+  can trigger is 308 columns at the median, and at least 21 of them exceed 1,000.
 
 The column limit was the symptom, not the cause. Loading a thousand columns to return one is
 equally wasteful under a limit of 4,096 — it simply would not have failed yet.
@@ -43,18 +40,45 @@ equally wasteful under a limit of 4,096 — it simply would not have failed yet.
 
 Two properties combine:
 
-**Eager relations.** 95 relations in this repo are declared `eager: true`. TypeORM expands them
+**Eager relations.** 90 relations in this repo are declared `eager: true`, across 44 entities. TypeORM expands them
 recursively, so a plain `findOne()` on `UserData` already selects **253 columns across 8 joins**,
 and one on `LimitRequest` **434 across 15** — before any `relations` option is passed. The
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the load sites in this repository — at most 1,158, see [load-sites.md](load-sites.md#measurements) — **eight** name the columns they need:
-one query builder and the seven raw statements. Practically all the rest request whole rows — 1,021 through the
-`find` family, and of the 130 query builders, 105 pass the root alias to `.select(...)`, which reads
-like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
-business logic and pure output paths such as invoices, receipts, history and exports — which need
-fields, not objects.
+**No read model.** Of the load sites in this repository — at most 1,158, see
+[load-sites.md](load-sites.md#measurements) — **118** load less than a whole row: 108 query builders
+that name their columns, three that end in `getCount()` or `getExists()` and materialise none, and
+the seven raw statements. Those 118 are counted, not estimated. At most 1,040 request whole rows — 1,007 through the
+`find` family, and of the 144 query builders, 17 pass the root alias to `.select(...)`, which reads
+like a projection but is not, 15 pass no select at all, and one projects its root but pulls a
+relation in whole. The same entities serve persistence, business logic and pure output paths such
+as invoices, receipts, history and exports — which need fields, not objects.
+
+Read the first number carefully. The 90
+query builders that name columns one at a time are almost entirely counts, maxima and id lookups —
+`.select('userData.id', 'id')`, `.select('COUNT(*)', 'count')` and the like — and they select **1.5
+columns at the median**, half of them exactly one. They are projections. The classification recognised only the array form
+`.select([...])` and read every string argument as the bare root alias, which is what put them in
+the `whole rows` group. The rule that holds: a bare identifier is the root alias and loads
+everything; anything else — a column or an expression — narrows the query. Correcting that does not
+change the picture: a
+`COUNT(*)` that was always narrow is not a read path that was converted, and the response payloads —
+history, profile, invoices, exports — are still served by `find`.
+
+Two further shapes were counted as full loads for the same kind of reason, and both are decided by
+something the select list does not show:
+
+- **The terminal call can discard the select list.** `getCount()` and `getExists()` replace it with
+  `COUNT(…)` and `SELECT 1`, so a chain ending in either materialises no row whatever precedes it.
+  Three load sites do this, and `GET /support/kycFileStats` was listed as fetching 99 columns
+  because of one of them.
+- **The select argument can be a variable.** `.select(bucketExpr, 'bucket')` names an expression as
+  surely as a literal does; whether it narrows depends on what the variable holds, which has to be
+  resolved in the enclosing method. Four load sites do this — three of them in the two
+  caller-defined `/gs/db` endpoints, the fourth an aggregate that was reported as a full load.
+
+Neither changes the picture either, and both are now part of the classification.
 
 ## Vocabulary
 
@@ -114,12 +138,59 @@ All of the following must hold:
 
 The first four are pre-filters; the fifth decides.
 
+## What qualifies, measured
+
+The pre-filters above are stated as criteria; this is what they select when applied to the
+inventory. Every step is mechanical except the last two, which were read in the source.
+
+| | before | now |
+| --- | ---: | ---: |
+| fetch whole rows | 415 | 398 |
+| … every load site they reach can be narrowed at all | 37 | 29 |
+| … no write to the loaded entity, and the response is a structured value | 16 | 8 |
+| … and no DTO field passes an entity through | **9** | **1** |
+
+The step that decides the size of this work is the first one, and it has a single cause: at 321 of
+the 484 load sites involved, **the loaded entity leaves the loading method**.
+`UserDataService.getUserData` returns `Promise<UserData>` to 113 different endpoints. What fields
+are needed is decided by each caller, not at the load site, so a projection there would be guessed
+rather than derived — and the union over 113 callers is the whole entity anyway. Splitting those
+hubs into per-caller reads is a separate piece of work with a different shape. It is not assumed
+here, and the numbers above do not depend on whether it happens.
+
+The last step removes seven endpoints whose DTO has a field typed as an entity — `currency: Fiat`,
+`targetAsset: Asset`. The response then contains every column of that entity, so a projection would
+have to list them all and would save nothing. Narrowing those means changing the contract, which is
+a different decision.
+
+**One endpoint remains, and it is excluded by the second criterion rather than by the first four.**
+`POST /support/issue/:id/message` hands the message it creates — carrying the issue and the account
+behind it — to the notification service. What that code reads is not determinable at the load site,
+so a field list here would be guessed.
+
+The filters are deliberately conservative and reject endpoints that can in fact be converted: an
+endpoint fails the first step if *any* load site it reaches leaks, including one on a branch that
+has nothing to do with the response. Nine of the seventeen conversions recorded in
+[endpoints.md](endpoints.md) were found that way — by reading the endpoint after the filter had
+rejected it. The counts above are therefore a lower bound on what is possible, not a ceiling.
+
+Two of those seventeen would fall foul of a blanket no-write rule, and are the reason the first
+criterion does not state one. It rejects an endpoint that writes the entity it loaded, and the hazard
+it names is saving a partially loaded row back — the unselected columns are undefined on the entity
+and would be written as null.
+`PUT /paymentLink/:id/pos` and `POST /user/apiKey/CT` write through `update(id, …)`, which sends
+only the columns named in the call, so a projected read cannot blank anything. What the criterion
+does have to keep excluding is a value the write *derives* from what was read: the point-of-sale
+write merges into the existing configuration, so `config` is part of that projection and is
+asserted directly.
+
 ## The risk this must guard against
 
 A missing field does not crash. It is simply absent, getters compute with it anyway, and the
 endpoint answers 200 with a wrong value.
 
-The concrete case, from the code that was already fixed once:
+The concrete case, from `UserData` in
+`src/subdomains/generic/user/models/user-data/user-data.entity.ts`:
 
 ```typescript
 get requiredInvoiceFields(): string[] {
@@ -135,20 +206,126 @@ load returns `true`. The invoice is refused with "user data is not complete" alt
 complete. No error, no log entry.
 
 This service carries **238 such getters across 50 of its 113 entities**. In an application moving
-money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
-loudly and is found at once, while a wrong value can run for weeks.
+money, a silent wrong value is the expensive kind of defect: nothing reports it, so it runs until
+someone notices the answer is wrong.
+
+## The guard: making the failure loud
+
+Before the levels, the mechanism they used to substitute for.
+
+A column the query did not select is `undefined` on the entity. Getters compute with it, the mapper
+puts the result in the response, and the endpoint answers 200. Nothing fails. The obvious defence is
+to prove completeness field by field — drop each one, require the response to change — and that is
+what level 3 below does. It works, and it is expensive in a particular way: it needs a fixture that
+reaches every branch reading every field, and a fixture that misses its branch is **green while
+proving nothing**. The safety net then fails exactly the way the defect fails, which is why writing
+these tests kept producing assertions that could not fail.
+
+So the silence is switched off instead. Every query a `ReadProjection` builds returns rows wrapped
+by `guardProjection`, and reading a column the field list did not ask for **throws**, naming the
+column:
+
+    read of 'UserData.organizationName', which this query did not select —
+    add it to the projection, or stop reading it
+
+The consequences are worth stating plainly:
+
+- **A test that reaches the read fails at it**, whether or not the missing column would have been
+  visible in the response. What the fixture still has to do is reach the branch; what it no longer
+  has to do is make the resulting value observable.
+- It is installed once for the whole configuration (`jest-projection.setup.ts`), not per spec, so a
+  spec written later cannot lose the protection quietly.
+- It reports **where the column was needed**, not where the wrong value surfaced. A getter keeps
+  running — reading *through* a getter is how the missing column is reached — and the failure names
+  the column the getter wanted.
+- It enforces a stricter rule than "the response is correct": it requires the projection to cover
+  what the code **reads**, not what the response happens to depend on. That difference is not
+  academic — it is what found `PUT /paymentLink/:id/pos` assembling a recipient block out of the
+  account's name, contact data and address, and discarding it. The fix was to stop reading, not to
+  load more.
+- Relations the projection does not join are left alone: they are `undefined`, and dereferencing
+  them already throws. So is a column the caller assigned itself before reading it back, which is
+  what the write paths do.
+
+The guard is verified by `projection-guard.projection.spec.ts` — it is the one piece the levels
+below cannot check, because they rely on it.
+
+## The other route: reducing the eager relations
+
+Converting endpoints one at a time treats the symptom. The cause is named above — the entity
+decides what a query loads, and no call site can see what it triggers. So the cheaper-looking route
+is to take the decision away from the entity: drop `eager: true`, and let each call site say what
+it needs. This section is what that route costs, measured rather than estimated, because the
+measurement changes the answer.
+
+**How it was measured.** Which relations are declared is an AST question — a text search counts
+comments and misses modifiers. Where each one is *read* is a type question: `.userData` occurs on
+dozens of unrelated receivers, so the reads were resolved with the TypeScript compiler, including
+reads through a base class, which is how single-table inheritance is reached. What a response
+*contains* is neither: it comes from the TypeORM metadata, whose eager closure is what a query
+actually joins.
+
+The two counts in this document are not the same count, and the difference is not a discrepancy.
+The 90 above are declarations in the source. At runtime they are 103 relations, because a
+declaration on a base class is carried by every entity that inherits it (6), and because
+single-table inheritance surfaces a child's relation on the parent as well (8) — a query on
+`DepositRoute` joins what `Sell`, `Swap` and `Staking` declare. In the other direction, `Sell.route`
+and `Swap.route` are two declarations of one column in one table and count once.
+
+**What the measurement says.** 55 handlers answer with an entity rather than a response object, 35
+distinct entities between them. For those, the eager relations are not a loading detail — they are
+the answer. Followed recursively, their closure covers **57 of the 103 eager relations** this
+repository builds at runtime — 17 of the 35 entities carry no eager relation at all, which is why
+the closure is smaller than the root count suggests. Removing one of those 57 changes what an
+endpoint returns; adding one changes it too. All 55 handlers carry a role guard and all but two
+(`POST /userDataRelation`, `PUT /userDataRelation/:id`) are excluded from the Swagger schema, so the
+consumer is the operator's own tooling rather than a published schema — which makes it a decision to
+take, not a wall, but a decision rather than a refactor either way.
+
+That is the part worth carrying forward: **the majority of the eager relations cannot be removed
+mechanically**, and the criterion that decides it is not visible in the entity, the call site, or
+the test. It is visible in the return type of a controller.
+
+**What was removable, and was removed.** Four declarations that no code reads and that no response
+contains: `Buy.route`, `CustodyBalance.user`, `CustodyOrder.transaction`,
+`CryptoStaking.paybackDeposit`. That narrowed 55 load sites — the custody order paths by 98 columns
+each, the widest transaction paths by four — and 47 endpoints in
+[endpoints.md](endpoints.md) now show a smaller number.
+
+**What is left.** 32 declarations are read somewhere and are in no response. Each is removable, but
+not by rule: the compiler says where a relation is read, not which query produced the value that
+was read. Connecting the two is a per-case reading of the code, and it is the same work as
+converting an endpoint — with a failure mode that is worse, because a relation that is no longer
+loaded is `undefined` at a call site that no test may reach.
+
+**What guards it.** `eager-relations.projection.spec.ts` pins two things: the closure above, so a
+relation added to any entity in it fails the run naming the controller whose answer it changes, and
+the total count, so a new one anywhere is a decision rather than a detail of an unrelated change.
+It finds the entities that leave through a controller by reading the controllers rather than from a
+list, so adding a controller does not silently narrow what the closure covers.
+
+So the two routes are not alternatives, and neither is cheap. The difference between them is the
+failure mode: an incomplete field list now throws, and an eager relation added to the wrong entity
+now fails a test — which is the property both of these are for.
 
 ## Test definition
 
-All four levels must pass for an endpoint to count as converted. `endpoints.md` records the state
-per endpoint as `0/4` through `4/4`; only `4/4` is done.
+The guard covers completeness. The levels cover what it cannot see: whether the response is right,
+whether the variants that matter are exercised, and whether the projection carries more than it
+needs. `endpoints.md` records the state per endpoint as `0/4` through `4/4`; only `4/4` is done.
 
 ### Which endpoints these apply to
 
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Today that is **eight sites**, and this is what the suite covers of them:
+A hundred and thirteen sites carry a field list. The table below covers the six that were known when
+this document was written — one query builder and five raw statements — and none of them was
+converted, so it is unchanged. Another 90 are the query builders that name columns one at a time; they are
+not covered by these levels either, which is what their endpoints' `0/4` in
+[endpoints.md](endpoints.md) records. The remaining 17 belong to the endpoints converted so far and
+are covered on all four. Sites a conversion adds are recorded there too, where only
+`4/4` counts as done.
 
 | Site | Form | Runs in a test | Column list asserted | Real database |
 | ---- | ---- | -------------- | -------------------- | ------------- |
@@ -156,14 +333,12 @@ Today that is **eight sites**, and this is what the suite covers of them:
 | `log.repository.ts:341` — `getFinancialLogAssetPrices` | raw SQL, columns listed | **no** | no | no |
 | `log.repository.ts:511` — `getFinancialLogSummariesFull` | raw SQL, columns listed | yes | yes | no |
 | `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed | yes | yes | no |
-| `virtual-iban.service.ts:891` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
+| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
 | `gs.service.ts:337` — `executeDebugQuery` | raw SQL, list supplied by the caller | yes | yes | no |
-| `cron-lease.service.ts:186` — `onModuleInit` | raw SQL, `SELECT 1` — a reachability probe, no column to name | yes | n/a | no |
-| `bank-tx.service.ts:597` — `recoverRollingInternalTransfers` | raw SQL, columns listed | **no** | no | no |
 
 Read that column by column, because the three answers mean different things.
 
-**Runs in a test.** Four of the eight are never executed. `getFinancialLogValidityChangeSet` is
+**Runs in a test.** Three of the six are never executed. `getFinancialLogValidityChangeSet` is
 replaced by `jest.spyOn(logRepo, …).mockResolvedValue([…])` at all nine of its appearances, so the
 projection line itself never runs. `getFinancialLogAssetPrices` is stood in for by a hand-written
 fake that reimplements the filtering in TypeScript. `hasOrderedOwnershipPath` appears in no spec at
@@ -178,7 +353,7 @@ without being level 3: that level requires level 1 to fail, and level 1 is satis
 these sites. For the three that never run, removing a column changes nothing at all — the mock
 supplies the value regardless.
 
-**Real database.** None of the eight. Every spec stubs the boundary — `createQueryBuilder` as a
+**Real database.** None of the six. Every spec stubs the boundary — `createQueryBuilder` as a
 chainable mock in the repository spec, `createMock<DataSource>()` in the service spec. A mock cannot
 observe which columns were requested, so **level 1, the completeness test, is satisfied nowhere
 today**, not even for the three sites whose SQL is asserted. Asserting that a column appears in a
@@ -189,14 +364,18 @@ incomplete result is the caller's doing rather than a defect here. Its 197 specs
 axis — the table and column allowlist, PII masking, parameter binding — and that is the right axis
 for it.
 
-So the gap is narrow and specific: **`log.repository.ts:699` is the one site that carries the
-projection risk, serves a live endpoint (`PUT /log/financial/validity`), and is not exercised at
-all.** What surrounds it is well covered — batching into blocks of 100, the audit trail, rejection
-of fabricated audit records, the block on changing validity through the generic update path.
+So among the six reads this section is about, the gap is narrow and specific:
+**`log.repository.ts:699` carries the projection risk, serves a live endpoint
+(`PUT /log/financial/validity`), and is not exercised at all.** What surrounds it is well covered —
+batching into blocks of 100, the audit trail, rejection of fabricated audit records, the block on
+changing validity through the generic update path.
 
-Every other read in the repository either selects only the root alias or nothing at all and
-therefore still loads every column; nothing can be missing from those. Each becomes subject to these
-tests the moment it is given a field list.
+That was the whole picture when this document was written. It no longer is: 115 sites now name their
+columns — the 18 with an explicit field list and the 90 that name them one at a time, plus the seven
+raw statements — and each of them can drop a field silently. The 17 conversions below carry the four
+levels. Of the endpoints behind the others, 18 record that they do not, as `0/4`; three stay `n/a`
+because their field list comes from the request rather than the code, so there is no fixed
+projection to test — `POST /gs/db`, `POST /gs/db/custom` and `POST /gs/debug`.
 
 ### How they run
 
@@ -216,15 +395,49 @@ in **all three test shards** — Jest distributes the suites across shards, so e
 own instance. Without the variable the blocks are skipped, which is why the suite still passes on a
 machine with no database.
 
-The projection tests should use the same mechanism rather than introduce a second one.
+The projection tests use that same gate. What they add lives in
+`src/shared/utils/projection-test.util.ts`:
 
-Two things are missing, and only two:
+- **The schema.** Each spec file creates its own Postgres schema (`const SCHEMA = '…'`) so parallel
+  specs cannot collide, and fills it from the entity metadata via `synchronize` rather than from
+  replayed migrations — the reference for a projection is the entity definition, not the migration
+  history. Measured: 113 entities, 100 tables, 1,742 columns, about half a minute per spec file.
+- **The fixtures**, generated from the same metadata. Every scalar column gets a non-empty value and
+  required relations are created recursively, so an empty field in a response proves the query
+  failed to load something. Three kinds of value have to be pinned by hand, and all three are the
+  fixture's business rather than the projection's: enum columns stored as text (the metadata reports
+  them as `varchar`, so a generated value is not a member of the enum and a mapper looking it up
+  answers `undefined`), values a check constraint relates to each other, and relations the schema
+  allows to be null but a mapper reads without a guard.
 
-- **The schema.** The migration specs each create their own Postgres schema (`const SCHEMA = '…'`)
-  so that parallel specs cannot collide. The projection tests need the same isolation, but their
-  schema comes from the entity metadata via `synchronize` rather than from replayed migrations —
-  the reference for a projection is the entity definition, not the migration history.
-- **The fixtures**, generated from the same metadata.
+They do **not** run in the main suite, and that is not a preference. The main suite compiles
+transpile-only (`tsconfig.json` sets `isolatedModules: true`), which makes TypeScript emit
+`design:type` as `Object` for any imported type; building a data source from the entity sources then
+fails outright with `Data type "Object" in "Fiat.amlRuleFrom" is not supported`, and no projection
+spec could run at all. `jest.projection.config.js` compiles with full type information — the same
+reason the Frick and coverage gates have their own configuration — and `npm run test:projection` is
+a separate CI job with its own Postgres service.
+
+### What a converted endpoint looks like
+
+The field list is a value, not a chain of calls at the query site: `ReadProjection` in
+`src/shared/models/read-projection.ts`. That is what lets level 3 re-run the *production* query with
+one field removed. A query rebuilt inside the spec could be wrong in exactly the way the projection
+is wrong, and would prove nothing.
+
+A projection separates two kinds of field:
+
+- **Response fields** feed the answer. These are what level 3 drops one at a time.
+- **Guards** are loaded but never shown: the primary keys that make the ORM materialise a joined
+  row, and values a check reads before the mapper runs — `UserData.status`, which
+  `GET /user/profile` refuses merged accounts on. Dropping a guard changes no response field, so
+  level 3 would report it as removable although the endpoint breaks without it. Each guard needs an
+  assertion of its own instead.
+
+Where a getter branches on a field, the response fields split per branch and each variant asserts
+over its own set. `UserData.address` reads the organization's address for a business account and the
+account's own for a personal one; a personal-account fixture can say nothing about the organization
+fields, and claiming otherwise would be the vacuous kind of green this document is against.
 
 ### 1. Completeness
 
@@ -254,23 +467,66 @@ depends on a status field.
 
 ### 3. Mutation
 
-**Remove each field of the projection individually; level 1 must fail every time.**
+**Remove each field of the projection individually; the response must change every time.**
+
+Since the guard, this level no longer protects against a *missing* field — a dropped field now
+throws before it can produce a wrong value, and `expectEveryFieldRequired` counts that throw as the
+field carrying weight. What it still does is the opposite direction: it shows that a field in the
+list is **needed**, so a projection cannot quietly grow past what the endpoint uses. That is a cost
+question rather than a correctness one, and it is the reason the fixture-per-branch work below is
+worth doing where a field list is intricate and can be skipped where it is not.
 
 This proves the test looks at anything at all. Where removing a field changes nothing, one of two
-things is true: the field is unnecessary and can be dropped permanently, or the fixture has a gap
-at exactly that point — and a real defect would have slipped through there.
+things is true: the field is unnecessary and can be dropped permanently, or the fixture never
+reaches the branch that reads it — and a real defect would have slipped through there.
+
+**The measure is the response, not emptiness**, and the difference is not academic. The first
+version of this level asked whether a field went empty, and it passed a projection missing
+`UserData.kycStatus`: `getKycWebhookStatus` answers `NA` when handed nothing, which is a valid value
+and a wrong one. Comparing against the response the full projection produced catches it. It is the
+same standard as level 4, applied one field at a time.
 
 Without this level you never know whether a green test verified something or is merely green.
+
+**Where a value has a fallback, the candidate may be the chain rather than the column.**
+`UserData.completeName` is `organizationName ?? firstname + surname`. Dropping the chain shows the
+value depends on it at all; each column on its own is covered by the variant in which it is the one
+that gets read — which is also why a fixture has to reach that branch. `kycType` only changes the
+answer for a LOCK account: against a DFX one, the value the absent column would produce and the
+value it does produce are the same, and no assertion can tell them apart.
+`expectEveryFieldRequired` therefore accepts a group of fields as one candidate.
+
+**A missing summand is not a missing field, and level 1 has to say so anyway.** The annual volume on
+the support view is `annualBuyVolume + annualSellVolume + annualCryptoVolume`. Leave one of the three
+out of the projection and the sum is `NaN` — not absent, so an `undefined` check waves it through,
+and the endpoint answers 200 with a number that is not a number. `NaN` therefore counts as empty.
+
+**It needs a baseline, or it is itself merely green.** If the response is already incomplete with
+the *full* field list, every reduced run fails too, and "every field is required" comes out true
+without a single field having been shown to matter. That happened while the first conversions were
+written — a fixture had left an enum at a value the mapper did not know — and the level reported
+success. `expectEveryFieldRequired` therefore runs the query unreduced first and refuses to continue
+unless that response is complete.
 
 ### 4. Consistency against a second source
 
 **Where the same value exists twice, the two must agree.**
 
-Applies wherever a value was materialised into its own column while the original source is still
-present. In the financial log, `totalBalanceChf` exists both as a column and inside
-`message->balancesTotal->totalBalanceChf`; every row must carry the same value in both. Where such
-an invariant exists it is the strongest available test, because it needs no second implementation
-that could itself be written wrong.
+For a conversion the second source is always available: **the unprojected load.** Run the endpoint's
+mapper over a full `find` of the same fixture, and the two responses must be identical, per variant.
+The full load fetches every column, so the *field set* it produces is by construction the one the
+endpoint answered from before the conversion — the mapper is the same function in both runs, so a
+difference can only come from the columns.
+
+What the level does not verify is the query around them: each spec restates the filter and the
+joins, so a spec that restates them wrongly compares two things neither of which is the endpoint.
+The endpoint specs do exercise the filter, because they run it against seeded rows, but no level requires that — level 2 is about branches that change the required field set. It is also the only
+level that catches a projection loading the *wrong* field rather than too few: level 1 sees a field
+that went empty, level 4 sees any field that changed.
+
+It applies separately wherever a value was materialised into its own column while the original
+source is still present. In the financial log, `totalBalanceChf` exists both as a column and inside
+`message->balancesTotal->totalBalanceChf`; every row must carry the same value in both.
 
 ### Deliberately not part of this: a column budget
 
