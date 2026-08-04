@@ -1536,7 +1536,7 @@ export class Configuration {
   // The ledger master switch (`ledger.enabled`) reaches its jobs through the per-process kill-switch,
   // not only through the job bodies. `skipWhenDisabled` sits OUTSIDE the cron lease
   // (`dfx-cron.service.ts`), so a switched-off ledger job drops out of cron operation entirely instead
-  // of claiming a lease, waiting out the jitter and releasing it again every tick — ten minute-jobs
+  // of claiming a lease, waiting out the jitter and releasing it again every tick — nine minute-jobs
   // writing to `cron_lease` twice a minute to do nothing, long enough for lease renewals to fall due.
   //
   // The in-body `isLedgerReady()` guards stay as they are: they are the cutover gate and also cover the
