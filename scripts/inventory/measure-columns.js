@@ -107,6 +107,13 @@ async function main() {
   const sites = JSON.parse(fs.readFileSync(INPUT, 'utf8'));
   const out = [];
   for (const s of sites) {
+    // A raw statement selects whatever it lists, and the entity metadata cannot say what that is.
+    // Building a query for the entity it happens to mention would report that entity's width,
+    // which is a different number about a different query.
+    if (s.kind === 'raw-sql') {
+      out.push({ ...s, error: 'raw SQL: the statement lists its own columns' });
+      continue;
+    }
     const meta = ds.entityMetadatas.find((m) => m.name === s.entity);
     if (!meta) {
       out.push({ ...s, error: 'entity not found' });

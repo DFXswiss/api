@@ -13,7 +13,9 @@ npm run build                 # the column counts come from the compiled entitie
 node scripts/inventory/run.js # writes to .inventory-out/ by default
 ```
 
-No database is involved, and a width comes from one of three places. Where a query loads whole
+No database is involved. A raw statement is not measured at all — it selects whatever it lists,
+and the entity metadata cannot say what that is. For everything else a width comes from one of
+three places. Where a query loads whole
 rows it is measured against the real schema: the query is built from the TypeORM metadata and its
 SELECT list counted. Where a query names its columns it is the number of names, counted in the
 source. Where the field list comes from a `ReadProjection` constant it is that constant's size,
@@ -67,8 +69,8 @@ Measured on the tree this tool was committed against:
 
 - `docs/endpoints.md` — **no differing rows**. Every route, classification, width and test state
   the generator produces is what the document already says.
-- `docs/load-sites.md` — **114 column counts and 10 join counts** differ, almost all of them a
-  handful of columns higher in the fresh run.
+- `docs/load-sites.md` — **111 column counts and 7 join counts** differ, almost all of them a
+  handful of columns higher in the fresh run, plus one site whose entity does not resolve.
 
 The remaining difference is not a defect on either side. Those numbers were published with the
 measurement frozen at the epoch of the pull request that introduced the document, while the
@@ -92,44 +94,36 @@ per file.
 One site projects on its root and pulls a joined entity in whole (`query-builder (projected, full
 join)`). Its true width is neither the root entity nor the projection, and the chain is not
 reconstructed here — the number shown is the root entity's width, and it is a genuine lower bound.
-It is not alone in that: 22 further query-builder sites carry a `leftJoinAndSelect` without being
+It is not alone in that: further query-builder sites carry a `leftJoinAndSelect` without being
 classified as one, which is part of what the next section is about.
 
-## Two things it gets wrong, measured but not changed here
+## Two things it gets wrong, not changed here
 
 Both predate this tool being committed, both would move numbers the two documents already publish,
 and both are now fixable by anyone because the code is here. They are stated rather than fixed so
-the change stays what it says it is. Every figure below comes from one run against `develop`, the
-same basis `render-docs.py` uses.
+the change stays what it says it is. Deliberately without figures: quantifying either one requires
+its own careful measurement, and a number stated loosely here would be one more claim to maintain.
 
-**`exact` and `lower bound` are split on the wrong criterion.** A site counts as exact when a
-`relations` tree is written at the call, and as a lower bound otherwise. That run measured 799
-sites: 340 exact, 459 lower bounds. The second group is 324 `find` sites, 132 query builders and 3
-raw statements. For the `find` sites the label is right — the tree can arrive as a parameter, and
-only the base query is visible. For the other 135 it is not: a query builder has no relations tree
-and none can arrive, and a raw statement lists its columns. Of those 135, **22 are lower bounds for
-a different reason** — they carry a `leftJoinAndSelect`, which pulls a joined entity in whole. So
-the split should read **453 exact against 346 lower bounds**, and the sentence explaining the
-second group is false for the 113 sites it wrongly counts.
+**`exact` and `lower bound` are split on the wrong criterion.** `render-docs.py` calls a site exact
+when a `relations` tree is written at the call, and a lower bound otherwise. That is right for a
+`find` site, whose tree can arrive as a parameter so that only the base query is visible. It is
+wrong for a query builder, which has no relations tree and into which none can arrive: its width
+does not become larger later. The exception
+is a query builder carrying a `leftJoinAndSelect`: there the joined entity is not counted, and the
+width really is a lower bound. So the second group in `docs/load-sites.md` mixes two different
+things, and the sentence explaining it is true only of the `find` sites in it.
 
-**The call graph keys symbols by class and method name alone.** 64 class names in this repository
-are declared more than once — `KycService` and `KycController` in the deprecated and the current
-generation, and the strategy families that repeat a name once per blockchain. Two consequences,
-both measured:
-
-- Where two of them share a **method** name, their bodies and load sites merge. That happens for 5
-  names (`KycService.getUser`, and `getFeeAsset` on four strategy families), and **none of the five
-  contains a load site**, so the effect on the current inventory is nil.
-- Where two of them share an **injected field** name with different types, the later declaration
-  overwrites the earlier one and every merged body resolves through the survivor. That happens for
-  4 names — `BitcoinStrategy.bitcoinService` is `PayInBitcoinService` in one copy and
-  `PayoutBitcoinService` in another, and `FiroStrategy`, `SolanaStrategy` and `TronStrategy` are
-  the same shape. An edge through such a field can therefore resolve to the wrong service, which
-  **removes** a real path rather than adding a spurious one.
-
-That second case is the one that matters, because it is not conservative: a load site can go
-missing rather than be over-reported. It does not show up in the current inventory — none of the
-four collides on a method name — but the key is wrong, and the next collision would be silent.
+**The call graph keys symbols by class and method name alone**, and a good number of class names in
+this repository are declared more than once — `KycService` and `KycController` in the deprecated
+and the current generation, and the strategy families that repeat a name once per blockchain. Two
+consequences. Bodies stored under the same class and method name are merged, which adds
+reachability. More seriously, `INJECT` is keyed by class and field name, so where two same-named
+classes declare the same field with different types — `BitcoinStrategy.bitcoinService` is
+`PayInBitcoinService` in one copy and `PayoutBitcoinService` in another — the later declaration
+wins and **every** method stored under that class name resolves through the survivor, whether or
+not it collides. An edge can therefore point at the wrong service, which loses a real load site
+rather than adding a spurious one. That is not the conservative direction, and it is not confined
+to methods that collide.
 
 ## What this cannot check
 
