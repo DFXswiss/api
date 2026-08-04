@@ -4,11 +4,19 @@
 
 `docs/endpoints.md` and `docs/load-sites.md` are generated inventories of every HTTP route and every database read site in this service, respectively.
 
+These scripts need Python 3 in addition to Node. `run.sh` checks for `python3` before it starts.
+
 ## Do not simply regenerate
 
-The published documents contain passages that were adjusted by hand after their initial generation: median figures, the "at most ... an upper bound" caveat, the "Known discrepancy" section, and English labels. The renderer, `build_docs.py`, does not produce these passages. Running `npm run docs:inventory` overwrites both documents completely and discards them.
+The published documents contain passages that were adjusted by hand after their initial generation: median figures, the "at most ... an upper bound" caveat, the "Known discrepancy" section. The renderer, `build_docs.py`, does not produce these passages.
 
-A fresh run has been verified to produce the same inventory counts as the published documents: 537 handlers, 1,158 load sites, 251 files, and 299 entries marked internal. Its introductory prose does not match the published prose. Treat a fresh run as a data source, not as a replacement for the documents.
+For that reason `npm run docs:inventory` **does not touch `docs/`**. It leaves both documents in its work directory and prints the path, so you can diff them against the published ones. Overwriting the published documents — and discarding their hand-adjusted passages — takes an explicit flag:
+
+```bash
+bash scripts/inventory/run.sh --write-docs
+```
+
+Treat a fresh run as a data source, not as a replacement for the documents.
 
 ## Keeping the documents current
 
@@ -18,12 +26,15 @@ Use `apply_drift.py` to keep the published `docs/load-sites.md` current after co
 - remove rows for load sites that no longer exist;
 - update references when source line numbers move.
 
-Column counts already present in the published document remain unchanged.
+Column counts already present in the published document remain unchanged. Write statements, advisory locks and raw `INSERT`s are excluded from the inserted rows, by the same rule the renderer applies — both call `classify.py`.
 
-The script requires two environment variables:
+**It rewrites the table only.** The counts in the surrounding prose ("N load sites across M files", the median figures under *Measurements*) are not updated. The script prints the new statistics and writes them to `<out_path>.stats.json`; carry them into the prose by hand.
 
-- `INVENTORY_WORK`: a working directory containing the intermediate files from both runs. The script source shows the expected structure under `gen/old/` and `gen/new/`.
+The script requires three environment variables:
+
+- `INVENTORY_WORK`: a working directory containing the intermediate files from both runs, under `gen/old/` and `gen/new/`.
 - `INVENTORY_REPO`: the path to a clone from which the script reads the published version with `git show <ref>:<path>`.
+- `API_SRC`: the source tree of the *new* state, needed to classify newly appeared sites as read or write.
 
 Invoke it as follows:
 
@@ -31,19 +42,22 @@ Invoke it as follows:
 python3 apply_drift.py <pub_ref> <pub_path> <out_path>
 ```
 
-These arguments are passed to `main(pub_ref, pub_path, out_path)`.
-
 ## Full pipeline
 
-`scripts/inventory/run.sh` runs the following steps in order, writing intermediates under a temporary `INVENTORY_WORK` directory. The directory is printed on stdout and kept after the run for inspection.
+`scripts/inventory/run.sh` runs the following steps in order, writing intermediates under a temporary `INVENTORY_WORK` directory. The directory is printed on stdout and kept after the run for inspection — it holds a full inventory, so remove it when you are done.
 
 1. `sites.py` extracts every load site from `src/` and writes `sites.json`.
 2. `measure.js` measures SELECT column counts from TypeORM metadata in `dist/` and writes `sites-measured.json` and `meta-tables.json`. The latter contains per-table TypeORM metadata: column counts and entity names, one entry per table.
 3. `make_table.py` extracts every route from the controllers and writes `table.json`, the endpoint table containing verb, path, controller, handler, file, and internal status.
-4. `fix_handlers.py` re-derives handler names directly from the controllers and corrects `table.json` in place. This fixes cases where a multi-line decorator between the route decorator and the method was misread as the handler.
+4. `fix_handlers.py` re-derives handler names directly from the controllers and corrects `table.json` in place.
 5. `add_version_deprecated.py` adds `version` and `deprecated` to each row of `table.json`, using the full decorator block (`@Version`, `deprecated: true`).
 6. `endpoint_eff.py` joins the routes in `table.json` with the load sites they can reach and their over-fetch kinds, then writes `endpoint-eff.json`.
-7. `build_docs.py` renders `endpoints.md` and `load-sites.md`, after which `run.sh` copies them into `docs/`.
+7. `build_docs.py` renders `endpoints.md` and `load-sites.md` into the work directory.
+
+Two shared modules carry the contracts the steps used to duplicate:
+
+- `tsparse.py` — the decorator walk from a route decorator to its method, plus `@Controller` scope resolution. Steps 3, 4 and 5 all need it; three copies of it are three chances to drift.
+- `classify.py` — the names of the select categories, and the rule that decides whether a site reads or writes. Used by `sites.py`, `build_docs.py` and `apply_drift.py`.
 
 `table.json`, the endpoint table used in steps 3–6, and `meta-tables.json`, the TypeORM table metadata produced by `measure.js` in step 2, previously shared the name `table.json`. As a result, step 2 silently overwrote what was supposed to be the endpoint table before anything else could read it. They are now separate files.
 
@@ -54,24 +68,41 @@ npm run build
 npm run docs:inventory
 ```
 
-`measure.js` needs a current `dist/` tree, so build first. Before treating the generated files as replacements for the published documents, read "Do not simply regenerate" above.
+`measure.js` needs a current `dist/` tree, so build first.
+
+## Self-test
+
+```bash
+npm run docs:inventory:test
+```
+
+`selftest.py` runs the chain against a small fixture and checks the contracts between the steps: that every select category is recognised, that writes and locks are classified as writes, that the handler is read past a multi-line `@UseGuards(`, and that a newly appeared write site does not reach the published document. It needs neither `dist/` nor a database.
+
+Every failure this pipeline has actually produced was silent — a renamed key, a shared file name, a filter keyed on fields that were never written. None of them crashed; they produced a complete document full of zeroes, or one carrying rows that did not belong in it. The self-test checks those contracts rather than the numbers of any given commit, so it stays valid as the code moves.
 
 ## Optional route verification
 
-`gen_endpoints.py` is not part of the pipeline above. It is a standalone verifier that must be invoked separately. It reads the routes from the controllers again and compares them against `$INVENTORY_WORK/prod-norm.txt`, if present. The file must contain lines in the form `<METHOD> <path>`, taken from the application's `Mapped {...}` startup logs. If the file is absent, the comparison is skipped and the script still completes successfully.
+`verify_routes.py` is not part of the pipeline above. It compares the routes in `table.json` against `$INVENTORY_WORK/prod-norm.txt`, if present. The file must contain lines in the form `<METHOD> <path>`, taken from the application's `Mapped {...}` startup logs. It reads `table.json` rather than parsing the controllers a second time — a verifier that re-derives what it verifies confirms nothing.
+
+## Hand-maintained tables
+
+Some values cannot be derived and are kept as constants. A change to the code that affects them has to update them in the same pull request, or the generated document silently goes stale:
+
+- `build_docs.py` → `CONVERTED` and `_before`: which endpoints were deliberately converted, their test state, and their column count before the conversion. **Converting an endpoint means adding it to both.**
+- `endpoint_eff.py` → `MANUAL_NO_DB`: endpoints whose call graph ends at a target chosen at runtime, with the reason each reads nothing. The reason is rendered verbatim into `endpoints.md`; this is the only place it is maintained.
+- `add_version_deprecated.py` → `NAMED`: maps `GetConfig().kycVersion` to its value, because the config is not loaded during a run.
+- `classify.py` → `CALLER_SELECT`: endpoints whose projection depends on a field list in the request.
 
 ## Origin and known rough edges
 
-These scripts were developed outside this repository and checked in here for the first time. The backups contain several variants of individual steps with incompatible contracts. Two of those contracts had to be aligned when the scripts were checked in:
+These scripts were developed outside this repository and checked in here for the first time. The backups contained several variants of individual steps with incompatible contracts. Those that had to be aligned:
 
-- The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked.
-- The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided, as described in the `table.json`/`meta-tables.json` note above.
+- The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked. `measure.js` now exits non-zero when nothing measures at all, so this class of failure cannot pass as a completed run again.
+- The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided.
+- `apply_drift.py` filtered new sites on `write` and `rawkind`, fields that only ever existed inside `build_docs.py` and are absent from `sites-measured.json` — so the filter matched nothing and would have inserted write statements, advisory locks and raw `INSERT`s into the published document. Both callers now share `classify.py`.
 
-A review also found the following properties of the recovered scripts. They were deliberately left unchanged because changing their behavior could shift the generated figures and would need separate validation:
+Remaining properties worth knowing:
 
-- `make_table.py` records an unresolved handler as the placeholder `'?'`, using it as the fallback during handler and scope detection, instead of aborting.
-- `add_version_deprecated.py` silently assigns `DEFAULT_VERSION` (`'1'`) and `deprecated = False` when no decorator match exists for a route, via the `(DEFAULT_VERSION, False)` fallback for route keys absent from `flags`, instead of marking the row.
-- `fix_handlers.py` visibly overlaps with `make_table.py` in handler detection: both independently implement similar decorator and parenthesis skipping through `skip_trivia` and `skip_args`. Whether that step can be removed has not been established without a differential run, so it remains in the pipeline.
-- The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are now additionally reported on stderr.
-
-The renderer does not exactly match the version that produced the published documents. See "Do not simply regenerate" above.
+- The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are reported on stderr.
+- `fix_handlers.py` overlaps with `make_table.py` in handler detection. Both now go through `tsparse.py`, so they can no longer disagree, but whether the step can be dropped entirely has not been established without a differential run — so it stays in the pipeline.
+- The renderer does not exactly reproduce the prose of the published documents. See "Do not simply regenerate" above.

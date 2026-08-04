@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Extrahiert JEDE Ladestelle im Code. Lokal bestimmbar, keine Aufrufketten-Heuristik.
+"""Extracts EVERY load site in the code. Locally decidable, no call-chain heuristics.
 
-Eine Ladestelle ist ein Aufruf, der Daten aus der Datenbank liest. Pro Stelle wird
-festgehalten: Datei, Zeile, umgebende Klasse/Methode, Ziel-Entity, Lademechanik.
-Die Spaltenzahl misst anschliessend TypeORM selbst (measure.js).
+A load site is a call that reads data from the database. Per site this records: file, line,
+enclosing class/method, target entity, loading mechanism. The column count is measured
+afterwards by TypeORM itself (measure.js).
 """
 import re, glob, os, json
 
-def read_text(path):
-    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
-    with open(path, encoding='utf-8', errors='replace') as fh:
-        return fh.read()
+import classify
+from tsparse import read_text, rel_path
 
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
@@ -19,16 +17,23 @@ SRC = os.environ.get("API_SRC")
 if not SRC:
     raise SystemExit("API_SRC is not set - run this through scripts/inventory/run.sh")
 
-# Lesende Aufrufe. save/update/delete sind Schreibpfade und hier bewusst nicht dabei.
+# Reading calls. save/update/delete are write paths and deliberately absent.
 READ = re.compile(r'\.(find|findOne|findBy|findOneBy|findAndCount|findOneOrFail|'
                   r'findCached|findCachedBy|findOneCached|findOneCachedBy|'
                   r'createQueryBuilder|query)\s*\(')
 CLASSRE = re.compile(r'export\s+(?:abstract\s+)?class\s+(\w+)')
 SIG = re.compile(r'^\s{2,}(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*(?:<[^>]*>)?\s*\(', re.M)
 
+
 def strip_comments(s):
-    # nur Zeilenkommentare, URLs geschuetzt; Blockkommentare NICHT (Regex-Literale)
+    """Strip line comments only, protecting URLs.
+
+    Block comments are left alone because a regex literal can look like one. `[^\\n]*` never
+    consumes the newline, so line numbers stay identical to the source — every later stage
+    keys on (file, line) and relies on that.
+    """
     return re.sub(r'(?m)(?<!:)//[^\n]*', '', s)
+
 
 def parse_obj(text, i):
     res, i = {}, i + 1
@@ -50,33 +55,37 @@ def parse_obj(text, i):
                 i = j; res[key] = True
     return res, i
 
+
 def norm(d):
     if d is True or not isinstance(d, dict): return True
     return {k: norm(v) for k, v in d.items() if v is not False} or True
+
 
 ENTITIES = set()
 for f in glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True):
     s = read_text(f)
     if '@Entity(' in s or '@ChildEntity(' in s:
         ENTITIES.update(m.group(1) for m in CLASSRE.finditer(s))
+if not ENTITIES:
+    raise SystemExit(f"no entities found under {SRC} - is API_SRC pointing at the source tree?")
 
 sites = []
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
-    # Testinfrastruktur ist keine Ladestelle der Anwendung: sie legt das Schema an und
-    # erzeugt Fixtures, laeuft aber nie im Anfragepfad.
+    # Test infrastructure is not a load site of the application: it creates the schema and
+    # builds fixtures, but never runs in the request path.
     if f.endswith('projection-test.util.ts'): continue
     raw = read_text(f)
     if not READ.search(raw): continue
     s = strip_comments(raw)
-    rel = f.replace(SRC + '/', 'src/')
+    rel = rel_path(SRC, f)
 
     classes = [(m.start(), m.group(1)) for m in CLASSRE.finditer(s)]
-    # Kontrollstrukturen sehen wie Methodensignaturen aus - herausfiltern
+    # Control structures look like method signatures - filter them out
     KW = {'if','for','while','switch','catch','return','do','else','try','constructor'}
-    # Grossbuchstaben-Bezeichner sind SQL-Schluesselwoerter aus Template-Literalen, keine
-    # Methoden: `CASE WHEN ... THEN (` traf die Signaturregel und wanderte als angebliche
-    # Methode `THEN` ins Inventar.
+    # All-caps identifiers are SQL keywords from template literals, not methods:
+    # `CASE WHEN ... THEN (` matched the signature rule and entered the inventory as a
+    # supposed method named `THEN`.
     methods = [(m.start(), m.group(1)) for m in SIG.finditer(s)
                if m.group(1) not in KW and not m.group(1).isupper()]
     def enclosing(pos, lst):
@@ -86,7 +95,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             else: break
         return cur
 
-    # Feld -> Typ (dateiweit; Kollisionen sind hier unkritisch, es geht um lokale Zuordnung)
+    # field -> type (file-wide; collisions are harmless here, this is a local attribution)
     inj = {}
     for mm in re.finditer(r'(?:private|public|protected)\s+(?:readonly\s+)?(\w+)\s*:\s*(\w+)', s):
         inj[mm.group(1)] = mm.group(2)
@@ -100,7 +109,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
         meth = enclosing(m.start(), methods)
         line = s[:m.start()].count('\n') + 1
 
-        # Ziel bestimmen: this.<feld>.<call>()  |  this.<call>()  |  <var>.<call>()
+        # Resolve the target: this.<field>.<call>()  |  this.<call>()  |  <var>.<call>()
         entity, via = None, None
         tm = re.search(r'this\.(\w+)\s*$', pre)
         if tm:
@@ -114,13 +123,13 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             vm = re.search(r'(\w+)\s*$', pre)
             if vm: via = vm.group(1)
 
-        # Mechanik: eager oder projiziert
+        # Mechanism: eager or projected
         if call in ('createQueryBuilder', 'query'):
             kind = 'raw-sql' if call == 'query' else 'query-builder'
         else:
             kind = 'find'
 
-        # relations-Baum, falls direkt am Aufruf
+        # relations tree, if written at the call site
         tree = None
         tail = s[m.end():m.end() + 4000]
         rm = re.search(r'relations\s*:\s*\{', tail)
@@ -129,69 +138,75 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                 t2, _ = parse_obj(tail, rm.end() - 1)
                 if t2: tree = norm(t2)
             except Exception as exc:
-                # Ein unlesbarer relations-Baum darf den Scan nicht abbrechen - die Ladestelle
-                # zaehlt weiterhin, nur ohne Relationsinfo. Gemeldet wird er trotzdem, sonst
-                # faellt eine stillschweigend unvollstaendige Messung niemandem auf.
-                print(f"WARN {rel}:{line} relations-Baum nicht lesbar: {exc}")
+                # An unreadable relations tree must not abort the scan - the load site still
+                # counts, only without relation info. It is reported anyway, otherwise a
+                # silently incomplete measurement would go unnoticed.
+                print(f"WARN {rel}:{line} relations tree not readable: {exc}")
 
-        # Bei einem QueryBuilder: folgt eine explizite Feldliste?
+        # For a query builder: does an explicit field list follow?
         select = None
         if call == 'createQueryBuilder':
             window = s[m.end():m.end() + 1500]
-            # bis zum Ende der Kette schauen (grob: bis zum naechsten ';')
+            # look to the end of the chain (roughly: up to the next ';')
             chain = window.split(';')[0]
-            # `.select('alias')` laedt jede Spalte; `.select('alias.spalte')` nennt eine.
-            # Beide sind Zeichenketten - der Punkt im ersten Argument ist der Unterschied.
-            # Ohne diese Unterscheidung zaehlt jede spaltenweise Projektion als Vollzugriff.
-            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)`: die Feldliste steht in
-            # der Projektionskonstante. Ohne diesen Fall zaehlt jede so gebaute Abfrage als
-            # Vollzugriff, obwohl sie genau das Gegenteil ist.
-            # Der Aufruf kann `PROJECTION.apply(this.createQueryBuilder(...))` heissen oder ueber
-            # ein injiziertes Repository gehen: `PROJECTION.apply(this.orderRepo.createQueryBuilder(...))`.
-            # `getCount()` und `getExists()` verwerfen die Auswahlliste und setzen COUNT(...) bzw.
-            # SELECT 1 - solche Ketten materialisieren keine Zeile, egal was davor steht.
+            # `getCount()` and `getExists()` discard the select list and emit COUNT(...) resp.
+            # SELECT 1 - such chains materialise no row, whatever precedes them.
             if re.search(r'\.(getCount|getExists)\s*\(\s*\)', chain):
                 sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
                               'call': call, 'kind': kind, 'entity': entity, 'via': via,
-                              'relations': tree, 'select': 'zaehlend'})
+                              'relations': tree, 'select': classify.SEL_COUNT_ONLY})
                 continue
-            # Zwischen `apply(` und `createQueryBuilder` steht dann eine Objektkette.
+            # `PROJECTION.apply(this.createQueryBuilder('x'), fields)`: the field list lives in
+            # the projection constant. Without this case every query built that way would count
+            # as a full read, although it is exactly the opposite. The call may read
+            # `PROJECTION.apply(this.createQueryBuilder(...))` or go through an injected
+            # repository: `PROJECTION.apply(this.orderRepo.createQueryBuilder(...))` - so an
+            # object chain may sit between `apply(` and `createQueryBuilder`.
             before = s[max(0, m.start() - 160):m.start()]
             if re.search(r'\b[A-Z][A-Z0-9_]*\s*\.\s*apply\s*\(\s*(?:this|[A-Za-z_$][\w$]*)(?:\s*\.\s*[\w$]+)*$', before):
-                select = 'feldliste'
-            elif re.search(r'\.select\(\s*\[', chain): select = 'feldliste'
+                select = classify.SEL_FIELD_LIST
+            elif re.search(r'\.select\(\s*\[', chain):
+                select = classify.SEL_FIELD_LIST
             elif re.search(r'\.select\(\s*[A-Za-z_$][\w$]*\s*[,)]', chain):
-                # `.select(bucketExpr, 'bucket')` - das Argument steht in einer Variablen. Die im
-                # Rumpf zugewiesene Form entscheidet: ein blosser Bezeichner waere der Wurzel-Alias,
-                # alles andere benennt etwas.
+                # `.select(bucketExpr, 'bucket')` - the argument sits in a variable. What the
+                # body assigns decides: a bare identifier would be the root alias, anything
+                # else names something.
                 v = re.search(r"\.select\(\s*([A-Za-z_$][\w$]*)\s*[,)]", chain)
                 a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)", s[max(0, m.start() - 1500):m.start()])
                 if a and not re.fullmatch(r"['\"`]\w+['\"`]", a.group(1).strip()):
-                    select = 'spaltenliste'
+                    select = classify.SEL_NAMED_COLUMNS
                 else:
-                    select = 'ohne-select'
+                    select = classify.SEL_NO_SELECT
             elif re.search(r'\.select\(\s*[\'"`]', chain):
                 first = re.search(r'\.select\(\s*[\'"`]([^\'"`]*)[\'"`]', chain)
                 arg = first.group(1) if first else ''
-                # Ein blosser Bezeichner ist der Wurzel-Alias und laedt jede Spalte. Alles andere
-                # nennt etwas Bestimmtes: eine Spalte (`userData.id`) oder einen Ausdruck
-                # (`COUNT(*)`, `MAX(tx.seq)`), und beides schraenkt die Abfrage ein.
-                select = 'nur-alias' if re.fullmatch(r'\w+', arg.strip()) else 'spaltenliste'
-            else: select = 'ohne-select'
-            # Ein `leftJoinAndSelect` holt die gejointe Entity vollstaendig - dann hilft die
-            # Projektion auf der Wurzel nicht mehr.
-            if select in ('feldliste', 'spaltenliste') and re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain):
-                select = 'projektion-mit-vollem-join'
+                # `.select('alias')` loads every column; `.select('alias.column')` names one.
+                # Both are strings - the dot in the first argument is the difference. Without
+                # it every column-wise projection would count as a full read. A bare identifier
+                # is the root alias; anything else names something specific: a column
+                # (`userData.id`) or an expression (`COUNT(*)`, `MAX(tx.seq)`), and both
+                # narrow the query.
+                select = classify.SEL_ALIAS_ONLY if re.fullmatch(r'\w+', arg.strip()) else classify.SEL_NAMED_COLUMNS
+            else:
+                select = classify.SEL_NO_SELECT
+            # A `leftJoinAndSelect` fetches the joined entity whole - the projection on the
+            # root no longer helps then.
+            if select in (classify.SEL_FIELD_LIST, classify.SEL_NAMED_COLUMNS) and \
+                    re.search(r'(?:left|inner)JoinAndSelect\s*\(', chain):
+                select = classify.SEL_PROJECTED_FULL_JOIN
 
         sites.append({'file': rel, 'line': line, 'cls': cls, 'method': meth,
                       'call': call, 'kind': kind, 'entity': entity, 'via': via,
                       'relations': tree, 'select': select})
 
+if not sites:
+    raise SystemExit(f"no load sites found under {SRC} - the scan produced nothing to measure")
+
 with open(SP + '/sites.json', 'w') as fh:
     json.dump(sites, fh, indent=1)
 from collections import Counter
-print(f"Ladestellen gefunden: {len(sites)}")
-print("  nach Mechanik:", dict(Counter(s['kind'] for s in sites)))
-print(f"  mit aufloesbarer Entity: {sum(1 for s in sites if s['entity'])}")
-print(f"  davon mit relations-Baum: {sum(1 for s in sites if s['relations'])}")
-print(f"  Dateien: {len({s['file'] for s in sites})}")
+print(f"load sites found: {len(sites)}")
+print("  by mechanism:", dict(Counter(s['kind'] for s in sites)))
+print(f"  with resolvable entity: {sum(1 for s in sites if s['entity'])}")
+print(f"  of those with relations tree: {sum(1 for s in sites if s['relations'])}")
+print(f"  files: {len({s['file'] for s in sites})}")

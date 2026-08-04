@@ -1,15 +1,15 @@
 /**
- * Misst je Ladestelle die echte SELECT-Spaltenzahl aus den TypeORM-Metadaten.
+ * Measures the real SELECT column count per load site from the TypeORM metadata.
  *
- * Gegenüber der Vorgängerfassung ausserhalb dieses Repos in genau zwei Punkten geändert:
- *   - parametrisiert (DIST, INPUT, OUT_MEASURED, OUT_TABLES per Umgebung/argv) statt fest verdrahtet,
- *   - `buildMetadatas()` statt `initialize()`, also OHNE Datenbank.
- * Das Ausgabeformat ist unverändert, damit build_docs.py es unbesehen lesen.
+ * Changed against the earlier version outside this repository in exactly two points:
+ *   - parameterised (DIST, INPUT, OUT_MEASURED, OUT_TABLES via environment/argv) instead of hard-wired,
+ *   - `buildMetadatas()` instead of `initialize()`, so WITHOUT a database.
+ * The output format is unchanged, so build_docs.py reads it as is.
  *
- * Der Stub-Bootstrap ist nötig, weil beim blossen Laden der Entity-Module drei Dinge im Weg stehen:
- * native Module fehlen je nach Host, src/config/config erzwingt beim Import ~300 Env-Variablen, und
- * @arkade-os/sdk ist ESM. Keine der Entities liest die Config innerhalb eines Dekorators, die
- * Metadaten hängen also nicht daran.
+ * The stub bootstrap is needed because three things get in the way of merely loading the entity
+ * modules: native modules are missing depending on the host, src/config/config demands ~300
+ * environment variables on import, and @arkade-os/sdk is ESM. None of the entities reads the
+ * config inside a decorator, so the metadata does not depend on it.
  */
 const Module = require('module');
 const _load = Module._load;
@@ -48,7 +48,7 @@ const INPUT = process.argv[2];
 const OUT_MEASURED = process.argv[3];
 const OUT_TABLES = process.argv[4];
 if (!DIST || !INPUT || !OUT_MEASURED || !OUT_TABLES) {
-  console.error('Aufruf: DIST=<dist> node measure.js <sites.json> <measured.json> <meta-tables.json>');
+  console.error('usage: DIST=<dist> node measure.js <sites.json> <measured.json> <meta-tables.json>');
   process.exit(2);
 }
 
@@ -61,10 +61,18 @@ async function main() {
     logging: false,
   });
 
-  // Kein initialize(): die Metadaten genügen, und eine Verbindung würde nur eine Fehlerquelle
-  // hinzufügen, die mit der Messung nichts zu tun hat.
+  // No initialize(): the metadata is enough, and a connection would only add a failure mode
+  // that has nothing to do with the measurement.
   await ds.buildMetadatas();
   console.log(JSON.stringify({ step: 'init', entities: ds.entityMetadatas.length }));
+  // Without entities every site below reports "entity not found" and the run still ends with
+  // exit 0 - the whole chain then completes and publishes a document whose every column count
+  // is zero. Silent-zero is the failure mode this pipeline has already produced once; it fails
+  // loudly here instead.
+  if (ds.entityMetadatas.length === 0) {
+    console.error(`FATAL: no entities found under ${DIST}/src - is dist/ current? run \`npm run build\``);
+    process.exit(1);
+  }
 
   const perTable = {};
   for (const m of ds.entityMetadatas) {
@@ -102,9 +110,16 @@ async function main() {
   const tables = Object.keys(perTable).length;
   const columns = Object.values(perTable).reduce((a, t) => a + t.cols, 0);
   console.log(JSON.stringify({ step: 'done', measured: ok.length, failed: out.length - ok.length, tables, columns }));
+  // A run that measured nothing is not a run with zero-width queries - it is a broken run.
+  // Sites without a resolvable entity are expected and counted as `failed`; none at all
+  // measuring means the metadata never reached the sites.
+  if (ok.length === 0) {
+    console.error(`FATAL: 0 of ${out.length} sites measurable - the measurement produced nothing usable`);
+    process.exit(1);
+  }
 }
 
 main().catch((e) => {
-  console.error('FEHLER:', e.stack || e.message);
+  console.error('FATAL:', e.stack || e.message);
   process.exit(1);
 });

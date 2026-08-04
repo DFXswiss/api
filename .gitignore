@@ -61,3 +61,6 @@ scripts/email-previews/
 # Handbook isolated deps + generated static site
 _handbook-deps/
 docs/handbook/build/
+
+# Python bytecode from the inventory scripts
+__pycache__/

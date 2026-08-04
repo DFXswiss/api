@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Baut docs/endpoints.md und docs/load-sites.md neu."""
-import json, re, os
+"""Rebuilds docs/endpoints.md and docs/load-sites.md."""
+import json, os
 from collections import Counter
 
-def read_text(path):
-    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
-    with open(path, encoding='utf-8', errors='replace') as fh:
-        return fh.read()
+import classify
 
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
@@ -14,43 +11,33 @@ if not SP:
 SRC = os.environ.get("API_SRC")
 if not SRC:
     raise SystemExit("API_SRC is not set - run this through scripts/inventory/run.sh")
-SRC = SRC.rstrip('/') + '/'
 with open(SP + '/endpoint-eff.json') as fh:
     eps = json.load(fh)
 with open(SP + '/sites-measured.json') as fh:
     sites = json.load(fh)
+if not eps or not sites:
+    raise SystemExit("endpoint-eff.json or sites-measured.json is empty - an earlier stage "
+                     "produced nothing, so there is nothing to render")
 
-CALLER_SELECT = {'/gs/db', '/gs/db/custom'}
+
 def access(e):
-    if e['path'] in CALLER_SELECT: return 'caller-defined'
+    if e['path'] in classify.CALLER_SELECT: return 'caller-defined'
     k = set(e['kinds'])
     if 'over' in k: return 'whole rows'
     if not k: return 'none'
     return 'projected'
 
-# ---------------- Ladestellen: Schreib-QueryBuilder aussortieren ----------------
-cache = {}
-def is_write_qb(s):
-    f = SRC + s['file'].replace('src/', '')
-    if f not in cache:
-        cache[f] = re.sub(r'(?m)(?<!:)//[^\n]*', '',
-                          read_text(f)).split('\n')
-    chain = '\n'.join(cache[f][s['line'] - 1:s['line'] + 25]).split(';')[0]
-    return bool(re.search(r'\.(update|delete|insert|softDelete|restore)\s*\(', chain))
 
-def raw_kind(s):
-    """Rohes SQL: Sperre, Schreibvorgang oder echter Lesevorgang."""
-    f = SRC + s['file'].replace('src/', '')
-    body = '\n'.join(read_text(f)
-                     .split('\n')[s['line'] - 1:s['line'] + 8])
-    if 'pg_advisory' in body: return 'lock'
-    if re.search(r'\bINSERT\b|\bUPDATE\b|\bDELETE\b', body): return 'write'
-    return 'read'
+def median(xs):
+    return xs[len(xs) // 2]
 
-for s in sites:
-    s['write'] = s['kind'] == 'query-builder' and is_write_qb(s)
-    s['rawkind'] = raw_kind(s) if s['kind'] == 'raw-sql' else None
-    if s['rawkind'] in ('lock', 'write'): s['write'] = True
+
+def rel(path):
+    return path.removeprefix('src/')
+
+
+# ---------------- load sites: sort out write query builders ----------------
+classify.annotate(SRC, sites)
 
 loads = [s for s in sites if not s['write']]
 kinds = Counter(s['kind'] for s in loads)
@@ -62,14 +49,18 @@ meas = [s for s in loads if s.get('cols')]
 exact = [s for s in meas if s['relations']]
 lower = [s for s in meas if not s['relations']]
 cols_sorted = sorted(s['cols'] for s in meas)
+if not loads or not cols_sorted:
+    raise SystemExit(f"{len(loads)} load sites, {len(cols_sorted)} of them measured - without "
+                     "measurements the document would state a width of zero everywhere")
 
-# Rohes SQL aufschluesseln: Sperre, Schreibvorgang oder echter Lesevorgang
+# Break down raw SQL: lock, write, or a genuine read
 raw_lock = sum(1 for x in sites if x['rawkind'] == 'lock')
 raw_write = sum(1 for x in sites if x['rawkind'] == 'write')
 raw_read = sum(1 for x in sites if x['rawkind'] == 'read')
 
-# Spaltenzahl vor dem Umbau: aus der Erhebung des Ausgangsstands, damit der Text die
-# Wirkung nennen kann statt sie zu behaupten.
+# Column counts before the conversion, taken from the survey of the starting state, so the
+# text can name the effect rather than assert it. Hand-maintained alongside CONVERTED below:
+# a PR that converts an endpoint adds it to both.
 _before = {('GET', '/user/profile'): 253, ('GET', '/buy/:id/history'): 497,
            ('GET', '/swap/:id/history'): 509, ('GET', '/sell/:id/history'): 470,
            ('GET', '/support/issue/:id/data'): 951, ('GET', '/support/issue'): 450,
@@ -84,18 +75,18 @@ _before = {('GET', '/user/profile'): 253, ('GET', '/buy/:id/history'): 497,
 _after = {}
 
 _proj_cols = sorted(x['cols'] for x in sites
-                    if x.get('select') == 'spaltenliste' and x.get('cols'))
-proj_median = _proj_cols[len(_proj_cols) // 2] if _proj_cols else 0
+                    if x.get('select') == classify.SEL_NAMED_COLUMNS and x.get('cols'))
+proj_median = median(_proj_cols) if _proj_cols else 0
 
-# ---------------- 1. Endpunkte ----------------
+# ---------------- 1. Endpoints ----------------
 total = len(eps)
 internal = sum(1 for e in eps if e['internal'])
 files = len({e['file'] for e in eps})
 acc = Counter(access(e) for e in eps)
 ver = Counter(e['version'] for e in eps)
-# Umgebaute Endpunkte mit ihrem Teststand. Eintrag heisst: es gibt eine Spec-Datei, die
-# genau diesen Endpunkt gegen die vier Stufen prueft. Ohne Eintrag zaehlt eine Projektion
-# als ungeprueft - das ist der Punkt der Tests-Spalte.
+# Converted endpoints with their test state. An entry means: a spec file exists that checks
+# exactly this endpoint against the four levels. Without an entry a projection counts as
+# untested - that is the point of the Tests column. Hand-maintained together with _before.
 CONVERTED = {
     ('GET', '/user/profile'): '4/4',
     ('GET', '/buy/:id/history'): '4/4',
@@ -114,31 +105,32 @@ CONVERTED = {
     ('PUT', '/paymentLink/:id/pos'): '4/4',
     ('POST', '/user/apiKey/CT'): '4/4',
     ('GET', '/user'): '4/4',
-
 }
 
+
 def tests(e):
-    """Stand gegen die vier Teststufen. `n/a` = Definition greift nicht."""
+    """State against the four test levels. `n/a` = the definition does not apply."""
     a = access(e)
     if a in ('none', 'caller-defined'): return 'n/a'
     if a == 'whole rows': return 'not yet'
-    if e['path'] == '/gs/debug': return 'n/a'      # Feldliste kommt vom Aufrufer
-    # Zwei Endpunkte teilen sich einen Pfad und unterscheiden sich nur in der Version;
-    # der versionierte Schluessel geht deshalb vor.
-    # `/user` gibt es zweimal: die v1-Fassung reicht einen Fiat durch und wurde nicht
-    # umgebaut, die v2-Fassung schon. Der Pfad allein unterscheidet sie nicht.
-    if e['path'] == '/user' and e.get('version') != '2': return 'not yet' if a == 'whole rows' else '0/4'
+    if e['path'] == '/gs/debug': return 'n/a'      # field list comes from the caller
+    # `/user` exists twice: the v1 handler passes a fiat through and was not converted, the v2
+    # one was. The path alone does not tell them apart, so the version decides.
+    if e['path'] == '/user' and e.get('version') != '2': return '0/4'
     known = CONVERTED.get((e['verb'], e['path']))
     if known: return known
-    # Projiziert, aber ohne eigene Spec gegen die vier Stufen: das ist genau der Zustand,
-    # den das Dokument als unfertig fuehrt.
+    # Projected, but without its own spec against the four levels: exactly the state this
+    # document records as unfinished.
     return '0/4'
+
 
 _after.update({(e['verb'], e['path']): e['maxcol'] for e in eps
                if (e['verb'], e['path']) in CONVERTED})
 
 whole = [e for e in eps if access(e) == 'whole rows']
 mc = sorted((e['maxcol'] for e in whole if e['maxcol']), reverse=True)
+if whole and not mc:
+    raise SystemExit("no endpoint in the `whole rows` group carries a measured column count")
 
 dep_total = sum(1 for e in eps if e['deprecated'])
 dep_acc = Counter(access(e) for e in eps if e['deprecated'])
@@ -146,35 +138,6 @@ incomplete = sum(1 for e in eps if not e['complete'])
 manual_n = sum(1 for e in eps if e.get('manual'))
 nomeas_list = [e for e in eps if access(e) == 'whole rows' and not e['maxcol']]
 nomeas = len(nomeas_list)
-
-MANUAL_EN = {
-    ('AlchemyController', 'addressWebhook'): 'HMAC check against a key held in memory',
-    ('AlchemyController', 'addresses'): 'third-party SDK (`alchemy.notify`), no table of ours',
-    ('AuthController', 'signInWithAlby'): 'builds an OAuth URL; the pending state lives in memory',
-    ('YapealWebhookController', 'handleYapealWebhook'): 'hands off through an rxjs subject — the loading happens in the subscriber, not in the request path',
-    ('DexController', 'checkLiquidity'): 'strategy registry; no strategy under `dex/strategies/{check,purchase,sell}-liquidity` contains a load site',
-    ('DexController', 'purchaseLiquidity'): 'same registry as `GET /dex/check-liquidity`',
-    ('DexController', 'reserveLiquidity'): 'same registry as `GET /dex/check-liquidity`',
-    ('DexController', 'checkTransferCompletion'): 'same registry as `GET /dex/check-liquidity`',
-    ('DexController', 'transferLiquidity'): 'same registry as `GET /dex/check-liquidity`',
-    ('ExchangeController', 'getBalance'): 'callback onto an exchange client, no entity involved',
-    ('ExchangeController', 'getPrice'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('ExchangeController', 'getTrades'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('ExchangeController', 'trade'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('ExchangeController', 'getTradeHistory'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('ExchangeController', 'withdrawFunds'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('ExchangeController', 'getWithdraw'): 'same callback as `GET /exchange/:exchange/balances`',
-    ('C2BPaymentLinkController', 'kucoinPayWebhook'): 'signature check; the services it reaches contain no load site',
-    ('PayoutController', 'doPayout'): 'a factory builds the entity, then `save()` — a pure write path',
-    ('RealUnitController', 'getBrokerbotBuyPrice'): 'price from an in-memory cache, otherwise from the chain',
-    ('RealUnitController', 'getBrokerbotBuyShares'): 'same cache as `GET /realunit/brokerbot/buyPrice`',
-    ('RealUnitController', 'getBrokerbotPrice'): 'same cache as `GET /realunit/brokerbot/buyPrice`',
-    ('RealUnitController', 'getQuoteBuyPrice'): 'same cache as `GET /realunit/brokerbot/buyPrice`',
-    ('RealUnitController', 'getQuoteBuyShares'): 'same cache as `GET /realunit/brokerbot/buyPrice`',
-    ('RealUnitController', 'getQuotePrice'): 'same cache as `GET /realunit/brokerbot/buyPrice`',
-    ('TatumController', 'addressWebhook'): 'signature check, then a third-party SDK',
-    ('AppController', 'getVersion'): 'reads `dist/version.txt` from disk',
-}
 
 o = ["# HTTP endpoints", "",
      f"Every HTTP endpoint this service exposes: **{total} handlers** across {files} controller " +
@@ -239,7 +202,7 @@ o = ["# HTTP endpoints", "",
      "`POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field " +
      "list — `request.select(query.select)` — and load the full table otherwise.", "",
      f"Among the {acc['whole rows']} that fetch whole rows, the widest query they can trigger is " +
-     f"**{mc[len(mc)//2]} columns** at the median; {sum(1 for x in mc if x > 100)} exceed 100, " +
+     f"**{median(mc)} columns** at the median; {sum(1 for x in mc if x > 100)} exceed 100, " +
      f"{sum(1 for x in mc if x > 500)} exceed 500 and {sum(1 for x in mc if x > 1000)} exceed 1000. " +
      f"Postgres refuses a statement with more than 1664 columns, so a query near that number is one " +
      f"added column away from failing outright.", "",
@@ -284,7 +247,10 @@ o = ["# HTTP endpoints", "",
      "challenged:", "",
      "| Endpoint | Why it reads nothing |",
      "| -------- | -------------------- |"]
-o += [f"| `{e['verb']} {e['path']}` | {MANUAL_EN[(e['controller'], e['handler'])]} |"
+# The reason travels in endpoint-eff.json, written by endpoint_eff.py. It used to be repeated
+# here in a second table keyed the same way, which turned an addition on one side into a
+# KeyError on the other.
+o += [f"| `{e['verb']} {e['path']}` | {e['manual']} |"
       for e in sorted(eps, key=lambda r: r['path']) if e.get('manual')]
 o += ["",
      "[read-path-projections.md](read-path-projections.md) explains the background, the criteria for " +
@@ -320,12 +286,12 @@ for e in sorted(eps, key=lambda r: (r['path'], r['verb'], r['version'])):
              f"{'hidden' if e['internal'] else 'public'} | {access(e)} | " +
              f"{e['maxcol'] or '—'} | {tests(e)} | {'yes' if e['spec'] else ''} | " +
              f"`{e['controller']}.{e['handler']}` | " +
-             f"`{e['file'].replace('src/','')}` |")
+             f"`{rel(e['file'])}` |")
 o += ["", "⚠️ = not registered at runtime, see *Known discrepancy* above."]
 with open(SP + '/endpoints.md', 'w') as fh:
     fh.write("\n".join(o) + "\n")
 
-# ---------------- 2. Ladestellen ----------------
+# ---------------- 2. Load sites ----------------
 t = ["# Database load sites", "",
      f"Every place in the code that reads from the database: **{len(loads)} load sites** across " +
      f"{len({s['file'] for s in loads})} files.", "",
@@ -349,13 +315,13 @@ t = ["# Database load sites", "",
      "Among the query builders, the field list is what decides whether anything is actually saved:",
      "",
      "| | Sites |", "| --- | ---: |",
-     f"| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **{sel.get('feldliste', 0)}** |",
-     f"| `.select('alias.column')` — names columns one by one | **{sel.get('spaltenliste', 0)}** |",
-     f"| `.select('alias')` — selects the root alias, **loads every column** | {sel.get('nur-alias', 0)} |",
-     f"| no `select` at all — loads every column | {sel.get('ohne-select', 0)} |",
+     f"| `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **{sel.get(classify.SEL_FIELD_LIST, 0)}** |",
+     f"| `.select('alias.column')` — names columns one by one | **{sel.get(classify.SEL_NAMED_COLUMNS, 0)}** |",
+     f"| `.select('alias')` — selects the root alias, **loads every column** | {sel.get(classify.SEL_ALIAS_ONLY, 0)} |",
+     f"| no `select` at all — loads every column | {sel.get(classify.SEL_NO_SELECT, 0)} |",
      f"| `getCount()` or `getExists()` — the select list is discarded, **no row is materialised** | " +
-     f"{sel.get('zaehlend', 0)} |",
-     f"| projects, but a `leftJoinAndSelect` loads a relation whole | {sel.get('projektion-mit-vollem-join', 0)} |",
+     f"{sel.get(classify.SEL_COUNT_ONLY, 0)} |",
+     f"| projects, but a `leftJoinAndSelect` loads a relation whole | {sel.get(classify.SEL_PROJECTED_FULL_JOIN, 0)} |",
      "",
      "`.select('alias')` is the trap: it reads like a projection but the argument is the entity " +
      "alias, not a field list. Such a query still loads every column of the root entity — it merely " +
@@ -374,7 +340,7 @@ t = ["# Database load sites", "",
      "reaching well over a thousand columns.",
      f"- {len(loads) - len(meas)} could not be measured: no resolvable target entity, or raw SQL.",
      "",
-     f"Median across measured sites: **{cols_sorted[len(cols_sorted)//2]} columns**. " +
+     f"Median across measured sites: **{median(cols_sorted)} columns**. " +
      f"{len([c for c in cols_sorted if c > 1000])} sites exceed 1000, " +
      f"{len([c for c in cols_sorted if c > 500])} exceed 500, " +
      f"{len([c for c in cols_sorted if c > 100])} exceed 100.", "",
@@ -388,13 +354,13 @@ for s in sorted(loads, key=lambda x: (-(x.get('cols') or 0), x['file'], x['line'
     mech = s['kind'] + (f" ({s['select']})" if s.get('select') else '')
     where = f"`{s['cls']}.{s['method']}`" if s['cls'] and s['method'] else '—'
     t.append(f"| {s.get('cols') or '—'} | {s.get('joins') if s.get('cols') else '—'} | {mech} | " +
-             f"`{s['entity'] or '—'}` | `{s['file'].replace('src/','')}:{s['line']}` | " +
+             f"`{s['entity'] or '—'}` | `{rel(s['file'])}:{s['line']}` | " +
              f"{where} |")
 with open(SP + '/load-sites.md', 'w') as fh:
     fh.write("\n".join(t) + "\n")
 
-print(f"endpoints.md {len(o)} Zeilen | load-sites.md {len(t)} Zeilen")
-print(f"Zugriffsarten: {dict(acc)} | Versionen: {dict(ver)}")
-print(f"Ladestellen: {len(loads)} (davon {writes} Schreib-QueryBuilder entfernt) | " +
+print(f"endpoints.md {len(o)} lines | load-sites.md {len(t)} lines")
+print(f"data access: {dict(acc)} | versions: {dict(ver)}")
+print(f"load sites: {len(loads)} ({writes} write query builders removed) | " +
       f"find {kinds['find']} / QB {kinds['query-builder']} / SQL {kinds['raw-sql']} | " +
-      f"Feldliste {sel.get('feldliste',0)}")
+      f"field list {sel.get(classify.SEL_FIELD_LIST, 0)}")
