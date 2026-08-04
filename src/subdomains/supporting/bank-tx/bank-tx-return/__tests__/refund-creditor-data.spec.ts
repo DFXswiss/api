@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -6,7 +7,7 @@ import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-outpu
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { BankTx } from '../../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from '../bank-tx-return.entity';
 import { BankTxReturnRepository } from '../bank-tx-return.repository';
@@ -172,7 +173,8 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
   describe('refundBankTx - chargeback output atomicity', () => {
     // Why this matters is documented at the hazard site, in BankTxReturnService.refundBankTx.
-    // State-first is a convention rather than a requirement here; see the comment there.
+    // The claim pins chargebackOutput to IsNull(), so creating the output first would make the
+    // claim match nothing — state-first is required, not stylistic.
     it('writes the chargeback state and creates the output in one transaction, state first', async () => {
       const chargebackAllowedDate = new Date();
 
@@ -187,7 +189,14 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BankTxReturn,
-        1,
+        {
+          id: 1,
+          chargebackOutput: IsNull(),
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackBankTx: IsNull(),
+        },
         expect.objectContaining({
           chargebackIban: 'CH9300762011623852957',
           chargebackAmount: 50,
@@ -237,6 +246,36 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
     });
 
+    it('creates no chargeback output when a concurrent refund wins the claim', async () => {
+      manager.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(
+        service.refundBankTx(mockBankTxReturn, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'BatchJob',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      // Without the claim both the cron and an admin refund would pass validateRefund on their own
+      // stale read, and each would mint a FiatOutput; only one can own chargebackOutputId, so the
+      // other would be orphaned and still pay out.
+      expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
+    });
+
+    it('pins the user request marker so a re-submitted refund still claims', async () => {
+      const chargebackAllowedDateUser = new Date();
+      const resubmitted = createBankTxReturn({ chargebackAllowedDateUser });
+
+      await service.refundBankTx(resubmitted, { chargebackAllowedDateUser, chargebackAllowedBy: 'User' });
+
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BankTxReturn,
+        expect.objectContaining({ chargebackAllowedDateUser }),
+        expect.anything(),
+      );
+    });
+
     it('propagates a failed output creation so the state write rolls back with it', async () => {
       fiatOutputService.createInternal.mockRejectedValueOnce(
         new Error('Failed to create fiat output for BankTxReturn 1: Missing required creditor fields: iban'),
@@ -263,7 +302,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       expect(manager.update).toHaveBeenNthCalledWith(
         1,
         BankTxReturn,
-        1,
+        expect.objectContaining({ id: 1, chargebackAllowedDateUser: IsNull() }),
         expect.objectContaining({ chargebackAllowedBy: 'User' }),
       );
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
