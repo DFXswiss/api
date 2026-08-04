@@ -97,23 +97,20 @@ reconstructed here — the number shown is the root entity's width, and it is a 
 It is not alone in that: further query-builder sites carry a `leftJoinAndSelect` without being
 classified as one, which is part of what the next section is about.
 
-## Two things it gets wrong, not changed here
+## What it gets wrong, not changed here
 
-Both predate this tool being committed, both would move numbers the two documents already publish,
-and both are now fixable by anyone because the code is here. They are stated rather than fixed so
-the change stays what it says it is. Deliberately without figures: quantifying either one requires
-its own careful measurement, and a number stated loosely here would be one more claim to maintain.
+These all predate this tool being committed, they would move numbers the two documents already
+publish, and they are now fixable by anyone because the code is here. They are stated rather than fixed so the
+change stays what it says it is, and deliberately without figures: each of them would need its own
+careful measurement, and a number stated loosely here would be one more claim to maintain.
 
 **`exact` and `lower bound` are split on the wrong criterion.** `render-docs.py` calls a site exact
 when a `relations` tree is written at the call, and a lower bound otherwise. That is right for a
 `find` site, whose tree can arrive as a parameter so that only the base query is visible. It is
 wrong for a query builder, which has no relations tree and into which none can arrive. The
-exception
-is a query builder carrying a `leftJoinAndSelect`: there the joined entity is not counted, and the
+exception is a query builder carrying a `leftJoinAndSelect`: there the joined entity is not counted, and the
 width really is a lower bound. So the second group in `docs/load-sites.md` mixes two different
 things, and the sentence explaining it is true only of the `find` sites in it.
-
-Two more things belong beside it.
 
 **The extractor reads the source as text.** It follows a query builder from the call for a bounded
 window and stops at the first semicolon it sees, so a long chain can be cut short and a builder
@@ -122,13 +119,22 @@ query still counts. A width from this tool is a reading of the source, not a tra
 query — which is what the four test levels in `read-path-projections.md` exist to settle
 downstream.
 
-**`count`, `countBy`, `exists` and `existsBy` on a repository are not extracted.** They read the
-database without materialising a row, exactly like the `getCount()` chains that _are_ recorded, and
-they are treated as writes by the call-graph resolution rather than as reads. The consequence is
-concrete and was measured: at least one endpoint recorded as reading nothing — `GET
-/support/call-queues` — does issue such a query. Recording them correctly means a site whose width
-is zero rather than one that loads whole rows, which is a change to how a site is categorised and
-not a matter of adding a name to a list.
+**Some reads are not extracted, and the list that excludes them matches on the method name
+alone.** `count`, `countBy`, `exists` and `existsBy` on a repository read the database without
+materialising a row, exactly like the `getCount()` chains that _are_ recorded, yet the call-graph
+resolution counts them among the operations that load nothing. The consequence is concrete and was
+measured: at least one endpoint recorded as reading nothing — `GET /support/call-queues` — does
+issue such a query.
+
+The same list is matched against a method name on any receiver, not only on a repository, so an
+ordinary service method that happens to share one of those names is silenced with it.
+`LedgerMarkService.preload` is the example in this tree: it holds no load site of its own but
+reaches one through `loadAssetPrices`, and the edge to it is dropped because `preload` is on the
+list.
+
+Neither is a matter of adding names: a count reads without materialising a row, so it needs the
+width-zero treatment the `getCount()` sites get rather than the whole-rows treatment a `find` gets,
+and the list needs to know what it is looking at rather than what it is called.
 
 **The call graph keys symbols by class and method name alone**, and a good number of class names in
 this repository are declared more than once — `KycService` and `KycController` in the deprecated
