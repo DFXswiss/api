@@ -91,8 +91,34 @@ per file.
 
 One site projects on its root and pulls a joined entity in whole (`query-builder (projected, full
 join)`). Its true width is neither the root entity nor the projection, and the chain is not
-reconstructed here — the number shown is the root entity's width, and it is a lower bound like the
-457 others the document already marks as such.
+reconstructed here — the number shown is the root entity's width, and it is a genuine lower bound.
+It is not alone in that: 24 further query-builder sites carry a `leftJoinAndSelect` without being
+classified as one, which is part of what the next section is about.
+
+## Two things it gets wrong, measured but not changed here
+
+Both predate this tool being committed, both would move numbers the documents already publish, and
+both are now fixable by anyone because the code is here. They are stated rather than fixed so the
+change stays what it says it is.
+
+**`exact` and `lower bound` are split on the wrong criterion.** `render-docs.py` calls a site exact
+when a `relations` tree is written at the call, and a lower bound otherwise. That reads correctly
+for the 324 `find` sites in the second group, whose tree can arrive as a parameter. It does not for
+the other 135: a query builder has no relations tree and none can arrive, and its width is either
+the number of names it lists or the root entity's own columns. Of those 135, **24 genuinely are
+lower bounds** — they carry a `leftJoinAndSelect`, which pulls a joined entity in whole — so the
+correct split is roughly 452 exact against 349 lower bounds, not 341 against 458. The prose
+sentence that explains the second group is false for 111 of the sites it counts.
+
+**The call graph keys symbols by class and method name alone.** 64 class names in this repository
+are declared more than once — `KycService` and `KycController` in the deprecated and the current
+generation, and 57 strategy classes that repeat a name once per family. Where two of them share a
+method name, their bodies, injected fields and load sites merge. Measured on this tree: **5 names
+collide** (`KycService.getUser` and `getFeeAsset` on four strategy families) and **none of the five
+contains a load site**, so the effect on the current inventory is nil. The direction is also the
+conservative one — merging can only add reachability, never remove it, which is why the whole-rows
+group is a lower bound and stated as such. It is still the wrong key, and a future collision on a
+method that does load would contaminate an unrelated endpoint silently.
 
 ## What this cannot check
 
