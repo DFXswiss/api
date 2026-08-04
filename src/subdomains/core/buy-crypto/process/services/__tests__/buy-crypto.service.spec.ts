@@ -600,7 +600,9 @@ describe('BuyCryptoService', () => {
 
       expect(createOutputSpy).toHaveBeenCalledWith(
         FiatOutputType.BUY_CRYPTO_FAIL,
-        { buyCrypto },
+        // no buyCrypto relation: saving the inverse one-to-one side would set chargebackOutputId
+        // before the claim update checks chargebackOutput IS NULL, failing every refund
+        {},
         7,
         false,
         expect.objectContaining({ iban: 'CH9300762011623852957', amount: 10, currency: 'CHF' }),

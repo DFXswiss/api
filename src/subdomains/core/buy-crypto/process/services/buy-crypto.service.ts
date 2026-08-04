@@ -875,10 +875,14 @@ export class BuyCryptoService implements OnModuleInit {
         assetMismatch: chargebackAsset && chargebackAsset !== currentBuyCrypto.inputAsset,
       });
 
+      // Must not pass the buyCrypto relation here: FiatOutput.buyCrypto is the inverse side of the
+      // one-to-one, so saving it writes buy_crypto.chargebackOutputId immediately — and the claim
+      // update below requires chargebackOutput IS NULL, so it would always see its own write and
+      // throw. The link is established by the claim update itself (chargebackFillUp).
       if (dto.chargebackAllowedDate && chargebackAmount && chargebackAsset)
         dto.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
-          { buyCrypto: currentBuyCrypto },
+          {},
           currentBuyCrypto.id,
           false,
           { iban: chargebackIban, amount: chargebackAmount, currency: chargebackAsset, ...creditorData },
