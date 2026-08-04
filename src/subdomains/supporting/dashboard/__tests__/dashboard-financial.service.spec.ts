@@ -10,18 +10,27 @@ import { FinancialLogSummary } from '../../log/log.repository';
 import { LogService } from '../../log/log.service';
 import { DashboardFinancialService } from '../dashboard-financial.service';
 import { LatestBalanceResponseDto } from '../dto/financial-log.dto';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { LatestBalanceStore } from '../latest-balance.store';
 
 describe('DashboardFinancialService', () => {
   let service: DashboardFinancialService;
   let logService: LogService;
   let assetService: AssetService;
+  /**
+   * The real store, not a double: what is under test here is that a request fills it, so a double
+   * answering `get` with whatever it was told would test the opposite of the point.
+   */
   let latestBalanceStore: LatestBalanceStore;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   beforeEach(async () => {
     logService = createMock<LogService>();
     assetService = createMock<AssetService>();
-    latestBalanceStore = createMock<LatestBalanceStore>();
+    latestBalanceStore = new LatestBalanceStore();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -30,11 +39,37 @@ describe('DashboardFinancialService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: RefRewardService, useValue: createMock<RefRewardService>() },
         { provide: LatestBalanceStore, useValue: latestBalanceStore },
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
     service = module.get<DashboardFinancialService>(DashboardFinancialService);
   });
+
+  function logEntry(): Log {
+    return {
+      id: 1,
+      created: new Date('2026-07-14T12:00:00Z'),
+      message: JSON.stringify({ assets: {}, balancesByFinancialType: {} }),
+    } as Log;
+  }
+
+  /** Mocks the log entry and the assets the aggregation resolves, then runs the refresh job. */
+  async function refreshFrom(
+    timestamp: Date,
+    assetLog: AssetLog,
+    balancesByFinancialType: BalancesByFinancialType,
+    assets: Asset[],
+  ): Promise<void> {
+    jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue({
+      id: 1,
+      created: timestamp,
+      message: JSON.stringify({ assets: assetLog, balancesByFinancialType }),
+    } as Log);
+    jest.spyOn(assetService, 'getAssetsById').mockResolvedValue(assets);
+
+    await service.refreshLatestBalance();
+  }
 
   function mapEntry(changes: unknown) {
     const log = { created: new Date(), message: JSON.stringify({ changes }) } as Log;
@@ -307,33 +342,69 @@ describe('DashboardFinancialService', () => {
     });
   });
 
-  describe('getLatestBalance (write-through store read)', () => {
-    it('returns undefined when the store is empty and never touches the database', async () => {
-      jest.spyOn(latestBalanceStore, 'get').mockReturnValue(undefined);
-      const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog');
-      const getAssetsByIdSpy = jest.spyOn(assetService, 'getAssetsById');
+  describe('getLatestBalance (cached read that loads itself)', () => {
+    it('returns undefined when the database holds no financial log at all', async () => {
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(undefined);
 
-      const result = await service.getLatestBalance();
-
-      expect(result).toBeUndefined();
-      expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(0);
-      expect(getAssetsByIdSpy).toHaveBeenCalledTimes(0);
+      await expect(service.getLatestBalance()).resolves.toBeUndefined();
     });
 
-    it('returns exactly the value held in the store (pure store read)', async () => {
-      const cached: LatestBalanceResponseDto = {
-        timestamp: new Date('2026-07-14T12:00:00Z'),
-        byType: [{ name: 'Crypto', plusBalanceChf: 100, minusBalanceChf: 0, netBalanceChf: 100 }],
-        byBlockchain: [{ name: 'Ethereum', plusBalanceChf: 100, minusBalanceChf: 0, netBalanceChf: 100 }],
-      };
-      jest.spyOn(latestBalanceStore, 'get').mockReturnValue(cached);
+    it('loads the aggregate itself when no job has filled the store in this process', async () => {
+      // The refresh job is leased: with several API processes it runs in one of them per tick, so
+      // a request served anywhere else has to be able to fill the store on its own.
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
 
-      await expect(service.getLatestBalance()).resolves.toBe(cached);
+      await expect(service.getLatestBalance()).resolves.toEqual({
+        timestamp: new Date('2026-07-14T12:00:00Z'),
+        byType: [],
+        byBlockchain: [],
+      });
+    });
+
+    it('does not read the database again while the entry it holds is current', async () => {
+      const getLatestFinancialLogSpy = jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
+
+      await service.getLatestBalance();
+      await service.getLatestBalance();
+
+      expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs one load for the requests that arrive together on an empty store', async () => {
+      // The state a deploy leaves behind: every process starts with an empty store, so the requests
+      // that arrive first all miss it at once. They join the load already running instead of each
+      // starting an aggregation of their own — the property this read depends on and does not
+      // implement itself, so it is asserted here rather than assumed.
+      let load: (log: Log) => void;
+      const getLatestFinancialLogSpy = jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockReturnValue(new Promise<Log>((resolve) => (load = resolve)));
+
+      const first = service.getLatestBalance();
+      const second = service.getLatestBalance();
+
+      load(logEntry());
+
+      await expect(first).resolves.toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+      await expect(second).resolves.toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+      expect(getLatestFinancialLogSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves the aggregate it holds when a later load fails', async () => {
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
+      const loaded = await service.getLatestBalance();
+      expect(loaded).toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+
+      // Nothing ages the entry out here, so force the load the store would do a minute later.
+      jest.spyOn(logService, 'getLatestFinancialLog').mockRejectedValue(new Error('database unavailable'));
+
+      await expect(service.refreshLatestBalance()).rejects.toThrow('database unavailable');
+      await expect(service.getLatestBalance()).resolves.toBe(loaded);
     });
   });
 
-  describe('setLatestBalance (aggregation write-through)', () => {
-    it('aggregates byType / byBlockchain (Scrypt split, 5000 CHF Other thresholds) and writes the result into the store', () => {
+  describe('refreshLatestBalance (aggregation into the store)', () => {
+    it('aggregates byType / byBlockchain (Scrypt split, 5000 CHF Other thresholds) and writes the result into the store', async () => {
       // Fixture designed so every aggregation branch is exercised once:
       //
       // byType:
@@ -418,12 +489,12 @@ describe('DashboardFinancialService', () => {
         ],
       };
 
-      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+      await refreshFrom(timestamp, assetLog, balancesByFinancialType, assets);
 
-      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+      await expect(service.getLatestBalance()).resolves.toEqual(expected);
     });
 
-    it('treats a priceless asset (priceChf: null) neutrally: neither its own blockchain group nor a shared one is skewed', () => {
+    it('treats a priceless asset (priceChf: null) neutrally: neither its own blockchain group nor a shared one is skewed', async () => {
       // asset.approxPriceChf is a nullable `double precision` column in production (144 of 430 rows
       // are NULL there; 136 of those have no financialType at all) -- the AssetLog[id].priceChf: number
       // type does not reflect that. This is a regression guard for the round-trip removed in this PR:
@@ -478,9 +549,62 @@ describe('DashboardFinancialService', () => {
         ],
       };
 
-      service.setLatestBalance(timestamp, assetLog, balancesByFinancialType, assets);
+      await refreshFrom(timestamp, assetLog, balancesByFinancialType, assets);
 
-      expect(latestBalanceStore.set).toHaveBeenCalledWith(expected);
+      await expect(service.getLatestBalance()).resolves.toEqual(expected);
+    });
+
+    it('keeps the aggregate it holds when the newest entry cannot be parsed', async () => {
+      // The job runs every minute. A single malformed entry must not replace a good value with
+      // nothing, and the endpoint must keep answering while someone looks at the entry.
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
+      const loaded = await service.getLatestBalance();
+      expect(loaded).toMatchObject({ timestamp: new Date('2026-07-14T12:00:00Z') });
+
+      jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockResolvedValue({ id: 2, created: new Date(), message: 'not json' } as Log);
+
+      await expect(service.refreshLatestBalance()).rejects.toThrow('id 2');
+      await expect(service.getLatestBalance()).resolves.toBe(loaded);
+    });
+
+    it('leaves the store empty when there is no log entry yet', async () => {
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(undefined);
+
+      await service.refreshLatestBalance();
+
+      await expect(service.getLatestBalance()).resolves.toBeUndefined();
+    });
+
+    it('does not query assets when the log entry holds none', async () => {
+      jest
+        .spyOn(logService, 'getLatestFinancialLog')
+        .mockResolvedValue({ id: 1, created: new Date(), message: JSON.stringify({}) } as Log);
+      const getAssetsByIdSpy = jest.spyOn(assetService, 'getAssetsById');
+
+      await service.refreshLatestBalance();
+
+      expect(getAssetsByIdSpy).not.toHaveBeenCalled();
+      await expect(service.getLatestBalance()).resolves.toBeDefined();
+    });
+
+    it('replaces an entry the read would still have served', async () => {
+      // What the job is for: the request path in this process finds a current value instead of
+      // loading one itself.
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(logEntry());
+      await service.getLatestBalance();
+
+      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue({
+        id: 2,
+        created: new Date('2026-07-14T12:01:00Z'),
+        message: JSON.stringify({ assets: {}, balancesByFinancialType: {} }),
+      } as Log);
+      await service.refreshLatestBalance();
+
+      await expect(service.getLatestBalance()).resolves.toMatchObject({
+        timestamp: new Date('2026-07-14T12:01:00Z'),
+      });
     });
   });
 });

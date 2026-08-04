@@ -3,8 +3,9 @@
 // the `eventsource` package and ultimately Node's `http`) follows so its
 // internal HTTP usage is auto-instrumented.
 import './tracing';
+import './runtime-metrics'; // event loop saturation gauges; must follow ./tracing (needs its meter provider)
 import './polyfills'; // registers global EventSource for @arkade-os/sdk; see src/polyfills.ts
-import { VersioningType } from '@nestjs/common';
+import { INestApplication, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -21,6 +22,7 @@ import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
 import { DetailedValidationPipe } from './shared/pipes/detailed-validation.pipe';
+import { CronLeaseService } from './shared/services/cron-lease.service';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
@@ -80,6 +82,8 @@ async function bootstrap() {
     app.use(apiTraceMiddleware());
   }
 
+  releaseCronLeasesOnShutdown(app);
+
   app.useWebSocketAdapter(new WsAdapter(app));
 
   app.enableVersioning({
@@ -127,6 +131,64 @@ async function bootstrap() {
   await app.listen(Config.port);
 
   new DfxLogger('Main').info(`Application ready ...`);
+}
+
+/**
+ * Gives the cron leases a chance to be handed over before a deployment takes the process away.
+ *
+ * Nothing in this application ever asked for a shutdown hook, so SIGTERM used to end the process
+ * instantly: a job running at that moment never reached the release in its `finally`, and its row
+ * in `cron_lease` sat there until it expired. That is what CronLeaseService.shutdown addresses.
+ *
+ * Deliberately a signal handler rather than `app.enableShutdownHooks()`. That switch is global and
+ * would, for the first time, start running the nine `onModuleDestroy` hooks this application
+ * carries — Nest runs them BEFORE the hook above, and they empty the strategy registries that
+ * PayIn, PayOut and DEX jobs resolve from. Since the whole point of the wait is to keep in-flight
+ * jobs alive longer into the shutdown, the two together would let a running payout fail on an
+ * emptied registry rather than simply be cut off. Handing a lease over is not worth that.
+ *
+ * Registering a handler means Node no longer terminates on the signal by itself, so this has to
+ * exit. `CronLeaseService.shutdown` is bounded by its own grace period, and a second signal takes
+ * the impatient path — otherwise a stuck shutdown would hold the container until SIGKILL.
+ *
+ * It also means the process outlives the signal, which is new. Everything that was true only
+ * because the process ended immediately has to be re-established explicitly — starting with not
+ * accepting further requests; see the listener close below.
+ */
+function releaseCronLeasesOnShutdown(app: INestApplication): void {
+  const logger = new DfxLogger('Shutdown');
+  const leases = app.get(CronLeaseService);
+
+  let started = false;
+
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, () => {
+      if (started) {
+        logger.warn(`Second ${signal}, exiting without waiting for the running jobs`);
+        process.exit(1);
+      }
+
+      started = true;
+      logger.info(`${signal} received, releasing the cron leases`);
+
+      // Stop taking NEW connections first. Waiting for the running jobs keeps this process alive
+      // for up to the grace period, and without this it would go on accepting requests for that
+      // whole span and then cut them off mid-flight at the `process.exit` below — a window that
+      // did not exist while the signal ended the process at once.
+      //
+      // The listener only, NOT `app.close()`: that is the call which runs the nine
+      // `onModuleDestroy` hooks described above, and it would empty the strategy registries out
+      // from under the jobs this wait exists to protect. Not awaited either — a keep-alive
+      // connection can hold the callback back indefinitely, and the bound here is the grace
+      // period, not the client.
+      app.getHttpServer().close();
+
+      void leases
+        .shutdown()
+        .catch((e) => logger.error('Failed to release the cron leases on shutdown:', e))
+        .finally(() => process.exit(0));
+    });
+  }
 }
 
 function runSeed(): void {

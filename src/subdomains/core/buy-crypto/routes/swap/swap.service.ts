@@ -17,7 +17,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { RouteService } from 'src/subdomains/core/route/route.service';
@@ -85,12 +85,12 @@ export class SwapService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR)
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.swapRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.swapRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
   }

@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { HistoryEventDto } from './dto/realunit.dto';
@@ -21,7 +21,11 @@ export class RealUnitJobService {
   // Completes open REALU buy quotes as soon as the shares arrive on-chain. Share allocations
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise
   // leave the quote in WaitingForPayment and keep showing a pending payment to the customer.
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.REALUNIT_QUOTE_COMPLETION, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.REALUNIT_QUOTE_COMPLETION,
+    timeout: 1800,
+  })
   async completeSettledQuotes(): Promise<void> {
     const realuAsset = await this.realunitService.getRealuAsset();
     const openQuotes = await this.transactionRequestService.getOpenBuyQuotes(realuAsset.id);
@@ -87,7 +91,11 @@ export class RealUnitJobService {
   // Resolves RealUnit W2W transfer requests stuck in PROCESSING after a crash/restart between the
   // atomic claim and the broadcast/callback in confirmTransfer — see
   // RealUnitService.reconcilePendingTransfers for the actual reconciliation logic.
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.REALUNIT_TRANSFER_RECONCILIATION, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.REALUNIT_TRANSFER_RECONCILIATION,
+    timeout: 1800,
+  })
   async reconcilePendingTransfers(): Promise<void> {
     await this.realunitService.reconcilePendingTransfers();
   }

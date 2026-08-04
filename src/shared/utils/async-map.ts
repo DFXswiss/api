@@ -37,6 +37,10 @@ export class AsyncMap<K, T> {
     return Array.from(this.subscribers.keys());
   }
 
+  public has(id: K): boolean {
+    return this.subscribers.has(id);
+  }
+
   public resolve(id: K, value: T) {
     const subscriber = this.subscribers.get(id);
     if (subscriber) {

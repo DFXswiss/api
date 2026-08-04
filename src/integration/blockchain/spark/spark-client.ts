@@ -52,14 +52,12 @@ export class SparkClient extends BlockchainClient {
   private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
   private reconnectAttempt = 0;
-  private tokenOptimizationInterval?: NodeJS.Timeout;
 
   constructor() {
     super();
 
     this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
-    this.startTokenOptimization();
   }
 
   private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
@@ -225,15 +223,16 @@ export class SparkClient extends BlockchainClient {
     });
   }
 
-  private startTokenOptimization(): void {
-    if (this.tokenOptimizationInterval) clearInterval(this.tokenOptimizationInterval);
-
-    const intervalMs = 5 * 60 * 1000; // 5 minutes
-    this.tokenOptimizationInterval = setInterval(() => {
-      this.call((wallet) => wallet.optimizeTokenOutputs()).catch((e) => {
-        this.logger.warn('Token optimization failed, will retry on next interval:', e);
-      });
-    }, intervalMs);
+  /**
+   * Consolidates the token outputs of the wallet.
+   *
+   * Driven by SparkService through @DfxCron rather than by a timer this client starts for itself.
+   * A timer here is invisible to the scheduler, and with it to the scope and to the cross-process
+   * lease — two processes would run this against the same wallet whenever their roles overlap,
+   * which is exactly what a deployment produces while the old container is still up.
+   */
+  async optimizeTokenOutputs(): Promise<void> {
+    await this.call((wallet) => wallet.optimizeTokenOutputs());
   }
 
   private reconnectWallet(): void {

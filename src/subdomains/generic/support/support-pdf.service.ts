@@ -460,6 +460,9 @@ export class SupportPdfService {
     return new Promise<string>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
+        // Reject the promise on a PDFKit stream error emitted asynchronously after the surrounding
+        // try/catch has returned — synchronous throws (including from pdf.end()) are caught below.
+        pdf.once('error', reject);
         const chunks: Buffer[] = [];
 
         pdf.on('data', (chunk) => chunks.push(chunk));

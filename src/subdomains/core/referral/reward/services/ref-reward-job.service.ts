@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardNotificationService } from './ref-reward-notification.service';
 import { RefRewardOutService } from './ref-reward-out.service';
@@ -16,12 +16,12 @@ export class RefRewardJobService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { process: Process.REF_PAYOUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
   async createPendingRefRewards() {
     await this.refRewardService.createPendingRefRewards();
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.REF_PAYOUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
   async processPendingRefRewards() {
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();

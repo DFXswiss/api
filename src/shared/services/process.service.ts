@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SetStaffKycClearance } from 'src/shared/auth/staff-kyc-clearance';
 import { SettingService } from '../models/setting/setting.service';
-import { DfxCron } from '../utils/cron';
+import { CronScope, DfxCron } from '../utils/cron';
 
 export enum Process {
   PAY_OUT = 'PayOut',
@@ -118,6 +118,10 @@ export enum Process {
   LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
   LEDGER_CUTOVER = 'LedgerCutover',
   LEDGER_COA_BOOTSTRAP = 'LedgerCoaBootstrap',
+  DEX_PURCHASE_ORDER = 'DexPurchaseOrder',
+  REF_CLEANUP = 'RefCleanup',
+  LATEST_BALANCE_CACHE = 'LatestBalanceCache',
+  SPARK_TOKEN_OPTIMIZATION = 'SparkTokenOptimization',
 }
 
 const safetyProcesses: Process[] = [
@@ -180,7 +184,7 @@ export class ProcessService implements OnModuleInit {
     await this.resyncStaffKycClearance();
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.BOTH })
   async resyncDisabledProcesses(): Promise<void> {
     const allDisabledProcesses = [
       ...(await this.settingService.getDisabledProcesses()),
@@ -190,20 +194,23 @@ export class ProcessService implements OnModuleInit {
     DisabledProcesses = this.listToMap(allDisabledProcesses);
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.BOTH })
   async resyncDeniedJwtAddresses(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAddresses();
     DeniedJwtAddresses = new Set(list.map((a) => a.toLowerCase()));
   }
 
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.BOTH })
   async resyncDeniedJwtAccounts(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAccounts();
     DeniedJwtAccounts = new Set(list);
   }
 
   // Primes the fail-closed staff clearance allowlist — see `staff-kyc-clearance.ts` for the semantics.
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  // Both, like the sibling resync jobs above: the allowlist it fills is module-global state that a
+  // guard reads on the request path, so it has to be refreshed in the process serving those
+  // requests. Frozen at boot it fails closed, locking out staff whose clearance arrives later.
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800, scope: CronScope.BOTH })
   async resyncStaffKycClearance(): Promise<void> {
     const list = await this.settingService.getStaffKycClearance();
     SetStaffKycClearance(list);

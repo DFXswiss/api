@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { In } from 'typeorm';
 import { RiskStatus, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
@@ -25,7 +25,14 @@ export class JwtRevocationSyncService {
 
   // Runs every minute: fast revocation of a blocked or compromised account is a security requirement that
   // warrants the security-revocation exception to the "prefer 15min" cron guideline.
-  @DfxCron(CronExpression.EVERY_MINUTE, { timeout: 1800 })
+  //
+  // And deliberately WITHOUT a `process` flag, for the same reason and matching
+  // StaffKycClearanceService::syncStaffKycClearance, which states it there. A flag is a switch that
+  // turns the job off in the database, `DISABLED_PROCESSES='*'` turns off everything that has one,
+  // and switched off this job does not empty the auto denylist — it stops writing to it. Accounts
+  // blocked after that keep their live JWTs, and nothing reports it: the role heartbeat goes on
+  // saying `lease ok`. A switch whose use is silent does not belong on a revocation path.
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, timeout: 1800 })
   async syncDeniedJwtAccounts(): Promise<void> {
     const blockedAccounts = await this.userDataRepo.find({
       select: { id: true },

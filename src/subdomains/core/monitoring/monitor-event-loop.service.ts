@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { monitorEventLoopDelay, performance } from 'perf_hooks';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 
 @Injectable()
 export class MonitorEventLoopService implements OnModuleDestroy {
@@ -22,7 +22,7 @@ export class MonitorEventLoopService implements OnModuleDestroy {
     this.histogram.disable();
   }
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.MONITOR_EVENT_LOOP })
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.BOTH, process: Process.MONITOR_EVENT_LOOP })
   monitorEventLoop(): void {
     const toMs = (ns: number) => Math.round(ns / 1e6);
 

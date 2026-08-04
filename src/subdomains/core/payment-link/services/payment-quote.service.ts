@@ -20,7 +20,7 @@ import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services
 import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Equal, In, LessThan } from 'typeorm';
+import { EntityManager, Equal, In, LessThan, Repository } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
@@ -173,13 +173,20 @@ export class PaymentQuoteService {
     });
   }
 
-  async cancelAllForPayment(paymentId: number): Promise<void> {
-    const actualQuotes = await this.paymentQuoteRepo.find({
+  /**
+   * `manager` runs the cancellations in the caller's transaction. The caller is the payment leaving
+   * `Pending` (see `PaymentLinkPaymentService.takePendingTransition`), and these quotes have to
+   * leave `Actual` with it or not at all: a payment out of `Pending` is not looked at again.
+   */
+  async cancelAllForPayment(paymentId: number, manager?: EntityManager): Promise<void> {
+    const repo: Repository<PaymentQuote> = manager?.getRepository(PaymentQuote) ?? this.paymentQuoteRepo;
+
+    const actualQuotes = await repo.find({
       where: { payment: { id: paymentId }, status: PaymentQuoteStatus.ACTUAL },
     });
 
     for (const actualQuote of actualQuotes) {
-      await this.paymentQuoteRepo.save(actualQuote.cancel());
+      await repo.save(actualQuote.cancel());
     }
   }
 

@@ -6,7 +6,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
@@ -336,26 +336,26 @@ export class PayInService {
 
   // --- JOBS --- //
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
     await this.forwardPayIns();
     await this.processStrandedSendingPayIns();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async returnPayInEntries(): Promise<void> {
     await this.returnPayIns();
     await this.processStrandedSendingPayIns();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkConfirmations(): Promise<void> {
     await this.checkInputConfirmations();
     await this.checkOutputConfirmations();
     await this.checkReturnConfirmations();
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async updateFailedPayments(): Promise<void> {
     const checkDate = Util.minutesBefore(15);
 

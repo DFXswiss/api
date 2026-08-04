@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
@@ -23,7 +23,7 @@ export class WebhookNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.WEBHOOK, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.WEBHOOK, timeout: 1800 })
   async sendWebhooks() {
     await this.sendOpenWebhooks();
   }

@@ -11,7 +11,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
-import { Equal, LessThan, Not } from 'typeorm';
+import { EntityManager, Equal, LessThan, Not, Repository } from 'typeorm';
 import { TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -46,8 +46,11 @@ export class PaymentActivationService {
     );
   }
 
-  async closeAllForPayment(paymentId: number): Promise<void> {
-    await this.paymentActivationRepo.update(
+  /** `manager` runs the closes in the caller's transaction, see `cancelAllForPayment` for why. */
+  async closeAllForPayment(paymentId: number, manager?: EntityManager): Promise<void> {
+    const repo: Repository<PaymentActivation> = manager?.getRepository(PaymentActivation) ?? this.paymentActivationRepo;
+
+    await repo.update(
       { payment: { id: paymentId }, status: Not(PaymentActivationStatus.CLOSED) },
       { status: PaymentActivationStatus.CLOSED },
     );

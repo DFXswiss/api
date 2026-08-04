@@ -6,7 +6,7 @@ import { UpdateResult } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MoreThanOrEqual } from 'typeorm';
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
@@ -24,7 +24,7 @@ export class AssetPricesJobService {
     private readonly assetPriceRepo: AssetPriceRepository,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
     const assetsToUpdate = await this.assetService.getPricedAssets();
     const updates: UpdateResult<Asset>[] = [];
@@ -59,7 +59,7 @@ export class AssetPricesJobService {
     await this.assetService.updateAssets(updates);
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PRICING, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.PRICING, timeout: 3600 })
   async updatePaymentPrices() {
     const relevantFiats = await this.fiatService.getActiveFiat();
     const relevantAssets = await this.assetService.getPaymentAssets();

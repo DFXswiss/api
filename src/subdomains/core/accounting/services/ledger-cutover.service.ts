@@ -7,7 +7,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
@@ -103,7 +103,7 @@ export class LedgerCutoverService {
    * a crash never breaks the boot/cron run, leaves `ledgerCutoverLogId` unset → all consumers no-op (§4 gate).
    * The cron no-ops immediately once the flag is set, so it effectively runs once and is otherwise idle.
    */
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.LEDGER_CUTOVER })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.LEDGER_CUTOVER })
   async run(): Promise<void> {
     // Two deliberate checks: master switch (hard off, no DB) vs. already-cut-over (setting). Do not merge them.
     if (!Config.ledger.enabled) return;
