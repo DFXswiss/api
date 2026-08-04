@@ -2,7 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -27,7 +27,7 @@ export class TransactionNotificationService {
     private readonly bankTxService: BankTxService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_MAIL, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TX_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
     await this.txAssigned();
     if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.txUnassigned();

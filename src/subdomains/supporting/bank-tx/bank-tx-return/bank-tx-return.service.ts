@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -35,7 +35,7 @@ export class BankTxReturnService {
     private readonly fiatService: FiatService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
     await this.chargebackTx();
     await this.setFiatAmounts();

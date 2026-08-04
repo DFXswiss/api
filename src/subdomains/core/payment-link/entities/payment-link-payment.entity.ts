@@ -49,6 +49,7 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ default: false })
   isConfirmed: boolean;
 
+  @Index()
   @Column({ length: 256, nullable: true })
   deviceId?: string;
 
@@ -98,5 +99,19 @@ export class PaymentLinkPayment extends IEntity {
 
   get device(): PaymentDevice | undefined {
     return this.deviceId && this.deviceCommand ? { id: this.deviceId, command: this.deviceCommand } : undefined;
+  }
+
+  /**
+   * The persisted state a caller of `PaymentLinkPaymentService.waitForPayment` is released on.
+   *
+   * `status` alone is not enough: a `MULTIPLE`-mode payment stays `Pending` while its quotes
+   * complete one after another, and each of those releases the callers waiting at that moment
+   * (see `PaymentLinkPaymentService.handleQuoteChange`). What changes there is `txCount`.
+   *
+   * It is therefore a value to compare against the one the payment carried when the wait started,
+   * not a predicate: for a `MULTIPLE`-mode payment there is no absolute "released" state to test.
+   */
+  get waitState(): string {
+    return `${this.status}:${this.txCount}`;
   }
 }

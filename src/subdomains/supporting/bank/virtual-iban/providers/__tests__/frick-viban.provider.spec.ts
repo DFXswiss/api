@@ -33,6 +33,9 @@ describe('FrickVibanProvider', () => {
     prepareVibanCreate: jest.Mock;
     createViban: jest.Mock;
     approveVibanActivation: jest.Mock;
+    deactivateViban: jest.Mock;
+    approveVibanDeactivation: jest.Mock;
+    getViban: jest.Mock;
     listAllVibans: jest.Mock;
   };
   let provider: FrickVibanProvider;
@@ -44,6 +47,9 @@ describe('FrickVibanProvider', () => {
       prepareVibanCreate: jest.fn(),
       createViban: jest.fn(),
       approveVibanActivation: jest.fn(),
+      deactivateViban: jest.fn(),
+      approveVibanDeactivation: jest.fn(),
+      getViban: jest.fn(),
       listAllVibans: jest.fn(),
     };
     provider = new FrickVibanProvider(bankFrickService as unknown as BankFrickService);
@@ -236,6 +242,9 @@ describe('FrickVibanProvider', () => {
     }
     expect(message).toMatch(/Bank Frick virtual IBAN could not be activated \(state: PREPARED, vbanLength=\d+\)/);
     expect(message).not.toContain('LI33STUCK00000000001');
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.stringMatching(/Bank Frick virtual IBAN activation returned an unexpected state/),
+    );
   });
 
   it('fails closed when activation returns a different vban without embedding either IBAN', async () => {
@@ -411,6 +420,140 @@ describe('FrickVibanProvider', () => {
       providerAccountRef: 'LI44ADOPT00000000001',
     });
     expect(bankFrickService.approveVibanActivation).toHaveBeenCalledWith('LI44ADOPT00000000001');
+  });
+
+  it('deactivateAndApprove requests and approves deactivation', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const active = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+    bankFrickService.deactivateViban.mockResolvedValue(
+      virtualIban({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED }),
+    );
+    bankFrickService.approveVibanDeactivation.mockResolvedValue(
+      virtualIban({ state: FrickVirtualIbanState.DEACTIVATED }),
+    );
+
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).resolves.toBeUndefined();
+    expect(bankFrickService.deactivateViban).toHaveBeenCalledWith(active.vban);
+    expect(bankFrickService.approveVibanDeactivation).toHaveBeenCalledWith(active.vban);
+  });
+
+  it('deactivateAndApprove refuses to call Bank Frick when the vIBAN rail is unavailable', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(false);
+    const active = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).rejects.toThrow(new ServiceUnavailableException('Bank Frick virtual IBAN service is not available'));
+    expect(bankFrickService.deactivateViban).not.toHaveBeenCalled();
+  });
+
+  it('deactivateAndApprove treats an already deactivated vIBAN as complete', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const deactivated = virtualIban({ state: FrickVirtualIbanState.DEACTIVATED });
+
+    await expect(
+      provider.deactivateAndApprove(deactivated, deactivated.referenceAccountIban, deactivated.description),
+    ).resolves.toBeUndefined();
+    expect(bankFrickService.deactivateViban).not.toHaveBeenCalled();
+    expect(bankFrickService.approveVibanDeactivation).not.toHaveBeenCalled();
+  });
+
+  it('deactivateAndApprove recovers an ambiguous deactivation through exact lookup', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const active = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+    bankFrickService.deactivateViban.mockRejectedValue(new Error('timeout'));
+    bankFrickService.getViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED }));
+    bankFrickService.approveVibanDeactivation.mockResolvedValue(
+      virtualIban({ state: FrickVirtualIbanState.DEACTIVATED }),
+    );
+
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).resolves.toBeUndefined();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation returned an ambiguous result',
+      expect.any(Error),
+    );
+    expect(bankFrickService.getViban).toHaveBeenCalledWith(active.vban);
+  });
+
+  it('deactivateAndApprove logs a non-Error ambiguous deactivation and verifies it through exact lookup', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const active = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+    bankFrickService.deactivateViban.mockRejectedValue('timeout');
+    bankFrickService.getViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.DEACTIVATED }));
+
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).resolves.toBeUndefined();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation returned an ambiguous result',
+      undefined,
+    );
+  });
+
+  it('deactivateAndApprove recovers an ambiguous approval through exact lookup', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const requested = virtualIban({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED });
+    bankFrickService.approveVibanDeactivation.mockRejectedValue(new Error('timeout'));
+    bankFrickService.getViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.DEACTIVATED }));
+
+    await expect(
+      provider.deactivateAndApprove(requested, requested.referenceAccountIban, requested.description),
+    ).resolves.toBeUndefined();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation approval returned an ambiguous result',
+      expect.any(Error),
+    );
+  });
+
+  it('deactivateAndApprove logs a non-Error ambiguous approval and verifies it through exact lookup', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const requested = virtualIban({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED });
+    bankFrickService.approveVibanDeactivation.mockRejectedValue('timeout');
+    bankFrickService.getViban.mockResolvedValue(virtualIban({ state: FrickVirtualIbanState.DEACTIVATED }));
+
+    await expect(
+      provider.deactivateAndApprove(requested, requested.referenceAccountIban, requested.description),
+    ).resolves.toBeUndefined();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation approval returned an ambiguous result',
+      undefined,
+    );
+  });
+
+  it('deactivateAndApprove rejects mismatched or non-progressing responses', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const active = virtualIban({ state: FrickVirtualIbanState.ACTIVE });
+    bankFrickService.deactivateViban.mockResolvedValueOnce(
+      virtualIban({ vban: 'LI44MISMATCH000000001', state: FrickVirtualIbanState.DEACTIVATION_REQUESTED }),
+    );
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).rejects.toThrow('Bank Frick virtual IBAN deactivation identity mismatch');
+
+    bankFrickService.deactivateViban.mockResolvedValueOnce(virtualIban({ state: FrickVirtualIbanState.ACTIVE }));
+    await expect(
+      provider.deactivateAndApprove(active, active.referenceAccountIban, active.description),
+    ).rejects.toThrow('Bank Frick virtual IBAN deactivation did not reach an approvable state');
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation returned an unexpected state (state: ACTIVE)',
+    );
+  });
+
+  it('deactivateAndApprove fails closed and logs ERROR when approval does not complete', async () => {
+    bankFrickService.isVibanAvailable.mockReturnValue(true);
+    const requested = virtualIban({ state: FrickVirtualIbanState.DEACTIVATION_REQUESTED });
+    bankFrickService.approveVibanDeactivation.mockResolvedValue(requested);
+
+    await expect(
+      provider.deactivateAndApprove(requested, requested.referenceAccountIban, requested.description),
+    ).rejects.toThrow('Bank Frick virtual IBAN could not be deactivated');
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick virtual IBAN deactivation approval returned an unexpected state (state: DEACTIVATION_REQUESTED)',
+    );
   });
 
   it('throws ServiceUnavailableException from prepare when not available', async () => {

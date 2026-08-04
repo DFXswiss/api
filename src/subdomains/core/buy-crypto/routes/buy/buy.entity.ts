@@ -40,7 +40,7 @@ export class Buy extends IEntity {
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   deposit?: Deposit;
 
-  @OneToOne(() => Route, { eager: true, nullable: true })
+  @OneToOne(() => Route, { nullable: true })
   @JoinColumn()
   route?: Route;
 

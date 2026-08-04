@@ -49,3 +49,11 @@ export interface FrickVirtualIbansResponse {
 export interface FrickApproveVirtualIbanActivationRequest {
   vban: string;
 }
+
+export interface FrickDeactivateVirtualIbanRequest {
+  vban: string;
+}
+
+export interface FrickApproveVirtualIbanDeactivationRequest {
+  vban: string;
+}

@@ -1,13 +1,13 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
@@ -49,20 +49,26 @@ export class TransactionRequestService {
     private readonly swapService: SwapService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
+  // useDelay: false keeps the schedule this job had as a native @Cron. DfxCron staggers job
+  // starts by default, which for a minute-based expression spreads them over up to 30 seconds -
+  // moving it here would change when it runs, not just how it is registered.
+  @DfxCron(CronExpression.EVERY_MINUTE, {
+    scope: CronScope.WORKER,
+    process: Process.TX_REQUEST,
+    useDelay: false,
+    timeout: 7200,
+  })
   async txRequestStatusSync() {
-    if (DisabledProcess(Process.TX_REQUEST)) return;
-
     await this.syncStatus();
     await this.deleteOldTxRequests();
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
-  @Lock(7200)
+  @DfxCron(CronExpression.EVERY_DAY_AT_3AM, {
+    scope: CronScope.WORKER,
+    process: Process.TX_REQUEST_WAITING_EXPIRY,
+    timeout: 7200,
+  })
   async txRequestWaitingExpiryCheck() {
-    if (DisabledProcess(Process.TX_REQUEST_WAITING_EXPIRY)) return;
-
     const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
     const entities = await this.transactionRequestRepo.findBy({
       status: TransactionRequestStatus.WAITING_FOR_PAYMENT,

@@ -17,7 +17,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
@@ -39,6 +39,7 @@ import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
+import { VirtualIban } from '../../bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
@@ -87,7 +88,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES)
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.BOTH })
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
   }
@@ -274,7 +275,12 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = bankInOverride ?? (await this.getBankIn(from, paymentMethodIn, user?.userData));
+    // getBankIn resolves the user's active vIBAN to pick the receiving bank. It is surfaced on the result
+    // so the caller can reuse it for the deposit destination instead of repeating the same lookup.
+    const resolvedBankIn = bankInOverride
+      ? { bankName: bankInOverride, activeVirtualIban: undefined }
+      : await this.getBankIn(from, paymentMethodIn, user?.userData);
+    const bankIn = resolvedBankIn.bankName;
     const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
@@ -355,6 +361,7 @@ export class TransactionHelper implements OnModuleInit {
       isValid: !errors.length,
       error: errors[0],
       errors,
+      activeVirtualIban: resolvedBankIn.activeVirtualIban,
     };
   }
 
@@ -884,16 +891,22 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     paymentMethodIn: PaymentMethod,
     userData?: UserData,
-  ): Promise<CardBankName | IbanBankName | undefined> {
+  ): Promise<{ bankName: CardBankName | IbanBankName | undefined; activeVirtualIban?: VirtualIban }> {
     const isBankTransfer =
       isFiat(from) &&
       [FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT].includes(paymentMethodIn as FiatPaymentMethod);
-    if (!isBankTransfer) return TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+    if (!isBankTransfer)
+      return {
+        bankName: TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn),
+        activeVirtualIban: undefined,
+      };
 
     // vIBAN deposits are received at the vIBAN bank
+    let activeVirtualIban: VirtualIban | undefined;
     if (userData) {
-      const virtualIban = await this.virtualIbanService.getActiveReceivingForUserAndCurrency(userData, from.name);
-      if (virtualIban?.bank.receive) return virtualIban.bank.name;
+      activeVirtualIban =
+        (await this.virtualIbanService.getActiveReceivingForUserAndCurrency(userData, from.name)) ?? undefined;
+      if (activeVirtualIban?.bank.receive) return { bankName: activeVirtualIban.bank.name, activeVirtualIban };
     }
 
     const bank = await this.bankService.getBank({
@@ -902,7 +915,10 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    return bank?.name ?? TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+    return {
+      bankName: bank?.name ?? TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn),
+      activeVirtualIban,
+    };
   }
 
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {

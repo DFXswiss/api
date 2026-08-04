@@ -88,7 +88,7 @@ describe('BuyService', () => {
       houseNumber: '7',
       zip: '8000',
       city: 'Zurich',
-      country: { name: 'CH' },
+      country: { name: 'CH', symbol: 'CH' },
     };
     const userData = {
       id: 7,
@@ -165,6 +165,54 @@ describe('BuyService', () => {
       expect(paymentInfoService.buyCheck).not.toHaveBeenCalled();
       expect(buyRepo.findOne).not.toHaveBeenCalled();
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+    });
+
+    // The user is loaded once and handed to toPaymentInfoDto. Loading it a second time there costs two
+    // extra queries, and letting the two loads drift apart is what left user.wallet unloaded for buyCheck.
+    it('loads the user once and reuses it for the payment-info DTO', async () => {
+      const loadedUser = { id: 1, userData, wallet: {} } as any;
+      const getUser = jest.spyOn(userService, 'getUser').mockResolvedValue(loadedUser);
+      jest.spyOn(paymentInfoService, 'buyCheck').mockImplementation(async (d) => d as any);
+      jest.spyOn(service, 'createBuy').mockResolvedValue(buy);
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(virtualIban);
+      const fees = { min: 0, rate: 0.01, fixed: 0, dfx: 1, network: 0, platform: 0, bank: 0, total: 1 };
+      jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+        timestamp: new Date('2026-07-24T00:00:00Z'),
+        minVolume: 10,
+        minVolumeTarget: 0.001,
+        maxVolume: 10000,
+        maxVolumeTarget: 1,
+        exchangeRate: 100000,
+        rate: 101000,
+        estimatedAmount: 0.00099,
+        sourceAmount: 100,
+        isValid: false,
+        exactPrice: false,
+        feeSource: fees,
+        feeTarget: fees,
+        priceSteps: [],
+      } as any);
+
+      await service.createBuyPaymentInfo({ user: 1, address: '0x123' } as any, dto());
+
+      expect(getUser).toHaveBeenCalledTimes(1);
+      // wallet is the relation buyCheck reads (as user.wallet, not userData.wallet) and organization is
+      // what UserData.address needs - asserted explicitly, because getUser is mocked and would otherwise
+      // hand back a fully-populated user no matter which relations were requested.
+      expect(getUser).toHaveBeenCalledWith(1, { userData: { organization: true }, wallet: true });
+      // and the fee calculation sees the very same instance
+      expect((transactionHelper.getTxDetails as jest.Mock).mock.calls[0][7]).toBe(loadedUser);
+    });
+
+    // the transaction request is attributed to userId, so a preloaded user for someone else would book
+    // the request against the wrong account instead of failing
+    it('refuses a preloaded user that does not match the requested user', async () => {
+      await expect(service.toPaymentInfoDto(1, buy, dto(), { id: 2 } as any)).rejects.toThrow(
+        'Preloaded user does not match userId',
+      );
+
+      expect(transactionHelper.getTxDetails).not.toHaveBeenCalled();
+      expect(transactionRequestService.create).not.toHaveBeenCalled();
     });
 
     it('selects Frick once before fee calculation, persists exact IDs, and does not leak IDs publicly', async () => {
@@ -706,6 +754,177 @@ describe('BuyService', () => {
       });
       expect(bankInfo.name).not.toBe(Config.bank.dfxAddress.name);
     });
+
+    it('still issues the explicit Frick vIBAN for a REALU buy (explicit provider wins over the REALU carve-out)', async () => {
+      const realuAsset = { ...asset, name: 'REALU' } as Asset;
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet: {} } as any);
+      jest.spyOn(virtualIbanService, 'getOrCreateFrickForUser').mockResolvedValue(virtualIban);
+      const fees = {
+        min: 0,
+        rate: 0.01,
+        fixed: 0,
+        dfx: 1,
+        network: 0,
+        platform: 0,
+        bank: 0,
+        total: 1,
+      };
+      jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+        timestamp: new Date('2026-07-24T00:00:00Z'),
+        minVolume: 10,
+        minVolumeTarget: 0.001,
+        maxVolume: 10000,
+        maxVolumeTarget: 1,
+        exchangeRate: 100000,
+        rate: 101000,
+        estimatedAmount: 0.00099,
+        sourceAmount: 100,
+        isValid: false,
+        exactPrice: false,
+        feeSource: fees,
+        feeTarget: fees,
+        priceSteps: [],
+      } as any);
+
+      const response = await service.toPaymentInfoDto(1, buy, dto({ asset: realuAsset }));
+
+      expect(virtualIbanService.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'EUR');
+      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(response).toMatchObject({ iban: virtualIban.iban, isPersonalIban: true });
+    });
+
+    it('degrades a CUSTOMER-held personal IBAN without address country to the collection account on quote', async () => {
+      const yapealBank = {
+        id: 20,
+        name: IbanBankName.YAPEAL,
+        iban: 'CH9300762011623852957',
+        bic: 'YAPECHZZ',
+        receive: true,
+        sctInst: false,
+      };
+      const yapealVirtualIban = {
+        id: 502,
+        iban: 'CH4400762011623852958',
+        bank: yapealBank,
+        currency: { id: 1, name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        buy: null,
+      } as VirtualIban;
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+      const collectionBank = {
+        id: 16,
+        name: IbanBankName.OLKY,
+        iban: 'FR7616798060015010806550926',
+        bic: 'OLKYFRP1',
+        receive: true,
+        sctInst: true,
+      };
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(yapealVirtualIban);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank as any);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+        buy,
+      );
+
+      expect(bankInfo).toMatchObject({
+        name: Config.bank.dfxAddress.name,
+        country: Config.bank.dfxAddress.country,
+        countryCode: Config.bank.dfxAddress.countryCode,
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      expect(bankInfo.iban).not.toBe(yapealVirtualIban.iban);
+    });
+
+    it('rejects a stored CUSTOMER-held personal IBAN when the user address has no country', async () => {
+      const yapealBank = {
+        id: 20,
+        name: IbanBankName.YAPEAL,
+        iban: 'CH9300762011623852957',
+        bic: 'YAPECHZZ',
+        receive: true,
+        sctInst: false,
+      };
+      const yapealVirtualIban = {
+        id: 502,
+        iban: 'CH4400762011623852958',
+        bank: yapealBank,
+        currency: { id: 1, name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+        buy: null,
+      } as VirtualIban;
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(yapealBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(yapealVirtualIban);
+
+      await expect(
+        service.getBankInfoForRequest(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+          buy,
+          true,
+          20,
+          502,
+        ),
+      ).rejects.toThrow(QuoteError.PERSONAL_IBAN_USER_ADDRESS_INCOMPLETE);
+      await expect(
+        service.getBankInfoForRequest(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+          buy,
+          true,
+          20,
+          502,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('keeps a DFX-held personal IBAN usable when the user address has no country', async () => {
+      const userDataWithoutCountry = {
+        ...userData,
+        address: { ...address, country: undefined },
+      } as any;
+
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.DFX);
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
+      jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
+
+      const bankInfo = await service.getBankInfoForRequest(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData: userDataWithoutCountry },
+        buy,
+        true,
+        19,
+        501,
+      );
+
+      expect(bankInfo).toMatchObject({
+        name: Config.bank.dfxAddress.name,
+        street: Config.bank.dfxAddress.street,
+        number: Config.bank.dfxAddress.number,
+        zip: Config.bank.dfxAddress.zip,
+        city: Config.bank.dfxAddress.city,
+        country: Config.bank.dfxAddress.country,
+        countryCode: Config.bank.dfxAddress.countryCode,
+        iban: virtualIban.iban,
+        isPersonalIban: true,
+        reference: buy.bankUsage,
+      });
+    });
   });
 
   describe('implicit personal IBAN resolution', () => {
@@ -714,7 +933,7 @@ describe('BuyService', () => {
       houseNumber: '7',
       zip: '8000',
       city: 'Zurich',
-      country: { name: 'CH' },
+      country: { name: 'CH', symbol: 'CH' },
     };
     const userData = {
       id: 7,
@@ -724,6 +943,8 @@ describe('BuyService', () => {
       language: { symbol: 'DE' },
     } as UserData;
     const lowKycUserData = { ...userData, kycLevel: KycLevel.LEVEL_40 } as UserData;
+    const level30UserData = { ...userData, kycLevel: KycLevel.LEVEL_30 } as UserData;
+    const realuAsset = { name: 'REALU' } as Asset;
     const eur = { id: 2, name: 'EUR', buyable: true } as Fiat;
     const chf = { id: 1, name: 'CHF', buyable: true } as Fiat;
     const buy = { id: 42, active: true, bankUsage: 'ABCD-EFGH-IJKL' } as Buy;
@@ -1111,6 +1332,63 @@ describe('BuyService', () => {
       await expect(resolution).rejects.not.toThrow(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
       await expect(resolution).rejects.not.toThrow(QuoteError.KYC_REQUIRED);
     });
+
+    it('resolves the plain bank for a REALU buy below KYC 50 instead of demanding a personal IBAN', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: level30UserData },
+        buy,
+        realuAsset,
+      );
+
+      expect(bankInfo).toMatchObject({
+        iban: collectionBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
+    });
+
+    it('does not issue a personal IBAN as a side effect of a REALU buy at KYC 50', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(collectionBank);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        realuAsset,
+      );
+
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(bankInfo.isPersonalIban).toBe(false);
+      expect(bankInfo.iban).toBe(collectionBank.iban);
+    });
+
+    it('keeps demanding KYC 50 for a non-REALU asset on the implicit path', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(virtualIbanService, 'isUserEligible').mockReturnValue(false);
+      jest.spyOn(virtualIbanService, 'hasProviderSupportingCurrency').mockReturnValue(true);
+
+      await expect(
+        service.getBankInfo({ currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: lowKycUserData }, buy, {
+          name: 'BTC',
+        } as Asset),
+      ).rejects.toThrow(QuoteError.KYC_REQUIRED);
+    });
+
+    it('fails loud for a REALU buy when no bank resolves', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
+
+      await expect(
+        service.getBankInfo(
+          { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData: level30UserData },
+          buy,
+          realuAsset,
+        ),
+      ).rejects.toThrow('No Bank for the given amount/currency');
+    });
   });
 
   describe('bankInOverride scope (Frick selector only)', () => {
@@ -1427,6 +1705,87 @@ describe('BuyService', () => {
       expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
       expect(virtualIbanService.isUserEligible).not.toHaveBeenCalled();
       expect(bankService.getBank).not.toHaveBeenCalled();
+    });
+
+    // getTxDetails already resolves the user's active vIBAN to pick the receiving bank for the fee. It
+    // hands that result back so the deposit-destination step reuses it instead of repeating the query.
+    describe('active vIBAN reuse between fee calculation and deposit destination', () => {
+      const userLevelVirtualIban = {
+        id: 778,
+        iban: 'CH4431999123000889013',
+        bank: defaultRouteBank,
+        currency,
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+
+      beforeEach(() => {
+        jest.spyOn(userService, 'getUser').mockResolvedValue({ id: 1, userData, wallet } as any);
+        jest.spyOn(bankService, 'getBank').mockResolvedValue(defaultRouteBank);
+      });
+
+      it('does not repeat the lookup when getTxDetails resolved an active vIBAN', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: userLevelVirtualIban } as any);
+
+        const response = await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.BANK,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).not.toHaveBeenCalled();
+      });
+
+      // A negative result is deliberately re-read: it is a whole getTxDetails old, and the issuance branch
+      // follows. The fresh read here returns a vIBAN, standing in for one issued concurrently in that
+      // window — reusing the stale negative would lose it, send a customer who holds a personal IBAN to
+      // the shared collection account, and log an ERROR for a provider outage that never happened.
+      it('re-resolves when getTxDetails found none, so a concurrently issued vIBAN is not missed', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(userLevelVirtualIban);
+
+        const response = await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.BANK,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+        // the freshly-read IBAN must reach the response, not the stale "none"
+        expect(response.iban).toBe(userLevelVirtualIban.iban);
+        expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      });
+
+      // CARD on purpose: a BANK transfer that resolves no personal IBAN degrades through
+      // collectionAccountOrThrow, so it never reaches the plain bank resolution. CARD is the payment
+      // method that skips that fallback, which is what makes the "nothing found either way" outcome
+      // observable at all.
+      it('resolves it itself when getTxDetails ran no lookup', async () => {
+        jest
+          .spyOn(transactionHelper, 'getTxDetails')
+          .mockResolvedValue({ ...feeResult(), activeVirtualIban: undefined } as any);
+        jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
+
+        await service.toPaymentInfoDto(1, buy, {
+          amount: 100,
+          currency,
+          asset,
+          paymentMethod: FiatPaymentMethod.CARD,
+          exactPrice: false,
+        } as GetBuyPaymentInfoDto);
+
+        expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledTimes(1);
+      });
     });
   });
 

@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -173,12 +173,29 @@ export class PayoutService {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.PAY_OUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.WORKER, process: Process.PAY_OUT, timeout: 1800 })
   async processOrders(): Promise<void> {
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();
     await this.processFailedOrders();
+  }
+
+  // Current-state source for the PayoutUncertain alert. Deliberately flagged MONITORING rather
+  // than PAY_OUT: disabling payouts must not hide orders which were already parked for
+  // investigation, while the flag keeps the job switchable without a deploy — switching it off
+  // stops the heartbeat, which the missing-heartbeat alert then surfaces.
+  // The logger also emits an empty heartbeat, allowing monitoring to alert separately if this
+  // query/job/log path disappears instead of treating missing data as "zero uncertain orders".
+  // Scope BOTH, not WORKER: writing a log line is listed in CronScope.BOTH as a qualifying
+  // example, and running this job twice is harmless by construction — every line restates the
+  // CURRENT stored status per order, so a second producer repeats facts instead of advancing
+  // anything. The gain is that the heartbeat survives while one of the two processes is down,
+  // which is exactly when parked payout orders must not go dark.
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH, process: Process.MONITORING, timeout: 1800 })
+  async logUncertainOrdersSnapshot(): Promise<void> {
+    const uncertainOrders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_UNCERTAIN });
+    this.logs.logUncertainOrdersSnapshot(uncertainOrders);
   }
 
   //*** HELPER METHODS ***//

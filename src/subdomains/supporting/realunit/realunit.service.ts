@@ -676,7 +676,7 @@ export class RealUnitService {
     amount: number,
     reference: string,
     bank: { iban: string; bic: string; recipient: string; name: string },
-    address: { street: string; number: string; zip: string; city: string; country: string },
+    address: { street: string; number: string; zip: string; city: string; country: string; countryCode: string },
     userData: UserData,
   ): string {
     const bankInfo = {
@@ -687,6 +687,7 @@ export class RealUnitService {
       zip: address.zip,
       city: address.city,
       country: address.country,
+      countryCode: address.countryCode,
       iban: bank.iban,
       bic: bank.bic,
       sepaInstant: false,

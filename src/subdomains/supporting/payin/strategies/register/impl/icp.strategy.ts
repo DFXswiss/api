@@ -8,7 +8,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
@@ -40,7 +40,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   }
 
   //*** JOBS ***//
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     const allDeposits = await this.depositService.getUsedDepositsByBlockchain(this.blockchain);
     const allDepositAddresses = allDeposits.map((d) => d.address);
@@ -68,7 +68,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   ): Promise<void> {
     const log = this.createNewLogObject();
     const scanState: Record<string, number> = persistProgress ? await this.getScanState() : {};
-    const assets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const assets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const newEntries: PayInEntry[] = [];
     for (const asset of assets) {

@@ -6,10 +6,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -41,8 +42,14 @@ export class AdminService {
     const lContext = context as LiquidityOrderContext;
     const pContext = context as PayoutOrderContext;
 
-    const allowedAddresses = await this.settingService.getObj('manualPayoutAddresses', []);
-    if (!allowedAddresses.includes(address.toLowerCase()))
+    const configuredAddresses = await this.settingService.getObj<unknown>('manualPayoutAddresses', []);
+    const allowedAddresses = Array.isArray(configuredAddresses)
+      ? configuredAddresses.filter((value): value is string => typeof value === 'string')
+      : [];
+    const normalizeAddress = EvmBlockchains.includes(asset.blockchain)
+      ? (value: string) => value.toLowerCase()
+      : (value: string) => value;
+    if (!allowedAddresses.some((allowedAddress) => normalizeAddress(allowedAddress) === normalizeAddress(address)))
       throw new BadRequestException('Payout address not permitted');
 
     try {
@@ -72,7 +79,7 @@ export class AdminService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_OUT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.PAY_OUT, timeout: 3600 })
   async completeLiquidityOrders() {
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;

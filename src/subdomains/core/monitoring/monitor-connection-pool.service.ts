@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { DataSource } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver';
@@ -19,7 +19,7 @@ export class MonitorConnectionPoolService {
     this.dbConnectionPool = dbDriver.master;
   }
 
-  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.MONITOR_CONNECTION_POOL })
+  @DfxCron(CronExpression.EVERY_SECOND, { scope: CronScope.BOTH, process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPool() {
     const dbOptions = Config.database as PostgresConnectionOptions;
     const dbMaxPoolConnections = dbOptions.poolSize ?? 10;
@@ -37,7 +37,7 @@ export class MonitorConnectionPoolService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.MONITOR_CONNECTION_POOL })
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { scope: CronScope.BOTH, process: Process.MONITOR_CONNECTION_POOL })
   monitorConnectionPoolStatic() {
     const total = this.dbConnectionPool.totalCount;
     const idle = this.dbConnectionPool.idleCount;

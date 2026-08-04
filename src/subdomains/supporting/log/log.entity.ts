@@ -14,6 +14,11 @@ export const FINANCIAL_LOG_VALIDITY_AUDIT_SUBSYSTEM = 'FinancialLogValidityAudit
 export const MAX_VALIDITY_SWEEP_ROWS = 10_000;
 
 @Entity()
+// IDX_b7eda1156aca7b2a1302cdf88f is deliberately migration-owned: it is a covering index
+// (INCLUDE "totalBalanceChf", "btcPriceChf") and TypeORM cannot express INCLUDE. Declaring only its
+// five key columns would make schema generation DROP it — the loader counts INCLUDE columns in
+// pg_index.indkey, so the column count would not match — and recreate it without the INCLUDE,
+// silently losing the index-only scan it exists for. Do not re-declare it here.
 export class Log extends IEntity {
   @Column({ length: 256 })
   system: string;

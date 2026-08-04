@@ -16,7 +16,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -88,7 +88,11 @@ export class FeeService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BLOCKCHAIN_FEE_UPDATE, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, {
+    scope: CronScope.WORKER,
+    process: Process.BLOCKCHAIN_FEE_UPDATE,
+    timeout: 1800,
+  })
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: { asset: true } });
 

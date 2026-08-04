@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
@@ -25,7 +26,7 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
@@ -37,7 +38,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne, VersionColumn } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { ScorechainOutcome } from '../../../aml/enums/scorechain-outcome.enum';
@@ -70,7 +71,12 @@ export interface CreditorData {
 }
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((b: BuyCrypto) => [b.updated, b.id])
 export class BuyCrypto extends IEntity {
+  @VersionColumn()
+  version: number;
+
   // References
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
@@ -567,6 +573,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resume(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.CREATED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(payoutFee: number, outputAmountBaseUnits?: bigint | null): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
@@ -896,6 +912,47 @@ export class BuyCrypto extends IEntity {
 
   get isCryptoCryptoTransaction(): boolean {
     return this.cryptoInput != null;
+  }
+
+  // Mirrors resetAmlCheckForReview: checkout/crypto refund or forward already started on related rows.
+  get checkoutRefundStarted(): boolean {
+    return (
+      this.checkoutTx != null &&
+      [
+        CheckoutPaymentStatus.REFUND_PENDING,
+        CheckoutPaymentStatus.PARTIALLY_REFUNDED,
+        CheckoutPaymentStatus.REFUNDED,
+      ].includes(this.checkoutTx.status)
+    );
+  }
+
+  get cryptoReturnStarted(): boolean {
+    return (
+      this.cryptoInput != null &&
+      (this.cryptoInput.action === PayInAction.RETURN ||
+        (this.cryptoInput.status != null &&
+          [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(
+            this.cryptoInput.status,
+          )) ||
+        this.cryptoInput.returnTxId != null)
+    );
+  }
+
+  get cryptoForwardStarted(): boolean {
+    return (
+      this.cryptoInput != null &&
+      (this.cryptoInput.action === PayInAction.FORWARD ||
+        (this.cryptoInput.status != null &&
+          [
+            PayInStatus.PREPARING,
+            PayInStatus.PREPARED,
+            PayInStatus.SENDING,
+            PayInStatus.SEND_UNCERTAIN,
+            PayInStatus.FORWARDED,
+            PayInStatus.FORWARD_CONFIRMED,
+          ].includes(this.cryptoInput.status)) ||
+        this.cryptoInput.outTxId != null)
+    );
   }
 
   // mirror of doAmlCheck's amlCheck-null selection branch (BuyCryptoPreparationService.doAmlCheck) — rows the AML

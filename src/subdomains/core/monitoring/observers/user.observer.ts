@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { IsNull } from 'typeorm';
@@ -27,7 +27,7 @@ export class UserObserver extends MetricObserver<UserData> {
     super(monitoringService, 'user', 'kyc');
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MONITORING, timeout: 1800 })
   async fetch(): Promise<UserData> {
     const data = await this.getUser();
 

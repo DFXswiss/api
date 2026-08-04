@@ -999,11 +999,15 @@ export class SwissQRService {
   }
 
   private getCreditor(bankInfo: BankInfoDto): Creditor {
+    // The creditor block carries the account holder's postal address, so its country must not be
+    // derived from the IBAN: DFX's Bank Frick account has an LI IBAN while DFX AG resides in Zug (CH).
+    if (!bankInfo.countryCode) throw new Error('Missing creditor address country code');
+
     const creditor: Creditor = {
       account: bankInfo.iban,
       address: bankInfo.street,
       city: bankInfo.city,
-      country: bankInfo.iban.substring(0, 2).toUpperCase(),
+      country: bankInfo.countryCode,
       name: bankInfo.name,
       zip: bankInfo.zip,
     };

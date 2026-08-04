@@ -7,3 +7,9 @@
 if (!process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD) {
   process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD = '0.05';
 }
+
+// The single-process mode, matching how a test run behaves: every job is registered, none is
+// filtered out by role. A spec that asserts on the role sets it explicitly and restores it.
+if (!process.env.CRON_ROLE) {
+  process.env.CRON_ROLE = 'all';
+}

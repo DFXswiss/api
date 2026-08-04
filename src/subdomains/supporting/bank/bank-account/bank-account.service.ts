@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { BankDetailsDto, IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Equal, IsNull, Like, Not } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
@@ -35,7 +35,7 @@ export class BankAccountService {
 
   // --- INTERNAL METHODS --- //
 
-  @DfxCron(CronExpression.EVERY_WEEK, { process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_WEEK, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async checkFailedBankAccounts(): Promise<void> {
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
@@ -43,7 +43,7 @@ export class BankAccountService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadErrorBankAccounts(): Promise<void> {
     const bankAccounts = await this.bankAccountRepo.findBy({ result: Like('Error:%') });
     for (const bankAccount of bankAccounts) {
@@ -51,7 +51,7 @@ export class BankAccountService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BANK_ACCOUNT, timeout: 3600 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadUncheckedBankAccounts(): Promise<void> {
     const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull(), iban: Not(IsNull()) });
     for (const bankAccount of bankAccounts) {

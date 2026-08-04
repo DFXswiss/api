@@ -15,7 +15,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process, ProcessService } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -36,11 +36,15 @@ import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxIndicator, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  BankTx,
+  BankTxIndicator,
+  BankTxType,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
+} from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
-import { DashboardFinancialService } from '../dashboard/dashboard-financial.service';
 import { CryptoInput } from '../payin/entities/crypto-input.entity';
 import { PayInService } from '../payin/services/payin.service';
 import { PayoutOrder, PayoutOrderContext } from '../payout/entities/payout-order.entity';
@@ -63,6 +67,7 @@ import { LogService } from './log.service';
 // equity stays correct meanwhile because the liability is still counted.
 const SETTLEMENT_SLA_HOURS = 144;
 const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
+const INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS = INTERNAL_TRANSFER_SETTLEMENT_DAYS * 24 * 60 * 60 * 1000;
 
 // tolerance for comparing summed float balances (avoids false alarms on rounding)
 const BALANCE_TOLERANCE = 0.01;
@@ -111,10 +116,9 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
     private readonly paymentBalanceService: PaymentBalanceService,
-    private readonly dashboardFinancialService: DashboardFinancialService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {
     try {
       // trading log
@@ -191,7 +195,7 @@ export class LogJobService {
       const btcAssetPriceChf = btcAsset ? assetLog[btcAsset.id]?.priceChf : undefined;
       const btcPriceChfColumn = btcAssetPriceChf != null && Number.isFinite(btcAssetPriceChf) ? btcAssetPriceChf : null;
 
-      const financialDataLog = await this.logService.create({
+      await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
         severity: LogSeverity.INFO,
@@ -224,21 +228,6 @@ export class LogJobService {
             Util.minutesDiff(lastLog.created) > 15),
         category: null,
       });
-
-      // Write-through for GET /v1/dashboard/financial/latest: precompute here so that endpoint never
-      // touches the database or re-parses this message. Independent of the equity path above (which
-      // has already run and already armed/disarmed the safety mode correctly), so a failure here must
-      // never escalate to that switch: own try/catch, log loudly, never rethrow.
-      try {
-        this.dashboardFinancialService.setLatestBalance(
-          financialDataLog.created,
-          assetLog,
-          balancesByFinancialType,
-          assets,
-        );
-      } catch (e) {
-        this.logger.error('Failed to update the latest-balance cache for the dashboard', e);
-      }
 
       // The changeLog feeds only the informative FinancialChangesLog and is independent of the equity
       // path above, so it runs in its own try/catch: a reporting-price failure must not arm the equity
@@ -483,7 +472,9 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, yapealEurBank.iban);
+    const recentInternalBankTx = this.getUnsettledInternalBankTx(
+      await this.bankTxService.getTrackedInternalTransfers(),
+    );
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,
@@ -657,14 +648,8 @@ export class LogJobService {
         [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(curr.blockchain) && curr.dexName === 'EUR';
       const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
-      // Olky to Yapeal //
-      const pendingOlkyYapealAmount = this.getPendingBankAmount(
-        [curr],
-        recentBankTxFromOlky,
-        BankTxType.INTERNAL,
-        olkyBank.iban,
-        yapealEurBank.iban,
-      );
+      // Transfers between DFX-owned bank accounts remain part of plus balance while in transit.
+      const pendingInternalBankAmount = this.getPendingBankAmount([curr], recentInternalBankTx, BankTxType.INTERNAL);
 
       // Kraken to Yapeal //
 
@@ -970,7 +955,7 @@ export class LogJobService {
         cryptoInput +
         exchangeOrder +
         bridgeOrder +
-        pendingOlkyYapealAmount +
+        pendingInternalBankAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
         (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
@@ -984,7 +969,7 @@ export class LogJobService {
           this.logger.verbose(
             `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
               `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
-              `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
+              `internal=${pendingInternalBankAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
               `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
           );
         }
@@ -1113,7 +1098,7 @@ export class LogJobService {
                 cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
                 bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
+                internal: this.getJsonValue(pendingInternalBankAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(
                   useUnfilteredTx ? fromKrakenUnfiltered : fromKraken,
                   amountType(curr),
@@ -1357,6 +1342,247 @@ export class LogJobService {
       (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
       0,
     );
+  }
+
+  private getUnsettledInternalBankTx(transactions: BankTx[]): BankTx[] {
+    const debits = transactions
+      .filter((tx) => tx.creditDebitIndicator === BankTxIndicator.DEBIT)
+      .sort((a, b) => this.getInternalTransferTime(a) - this.getInternalTransferTime(b) || a.id - b.id);
+    const availableCredits = new Set(transactions.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.CREDIT));
+    const unsettled = new Set(debits);
+
+    const settleUnique = (
+      predicate: (debit: BankTx, credit: BankTx) => boolean,
+      enforceSettlementWindow = true,
+    ): void => {
+      let settledInPass: boolean;
+
+      do {
+        settledInPass = false;
+
+        for (const debit of [...unsettled]) {
+          const matchingCredits = [...availableCredits].filter(
+            (credit) =>
+              this.isInternalTransferCounterEntry(debit, credit, enforceSettlementWindow) && predicate(debit, credit),
+          );
+          if (matchingCredits.length !== 1) continue;
+
+          const [credit] = matchingCredits;
+          const matchingDebits = [...unsettled].filter(
+            (candidate) =>
+              this.isInternalTransferCounterEntry(candidate, credit, enforceSettlementWindow) &&
+              predicate(candidate, credit),
+          );
+          if (matchingDebits.length !== 1) continue;
+
+          unsettled.delete(debit);
+          availableCredits.delete(credit);
+          settledInPass = true;
+        }
+      } while (settledInPass);
+    };
+
+    // Stable end-to-end IDs are stronger than free-text remittance information.
+    settleUnique((debit, credit) => {
+      const debitReference = this.getInternalEndToEndId(debit);
+      return Boolean(debitReference) && debitReference === this.getInternalEndToEndId(credit);
+    }, false);
+
+    settleUnique((debit, credit) => {
+      const debitReference = this.getInternalRemittanceInfo(debit);
+      return (
+        !this.hasConflictingInternalEndToEndIds(debit, credit) &&
+        Boolean(debitReference) &&
+        debitReference === this.getInternalRemittanceInfo(credit)
+      );
+    });
+
+    // Same-currency entries are interchangeable for the aggregate plus balance when their
+    // fee-adjusted principals agree to half a cent. A maximum matching safely handles repeated
+    // equal transfers and partial arrival without guessing a different remaining amount.
+    const sameCurrencyMatches = this.getMaximumInternalTransferMatches(
+      [...unsettled],
+      [...availableCredits],
+      (debit, credit) => {
+        if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
+        if (!debit.currency || debit.currency !== credit.currency) return false;
+        const debitAmount = debit.internalTransferAmount();
+        const creditAmount = credit.internalTransferAmount();
+        if (typeof debitAmount !== 'number' || typeof creditAmount !== 'number') return false;
+        return (
+          Number.isFinite(debitAmount) && Number.isFinite(creditAmount) && Math.abs(debitAmount - creditAmount) < 0.005
+        );
+      },
+    );
+    for (const [credit, debit] of sameCurrencyMatches) {
+      unsettled.delete(debit);
+      availableCredits.delete(credit);
+    }
+
+    const settleSafeFxGroups = (predicate: (debit: BankTx, credit: BankTx) => boolean): void => {
+      const visitedDebits = new Set<BankTx>();
+      const visitedCredits = new Set<BankTx>();
+
+      for (const startDebit of [...unsettled]) {
+        if (visitedDebits.has(startDebit)) continue;
+
+        const componentDebits = new Set<BankTx>();
+        const componentCredits = new Set<BankTx>();
+        const debitQueue = [startDebit];
+
+        while (debitQueue.length) {
+          const debit = debitQueue.shift();
+          if (!debit || visitedDebits.has(debit)) continue;
+          visitedDebits.add(debit);
+          componentDebits.add(debit);
+
+          for (const credit of availableCredits) {
+            if (!this.isInternalTransferCounterEntry(debit, credit) || !predicate(debit, credit)) continue;
+            componentCredits.add(credit);
+            if (visitedCredits.has(credit)) continue;
+            visitedCredits.add(credit);
+
+            for (const candidateDebit of unsettled) {
+              if (
+                !visitedDebits.has(candidateDebit) &&
+                this.isInternalTransferCounterEntry(candidateDebit, credit) &&
+                predicate(candidateDebit, credit)
+              )
+                debitQueue.push(candidateDebit);
+            }
+          }
+        }
+
+        if (!componentCredits.size) continue;
+
+        const matches = this.getMaximumInternalTransferMatches([...componentDebits], [...componentCredits], predicate);
+        const principals = [...componentDebits].map((debit) => debit.internalTransferAmount());
+        const firstPrincipal = principals[0];
+        const equalPrincipals =
+          typeof firstPrincipal === 'number' &&
+          principals.every(
+            (principal) => typeof principal === 'number' && Math.abs(principal - firstPrincipal) < 0.005,
+          );
+
+        if (new Set(matches.values()).size !== componentDebits.size && !equalPrincipals) continue;
+
+        for (const [credit, debit] of matches) {
+          unsettled.delete(debit);
+          availableCredits.delete(credit);
+        }
+      }
+    };
+
+    // Optional ISO amount details can identify a partial FX arrival without being used for
+    // per-account attribution. A connected group is settled only if fully covered or if all
+    // source principals are equal, so an ambiguous partial arrival cannot change plus balance.
+    settleSafeFxGroups((debit, credit) => {
+      if (this.hasConflictingInternalEndToEndIds(debit, credit)) return false;
+      if (!debit.currency || !credit.currency || debit.currency === credit.currency) return false;
+      const creditAmount = credit.internalTransferAmount();
+      if (typeof creditAmount !== 'number' || !Number.isFinite(creditAmount)) return false;
+
+      return this.getInternalTargetAmounts(debit).some(
+        ({ amount, currency }) => currency === credit.currency && Math.abs(amount - creditAmount) < 0.005,
+      );
+    });
+
+    // FX amounts are incomparable. Settle a connected candidate group only when every debit is
+    // covered, or when every debit principal is equal and the remaining aggregate is independent
+    // of which individual transfer arrived.
+    settleSafeFxGroups(
+      (debit, credit) =>
+        !this.hasConflictingInternalEndToEndIds(debit, credit) &&
+        Boolean(debit.currency && credit.currency && debit.currency !== credit.currency),
+    );
+
+    return debits.filter((debit) => unsettled.has(debit));
+  }
+
+  private getMaximumInternalTransferMatches(
+    debits: BankTx[],
+    credits: BankTx[],
+    predicate: (debit: BankTx, credit: BankTx) => boolean,
+  ): Map<BankTx, BankTx> {
+    const matches = new Map<BankTx, BankTx>();
+
+    const assign = (debit: BankTx, visited: Set<BankTx>): boolean => {
+      const candidates = credits
+        .filter((credit) => this.isInternalTransferCounterEntry(debit, credit) && predicate(debit, credit))
+        .sort(
+          (a, b) =>
+            Math.abs(this.getInternalTransferTime(a) - this.getInternalTransferTime(debit)) -
+              Math.abs(this.getInternalTransferTime(b) - this.getInternalTransferTime(debit)) || a.id - b.id,
+        );
+
+      for (const credit of candidates) {
+        if (visited.has(credit)) continue;
+        visited.add(credit);
+
+        const currentDebit = matches.get(credit);
+        if (!currentDebit || assign(currentDebit, visited)) {
+          matches.set(credit, debit);
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    for (const debit of debits) assign(debit, new Set());
+    return matches;
+  }
+
+  private isInternalTransferCounterEntry(debit: BankTx, credit: BankTx, enforceSettlementWindow = true): boolean {
+    const sourceIban = BankService.normalizeIban(debit.accountIban);
+    const targetIban = BankService.normalizeIban(debit.iban);
+    if (!sourceIban || !targetIban) return false;
+    if (sourceIban !== BankService.normalizeIban(credit.iban)) return false;
+    if (targetIban !== BankService.normalizeIban(credit.accountIban)) return false;
+
+    const timeDifference = this.getInternalTransferTime(credit) - this.getInternalTransferTime(debit);
+    return (
+      timeDifference >= -24 * 60 * 60 * 1000 &&
+      (!enforceSettlementWindow || timeDifference <= INTERNAL_TRANSFER_SETTLEMENT_WINDOW_MS)
+    );
+  }
+
+  private getInternalTargetAmounts(tx: BankTx): { amount: number; currency: string }[] {
+    return [
+      { amount: tx.instructedAmount, currency: tx.instructedCurrency },
+      { amount: tx.txAmount, currency: tx.txCurrency },
+    ].filter(
+      (entry): entry is { amount: number; currency: string } =>
+        typeof entry.amount === 'number' &&
+        Number.isFinite(entry.amount) &&
+        entry.amount > 0 &&
+        Boolean(entry.currency),
+    );
+  }
+
+  private getInternalEndToEndId(tx: BankTx): string | undefined {
+    return this.normalizeInternalTransferReference(tx.endToEndId);
+  }
+
+  private getInternalRemittanceInfo(tx: BankTx): string | undefined {
+    return this.normalizeInternalTransferReference(tx.remittanceInfo);
+  }
+
+  private hasConflictingInternalEndToEndIds(debit: BankTx, credit: BankTx): boolean {
+    const debitReference = this.getInternalEndToEndId(debit);
+    const creditReference = this.getInternalEndToEndId(credit);
+    return Boolean(debitReference && creditReference && debitReference !== creditReference);
+  }
+
+  private normalizeInternalTransferReference(reference: string | null | undefined): string | undefined {
+    const normalized = reference?.trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalized && !['notprovided', 'not provided', 'n/a', 'unknown'].includes(normalized)
+      ? normalized
+      : undefined;
+  }
+
+  private getInternalTransferTime(tx: BankTx): number {
+    return (tx.valueDate ?? tx.bookingDate ?? tx.created)?.getTime() ?? 0;
   }
 
   public getUnmatchedSenders(

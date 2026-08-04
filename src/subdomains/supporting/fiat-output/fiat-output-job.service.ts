@@ -15,7 +15,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
@@ -64,7 +64,7 @@ export class FiatOutputJobService {
     private readonly bankService: BankService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
     await this.assignBankAccount();
     await this.setReadyDate();
@@ -77,7 +77,7 @@ export class FiatOutputJobService {
     await this.notifyScryptDeposits();
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT })
   async checkOlkypayOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
     if (!this.olkypayService.isAvailable()) return;
@@ -103,7 +103,7 @@ export class FiatOutputJobService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.FIAT_OUTPUT, timeout: 1800 })
   async generateReports() {
     const entities = await this.fiatOutputRepo.find({
       where: { reportCreated: false, isComplete: true },
@@ -564,8 +564,14 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         if (!entity.isReadyDate) continue;
-        const bankTx = await this.getMatchingBankTx(entity);
+        let bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx) continue;
+
+        if (entity.type === FiatOutputType.LIQ_MANAGEMENT && (!bankTx.type || BankTxTypeUnassigned(bankTx.type))) {
+          const classifiedBankTx = await this.bankTxService.classifyKnownTypeIfAssignable(bankTx);
+          if (!classifiedBankTx) continue;
+          bankTx = classifiedBankTx;
+        }
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
@@ -591,7 +597,8 @@ export class FiatOutputJobService {
         if (entity.type === FiatOutputType.BANK_TX_REPEAT)
           await this.bankTxRepeatService.updateInternal(entity.bankTxRepeat, { chargebackBankTx: bankTx });
 
-        if (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
+        if (entity.type !== FiatOutputType.LIQ_MANAGEMENT && (!bankTx.type || BankTxTypeUnassigned(bankTx.type)))
+          await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
@@ -619,7 +626,7 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
 
       case FiatOutputType.LIQ_MANAGEMENT: {
-        const specificType = this.bankTxService.getType(bankTx);
+        const specificType = await this.bankTxService.getType(bankTx);
         if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
       }
     }

@@ -1,13 +1,64 @@
 import { Injectable } from '@nestjs/common';
+import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Between, EntityManager, Equal, In } from 'typeorm';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentLinkPaymentStatus } from '../enums';
 
+/**
+ * What `PUT /paymentLink/:id/pos` reads: a URL built from `uniqueId` and one access key, taken from
+ * the link's configuration, the account's, or the two merged.
+ *
+ * `accountType` is deliberately NOT selected: `UserData.address` switches to the organization row
+ * for an organization account and would dereference a relation this query has no reason to join.
+ */
+export const POS_LINK_RESPONSE_FIELDS = [
+  'paymentLink.uniqueId',
+  'paymentLink.config',
+  'posUserData.paymentLinksConfig',
+];
+
+/**
+ * `PUT /paymentLink/:id/pos` — the access keys, and the ids that carry the joins.
+ *
+ * The endpoint writes, but through `update(id, …)` on the link and on the account rather than by
+ * saving either row back, so a projected read cannot blank a column it did not load. `config` and
+ * `paymentLinksConfig` are in the projection for the write as much as for the answer: it merges the
+ * new key into whichever of them applies, and a configuration the query failed to load would be a
+ * configuration silently reset.
+ */
+export const POS_LINK_PROJECTION = new ReadProjection<PaymentLink>(
+  'paymentLink',
+  [
+    ['paymentLink.route', 'posRoute'],
+    ['posRoute.user', 'posUser'],
+    ['posUser.userData', 'posUserData'],
+  ],
+  POS_LINK_RESPONSE_FIELDS,
+  // Never part of the answer: the primary keys that make the ORM materialise the joined rows, and
+  // the two ids the two updates are scoped by.
+  ['paymentLink.id', 'posRoute.id', 'posUser.id', 'posUserData.id'],
+);
+
 @Injectable()
 export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   constructor(manager: EntityManager) {
     super(PaymentLink, manager);
+  }
+
+  /**
+   * One link, carrying what a point-of-sale link is built from.
+   *
+   * `fields` is what the mutation test in `pos-link.projection.spec.ts` re-runs the query with;
+   * `PaymentLinkService.createPosLinkAdmin` calls this without it.
+   */
+  async findForPosLink(
+    id: number,
+    fields: ReadonlyArray<string> = POS_LINK_PROJECTION.fields,
+  ): Promise<PaymentLink | null> {
+    return POS_LINK_PROJECTION.apply(this.createQueryBuilder('paymentLink'), fields)
+      .where('paymentLink.id = :id', { id })
+      .getOne();
   }
 
   async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {

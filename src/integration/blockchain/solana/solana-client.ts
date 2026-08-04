@@ -12,7 +12,6 @@ import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-cli
 import {
   SolanaNativeInstructionsDto,
   SolanaTokenDto,
-  SolanaTokenInstructionsDto,
   SolanaTransactionDestinationDto,
   SolanaTransactionDto,
 } from './dto/solana.dto';
@@ -427,8 +426,7 @@ export class SolanaClient extends BlockchainClient {
     if (isNativeTransaction) {
       transaction.destinations.push(...this.getNativeTransactionDestinations(parsedInstructions));
     } else if (isTokenTransaction) {
-      const tokenInstruction = this.getTokenInstructions(parsedTransaction);
-      transaction.destinations.push(await this.getTokenTransactionDestination(tokenInstruction));
+      transaction.destinations.push(...(await this.getTokenTransactionDestinations(parsedTransaction)));
     }
 
     return transaction;
@@ -461,79 +459,47 @@ export class SolanaClient extends BlockchainClient {
     return transactionDestinations;
   }
 
-  private async getTokenTransactionDestination(
-    tokenInstruction: Partial<SolanaTokenInstructionsDto>,
-  ): Promise<SolanaTransactionDestinationDto> {
-    const token = await this.getTokenByAddress(tokenInstruction.mint);
-
-    return {
-      to: tokenInstruction.destination,
-      amount: SolanaUtil.fromLamportAmount(tokenInstruction.amount ?? 0, token.decimals),
-      tokenInfo: {
-        address: tokenInstruction.mint,
-        decimals: token.decimals,
-      },
-    };
-  }
-
-  private getTokenInstructions(
+  // Emit one destination per SPL transfer/transferChecked instruction in the tx, so a single tx
+  // that bundles unrelated instructions cannot glue DFX's ATA (from a `create`) to a foreign
+  // transfer's amount (BUG-1260 parser bypass). Resolves each destination ATA to its owner via
+  // postTokenBalances so callers can match on wallet-owner equality. Non-transfer instructions
+  // (`create`, `closeAccount`) are ignored — they don't move asset value; a real "create and fund"
+  // tx also has a transfer that carries the destination + amount.
+  private async getTokenTransactionDestinations(
     parsedTransaction: Solana.ParsedTransactionWithMeta,
-  ): Partial<SolanaTokenInstructionsDto> {
+  ): Promise<SolanaTransactionDestinationDto[]> {
     const parsedInstructions = parsedTransaction.transaction.message.instructions as Solana.ParsedInstruction[];
+    const accountKeys = parsedTransaction.transaction.message.accountKeys;
+    const postTokenBalances = parsedTransaction.meta.postTokenBalances ?? [];
 
-    const tokenInstruction: Partial<SolanaTokenInstructionsDto> = {};
+    const destinations: SolanaTransactionDestinationDto[] = [];
 
     for (const instruction of parsedInstructions) {
       const info = instruction.parsed?.info;
       if (!info) continue;
 
-      switch (instruction.parsed.type) {
-        case 'create':
-          tokenInstruction.mint = info.mint;
-          tokenInstruction.source = info.source;
-          tokenInstruction.destination = info.wallet;
-          break;
+      const type = instruction.parsed.type;
+      if (type !== 'transfer' && type !== 'transferChecked') continue;
 
-        case 'closeAccount':
-          tokenInstruction.destination = info.destination;
-          tokenInstruction.source = info.owner;
-          break;
+      const destinationAta: string | undefined = info.destination;
+      const rawAmount: string | number | undefined =
+        type === 'transferChecked' ? info.tokenAmount?.amount : info.amount;
+      if (!destinationAta || rawAmount == null) continue;
 
-        case 'transfer':
-          tokenInstruction.authority = info.authority;
-          tokenInstruction.amount = info.amount;
-          break;
+      const destinationBalance = postTokenBalances.find(
+        (b) => accountKeys[b.accountIndex]?.pubkey.toBase58() === destinationAta,
+      );
+      if (!destinationBalance?.mint || !destinationBalance?.owner) continue;
 
-        case 'transferChecked':
-          tokenInstruction.authority = info.authority ?? info.multisigAuthority;
-          tokenInstruction.amount = info.tokenAmount.amount;
-          break;
-      }
+      const token = await this.getTokenByAddress(destinationBalance.mint);
+
+      destinations.push({
+        to: destinationBalance.owner,
+        amount: SolanaUtil.fromLamportAmount(rawAmount, token.decimals),
+        tokenInfo: { address: destinationBalance.mint, decimals: token.decimals },
+      });
     }
 
-    if (!tokenInstruction.source && !tokenInstruction.destination && !tokenInstruction.mint) {
-      this.updateTokenInstruction(parsedTransaction, tokenInstruction);
-    }
-
-    return tokenInstruction;
-  }
-
-  private updateTokenInstruction(
-    parsedTransaction: Solana.ParsedTransactionWithMeta,
-    tokenInstruction: Partial<SolanaTokenInstructionsDto>,
-  ) {
-    const authority = tokenInstruction.authority;
-    if (!authority) return;
-
-    const tokenBalances = parsedTransaction.meta.postTokenBalances;
-
-    const sourceTokenBalance = tokenBalances.find((b) => b.owner === authority);
-    const destinationTokenBalance = tokenBalances.find(
-      (b) => b.owner !== authority && b.mint === sourceTokenBalance?.mint,
-    );
-
-    tokenInstruction.source = sourceTokenBalance.owner;
-    tokenInstruction.destination = destinationTokenBalance.owner;
-    tokenInstruction.mint = destinationTokenBalance.mint;
+    return destinations;
   }
 }

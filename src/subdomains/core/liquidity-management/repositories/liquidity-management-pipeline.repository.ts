@@ -1,11 +1,47 @@
 import { Injectable } from '@nestjs/common';
+import { ReadProjection } from 'src/shared/models/read-projection';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
+
+/** The single value `GET /liquidityManagement/pipeline/:id/status` answers with. */
+export const PIPELINE_STATUS_RESPONSE_FIELDS = ['pipeline.status'];
+
+/**
+ * `GET /liquidityManagement/pipeline/:id/status` — one column, for one value.
+ *
+ * A plain lookup by id expands the pipeline's eager graph, and its rule's in turn, to read a status
+ * string.
+ */
+export const PIPELINE_STATUS_PROJECTION = new ReadProjection<LiquidityManagementPipeline>(
+  'pipeline',
+  [],
+  PIPELINE_STATUS_RESPONSE_FIELDS,
+  // Never shown, but without the primary key the ORM has nothing to identify the row by.
+  ['pipeline.id'],
+);
 
 @Injectable()
 export class LiquidityManagementPipelineRepository extends BaseRepository<LiquidityManagementPipeline> {
   constructor(manager: EntityManager) {
     super(LiquidityManagementPipeline, manager);
+  }
+
+  /**
+   * One pipeline, carrying its status and nothing else.
+   *
+   * Returns the row rather than the status so that a missing pipeline stays distinguishable from a
+   * pipeline whose status is not set — the endpoint answers 404 only for the first.
+   *
+   * `fields` is what the mutation test in `pipeline-status.projection.spec.ts` re-runs the query
+   * with; `LiquidityManagementPipelineService.getPipelineStatus` calls this without it.
+   */
+  async findForStatus(
+    id: number,
+    fields: ReadonlyArray<string> = PIPELINE_STATUS_PROJECTION.fields,
+  ): Promise<LiquidityManagementPipeline | null> {
+    return PIPELINE_STATUS_PROJECTION.apply(this.createQueryBuilder('pipeline'), fields)
+      .where('pipeline.id = :id', { id })
+      .getOne();
   }
 }

@@ -260,10 +260,24 @@ describe('PayoutOrder', () => {
       expect((payoutFeeRelation!.type as () => unknown)()).toBe(Asset);
     });
 
-    it('declares a unique composite index on (context, correlationId)', () => {
-      const index = getMetadataArgsStorage().indices.find(
-        (i) => i.target === PayoutOrder && typeof i.columns === 'function',
+    // TypeORM invokes a lambda-form @Index with entityMetadata.propertiesMap ({ prop: 'prop' }); a
+    // Proxy returning the accessed key reproduces that without a database connection.
+    const columnNamesOf = (index: { columns?: unknown }): string[] =>
+      (index.columns as (p: unknown) => unknown[])(new Proxy({}, { get: (_target, property) => property })).map(String);
+
+    // PayoutOrder carries more than one class-level @Index and class decorators apply bottom-up, so
+    // neither array position nor `unique` is a safe selector — selecting on `unique` in particular
+    // would make the uniqueness assertion below tautological. Select on the resolved columns.
+    const classLevelIndexOn = (
+      columns: string[],
+    ): ReturnType<typeof getMetadataArgsStorage>['indices'][number] | undefined =>
+      getMetadataArgsStorage().indices.find(
+        (i) =>
+          i.target === PayoutOrder && typeof i.columns === 'function' && columnNamesOf(i).join() === columns.join(),
       );
+
+    it('declares a unique composite index on (context, correlationId)', () => {
+      const index = classLevelIndexOn(['context', 'correlationId']);
 
       expect(index).toBeDefined();
       expect(index!.unique).toBe(true);
@@ -272,6 +286,16 @@ describe('PayoutOrder', () => {
       const columns = (index!.columns as (p: PayoutOrder) => unknown[])(order);
 
       expect(columns).toEqual([PayoutOrderContext.BUY_CRYPTO, 'CID_XYZ']);
+    });
+
+    it('declares the non-unique (updated, id) keyset index for the ledger content-change scan', () => {
+      // Created by migration 1785460000000-AddLedgerContentChangeScanIndexes. Existence and
+      // uniqueness only — the generated name and the column order are pinned centrally, against the
+      // migration SQL itself, in src/shared/utils/__tests__/migration-index-parity.spec.ts.
+      const index = classLevelIndexOn(['updated', 'id']);
+
+      expect(index).toBeDefined();
+      expect(index!.unique).toBeFalsy();
     });
   });
 });

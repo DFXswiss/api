@@ -18,7 +18,8 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
-import { BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
+import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
+import { BankTx, BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
 import { BankTxFrickService } from '../services/bank-tx-frick.service';
@@ -42,6 +43,7 @@ describe('BankTxService', () => {
   let service: BankTxService;
 
   let bankTxRepo: BankTxRepository;
+  let bankService: BankService;
   let pricingService: PricingService;
   let fiatService: FiatService;
 
@@ -67,6 +69,7 @@ describe('BankTxService', () => {
     jest.clearAllMocks();
 
     bankTxRepo = createMock<BankTxRepository>();
+    bankService = createMock<BankService>();
     pricingService = createMock<PricingService>();
     fiatService = createMock<FiatService>();
 
@@ -97,7 +100,7 @@ describe('BankTxService', () => {
       createMock<BankTxReturnService>(),
       createMock<BankTxRepeatService>(),
       createMock<BuyService>(),
-      createMock<BankService>(),
+      bankService,
       createMock<YapealService>(),
       createMock<TransactionService>(),
       createMock<SpecialExternalAccountService>(),
@@ -254,5 +257,224 @@ describe('BankTxService', () => {
     (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
 
     await expect(service.getBankTxFee(from)).rejects.toThrow();
+  });
+
+  describe('#getTrackedInternalTransfers(...)', () => {
+    it('loads the immutable tracking set without expiring old pending transfers', async () => {
+      const historical = createCustomBankTx({
+        created: new Date('2024-09-04T09:04:02.150Z'),
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+      });
+      (bankTxRepo.findBy as jest.Mock).mockResolvedValue([historical]);
+      const recoveryQuery = jest.fn().mockResolvedValue([]);
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: { query: recoveryQuery },
+      });
+
+      await expect(service.getTrackedInternalTransfers()).resolves.toEqual([historical]);
+
+      const recoverySql = recoveryQuery.mock.calls[0][0] as string;
+      expect(recoverySql).toContain("l.subsystem = 'InternalBankTransferTrackingBackfill'");
+      expect(recoverySql).toContain('bt."isInternalTransfer" IS NULL');
+      expect(recoverySql).toContain('bt.created >= c."trackingCutover"');
+      expect(recoverySql).toContain('bt.updated >= c."trackingCutover"');
+      expect(recoverySql).toContain('bt.created >= c."trackingCutover" - INTERVAL \'21 days\'');
+      expect(recoverySql).toContain('FROM bank source_bank');
+      expect(recoverySql).toContain('FROM bank target_bank');
+      expect(recoverySql.match(/\[\^A-Za-z0-9\]/g)).toHaveLength(4);
+      expect(recoverySql).toContain("'InternalBankTransferRollingRecovery'");
+      expect(recoverySql).toContain("'previousIsInternalTransfer', NULL");
+      expect(recoverySql.indexOf('INSERT INTO "log"')).toBeLessThan(recoverySql.indexOf('UPDATE "bank_tx"'));
+      expect(bankTxRepo.findBy).toHaveBeenCalledWith({
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+      });
+      expect(bankService.getAllBanks).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('#create(...)', () => {
+    it('persists the ownership marker when both transfer IBANs are configured DFX accounts', async () => {
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+      (bankTxRepo.findOneBy as jest.Mock).mockResolvedValue(undefined);
+      (bankTxRepo.create as jest.Mock).mockImplementation((values) => Object.assign(new BankTx(), values));
+      (bankTxRepo.save as jest.Mock).mockImplementation(async (values) => values);
+
+      await service.create({ accountServiceRef: 'INTERNAL-1', accountIban: 'OLKY-IBAN', iban: 'FRICK-IBAN' }, []);
+
+      expect(bankTxRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ type: BankTxType.INTERNAL, isInternalTransfer: true }),
+      );
+    });
+  });
+
+  describe('#updateInternal(...)', () => {
+    it('records a negative ownership decision for a newly reviewed external transfer', async () => {
+      const bankTx = createCustomBankTx({
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'EXTERNAL-IBAN',
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await service.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+
+      expect(bankTx.isInternalTransfer).toBe(false);
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
+    });
+
+    it('never revokes an immutable ownership marker after bank configuration changes', async () => {
+      const bankTx = createCustomBankTx({
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+        accountIban: 'RETIRED-OLKY-IBAN',
+        iban: 'FRICK-IBAN',
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await service.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+
+      expect(bankTx.isInternalTransfer).toBe(true);
+      expect(bankService.areKnownBankIbans).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('#getType(...)', () => {
+    it('classifies a transfer between two configured bank IBANs as internal', async () => {
+      const bankTx = createCustomBankTx({ accountIban: 'OLKY-IBAN', iban: 'FRICK-IBAN' });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+
+      await expect(service.getType(bankTx)).resolves.toBe(BankTxType.INTERNAL);
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'FRICK-IBAN');
+    });
+
+    it('keeps the existing counterparty classification for external transfers', async () => {
+      const bankTx = createCustomBankTx({ accountIban: 'DFX-IBAN', iban: 'EXTERNAL-IBAN', name: 'Payward Trading' });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await expect(service.getType(bankTx)).resolves.toBe(BankTxType.KRAKEN);
+    });
+  });
+
+  describe('#classifyKnownTypeIfAssignable(...)', () => {
+    it('does not overwrite a type assigned after the initial unassigned read', async () => {
+      const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.BUY_FIAT,
+        transactionId: 77,
+      });
+      const manager = { findOne: jest.fn().mockResolvedValue(currentBankTx), update: jest.fn() };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toBeUndefined();
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ where: { id: 208765 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('does not assign internal after the locked transfer IBAN was corrected to an external IBAN', async () => {
+      const staleBankTx = createCustomBankTx({
+        id: 208765,
+        type: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'FRICK-IBAN',
+        transaction: { id: 77 } as never,
+      });
+      const currentBankTx = createCustomBankTx({
+        id: 208765,
+        type: null,
+        accountIban: 'OLKY-IBAN',
+        iban: 'EXTERNAL-IBAN',
+        transactionId: 77,
+      });
+      const manager = { findOne: jest.fn().mockResolvedValue(currentBankTx), update: jest.fn() };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(false);
+
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toBe(currentBankTx);
+
+      expect(bankService.areKnownBankIbans).toHaveBeenCalledWith('OLKY-IBAN', 'EXTERNAL-IBAN');
+      expect(manager.findOne).toHaveBeenCalledTimes(1);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('locks both records and assigns the internal type atomically', async () => {
+      const staleBankTx = createCustomBankTx({ id: 208765, type: null, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({ id: 208765, type: null, transactionId: 77 });
+      const currentTransaction = { id: 77, type: null };
+      const manager = {
+        findOne: jest.fn().mockResolvedValueOnce(currentBankTx).mockResolvedValueOnce(currentTransaction),
+        update: jest.fn(),
+      };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<void>) => callback(manager)),
+        },
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+
+      await expect(service.classifyKnownTypeIfAssignable(staleBankTx)).resolves.toEqual(
+        expect.objectContaining({ id: 208765, type: BankTxType.INTERNAL }),
+      );
+
+      expect(manager.findOne).toHaveBeenCalledTimes(2);
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        expect.objectContaining({ where: { id: 208765 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.findOne).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        expect.objectContaining({ where: { id: 77 }, lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('atomically replaces a retryable GSheet classification', async () => {
+      const bankTx = createCustomBankTx({ id: 208765, type: BankTxType.GSHEET, transaction: { id: 77 } as never });
+      const currentBankTx = createCustomBankTx({ id: 208765, type: BankTxType.GSHEET, transactionId: 77 });
+      const manager = {
+        findOne: jest.fn().mockResolvedValueOnce(currentBankTx).mockResolvedValueOnce({ id: 77, type: undefined }),
+        update: jest.fn(),
+      };
+      Object.defineProperty(bankTxRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (callback: (entityManager: typeof manager) => Promise<boolean>) =>
+            callback(manager),
+          ),
+        },
+      });
+      jest.spyOn(bankService, 'areKnownBankIbans').mockResolvedValue(true);
+
+      await expect(service.classifyKnownTypeIfAssignable(bankTx)).resolves.toEqual(
+        expect.objectContaining({ id: 208765, type: BankTxType.INTERNAL }),
+      );
+
+      expect(manager.update).toHaveBeenNthCalledWith(1, expect.anything(), 77, { type: 'Internal' });
+      expect(manager.update).toHaveBeenNthCalledWith(2, expect.anything(), 208765, {
+        type: BankTxType.INTERNAL,
+        isInternalTransfer: true,
+      });
+    });
   });
 });

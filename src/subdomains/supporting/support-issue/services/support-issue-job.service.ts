@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -32,7 +32,7 @@ export class SupportIssueJobService {
     private readonly settingsService: SettingService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { scope: CronScope.WORKER, process: Process.SUPPORT_BOT, timeout: 1800 })
   async autoOnHold() {
     const entities = await this.supportIssueRepo.find({
       where: {
@@ -52,7 +52,7 @@ export class SupportIssueJobService {
     }
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
     const disabledTemplates = await this.settingsService
       .get('supportBot')

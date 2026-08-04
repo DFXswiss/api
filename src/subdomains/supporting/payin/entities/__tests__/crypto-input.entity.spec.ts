@@ -1,7 +1,28 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { createCustomCryptoInput } from '../__mocks__/crypto-input.entity.mock';
-import { PayInAction, PayInStatus } from '../crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus, PayInType } from '../crypto-input.entity';
 
 describe('CryptoInput', () => {
+  describe('#create(...)', () => {
+    it('fails an input whose register strategy could not resolve a priced asset', () => {
+      const input = CryptoInput.create(
+        'sender',
+        BlockchainAddress.create('receiver', Blockchain.ETHEREUM),
+        'tx-id',
+        PayInType.DEPOSIT,
+        null,
+        1,
+        1,
+        null as unknown as Asset,
+      );
+
+      expect(input.asset).toBeNull();
+      expect(input.status).toBe(PayInStatus.FAILED);
+    });
+  });
+
   describe('#designateSending(...)', () => {
     it('sets status to PayInStatus.SENDING', () => {
       const entity = createCustomCryptoInput({ id: 1, status: PayInStatus.PREPARED });

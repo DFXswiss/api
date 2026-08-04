@@ -44,6 +44,20 @@ export class PayoutLogService {
     return message;
   }
 
+  /**
+   * Periodic current-state signal for the PayoutUncertain alert.
+   *
+   * The heartbeat is written even for an empty result so monitoring can distinguish
+   * "there are no uncertain orders" from "the snapshot job / database / log path is down".
+   * One detail line per order lets Loki aggregate the current amount and order count by
+   * chain/asset without retaining the one-shot escalation event after the order recovered.
+   */
+  logUncertainOrdersSnapshot(uncertainOrders: PayoutOrder[]): void {
+    this.logger.verbose(`PayoutUncertain state snapshot: ${uncertainOrders.length} order(s)`);
+
+    for (const order of uncertainOrders) this.logger.warn(this.createUncertainSnapshotLog(order));
+  }
+
   //*** HELPER METHODS ***//
 
   private createDefaultOrdersLog(orders: PayoutOrder[]): string[] {
@@ -64,6 +78,14 @@ export class PayoutLogService {
   // `||` rather than `??` on purpose: an empty name would encode to "" and read back as empty rather than as a name.
   private createEscalationLog(order: PayoutOrder): string {
     return `Payout order ${order.id} escalated to PayoutUncertain: amount ${order.amount} of ${JSON.stringify(
+      order.asset?.name || 'unknown',
+    )} on chain ${order.chain}, context ${order.context}, correlation ${JSON.stringify(order.correlationId ?? '')}`;
+  }
+
+  // This line is also a monitoring interface. Keep its fields and JSON string encoding in lockstep
+  // with createEscalationLog; the current-state Grafana rule parses it positionally.
+  private createUncertainSnapshotLog(order: PayoutOrder): string {
+    return `Payout order ${order.id} currently PayoutUncertain: amount ${order.amount} of ${JSON.stringify(
       order.asset?.name || 'unknown',
     )} on chain ${order.chain}, context ${order.context}, correlation ${JSON.stringify(order.correlationId ?? '')}`;
   }

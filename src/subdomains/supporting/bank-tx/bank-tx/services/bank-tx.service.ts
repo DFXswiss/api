@@ -15,7 +15,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -48,7 +48,11 @@ import {
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
-import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
@@ -61,7 +65,9 @@ import {
   BankTxIndicator,
   BankTxType,
   BankTxTypeCompleted,
+  BankTxTypeUnassigned,
   BankTxUnassignedTypes,
+  INTERNAL_TRANSFER_SETTLEMENT_DAYS,
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
@@ -132,7 +138,7 @@ export class BankTxService implements OnModuleInit {
   }
 
   // --- TRANSACTION HANDLING --- //
-  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { scope: CronScope.WORKER, timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     try {
       await this.checkTransactions();
@@ -148,7 +154,7 @@ export class BankTxService implements OnModuleInit {
     await this.fillBankTx();
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
     const transactions = await this.bankTxRepo.find({
       where: { familyCode: 'CCRD' }, // credit card => wrong data
@@ -235,6 +241,12 @@ export class BankTxService implements OnModuleInit {
 
     for (const tx of unassignedBankTx) {
       try {
+        const detectedType = await this.getType(tx);
+        if (detectedType === BankTxType.INTERNAL) {
+          await this.classifyKnownTypeIfAssignable(tx);
+          continue;
+        }
+
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
           // check for dedicated asset vIBAN
           if (tx.virtualIban) {
@@ -257,11 +269,56 @@ export class BankTxService implements OnModuleInit {
 
         if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
 
-        await this.updateInternal(tx, { type: this.getType(tx) ?? BankTxType.GSHEET });
+        await this.updateInternal(tx, { type: detectedType ?? BankTxType.GSHEET });
       } catch (e) {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
     }
+  }
+
+  async classifyKnownTypeIfAssignable(bankTx: BankTx): Promise<BankTx | undefined> {
+    return this.bankTxRepo.manager.transaction(async (manager) => {
+      const currentBankTx = await manager.findOne(BankTx, {
+        where: { id: bankTx.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!currentBankTx || !currentBankTx.transactionId) return undefined;
+
+      const detectedType = await this.getType(currentBankTx);
+
+      const isAssignable =
+        currentBankTx.type === null || currentBankTx.type === undefined || BankTxTypeUnassigned(currentBankTx.type);
+      if (!detectedType) return isAssignable ? currentBankTx : undefined;
+      if (!isAssignable && currentBankTx.type !== detectedType) return undefined;
+
+      const currentTransaction = await manager.findOne(Transaction, {
+        where: { id: currentBankTx.transactionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const transactionType = TransactionBankTxTypeMapper[detectedType];
+      if (
+        !currentTransaction ||
+        (currentTransaction.type !== null &&
+          currentTransaction.type !== undefined &&
+          currentTransaction.type !== transactionType)
+      )
+        return undefined;
+
+      if (currentTransaction.type !== transactionType)
+        await manager.update(Transaction, currentTransaction.id, { type: transactionType });
+      const isInternalTransfer = detectedType === BankTxType.INTERNAL;
+      if (currentBankTx.type !== detectedType || (isInternalTransfer && !currentBankTx.isInternalTransfer)) {
+        const update: Partial<BankTx> = { type: detectedType };
+        if (isInternalTransfer) update.isInternalTransfer = true;
+        await manager.update(BankTx, currentBankTx.id, update);
+      }
+
+      return Object.assign(currentBankTx, {
+        type: detectedType,
+        isInternalTransfer: Boolean(isInternalTransfer || currentBankTx.isInternalTransfer),
+        transaction: currentTransaction,
+      });
+    });
   }
 
   private async fillBankTx(): Promise<void> {
@@ -330,9 +387,13 @@ export class BankTxService implements OnModuleInit {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.createTx(bankTx, multiAccounts);
-    entity.type = this.getType(entity);
+    entity.type = await this.getType(entity);
+    entity.isInternalTransfer = entity.type === BankTxType.INTERNAL;
 
-    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    entity.transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.BANK_TX,
+      type: TransactionBankTxTypeMapper[entity.type] ?? undefined,
+    });
 
     return this.bankTxRepo.save(entity);
   }
@@ -351,6 +412,12 @@ export class BankTxService implements OnModuleInit {
   }
 
   async updateInternal(bankTx: BankTx, dto: UpdateBankTxDto, user?: User): Promise<BankTx> {
+    if (
+      dto.type === BankTxType.INTERNAL &&
+      (bankTx.isInternalTransfer === null || bankTx.isInternalTransfer === undefined)
+    )
+      bankTx.isInternalTransfer = await this.bankService.areKnownBankIbans(bankTx.accountIban, bankTx.iban);
+
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
@@ -521,11 +588,71 @@ export class BankTxService implements OnModuleInit {
     return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
-  async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
-    return this.bankTxRepo.findBy([
-      { iban: toIban, accountIban: fromIban, id: MoreThan(130100) },
-      { iban: fromIban, accountIban: toIban, id: MoreThan(130100) },
-    ]);
+  async getTrackedInternalTransfers(): Promise<BankTx[]> {
+    await this.recoverRollingInternalTransfers();
+    return this.bankTxRepo.findBy({ type: BankTxType.INTERNAL, isInternalTransfer: true });
+  }
+
+  private async recoverRollingInternalTransfers(): Promise<void> {
+    await this.bankTxRepo.manager.query(`
+      WITH "trackingCutover" AS (
+        SELECT MIN((l.message::jsonb->>'trackingCutover')::timestamptz) AS "trackingCutover"
+        FROM "log" l
+        WHERE l.subsystem = 'InternalBankTransferTrackingBackfill'
+      ),
+      "affected" AS (
+        SELECT bt.id AS "bankTxId"
+        FROM "bank_tx" bt
+        CROSS JOIN "trackingCutover" c
+        WHERE bt.type = 'Internal'
+          AND bt."isInternalTransfer" IS NULL
+          AND (
+            bt.created >= c."trackingCutover"
+            OR (
+              bt.updated >= c."trackingCutover"
+              AND bt.created >= c."trackingCutover" - INTERVAL '${INTERNAL_TRANSFER_SETTLEMENT_DAYS} days'
+              AND EXISTS (
+                SELECT 1
+                FROM bank source_bank
+                WHERE upper(regexp_replace(source_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt."accountIban", '[^A-Za-z0-9]', '', 'g'))
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM bank target_bank
+                WHERE upper(regexp_replace(target_bank.iban, '[^A-Za-z0-9]', '', 'g')) =
+                      upper(regexp_replace(bt.iban, '[^A-Za-z0-9]', '', 'g'))
+              )
+            )
+          )
+        FOR UPDATE OF bt
+      ),
+      "stamp" AS (
+        SELECT now() AS "changedAt"
+      ),
+      "audit" AS (
+        INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message")
+        SELECT s."changedAt", s."changedAt", 'BankTx', 'InternalBankTransferRollingRecovery', 'Info',
+               json_build_object(
+                 'changes', json_agg(json_build_object(
+                   'bankTxId', a."bankTxId",
+                   'previousIsInternalTransfer', NULL,
+                   'nextIsInternalTransfer', true,
+                   'changedAt', s."changedAt"
+                 ) ORDER BY a."bankTxId")
+               )::text
+        FROM "affected" a
+        CROSS JOIN "stamp" s
+        GROUP BY s."changedAt"
+        HAVING count(*) > 0
+        RETURNING 1
+      )
+      UPDATE "bank_tx" bt
+      SET "isInternalTransfer" = true
+      FROM "affected" a
+      WHERE bt.id = a."bankTxId"
+        AND EXISTS (SELECT 1 FROM "audit")
+    `);
   }
 
   async getRecentExchangeTx(minId: number, type: BankTxType): Promise<BankTx[]> {
@@ -562,17 +689,23 @@ export class BankTxService implements OnModuleInit {
       });
     }
 
-    let newTxs = txList
-      .filter((i) => !duplicates.includes(i.accountServiceRef))
-      .map((tx) => {
-        tx.type = this.getType(tx);
-        tx.batch = batch;
+    let newTxs = await Promise.all(
+      txList
+        .filter((i) => !duplicates.includes(i.accountServiceRef))
+        .map(async (tx) => {
+          tx.type = await this.getType(tx);
+          tx.isInternalTransfer = tx.type === BankTxType.INTERNAL;
+          tx.batch = batch;
 
-        return tx;
-      });
+          return tx;
+        }),
+    );
 
     for (const tx of newTxs) {
-      tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+      tx.transaction = await this.transactionService.create({
+        sourceType: TransactionSourceType.BANK_TX,
+        type: TransactionBankTxTypeMapper[tx.type] ?? undefined,
+      });
     }
 
     // store batch and entries in one transaction
@@ -594,7 +727,11 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  getType(tx: BankTx): BankTxType | null {
+  async getType(tx: BankTx): Promise<BankTxType | null> {
+    if (await this.bankService.areKnownBankIbans(tx.accountIban, tx.iban)) {
+      return BankTxType.INTERNAL;
+    }
+
     if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
     }

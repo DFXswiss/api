@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import * as ConfigModule from 'src/config/config';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
+import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -189,6 +190,7 @@ describe('Payment-link engine - Sepolia routing', () => {
           { provide: PaymentBalanceService, useValue: createMock<PaymentBalanceService>() },
           { provide: TxValidationService, useValue: createMock<TxValidationService>() },
           { provide: InternetComputerService, useValue: createMock<InternetComputerService>() },
+          { provide: SolanaService, useValue: createMock<SolanaService>() },
         ],
       }).compile();
 

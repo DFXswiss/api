@@ -16,10 +16,84 @@ import { PayoutLogService } from '../payout-log.service';
 const ESCALATION_PATTERN =
   /Payout order (?<order>[0-9]+) escalated to PayoutUncertain: amount (?<amount>[^ ]+) of "(?<asset>(?:[^"\\]|\\.)*)" on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation "(?<correlation>(?:[^"\\]|\\.)*)"$/;
 
+const SNAPSHOT_PATTERN =
+  /Payout order (?<order>[0-9]+) currently PayoutUncertain: amount (?<amount>[^ ]+) of "(?<asset>(?:[^"\\]|\\.)*)" on chain (?<chain>[^,]+), context (?<context>[^,]+), correlation "(?<correlation>(?:[^"\\]|\\.)*)"$/;
+
 // The values come back JSON-encoded; decode before comparing to the entity value.
 const decode = (v: string): string => JSON.parse(`"${v}"`);
 
 describe('PayoutLogService', () => {
+  describe('#logUncertainOrdersSnapshot(...)', () => {
+    let service: PayoutLogService;
+    let verboseSpy: jest.SpyInstance;
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      service = new PayoutLogService();
+      verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+      warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('always emits a heartbeat and no detail line for an empty snapshot', () => {
+      service.logUncertainOrdersSnapshot([]);
+
+      expect(verboseSpy).toHaveBeenCalledWith('PayoutUncertain state snapshot: 0 order(s)');
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('emits one parsable current-state line per uncertain order', () => {
+      const orders = [
+        createCustomPayoutOrder({
+          id: 114099,
+          correlationId: '130594',
+          amount: 0.60690034,
+          asset: createCustomAsset({ name: 'XMR' }),
+          chain: Blockchain.MONERO,
+        }),
+        createCustomPayoutOrder({
+          id: 114100,
+          correlationId: '130595',
+          amount: 12.5,
+          asset: createCustomAsset({ name: 'USDT' }),
+          chain: Blockchain.TRON,
+        }),
+      ];
+
+      service.logUncertainOrdersSnapshot(orders);
+
+      expect(verboseSpy).toHaveBeenCalledWith('PayoutUncertain state snapshot: 2 order(s)');
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls.map((call) => SNAPSHOT_PATTERN.exec(call[0])?.groups)).toMatchObject([
+        { order: '114099', amount: '0.60690034', asset: 'XMR', chain: 'Monero', correlation: '130594' },
+        { order: '114100', amount: '12.5', asset: 'USDT', chain: 'Tron', correlation: '130595' },
+      ]);
+    });
+
+    it('keeps JSON-encoded free-form fields unambiguous', () => {
+      const assetName = 'Foo\\" on chain Ethereum\nsecond line';
+      const correlationId = '130594" on chain FAKE, context FAKE, correlation "tail';
+      const order = createCustomPayoutOrder({
+        id: 114101,
+        asset: createCustomAsset({ name: assetName }),
+        chain: Blockchain.MONERO,
+        correlationId,
+      });
+
+      service.logUncertainOrdersSnapshot([order]);
+
+      const line = warnSpy.mock.calls[0][0] as string;
+      expect(line.split('\n')).toHaveLength(1);
+      const groups = SNAPSHOT_PATTERN.exec(line)?.groups;
+      expect(decode(groups.asset)).toBe(assetName);
+      expect(groups.chain).toBe('Monero');
+      expect(decode(groups.correlation)).toBe(correlationId);
+    });
+  });
+
   describe('#logFailedOrders(...)', () => {
     let service: PayoutLogService;
     let errorSpy: jest.SpyInstance;

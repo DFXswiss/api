@@ -1,7 +1,33 @@
 import { Injectable } from '@nestjs/common';
+import { ReadProjection } from 'src/shared/models/read-projection';
 import { CachedRepository } from 'src/shared/repositories/cached.repository';
 import { EntityManager } from 'typeorm';
 import { Wallet } from './wallet.entity';
+
+/** The four values `KycDataDtoMapper.toDto` reads per user of the wallet. */
+export const WALLET_KYC_DATA_RESPONSE_FIELDS = [
+  'walletUser.address',
+  'walletUserData.kycStatus',
+  'walletUserData.kycType',
+  'walletUserData.kycHash',
+];
+
+/**
+ * `GET /kyc/users` — the KYC state of every user on a wallet.
+ *
+ * Loading the wallet with `relations: { users: { userData: true } }` fetches every column per user,
+ * for an address, two status fields and a hash.
+ */
+export const WALLET_KYC_DATA_PROJECTION = new ReadProjection<Wallet>(
+  'wallet',
+  [
+    ['wallet.users', 'walletUser'],
+    ['walletUser.userData', 'walletUserData'],
+  ],
+  WALLET_KYC_DATA_RESPONSE_FIELDS,
+  // Never part of the response: the primary keys that make the ORM materialise the joined rows.
+  ['wallet.id', 'walletUser.id', 'walletUserData.id'],
+);
 
 @Injectable()
 export class WalletRepository extends CachedRepository<Wallet> {
@@ -9,7 +35,22 @@ export class WalletRepository extends CachedRepository<Wallet> {
     super(Wallet, manager);
   }
 
-  async getByAddress(address: string): Promise<Wallet> {
+  /**
+   * A wallet with its users' KYC state, and nothing else.
+   *
+   * `fields` is what the mutation test in `kyc-data.projection.spec.ts` re-runs the query with;
+   * `KycService` calls this without it.
+   */
+  async findKycData(
+    walletId: number,
+    fields: ReadonlyArray<string> = WALLET_KYC_DATA_PROJECTION.fields,
+  ): Promise<Wallet | null> {
+    return WALLET_KYC_DATA_PROJECTION.apply(this.createQueryBuilder('wallet'), fields)
+      .where('wallet.id = :walletId', { walletId })
+      .getOne();
+  }
+
+  async getByAddress(address: string): Promise<Wallet | null> {
     return this.findOneBy({ address });
   }
 }

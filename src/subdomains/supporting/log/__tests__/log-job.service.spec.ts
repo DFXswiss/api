@@ -35,7 +35,6 @@ import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { frickCHF, frickEUR, olkyEUR, yapealCHF, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
-import { DashboardFinancialService } from '../../dashboard/dashboard-financial.service';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -66,7 +65,6 @@ describe('LogJobService', () => {
   let payoutService: PayoutService;
   let processService: ProcessService;
   let paymentBalanceService: PaymentBalanceService;
-  let dashboardFinancialService: DashboardFinancialService;
 
   beforeEach(async () => {
     tradingRuleService = createMock<TradingRuleService>();
@@ -89,7 +87,6 @@ describe('LogJobService', () => {
     payoutService = createMock<PayoutService>();
     processService = createMock<ProcessService>();
     paymentBalanceService = createMock<PaymentBalanceService>();
-    dashboardFinancialService = createMock<DashboardFinancialService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -115,7 +112,6 @@ describe('LogJobService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: ProcessService, useValue: processService },
         { provide: PaymentBalanceService, useValue: paymentBalanceService },
-        { provide: DashboardFinancialService, useValue: dashboardFinancialService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -493,46 +489,6 @@ describe('LogJobService', () => {
       await service.saveTradingLog();
 
       expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('fxPnlChf');
-    });
-  });
-
-  describe('latest-balance cache write isolation (cache failure must not arm the equity safety mode)', () => {
-    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
-    function setup() {
-      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
-      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
-      jest
-        .spyOn(service as any, 'getBalancesByFinancialType')
-        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
-      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
-      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
-      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
-      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
-      jest
-        .spyOn(logService, 'maxEntity')
-        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
-      // created is read as financialDataLog.created for the write-through cache call
-      jest.spyOn(logService, 'create').mockResolvedValue({ created: new Date('2026-07-14T12:00:00Z') } as any);
-    }
-
-    it('keeps safety mode off, logs loudly and still resolves when setLatestBalance throws', async () => {
-      const errorSpy = jest.spyOn(service['logger'], 'error');
-      setup();
-      jest.spyOn(dashboardFinancialService, 'setLatestBalance').mockImplementation(() => {
-        throw new Error('cache write failed');
-      });
-
-      await expect(service.saveTradingLog()).resolves.toBeUndefined();
-
-      // equity path already set safety mode correctly for the healthy book; the cache catch must not
-      // rethrow into the outer catch that would arm safety mode
-      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
-      expect(processService.setSafetyModeActive).not.toHaveBeenCalledWith(true);
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        'Failed to update the latest-balance cache for the dashboard',
-        expect.any(Error),
-      );
     });
   });
 
@@ -1793,7 +1749,7 @@ describe('LogJobService', () => {
     });
 
     // drive the full asset-log assembly (where the fail-closed guard lives) with a single bank asset
-    function setupAssetLog(pendingBuyFiat: BuyFiat[]): Asset {
+    function setupAssetLog(pendingBuyFiat: BuyFiat[], internalBankTx: BankTx[] = []): Asset {
       const asset = yapealChfAsset();
 
       jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
@@ -1812,12 +1768,455 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue(internalBankTx);
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
       jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
 
       return asset;
     }
+
+    it('keeps an internal Olkypay-to-Bank-Frick transfer in plus balance until arrival', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const internalTx = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 280005,
+        currency: 'EUR',
+        chargeAmount: 5,
+        instructedAmount: undefined,
+        instructedCurrency: undefined,
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      setupAssetLog([], [internalTx]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(280000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(280000);
+    });
+
+    it('retires the source pending amount after the destination credit arrives', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 280000,
+        currency: 'EUR',
+        remittanceInfo: 'Internal transfer 208765',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 280000,
+        currency: 'EUR',
+        remittanceInfo: 'Internal transfer 208765',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit, credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[asset.id].plusBalance.total).toBe(0);
+    });
+
+    it('retires a cross-currency transfer using the two booked account legs', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 280000,
+        currency: 'EUR',
+        instructedAmount: 268000,
+        instructedCurrency: 'CHF',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 268000,
+        currency: 'CHF',
+        instructedAmount: undefined,
+        instructedCurrency: undefined,
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit, credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending).toBeUndefined();
+      expect(assetLog[asset.id].plusBalance.total).toBe(0);
+    });
+
+    it('uses a unique end-to-end ID before a duplicated remittance text', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const firstDebit = createCustomBankTx({
+        id: 208765,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const secondDebit = createCustomBankTx({
+        id: 208766,
+        type: BankTxType.INTERNAL,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100500,
+        currency: 'EUR',
+        endToEndId: 'E2E-SECOND',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T09:00:00Z'),
+        created: new Date('2026-08-03T09:00:00Z'),
+      });
+      const secondCredit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100500,
+        currency: 'EUR',
+        endToEndId: 'E2E-SECOND',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [firstDebit, secondDebit, secondCredit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(100000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(100000);
+    });
+
+    it('pairs concurrent same-currency transfers by their cent-exact principal', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const transaction = (
+        id: number,
+        amount: number,
+        indicator: BankTxIndicator,
+        accountIban: string,
+        iban: string,
+        hour: number,
+      ): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban,
+          iban,
+          creditDebitIndicator: indicator,
+          amount,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      setupAssetLog(
+        [],
+        [
+          transaction(208765, 100000, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 8),
+          transaction(208766, 100500, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 9),
+          transaction(208800, 100500, BankTxIndicator.CREDIT, frickEUR.iban, olkyEUR.iban, 10),
+        ],
+      );
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(100000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(100000);
+    });
+
+    it('reduces repeated identical same-currency debits by the number of arrived credits', () => {
+      const createLeg = (
+        id: number,
+        indicator: BankTxIndicator,
+        accountIban: string,
+        iban: string,
+        hour: number,
+      ): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban,
+          iban,
+          creditDebitIndicator: indicator,
+          amount: 100000,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const pending = service['getUnsettledInternalBankTx']([
+        createLeg(208765, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 8),
+        createLeg(208766, BankTxIndicator.DEBIT, olkyEUR.iban, frickEUR.iban, 9),
+        createLeg(208800, BankTxIndicator.CREDIT, frickEUR.iban, olkyEUR.iban, 10),
+      ]);
+
+      expect(pending).toHaveLength(1);
+      expect(pending[0].internalTransferAmount()).toBe(100000);
+    });
+
+    it('retires a fully arrived repeated FX group without references', () => {
+      const date = (hour: number): Date => new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`);
+      const transactions = [
+        createCustomBankTx({
+          id: 208765,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount: 100000,
+          currency: 'EUR',
+          valueDate: date(8),
+          created: date(8),
+        }),
+        createCustomBankTx({
+          id: 208766,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount: 200000,
+          currency: 'EUR',
+          valueDate: date(9),
+          created: date(9),
+        }),
+        createCustomBankTx({
+          id: 208800,
+          accountIban: frickCHF.iban,
+          iban: olkyEUR.iban,
+          creditDebitIndicator: BankTxIndicator.CREDIT,
+          amount: 95000,
+          currency: 'CHF',
+          valueDate: date(10),
+          created: date(10),
+        }),
+        createCustomBankTx({
+          id: 208801,
+          accountIban: frickCHF.iban,
+          iban: olkyEUR.iban,
+          creditDebitIndicator: BankTxIndicator.CREDIT,
+          amount: 190000,
+          currency: 'CHF',
+          valueDate: date(11),
+          created: date(11),
+        }),
+      ];
+
+      expect(service['getUnsettledInternalBankTx'](transactions)).toEqual([]);
+    });
+
+    it('uses optional ISO target amounts to identify a partial FX arrival', () => {
+      const createDebit = (id: number, amount: number, targetAmount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          instructedAmount: targetAmount,
+          instructedCurrency: 'CHF',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const firstDebit = createDebit(208765, 100000, 95000, 8);
+      const secondDebit = createDebit(208766, 200000, 190000, 9);
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 190000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([firstDebit, secondDebit, credit])).toEqual([firstDebit]);
+    });
+
+    it('keeps unequal FX debits pending when the same optional target amount is ambiguous', () => {
+      const createDebit = (id: number, amount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          instructedAmount: 95000,
+          instructedCurrency: 'CHF',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const firstDebit = createDebit(208765, 100000, 8);
+      const secondDebit = createDebit(208766, 200000, 9);
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 95000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([firstDebit, secondDebit, credit])).toEqual([
+        firstDebit,
+        secondDebit,
+      ]);
+    });
+
+    it('settles a late credit when a unique end-to-end ID still proves the pair', () => {
+      const debit = createCustomBankTx({
+        id: 208765,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-LATE',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-LATE',
+        valueDate: new Date('2026-09-01T08:00:00Z'),
+        created: new Date('2026-09-01T08:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([debit, credit])).toEqual([]);
+    });
+
+    it('does not use weaker matching when both legs have conflicting end-to-end IDs', () => {
+      const debit = createCustomBankTx({
+        id: 208765,
+        accountIban: olkyEUR.iban,
+        iban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-A',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T08:00:00Z'),
+        created: new Date('2026-08-03T08:00:00Z'),
+      });
+      const credit = createCustomBankTx({
+        id: 208800,
+        accountIban: frickEUR.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 100000,
+        currency: 'EUR',
+        endToEndId: 'E2E-B',
+        remittanceInfo: 'Liquidity',
+        valueDate: new Date('2026-08-03T10:00:00Z'),
+        created: new Date('2026-08-03T10:00:00Z'),
+      });
+
+      expect(service['getUnsettledInternalBankTx']([debit, credit])).toEqual([debit]);
+    });
+
+    it('keeps concurrent FX debits pending when one credit is not uniquely attributable', async () => {
+      const asset = createCustomAsset({
+        id: 5001,
+        dexName: 'EUR',
+        bank: olkyEUR,
+        approxPriceChf: 1,
+        sellable: true,
+      });
+      const debit = (id: number, amount: number, hour: number): BankTx =>
+        createCustomBankTx({
+          id,
+          type: BankTxType.INTERNAL,
+          accountIban: olkyEUR.iban,
+          iban: frickCHF.iban,
+          creditDebitIndicator: BankTxIndicator.DEBIT,
+          amount,
+          currency: 'EUR',
+          valueDate: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+          created: new Date(`2026-08-03T${hour.toString().padStart(2, '0')}:00:00Z`),
+        });
+      const credit = createCustomBankTx({
+        id: 208800,
+        type: BankTxType.INTERNAL,
+        accountIban: frickCHF.iban,
+        iban: olkyEUR.iban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        amount: 190000,
+        currency: 'CHF',
+        valueDate: new Date('2026-08-04T08:00:00Z'),
+        created: new Date('2026-08-04T08:00:00Z'),
+      });
+      setupAssetLog([], [debit(208765, 100000, 8), debit(208766, 200000, 9), credit]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      expect(assetLog[asset.id].plusBalance.pending.internal).toBe(300000);
+      expect(assetLog[asset.id].plusBalance.total).toBe(300000);
+    });
 
     it('does NOT alarm when a transmitted-unsettled liability is correctly counted (fresh, within SLA)', async () => {
       const errorSpy = jest.spyOn(service['logger'], 'error');
@@ -1945,7 +2344,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
 
       // an unmatched (still-pending) debit from Frick's EUR IBAN into Scrypt
       const frickToScryptTx = createCustomBankTx({
@@ -2012,7 +2411,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
       jest
         .spyOn(bankTxService, 'getRecentExchangeTx')
         .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? scryptBankTx : []));
@@ -2128,7 +2527,7 @@ describe('LogJobService', () => {
       jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
       jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
-      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
       jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
       jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
       jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);

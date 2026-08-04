@@ -1,8 +1,16 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { ScorechainScreeningDtoMapper } from 'src/integration/scorechain/dto/scorechain-screening-dto.mapper';
 import {
@@ -19,7 +27,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -47,13 +55,17 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import {
+  LimitRequestAccepted,
+  LimitRequestFinal,
+} from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
@@ -61,6 +73,7 @@ import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { ContentType } from '../kyc/enums/content-type.enum';
+import { FileCategory } from '../kyc/enums/file-category.enum';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
@@ -77,6 +90,7 @@ import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
+import { GenerateLimitRequestPdfDto } from './dto/limit-request-pdf.dto';
 import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
@@ -241,6 +255,65 @@ export class SupportService {
       true, // isProtected
       undefined, // kycStep
       FileSubType.ONBOARDING_REPORT,
+    );
+
+    return { pdfData, fileName };
+  }
+
+  /**
+   * The file record of a limit-request decision, stored the same way the Google Sheet stored it:
+   * `UserNotes` / `LimitRequestReport`, with the sheet's file name so old and new reports sort
+   * together in the customer's folder. Written for every final decision, acceptance and rejection
+   * alike — a rejection is exactly the case someone asks about later.
+   */
+  async generateAndSaveLimitRequestPdf(
+    userDataId: number,
+    dto: GenerateLimitRequestPdfDto,
+  ): Promise<{ pdfData: string; fileName: string }> {
+    // Fail-closed, before any PDF is rendered or uploaded: a report only makes sense for a final
+    // decision, and its "new limit" field is only meaningful together with the value the decision
+    // actually produced.
+    if (!LimitRequestFinal(dto.decision))
+      throw new BadRequestException('Limit request report requires a final decision');
+
+    if (LimitRequestAccepted(dto.decision)) {
+      if (dto.grantedLimit == null) throw new BadRequestException('grantedLimit is required for a granting decision');
+    } else {
+      if (dto.grantedLimit != null)
+        throw new BadRequestException('grantedLimit must not be set for a non-granting decision');
+      if (dto.previousLimit == null)
+        throw new BadRequestException('previousLimit is required for a non-granting decision');
+    }
+
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('User not found');
+
+    // {yyyymmdd}-LimitRequest-0-{userDataId}-{hhmmss}, the sheet's scheme. The `0` is a literal there;
+    // it is kept so the two generations of reports carry one name pattern. UTC, so the name and the
+    // PDF footer (also UTC, via toISOString) stay consistent regardless of the server's local timezone.
+    const now = new Date();
+    const pad = (value: number): string => String(value).padStart(2, '0');
+    const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}`;
+    const time = `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
+    const fileName = `${stamp}-LimitRequest-0-${userDataId}-${time}.pdf`;
+
+    const pdfData = await this.supportPdfService.createLimitRequestPdf(userData, dto, now);
+
+    // Never silently overwrite an existing report under the same name.
+    const blobPath = `${FileCategory.USER}/${userData.id}/${FileType.USER_NOTES}/${fileName}`;
+    const existingFiles = await this.kycDocumentService.listFilesByPrefix(blobPath);
+    if (existingFiles.some((f) => f.path === blobPath))
+      throw new ConflictException('A limit request report with this name already exists');
+
+    await this.kycDocumentService.uploadUserFile(
+      userData,
+      FileType.USER_NOTES,
+      fileName,
+      Buffer.from(pdfData, 'base64'),
+      ContentType.PDF,
+      true, // isProtected
+      undefined, // kycStep
+      FileSubType.LIMIT_REQUEST_REPORT,
     );
 
     return { pdfData, fileName };
@@ -593,10 +666,53 @@ export class SupportService {
   }
 
   private toTransactionSupportInfo(tx: Transaction): TransactionSupportInfo {
+    const buyCryptoHasChargeback = !!(
+      tx.buyCrypto?.chargebackOutput ||
+      tx.buyCrypto?.chargebackAllowedDate ||
+      tx.buyCrypto?.chargebackAllowedDateUser ||
+      tx.buyCrypto?.chargebackDate ||
+      tx.buyCrypto?.chargebackCryptoTxId ||
+      tx.buyCrypto?.chargebackBankTx ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUND_PENDING ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.PARTIALLY_REFUNDED ||
+      tx.buyCrypto?.checkoutTx?.status === CheckoutPaymentStatus.REFUNDED ||
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.TO_RETURN ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURNED ||
+      tx.buyCrypto?.cryptoInput?.status === PayInStatus.RETURN_CONFIRMED ||
+      tx.buyCrypto?.cryptoInput?.returnTxId
+    );
+    const cryptoForwardStarted = !!(
+      tx.buyCrypto?.cryptoInput?.action === PayInAction.FORWARD ||
+      (tx.buyCrypto?.cryptoInput?.status != null &&
+        [
+          PayInStatus.PREPARING,
+          PayInStatus.PREPARED,
+          PayInStatus.SENDING,
+          PayInStatus.SEND_UNCERTAIN,
+          PayInStatus.FORWARDED,
+          PayInStatus.FORWARD_CONFIRMED,
+        ].includes(tx.buyCrypto.cryptoInput.status)) ||
+      tx.buyCrypto?.cryptoInput?.outTxId
+    );
+
     return {
       id: tx.id,
       uid: tx.uid,
       buyCryptoId: tx.buyCrypto?.id,
+      buyCryptoIsComplete: tx.buyCrypto?.isComplete,
+      buyCryptoStatus: tx.buyCrypto?.status,
+      buyCryptoHasBatch: !!tx.buyCrypto?.batch,
+      buyCryptoHasChargeback,
+      buyCryptoReviewResetBlocked: tx.buyCrypto
+        ? !!(
+            tx.buyCrypto.isComplete ||
+            tx.buyCrypto.status === BuyCryptoStatus.STOPPED ||
+            tx.buyCrypto.batch ||
+            buyCryptoHasChargeback ||
+            cryptoForwardStarted
+          )
+        : undefined,
       buyFiatId: tx.buyFiat?.id,
       bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,

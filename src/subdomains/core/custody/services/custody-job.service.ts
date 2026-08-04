@@ -8,7 +8,7 @@ import { OrderConfig } from '../config/order-config';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import {
@@ -38,14 +38,14 @@ export class CustodyJobService {
     private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.CUSTODY })
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER, process: Process.CUSTODY })
   async handleOrders() {
     await this.executeOrder();
     await this.executeStep();
     await this.checkStep();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.CUSTODY })
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { scope: CronScope.WORKER, process: Process.CUSTODY })
   async resetExpiredConfirmedOrders() {
     const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
 

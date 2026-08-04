@@ -36,6 +36,14 @@ export class TransactionAdminController {
     return this.transactionService.stop(+id);
   }
 
+  @Post(':id/resume')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @ApiExcludeEndpoint()
+  async resumeTransaction(@Param('id') id: string): Promise<void> {
+    return this.transactionService.resume(+id);
+  }
+
   @Post(':txId/riskAssessment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())

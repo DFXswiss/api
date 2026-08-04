@@ -14,11 +14,13 @@ describe('Bank Frick operations runbook', () => {
   const compactRunbook = runbook.replace(/\s+/g, ' ');
 
   it('includes preflight in the 120-second local window without treating it as a Frick deadline', () => {
-    expect(runbook).toContain('FRICK_CREATE_MAX_PROCESSING_MS = 120_000');
+    expect(runbook).toContain('conservative **local** upper-bound estimate for the create attempt is **120 seconds**');
     expect(runbook).toContain('authorization preflight before the create call can consume 30s');
-    expect(runbook).toContain('120s is not an upper bound on Bank Frick processing');
-    expect(runbook).toContain('Bank Frick may queue or finish work after the local HTTP attempt has ended');
-    expect(runbook).not.toContain('FRICK_CREATE_MAX_PROCESSING_MS = 90_000');
+    expect(runbook).toContain('120s is not a Bank Frick SLA or processing deadline');
+    expect(runbook).toContain('not a retry or automatic-fallback precondition');
+    expect(compactRunbook).toContain('Bank Frick may queue or finish work after the local HTTP attempt has ended');
+    expect(runbook).not.toContain('FRICK_CREATE_MAX_PROCESSING_MS');
+    expect(runbook).not.toContain('latestPossibleCreateProcessedAt');
   });
 
   it('documents durable per-effect completion and target verification before manual replay', () => {
@@ -36,28 +38,28 @@ describe('Bank Frick operations runbook', () => {
   });
 
   it('documents that non-authoritative listing misses never arm an automatic retry', () => {
-    expect(compactRunbook).toContain('listing misses are alert-only');
+    expect(compactRunbook).toContain('listing absence remains non-authoritative');
+    expect(compactRunbook).toContain('never enables a second create');
     expect(compactRunbook).toContain('keep the existing `requestReference`');
     expect(compactRunbook).toContain('preflight failure before any create call');
     expect(compactRunbook).toContain('classified definite create rejection');
     expect(runbook).not.toContain('non-authoritative listing miss will arm automatic retry');
   });
 
-  it('keeps code comments aligned with alert-only reconciliation', () => {
+  it('keeps code comments aligned with automatic fail-closed reconciliation', () => {
     expect(serviceSource).not.toContain('Reconciliation is the only');
     expect(serviceSource).not.toContain('reconciliation would reopen');
     expect(frickServiceSource).not.toContain('reconciliation empty-listing resets');
     expect(frickCoverageConfig).not.toContain('stuck-intent reopen');
-    expect(frickServiceSource).toContain('Reconciliation is alert-only');
+    expect(frickServiceSource).toContain('Reconciliation only acts on positive matches');
   });
 
   it('states exactly what listingCompletedAt validation establishes', () => {
     expect(compactRunbook).toContain(
-      '`listingCompletedAt` is checked only for a valid `Date` and for not preceding `listingStartedAt`',
+      '`listingCompletedAt` is checked for a valid `Date` and for not preceding `listingStartedAt`',
     );
-    expect(compactRunbook).toContain(
-      'it is not compared with `latestPossibleCreateProcessedAt` and establishes no temporal coverage',
-    );
+    expect(compactRunbook).toContain('it establishes no temporal coverage of the create window');
+    expect(compactRunbook).not.toContain('latestPossibleCreateProcessedAt');
     expect(compactRunbook).not.toContain('validated when deciding whether a miss is fully covered');
   });
 

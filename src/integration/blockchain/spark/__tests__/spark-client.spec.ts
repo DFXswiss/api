@@ -16,6 +16,7 @@ jest.mock('@buildonspark/spark-sdk', () => ({
 }));
 
 jest.mock('src/config/config', () => ({
+  // The module is replaced entirely so the test does not pull in the whole configuration chain.
   GetConfig: () => ({
     blockchain: {
       spark: {
@@ -63,6 +64,27 @@ describe('SparkClient', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  // --- TOKEN OPTIMIZATION --- //
+
+  describe('token optimization', () => {
+    it('starts no timer of its own', () => {
+      // Wallet maintenance is a job of SparkService now, registered through @DfxCron. A timer here
+      // would be invisible to the scheduler and therefore to the scope and the cross-process
+      // lease, which is how two processes came to optimize the same wallet at once.
+      const interval = jest.spyOn(global, 'setInterval');
+
+      new SparkClient();
+
+      expect(interval).not.toHaveBeenCalled();
+    });
+
+    it('optimizes through the reconnecting call path', async () => {
+      await client.optimizeTokenOutputs();
+
+      expect(mockWallet.optimizeTokenOutputs).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('sendTransaction', () => {

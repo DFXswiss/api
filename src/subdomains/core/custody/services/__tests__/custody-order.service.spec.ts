@@ -1,5 +1,5 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -238,6 +238,22 @@ describe('CustodyOrderService', () => {
       expect(custodyAccountService.requireActingAllowed).not.toHaveBeenCalledWith(jwt.account);
       expect(result.orderId).toBe(orderId);
       expect(result.type).toBe(CustodyOrderType.RECEIVE);
+    });
+
+    it.each([
+      CustodyOrderType.EQUITY_MINT,
+      CustodyOrderType.EQUITY_REDEEM,
+      CustodyOrderType.SAVING_DEPOSIT,
+      CustodyOrderType.SAVING_WITHDRAWAL,
+    ])('rejects %s, which no handler covers, instead of failing on the missing payment info', async (type) => {
+      const user = custodyUser();
+      userService.getUser.mockResolvedValue(user);
+      custodyAccountService.requireActingAllowed.mockResolvedValue(undefined);
+
+      await expect(service.createOrder(jwtPayload(), receiveOrderDto({ type }))).rejects.toThrow(BadRequestException);
+
+      expect(custodyOrderRepo.create).not.toHaveBeenCalled();
+      expect(custodyOrderRepo.save).not.toHaveBeenCalled();
     });
   });
 

@@ -3,7 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { Sanction } from '../entities/sanction.entity';
 import { SanctionRepository } from '../repositories/sanction.repository';
@@ -40,7 +40,7 @@ export class SanctionService {
   ) {}
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_WEEKEND, { process: Process.SANCTION_SYNC })
+  @DfxCron(CronExpression.EVERY_WEEKEND, { scope: CronScope.WORKER, process: Process.SANCTION_SYNC })
   async syncList() {
     const filePath = Config.environment === Environment.LOC ? this.fileName : `/home/${this.fileName}`;
 

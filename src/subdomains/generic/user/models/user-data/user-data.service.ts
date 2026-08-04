@@ -23,7 +23,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
@@ -71,7 +71,14 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, PhoneCallStatus, ServiceProvider, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import {
+  KycLevel,
+  KycStatus,
+  PhoneCallStatus,
+  ServiceProvider,
+  TradeApprovalReason,
+  UserDataStatus,
+} from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -341,6 +348,8 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
+    if (dto.kycStatus === KycStatus.CHECK) throw new BadRequestException('Use the audited KYC status Check transition');
+
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: {
@@ -426,6 +435,35 @@ export class UserDataService {
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async setKycStatusCheck(userDataId: number, expectedKycStatus: KycStatus, actorUserDataId: number): Promise<void> {
+    if (expectedKycStatus === KycStatus.CHECK) throw new BadRequestException('KYC status is already Check');
+
+    const updatedUserData = await this.userDataRepo.manager.transaction(async (manager) => {
+      const userData = await manager.findOne(UserData, {
+        where: { id: userDataId },
+      });
+      if (!userData) throw new NotFoundException('User data not found');
+      if (userData.kycStatus !== expectedKycStatus)
+        throw new ConflictException(`KYC status changed from ${expectedKycStatus} to ${userData.kycStatus}`);
+
+      const previousKycStatus = userData.kycStatus;
+      const [id, update] = userData.setKycStatusCheck();
+      await this.kycLogService.createLogInternal(
+        userData,
+        KycLogType.MANUAL,
+        `KycStatus changed from ${previousKycStatus} to ${KycStatus.CHECK} by user data ${actorUserDataId}`,
+        manager,
+      );
+
+      const result = await manager.update(UserData, { id, kycStatus: expectedKycStatus }, update);
+      if (result.affected !== 1) throw new ConflictException('KYC status changed concurrently');
+
+      return userData;
+    });
+
+    await this.kycNotificationService.kycChanged(updatedUserData);
   }
 
   async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
@@ -833,7 +871,7 @@ export class UserDataService {
     return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE)
+  @DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.BOTH })
   processCleanupMailSecretCache(): void {
     const now = new Date();
 
@@ -1052,7 +1090,7 @@ export class UserDataService {
 
   // --- API KEY --- //
   async createApiKey(userDataId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    const userData = await this.userDataRepo.getForApiKey(userDataId);
     if (!userData) throw new BadRequestException('User not found');
     if (userData.apiKeyCT) throw new ConflictException('API key already exists');
 
@@ -1191,7 +1229,7 @@ export class UserDataService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR)
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update(
       [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
@@ -1199,7 +1237,7 @@ export class UserDataService {
     );
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.userDataRepo.update(
       [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],

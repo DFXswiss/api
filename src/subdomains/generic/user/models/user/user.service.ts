@@ -20,7 +20,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -264,10 +264,7 @@ export class UserService {
   }
 
   async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
-    const userData = await this.userDataRepo.findOne({
-      where: { id: userDataId },
-      relations: { users: { wallet: true } },
-    });
+    const userData = await this.userDataRepo.getUserV2(userDataId);
     if (!userData) throw new NotFoundException('User not found');
     if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
@@ -317,10 +314,7 @@ export class UserService {
   }
 
   async getUserProfile(userDataId: number): Promise<UserProfileDto> {
-    const userData = await this.userDataRepo.findOne({
-      where: { id: userDataId },
-      relations: { organization: true },
-    });
+    const userData = await this.userDataRepo.getProfile(userDataId);
     if (!userData) throw new NotFoundException('User not found');
     if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
 
@@ -541,7 +535,7 @@ export class UserService {
   }
 
   // --- VOLUMES --- //
-  @DfxCron(CronExpression.EVERY_YEAR)
+  @DfxCron(CronExpression.EVERY_YEAR, { scope: CronScope.WORKER })
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
@@ -549,7 +543,7 @@ export class UserService {
     );
   }
 
-  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT, { scope: CronScope.WORKER })
   async resetMonthlyVolumes(): Promise<void> {
     await this.userRepo.update(
       [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],

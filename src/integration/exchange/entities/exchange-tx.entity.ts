@@ -15,6 +15,8 @@ export enum ExchangeTxType {
 @Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
   unique: true,
 })
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((exchangeTx: ExchangeTx) => [exchangeTx.updated, exchangeTx.id])
 export class ExchangeTx extends IEntity {
   @Column({ length: 256 })
   exchange: ExchangeName;

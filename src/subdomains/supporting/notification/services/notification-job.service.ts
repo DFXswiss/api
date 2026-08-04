@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LessThanOrEqual } from 'typeorm';
 import { MailFactory } from '../factories/mail.factory';
@@ -33,7 +33,7 @@ export class NotificationJobService {
     private readonly mailService: MailService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MAIL_RETRY, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.MAIL_RETRY, timeout: 7200 })
   async resendUncompletedMails(): Promise<void> {
     const uncompletedMails = await this.notificationRepo.find({
       where: { isComplete: false, created: LessThanOrEqual(Util.minutesBefore(1)) },

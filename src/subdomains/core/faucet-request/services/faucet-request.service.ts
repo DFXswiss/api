@@ -13,7 +13,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
+import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { In, Not } from 'typeorm';
@@ -36,7 +36,7 @@ export class FaucetRequestService {
     return [Environment.DEV, Environment.LOC].includes(Config.environment) ? Blockchain.SEPOLIA : Blockchain.ETHEREUM;
   }
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.CRYPTO_PAYOUT })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { scope: CronScope.WORKER, process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
     const pendingFaucets = await this.faucetRequestRepo.find({ where: { status: FaucetRequestStatus.IN_PROGRESS } });
     for (const faucet of pendingFaucets) {

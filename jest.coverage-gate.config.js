@@ -70,6 +70,7 @@ const PINNED_LOGIC = [
   'src/shared/decorators/log-rejected-value.decorator.ts',
   'src/shared/models/fiat/fiat.controller.ts',
   'src/shared/pipes/detailed-validation.pipe.ts',
+  'src/shared/models/read-projection.ts',
   'src/shared/services/typeorm-logger.ts',
   'src/shared/utils/bitbox-ascii.util.ts',
   'src/shared/utils/cron.ts',

@@ -84,12 +84,17 @@ export class ClientErrorService {
     // Checked before the fields are built, so a flood cannot buy sanitizing work it never uses.
     if (!this.isWithinBudget()) return;
 
-    const { message, type, stack, route, version } = dto;
+    const { message, type, stack, route, version, accountId } = dto;
 
     // Context first, free text last and quoted: message, type and stack are attacker-controlled
     // and would otherwise be indistinguishable from the key=value context a log query parses.
+    //
+    // The account is a correlation hint and nothing else. This endpoint takes no session (see the
+    // controller), so the id is whatever the request carried: it lets a support case be matched
+    // against the reports carrying the same id, and says nothing about who sent them.
     const fields = [
       `client=${ClientErrorService.quote(client)}`,
+      `accountId=${ClientErrorService.quote(accountId?.toString())}`,
       `route=${ClientErrorService.quote(ClientErrorService.toPath(route))}`,
       `version=${ClientErrorService.quote(version)}`,
       `userAgent=${ClientErrorService.quote(userAgent)}`,

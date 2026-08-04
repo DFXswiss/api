@@ -1,13 +1,16 @@
-import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
 import { ManualAmlCheckDto } from '../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../aml/entities/transaction-aml-check.entity';
+import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
+import { ResetBuyCryptoAmlReviewDto } from './dto/reset-buy-crypto-aml-review.dto';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from './services/buy-crypto-webhook.service';
@@ -61,12 +64,17 @@ export class BuyCryptoController {
     return this.buyCryptoService.update(+id, dto, AmlSourceType.MANUAL_UPDATE);
   }
 
-  @Delete(':id/amlCheck')
+  @Put(':id/amlCheck/reviewReset')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async resetAmlCheck(@Param('id') id: string): Promise<void> {
-    return this.buyCryptoService.resetAmlCheck(+id);
+  async resetAmlCheckForReview(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetBuyCryptoAmlReviewDto,
+  ): Promise<void> {
+    if (jwt.account === null || jwt.account === undefined) throw new ForbiddenException('Staff account is missing');
+    return this.buyCryptoService.resetAmlCheckForReview(id, dto, jwt.account);
   }
 
   @Put(':id/amlCheck')

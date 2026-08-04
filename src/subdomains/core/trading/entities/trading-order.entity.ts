@@ -7,6 +7,13 @@ import { TradingOrderStatus } from '../enums';
 import { TradingRule } from './trading-rule.entity';
 
 @Entity()
+// Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
+@Index((o: TradingOrder) => [o.updated, o.id])
+// Serves the financial-log yield query (getTradingOrderYield), which filters on created.
+@Index((o: TradingOrder) => [o.created])
+// Serves the per-rule max-order aggregate. TypeORM resolves the relation to its join column, so
+// this declares (tradingRuleId, id) — distinct from the single-column @Index() on tradingRule below.
+@Index((o: TradingOrder) => [o.tradingRule, o.id])
 export class TradingOrder extends IEntity {
   @Column()
   status: TradingOrderStatus;
