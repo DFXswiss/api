@@ -327,28 +327,36 @@ describeProjection('support issue list — read-path projection', () => {
   }, 120000);
 
   // --- The bound on the search predicate --- //
+  //
+  // The counts below are written out rather than derived from MAX_SEARCH_TERMS on purpose. A test
+  // that builds its terms from the constant shrinks with it, so lowering the bound to two would
+  // leave the suite green while quietly dropping terms three to ten from every search. What is
+  // being pinned here is the behaviour the caller sees, not the value the implementation happens
+  // to hold.
 
-  it('applies at most MAX_SEARCH_TERMS terms, whatever the caller passes', async () => {
-    const matching = Array.from({ length: MAX_SEARCH_TERMS }, (_, i) => `q${i}`);
-    const { issue } = await seedIssue({ name: matching.join(' ') });
+  const TERMS = (n: number, prefix: string): string[] => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 
-    // The caller asks for one term more than the bound, and that extra term matches nothing. With
-    // the bound the statement never sees it and the issue is found; without it the search is an AND
-    // over all terms and the issue drops out. That difference is what this test is here to hold.
-    const beyond = await listOf({ terms: [...matching, 'no-issue-contains-this'] });
+  it('applies all ten terms a request may contain', async () => {
+    const ten = TERMS(10, 'w');
+    // The row carries nine of the ten.
+    const { issue } = await seedIssue({ name: ten.slice(0, 9).join(' ') });
 
-    expect(beyond.data.map((row) => row.id)).toContain(issue.id);
+    const nine = await listOf({ terms: ten.slice(0, 9) });
+    const all = await listOf({ terms: ten });
+
+    // The positive control first, so the exclusion below cannot pass for an unrelated reason.
+    expect(nine.data.map((row) => row.id)).toContain(issue.id);
+    expect(all.data.map((row) => row.id)).not.toContain(issue.id);
   }, 120000);
 
-  it('still applies every term up to the bound', async () => {
-    const { issue } = await seedIssue({ name: 'alpha beta' });
+  it('drops an eleventh term instead of applying it', async () => {
+    const ten = TERMS(10, 'v');
+    const { issue } = await seedIssue({ name: ten.join(' ') });
 
-    // The guard above must not be a blanket "ignore the terms": within the bound each one still
-    // narrows, so a term the row does not carry excludes it.
-    const both = await listOf({ terms: ['alpha', 'beta'] });
-    const missing = await listOf({ terms: ['alpha', 'no-issue-contains-this'] });
+    // The eleventh matches nothing. Without the bound the search is an AND over all of them and the
+    // row drops out; with it the statement never sees the extra term.
+    const beyond = await listOf({ terms: [...ten, 'no-issue-contains-this'] });
 
-    expect(both.data.map((row) => row.id)).toContain(issue.id);
-    expect(missing.data.map((row) => row.id)).not.toContain(issue.id);
+    expect(beyond.data.map((row) => row.id)).toContain(issue.id);
   }, 120000);
 });
