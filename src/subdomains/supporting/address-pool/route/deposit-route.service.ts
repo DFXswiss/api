@@ -12,6 +12,11 @@ export class DepositRouteService {
   constructor(private readonly depositRouteRepo: DepositRouteRepository) {}
 
   async get(userId: number, id: number): Promise<DepositRoute> {
+    // The ownership predicate is a nested relation object, so a falsy userId drops it and the lookup
+    // degenerates to `id` alone — returning the route whoever owns it, with the `!route` check below
+    // giving false assurance because a row was in fact found.
+    if (!userId || !id) throw new NotFoundException('Route not found');
+
     const route = await this.depositRouteRepo.findOne({
       where: { id, user: { id: userId } },
       relations: { user: { userData: true } },
@@ -31,6 +36,11 @@ export class DepositRouteService {
   }
 
   async getLatest(userId: number): Promise<DepositRoute | undefined> {
+    // The user relation is the only condition here, so a falsy userId empties the where entirely and
+    // this returns the newest route on the platform. PaymentLinkService.create attaches a new link to
+    // whatever comes back, so an unscoped result would be written to, not merely read.
+    if (!userId) return undefined;
+
     return this.depositRouteRepo.findOne({
       where: { user: { id: userId } },
       relations: { user: { userData: true } },

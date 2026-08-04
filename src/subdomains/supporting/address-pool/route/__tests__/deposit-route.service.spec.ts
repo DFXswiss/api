@@ -134,6 +134,49 @@ describe('DepositRouteService', () => {
     });
   });
 
+  describe('get / getLatest scoping', () => {
+    // Same degenerate shape as the guarded lookups: the ownership predicate is a nested relation
+    // object, so a falsy userId drops it and the query stops being scoped to the caller.
+    it.each([undefined, null, 0])('get does not query when the userId is %p', async (userId) => {
+      await expect(service.get(userId as number, 42)).rejects.toThrow('Route not found');
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('get does not query when the id is missing', async () => {
+      await expect(service.get(7, undefined)).rejects.toThrow('Route not found');
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('get still queries when both are supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue({ id: 42 } as DepositRoute);
+
+      await service.get(7, 42);
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 42, user: { id: 7 } } }),
+      );
+    });
+
+    // create() attaches a new payment link to whatever this returns, so an unscoped result would be
+    // written to rather than only read.
+    it.each([undefined, null, 0])('getLatest does not query when the userId is %p', async (userId) => {
+      const route = await service.getLatest(userId as number);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('getLatest still queries when a userId is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getLatest(7);
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { user: { id: 7 } } }));
+    });
+  });
+
   describe('getPaymentLinksFromRoute scoping', () => {
     // The reachable shape: an id filter with no route to scope it to. Without the guard the surviving
     // where is the id filter alone, returning links that belong to other routes entirely.
