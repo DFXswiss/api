@@ -156,7 +156,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 141 declarations, 140 have a registration path.
+here rather than fixed in passing. Of the 142 declarations, 141 have a registration path.
 
 ## Jobs
 
