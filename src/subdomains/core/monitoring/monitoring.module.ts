@@ -18,6 +18,7 @@ import { MonitorEventLoopService } from './monitor-event-loop.service';
 import { HealthController } from './health.controller';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
+import { AddressLetterObserver } from './observers/address-letter.observer';
 import { AmlObserver } from './observers/aml.observer';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
@@ -67,6 +68,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     ExchangeObserver,
     LiquidityObserver,
     RealUnitW2wGasObserver,
+    AddressLetterObserver,
   ],
   controllers: [MonitoringController, HealthController],
   exports: [MonitoringService],

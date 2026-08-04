@@ -92,6 +92,7 @@ export enum Process {
   CRYPTO_PAYOUT = 'CryptoPayout',
   USER_DATA = 'UserData',
   USER = 'User',
+  ADDRESS_LETTER = 'AddressLetter',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODE = 'SafetyMode',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',

@@ -52,6 +52,10 @@ export class HealthController {
     const banking = this.checkBanking(state);
     checks.banking = banking;
 
+    // Address verification letters
+    const addressLetter = this.checkAddressLetter(state);
+    checks.addressLetter = addressLetter;
+
     // Determine overall status
     const statuses = Object.values(checks).map((c) => c.status);
     if (statuses.includes(HealthStatus.DOWN)) overall = HealthStatus.DOWN;
@@ -184,6 +188,36 @@ export class HealthController {
 
     const details = largeDiscrepancies.map((b) => `${b.name}: ${b.difference}`).join(', ');
     return { status: HealthStatus.DEGRADED, detail: `Balance discrepancy: ${details}` };
+  }
+
+  /**
+   * Address verification letters (`AddressLetterObserver`). The signal that matters is age, not size:
+   * during the multi-day outage that preceded this job, the backlog looked unremarkable while no letter
+   * had gone out for days, and every status display stayed green.
+   *
+   * Never reports DOWN. A stalled letter dispatch is an operational problem, not a reason to answer
+   * `/health` with 503 and let a load balancer take a perfectly healthy API process out of service.
+   */
+  private checkAddressLetter(state: SystemState | null): { status: HealthStatus; detail?: string } {
+    const data = state?.addressLetter?.dispatch?.data as {
+      backlog?: number;
+      claimedWithoutLetter?: number;
+      exhausted?: number;
+      hoursSinceLastLetter?: number | null;
+    };
+    if (!data) return { status: HealthStatus.DEGRADED, detail: 'No address letter data' };
+
+    const issues: string[] = [];
+    // A few dozen letters a day is the normal load, so a day without one is a broken dispatch. Checked
+    // while there is something to send - a genuinely empty queue must not raise an alert.
+    if (data.backlog > 0 && data.hoursSinceLastLetter > 24)
+      issues.push(`no letter sent for ${data.hoursSinceLastLetter}h`);
+    if (data.claimedWithoutLetter > 0) issues.push(`${data.claimedWithoutLetter} claims with unknown outcome`);
+    if (data.exhausted > 0) issues.push(`${data.exhausted} accounts out of retries`);
+    if (data.backlog > 100) issues.push(`${data.backlog} letters queued`);
+
+    if (issues.length === 0) return { status: HealthStatus.OK };
+    return { status: HealthStatus.DEGRADED, detail: issues.join(', ') };
   }
 
   private checkExternalServices(state: SystemState | null): { status: HealthStatus; detail?: string } {

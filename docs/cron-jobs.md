@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **141 `@DfxCron` declarations** across 98 files and 34 areas.
+Every scheduled job this service runs: **143 `@DfxCron` declarations** across 100 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **141 `@DfxCron` declarations** across 98
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-119 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+121 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-117 of the 141 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+119 of the 143 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -75,7 +75,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 30 seconds | 10 |
 | minute | 53 |
 | 5 minutes | 18 |
-| 10 minutes | 16 |
+| 10 minutes | 18 |
 | hour | 16 |
 | day at 3am | 1 |
 | day at 4am | 3 |
@@ -91,8 +91,8 @@ Jobs by area:
 
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
-| `subdomains/generic/user` | 16 | 8 |
-| `subdomains/core/monitoring` | 14 | — |
+| `subdomains/generic/user` | 17 | 8 |
+| `subdomains/core/monitoring` | 15 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
 | `integration/blockchain` | 7 | — |
@@ -131,7 +131,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **141 = 141**, no gap. Class and
+count is asserted against a raw text count of the decorator: **143 = 143**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -155,7 +155,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 141 declarations, 140 have a registration path.
+here rather than fixed in passing. Of the 143 declarations, 142 have a registration path.
 
 ## Jobs
 
@@ -251,6 +251,8 @@ here rather than fixed in passing. Of the 141 declarations, 140 have a registrat
 | 5 minutes | `TRADING` | `worker` | `TradingJobService::reactivateRules` | `subdomains/core/trading/services/trading-job.service.ts` |
 | 5 minutes | — | `both` | `TransactionHelper::updateCache` | `subdomains/supporting/payment/services/transaction-helper.ts` |
 | 5 minutes | `WEBHOOK` | `worker` | `WebhookNotificationService::sendWebhooks` | `subdomains/generic/user/services/webhook/webhook-notification.service.ts` |
+| 10 minutes | `ADDRESS_LETTER` | `worker` | `AddressLetterJobService::sendAddressLetters` | `subdomains/generic/user/models/user-data/address-letter-job.service.ts` |
+| 10 minutes | `MONITORING` | `worker` | `AddressLetterObserver::fetch` | `subdomains/core/monitoring/observers/address-letter.observer.ts` |
 | 10 minutes | `BANK_ACCOUNT` | `worker` | `BankAccountService::reloadUncheckedBankAccounts` | `subdomains/supporting/bank/bank-account/bank-account.service.ts` |
 | 10 minutes | `DEURO_LOG_INFO` | `worker` | `DEuroService::processLogInfo` | `integration/blockchain/deuro/deuro.service.ts` |
 | 10 minutes | — | `both` | `DfxCronService::reportRole` | `shared/services/dfx-cron.service.ts` |
