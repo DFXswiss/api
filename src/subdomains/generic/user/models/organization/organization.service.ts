@@ -83,6 +83,10 @@ export class OrganizationService {
   }
 
   async getOrganizationByName(name: string, zip: string): Promise<Organization> {
+    // Both are nullable columns on UserData. With either absent the remaining condition matches on
+    // its own, so an unrelated Organization comes back and gets linked to the user.
+    if (!name || !zip) return undefined;
+
     return this.organizationRepo.findOneBy({ name, zip });
   }
 }
