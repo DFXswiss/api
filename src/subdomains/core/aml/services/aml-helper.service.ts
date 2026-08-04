@@ -657,8 +657,12 @@ export class AmlHelperService {
     // errors, and a passing transaction has none. Omitting the field would leave the previous error text
     // on the row, because the callers merge this result with `Object.assign` — a stale `ScorechainHighRisk`
     // would then make `AmlService.postProcessing` record a compliance review that never happened (an
-    // automatic recompute yields PASS whenever the screening is switched off). The error history stays in
-    // `transaction_aml_check`, which is written on every transition.
+    // automatic recompute yields PASS whenever the screening is switched off).
+    //
+    // What survives this: a Scorechain hit is on record independently of the comment — the screening row
+    // and its compliance PDF are written when the hit is found. `transaction_aml_check` is NOT a reliable
+    // trail here: it only writes when `amlCheck`/`amlReason` actually change, which they do not while the
+    // transaction is inside the ten-minute grace period below.
     if (amlErrors.length === 0)
       return {
         bankData,
