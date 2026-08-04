@@ -290,11 +290,16 @@ export class CronLeaseService implements OnModuleInit {
    * Releases the lease. Scoped to the owner that took it, so a run which already lost the lease
    * cannot delete the row another run is now holding — in another process or in this one.
    *
-   * Returns whether a row actually went. That is the fact `keepAlive` needs to tell its own release
-   * apart from a takeover: a DELETE that removed a row proves the row was still THIS run's at that
-   * moment, so any later renewal that matches nothing is matching nothing because of this. A DELETE
-   * that removed none proves the opposite just as firmly — the row had already been taken or was
-   * gone — and the loss is real.
+   * Returns whether a row actually went, which `keepAlive` uses in both directions.
+   *
+   * A DELETE that removed a row proves the row was still THIS run's at that moment, so any later
+   * renewal that matches nothing is matching nothing because of this — the suppression that keeps a
+   * completed run from reporting a loss it did not have.
+   *
+   * A DELETE that removed none proves the opposite just as firmly: the row had already been taken
+   * or was gone, and the loss is real. That answer is not only corroboration for a renewal — for a
+   * run whose renewal was never outstanding to see it, this statement is the ONLY thing that can
+   * discover the loss, and `keepAlive` reports it from here. See `releasing`.
    */
   async release(job: string, owner: string): Promise<boolean> {
     const [, affected] = await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [
@@ -544,7 +549,11 @@ export class CronLeaseService implements OnModuleInit {
    * Losing the claim does not stop the run. There is nothing here that could stop it, and the
    * timer deliberately keeps going: this process holds the claim for as long as it can renew it.
    *
-   * Because it keeps going, the loss is reported as a TRANSITION rather than on every attempt. The
+   * Two things can discover the loss — an outstanding renewal, and the release's own row count for
+   * a run that has no renewal left to notice — and both report through one latched path, so the
+   * line stays one per run whichever sees it. See `releasing`.
+   *
+   * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every attempt. The
    * run carries on to its own end — up to two hours for the longest timeouts — and an unlatched
    * line would repeat every 20 s for all of it, turning one event into some 360 lines. Counting
    * lines would then measure how LONG the affected runs were, not how OFTEN the claim was lost,
@@ -578,8 +587,13 @@ export class CronLeaseService implements OnModuleInit {
      * A DELETE that removed a row proves the row was still THIS run's when it ran, so nothing had
      * taken it and any later unmatched renewal is unmatched because of that DELETE. A DELETE that
      * removed nothing proves the row had already gone or been re-owned, and the loss is real and
-     * still reported. A release that threw leaves it unknown, which also reports — the direction
-     * that errs towards a line too many rather than a double run kept quiet.
+     * still reported.
+     *
+     * A release that THREW is the one case neither answer covers. An outstanding renewal treats it
+     * as "not ours" and reports, erring towards a line too many; the release-side discoverer stays
+     * silent, because a statement that never answered is not evidence of anything. So a run whose
+     * release throws with no renewal in flight reports no loss — only `Could not release the lease`,
+     * from `run`. That gap is the honest reading of the fact available, not an oversight.
      *
      * Two weaker tests were tried first and both were wrong. `stopped` says only that the run
      * ended, never why the renewal matched nothing: a claim taken over at 60 s on a run that ends

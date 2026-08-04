@@ -62,7 +62,6 @@ describe('CronLeaseService', () => {
     const unreachable = () =>
       jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return Promise.reject(new Error('relation "cron_lease" does not exist'));
-        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
 
@@ -762,7 +761,6 @@ describe('CronLeaseService', () => {
         if (sql.includes('UPDATE')) return opts.renew();
         if (sql.includes('DELETE')) return (opts.release ?? (() => Promise.resolve([[], 1])))();
 
-        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
     }
@@ -980,6 +978,33 @@ describe('CronLeaseService', () => {
 
         const lost = error.mock.calls.map((c) => c[0]).filter((line: string) => line.includes('Lost the lease'));
         expect(lost).toHaveLength(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('stays silent when a release that threw is the only thing that could have noticed', async () => {
+      // The one case neither answer covers. A statement that never answered is not evidence the
+      // claim went, so with no renewal in flight there is nothing to report from — only `run`'s
+      // own "Could not release" line. Pinned so the gap stays deliberate rather than drifting.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        const onQuery = lease({
+          renew: () => Promise.resolve([[], 1]),
+          release: () => Promise.reject(new Error('connection lost')),
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        // Ends before the first renewal is due, so no renewal is ever outstanding.
+        await service.run('SomeService::job', () => Promise.resolve());
+        await settle();
+
+        const lines = error.mock.calls.map((c) => c[0] as string);
+        expect(lines.filter((l) => l.includes('Lost the lease'))).toHaveLength(0);
+        expect(lines.filter((l) => l.includes('Could not release the lease'))).toHaveLength(1);
       } finally {
         jest.useRealTimers();
       }
