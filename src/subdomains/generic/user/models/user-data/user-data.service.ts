@@ -44,10 +44,10 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -1001,7 +1001,7 @@ export class UserDataService {
 
     if (
       userData.phoneCallStatus &&
-      ![PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.USER_REJECTED, PhoneCallStatus.REPEAT].includes(
+      ![PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.REPEAT, PhoneCallStatus.USER_REVOKE_DECISION].includes(
         userData.phoneCallStatus,
       ) &&
       (dto.acceptCall || dto.acceptCall === false)

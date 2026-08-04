@@ -551,9 +551,12 @@ export class UserData extends IEntity {
       currency: dto.currency ?? this.currency,
       phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
       phoneCallStatus:
-        dto.acceptCall === false && (!this.phoneCallStatus || PhoneCallStatus.UNAVAILABLE === this.phoneCallStatus)
-          ? PhoneCallStatus.USER_REJECTED
-          : undefined,
+        dto.acceptCall === true &&
+        (this.phoneCallStatus === PhoneCallStatus.USER_REJECTED || this.phoneCallAccepted === false)
+          ? PhoneCallStatus.USER_REVOKE_DECISION
+          : dto.acceptCall === false && (!this.phoneCallStatus || PhoneCallStatus.UNAVAILABLE === this.phoneCallStatus)
+            ? PhoneCallStatus.USER_REJECTED
+            : undefined,
       phoneCallAccepted: dto.acceptCall,
     };
 

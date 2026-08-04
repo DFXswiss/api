@@ -1123,7 +1123,11 @@ export class SupportService {
 
   async getCallQueuesSummary(): Promise<CallQueueSummaryEntry[]> {
     const [unavailSuspicious, phone, ipPhone, ipCountryPhone, externalAccountPhone] = await Promise.all([
-      this.userDataService.countByPhoneCallStatuses([PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS]),
+      this.userDataService.countByPhoneCallStatuses([
+        PhoneCallStatus.UNAVAILABLE,
+        PhoneCallStatus.SUSPICIOUS,
+        PhoneCallStatus.USER_REVOKE_DECISION,
+      ]),
       this.countTxQueue(AmlReason.MANUAL_CHECK_PHONE),
       this.countTxQueue(AmlReason.MANUAL_CHECK_IP_PHONE),
       this.countTxQueue(AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE),
@@ -1144,7 +1148,7 @@ export class SupportService {
     if (txReason) return this.loadTxQueue(queue, txReason);
 
     const users = await this.userDataService.getByPhoneCallStatuses(
-      [PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS],
+      [PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS, PhoneCallStatus.USER_REVOKE_DECISION],
       CallQueueItemsLimit,
     );
     return users.map((ud) => this.toUserCallQueueItem(ud));
