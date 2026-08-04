@@ -35,10 +35,11 @@ interface AddressLetterData {
   // NULL` restricts this to accounts the job itself handled: a few thousand accounts carry a historic
   // `letterSentDate` from before this job without a `PostDispatch` file and would otherwise drown it.
   //
-  // LIMIT: it counts rows, and `KycDocumentService.uploadFile` writes the row before the blob. A failed
-  // upload is caught and the row invalidated, so that case is covered - but a hard crash between the
-  // two leaves a valid row with no blob, which this metric reads as present. Closing that would mean
-  // changing the shared upload path for every caller; storage reconciliation is the tool for it.
+  // LIMIT: it counts rows, and `KycDocumentService.uploadFile` writes the row before the blob. A
+  // rejected upload invalidates the row, so that case is covered - but two paths still escape it: a
+  // hard crash between row and blob, and an invalidation that itself fails. Both leave a valid row with
+  // no blob, which this metric reads as present. Closing them would mean changing the shared upload
+  // path for every caller; storage reconciliation is the tool for that.
   sentWithoutFile: number;
   // APPROXIMATE age (hours) of the oldest processable candidate, derived from `user_data.updated`.
   // That is an @UpdateDateColumn bumped by every save, so this is "time since last change" and only a
@@ -152,10 +153,15 @@ export class AddressLetterObserver extends MetricObserver<AddressLetterData> {
     const { sentWithoutFile } = await this.repos.userData
       .createQueryBuilder('userData')
       .select('COUNT(userData.id)', 'sentWithoutFile')
-      .leftJoin('userData.kycFiles', 'kycFile', 'kycFile.subType = :subType AND kycFile.valid = :valid', {
-        subType: FileSubType.POST_DISPATCH,
-        valid: true,
-      })
+      .leftJoin(
+        'userData.kycFiles',
+        'kycFile',
+        // `created >= letterClaimDate` restricts this to the document of THIS dispatch. Without it an
+        // older PostDispatch file - the previous automation attached one and then failed before
+        // stamping the date - would satisfy the join and hide a document this job never stored.
+        'kycFile.subType = :subType AND kycFile.valid = :valid AND kycFile.created >= userData.letterClaimDate',
+        { subType: FileSubType.POST_DISPATCH, valid: true },
+      )
       .where('userData.letterClaimDate IS NOT NULL')
       .andWhere('userData.letterSentDate IS NOT NULL')
       .andWhere('kycFile.id IS NULL')

@@ -19,7 +19,11 @@ describe('AddressLetterObserver', () => {
   // its own raw result and its own where clauses can be inspected.
   function chainable(rawResult: unknown): any {
     const query: any = { conditions: [] as string[], rawResult };
-    for (const method of ['select', 'addSelect', 'leftJoin']) query[method] = jest.fn(() => query);
+    for (const method of ['select', 'addSelect']) query[method] = jest.fn(() => query);
+    query.leftJoin = jest.fn((_relation: string, _alias: string, condition?: string) => {
+      if (condition) query.conditions.push(condition);
+      return query;
+    });
     for (const method of ['where', 'andWhere'])
       query[method] = jest.fn((condition: string) => {
         query.conditions.push(condition);
@@ -87,10 +91,12 @@ describe('AddressLetterObserver', () => {
     expect(conditions).toContain('userData.letterSentDate IS NOT NULL');
     // anti-join over the mapped relation, so TypeORM owns table path and quoting
     expect(conditions).toContain('kycFile.id IS NULL');
+    // and only a document from THIS dispatch counts - an older PostDispatch file must not hide one
+    // this job never stored
     expect(queries[3].leftJoin).toHaveBeenCalledWith(
       'userData.kycFiles',
       'kycFile',
-      'kycFile.subType = :subType AND kycFile.valid = :valid',
+      expect.stringContaining('kycFile.created >= userData.letterClaimDate'),
       expect.objectContaining({ subType: FileSubType.POST_DISPATCH, valid: true }),
     );
   });

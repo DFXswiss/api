@@ -50,6 +50,7 @@ describe('KycLogService address letter logs', () => {
   const repoWith = (entity: Partial<KycLog>) =>
     ({
       findOneBy: jest.fn().mockResolvedValue(entity),
+      create: jest.fn((e) => e),
       save: jest.fn(),
       update: jest.fn(),
     }) as unknown as KycLogRepository;
@@ -64,6 +65,18 @@ describe('KycLogService address letter logs', () => {
     await expect(service.updateLogPdfUrl(1, 'https://example.invalid/x.pdf')).rejects.toThrow('append-only');
     expect(kycLogRepo.save).not.toHaveBeenCalled();
     expect(kycLogRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses to fabricate an address letter log by hand', async () => {
+    // `POST /kycAdmin/log` passes the type straight through, and `assertMutable` would then make the
+    // fabricated event permanent
+    const kycLogRepo = repoWith({});
+    const service = new KycLogService(kycLogRepo, undefined as never, undefined as never);
+
+    await expect(service.createLog(1, { type: KycLogType.ADDRESS_LETTER } as never)).rejects.toThrow(
+      'dispatch job only',
+    );
+    expect(kycLogRepo.save).not.toHaveBeenCalled();
   });
 
   it('still allows changing every other log type', async () => {

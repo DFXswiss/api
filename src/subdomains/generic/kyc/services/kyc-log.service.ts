@@ -67,6 +67,12 @@ export class KycLogService {
   }
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
+    // Address letter events are written by the dispatch job alone, inside the transaction that changes
+    // the state they describe. Letting one be created by hand would put a fabricated event into the
+    // trail - and `assertMutable` would then make it permanent.
+    if (dto.type === KycLogType.ADDRESS_LETTER)
+      throw new BadRequestException('Address letter logs are written by the dispatch job only');
+
     const entity = this.kycLogRepo.create({
       type: dto.type ?? KycLogType.MANUAL,
       comment: dto.comment,
