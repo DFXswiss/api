@@ -606,19 +606,74 @@ describe('BuyCryptoService', () => {
         expect.objectContaining({ iban: 'CH9300762011623852957', amount: 10, currency: 'CHF' }),
         manager,
       );
-      expect(manager.update).toHaveBeenCalledWith(
-        BuyCrypto,
-        expect.objectContaining({ id: 7, chargebackOutput: expect.anything() }),
-        expect.objectContaining({ chargebackAllowedDate }),
-      );
-
       // The claim has to be the transaction's first write to buy_crypto. FiatOutput.buyCrypto is the
       // inverse side of the BuyCrypto.chargebackOutput one-to-one, so saving the output writes
       // chargebackOutputId onto this very row -- doing that first defeats the claim's own
-      // `chargebackOutput: IsNull()` condition and every chargeback fails with a bogus conflict.
+      // `chargebackOutput: IsNull()` condition and the bank chargeback fails with a bogus conflict.
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BuyCrypto,
+        expect.objectContaining({ id: 7, chargebackOutput: IsNull() }),
+        expect.objectContaining({ chargebackAllowedDate }),
+      );
       expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(createOutputSpy.mock.invocationCallOrder[0]);
       expect(manager.update.mock.calls[0][2].chargebackOutput).toBeUndefined();
       expect(buyCrypto.chargebackOutput).toBe(chargebackOutput);
+    });
+
+    it('claims a user-initiated bank refund without creating a chargeback output', async () => {
+      const buyCrypto = createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        batch: null,
+        outputAmount: null,
+        inputAsset: 'CHF',
+        chargebackAmount: 10,
+        chargebackAsset: 'CHF',
+        bankTx: { iban: 'CH9300762011623852957' } as any,
+      });
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
+      const createOutputSpy = jest.spyOn(fiatOutputService, 'createInternal');
+      const manager = {
+        findOne: jest.fn(async (_type: unknown, options: { select?: { id?: boolean } }) =>
+          options.select?.id ? { id: 7 } : buyCrypto,
+        ),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      const chargebackAllowedDateUser = new Date();
+
+      await service.refundBankTx(buyCrypto, {
+        refundIban: 'CH9300762011623852957',
+        chargebackAllowedDateUser,
+        creditorData: {
+          name: 'Refund Recipient',
+          address: 'Main Street',
+          zip: '8000',
+          city: 'Zurich',
+          country: 'CH',
+        },
+      });
+
+      // The user leg only records the request. It must leave chargebackOutput NULL so that the
+      // approval leg can still match `chargebackOutput: IsNull()` when the cron claims the row later.
+      expect(createOutputSpy).not.toHaveBeenCalled();
+      expect(manager.update).toHaveBeenNthCalledWith(
+        1,
+        BuyCrypto,
+        expect.objectContaining({ id: 7, chargebackOutput: IsNull() }),
+        expect.objectContaining({ chargebackAllowedDateUser }),
+      );
+      expect(manager.update.mock.calls[0][2].chargebackOutput).toBeUndefined();
+      expect(buyCrypto.chargebackOutput).toBeUndefined();
     });
 
     it('creates no bank refund output when a concurrent AML reset wins the claim', async () => {

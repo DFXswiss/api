@@ -639,7 +639,6 @@ export class BuyCrypto extends IEntity {
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
-    chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
     creditorData?: CreditorData,
@@ -654,7 +653,10 @@ export class BuyCrypto extends IEntity {
       chargebackReferenceAmount,
       chargebackAmount,
       chargebackAsset,
-      chargebackOutput,
+      // No chargebackOutput here on purpose: it is the one column refundClaimWhere pins to
+      // IsNull(), so letting a refund carry it into the claim's own SET (or writing it before
+      // the claim) makes the claim conflict with its own transaction. The owning FK is set by
+      // saving the FiatOutput after the claim has been won -- see BuyCryptoService.refundBankTx.
       chargebackAllowedBy,
       chargebackRemittanceInfo,
       amlCheck: CheckStatus.FAIL,
