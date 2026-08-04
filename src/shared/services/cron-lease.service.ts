@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config, CronRole } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { DataSource } from 'typeorm';
 import { DfxLogger } from './dfx-logger';
 
@@ -31,9 +32,17 @@ const LEASE_TTL_SECONDS = 60;
  *
  * Measuring from the answer is what this replaced, and it spent the margin twice. An attempt that
  * came back at 45 s put the next at 65 s — five seconds after the claim had already lapsed, so a
- * database slow enough to be worth surviving was the very thing that guaranteed the loss. The
- * cadence now holds at 20 s regardless, which is what the TTL was dimensioned against: three
- * intervals, leaving room for an answer to be slow or lost without the claim going with it.
+ * database slow enough to be worth surviving was the very thing that guaranteed the loss. Attempts
+ * now start every `max(interval, round trip)` instead of every `interval + round trip`: unchanged
+ * while the database answers promptly, and no longer adding the latency on top of a wait that was
+ * already sized to absorb it.
+ *
+ * It does not restore the three-attempts-per-TTL the interval was chosen for. Nothing can, once a
+ * single round trip approaches the TTL — attempts then run back to back, one per round trip, and
+ * each holds a pooled connection for the whole of it rather than for a fraction. That is the
+ * deliberate trade: during an outage the claim is renewed as early as it possibly can be, at the
+ * cost of a continuous rather than intermittent connection. The failure path re-arms the same way
+ * and therefore has no backoff, which is the same trade seen from the other side.
  *
  * What is still not bounded is the round trip itself — there is no statement timeout on these
  * queries. A database slow to EVERY renewal cannot be renewed against at any cadence, and no
@@ -46,25 +55,22 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 /**
  * How long a renewal round trip may take before it is reported.
  *
- * The interval above re-arms from the last ANSWER, and nothing bounds when that answer arrives —
- * so a renewal that is merely slow silently eats the margin the TTL provides, and today only a
- * renewal that FAILS is visible. This makes the slow ones visible too.
+ * The cadence above bounds when the next attempt STARTS, not how long an attempt takes, and the
+ * claim goes unextended for the whole round trip either way: a renewal answering in 40 s leaves the
+ * row 40 s closer to its expiry than the schedule suggests. Only a renewal that FAILED was ever
+ * visible, so that span was reported as nothing at all.
  *
  * Five seconds is far outside the normal shape of the statement it times: a single-row UPDATE by
  * primary key. It is deliberately the same number a statement timeout on `renew` would use, so the
  * line reports how often such a bound would have taken effect, and the decision about the TTL and
  * the cadence can be made on measured delays rather than on the loss lines alone.
+ *
+ * Reported once per run, for the reason the loss line is: slowness PERSISTS, so a line per attempt
+ * would emit some 360 of them for a two-hour run against a slow database and make the count measure
+ * run length instead of how many runs were affected. The first one carries the duration; a run that
+ * reports none had every renewal inside the threshold.
  */
 const SLOW_RENEWAL_MS = 5 * 1000;
-
-/**
- * Seconds since `since`, for the two lines below.
- *
- * Written out rather than taken from `Util`, whose module pulls in bignumber.js, fast-xml-parser,
- * sanitize-html and lodash. This service is constructed early and deliberately imports almost
- * nothing; a duration format is not worth widening that.
- */
-const secondsSince = (since: number): string => ((Date.now() - since) / 1000).toFixed(1);
 
 /**
  * How long shutdown waits for jobs that are still running. See `shutdown`.
@@ -249,9 +255,13 @@ export class CronLeaseService implements OnModuleInit {
   }
 
   /**
-   * Pushes the expiry out while the job is still running. Returns false when this RUN is no longer
-   * the owner — which means the claim has lapsed and someone else has taken the job over, and this
-   * run should be treated as having lost it.
+   * Pushes the expiry out while the job is still running. Returns false when no row matches this
+   * RUN any more.
+   *
+   * That is not the same as "the claim was lost", and a caller must not read it as one. There are
+   * two ways to match nothing: the claim lapsed and another process took it over, or this run's own
+   * `release` already deleted the row while this statement was still in flight — which is a run that
+   * COMPLETED. `keepAlive` tells them apart before reporting anything; see the check there.
    */
   async renew(job: string, owner: string): Promise<boolean> {
     const [, affected] = await this.dataSource.query(
@@ -501,17 +511,50 @@ export class CronLeaseService implements OnModuleInit {
    * lines would then measure how LONG the affected runs were, not how OFTEN the claim was lost,
    * which is the number the TTL has to be dimensioned on.
    *
-   * The latch is one-way on purpose. A run cannot get its claim back: `renew` matches on
-   * `name + owner`, the owner is per RUN, and a lapsed claim is taken over or deleted by whoever
-   * comes next — after which no statement this run issues matches anything ever again. Clearing
-   * the latch on a later success would therefore describe a state that cannot occur.
+   * The latch is one-way on purpose, though not because a lapsed claim is always taken over —
+   * `renew` carries no expiry predicate, so a claim nobody else has claimed yet is silently revived
+   * by a late renewal and answers true. What cannot be undone is a FALSE: it means zero rows matched
+   * `name + owner`, so the row is either gone or already re-owned, and the owner is unique per run.
+   * Neither is reversible for this run, so clearing the latch would describe an unreachable state.
    */
   private keepAlive(job: string, owner: string): { stop: () => void } {
     let stopped = false;
     let timer: NodeJS.Timeout;
     let reportedLoss = false;
-    // Seeded with the claim itself, which is the last time the row demonstrably named this run.
-    let lastRenewal = Date.now();
+    let reportedSlow = false;
+    /**
+     * When the last attempt the row demonstrably accepted STARTED — seeded with the claim itself.
+     *
+     * The start, not the answer, and for the reason this whole change is about: the database set
+     * `expires` when it EXECUTED the statement, at or before the answer came back, so crediting the
+     * claim with the round trip would overstate how long it is good for. Taking the start is
+     * conservative in both places it is used — the age reported in the loss line, and the check
+     * below, which must never conclude "cannot have lapsed" when it might have.
+     */
+    let acceptedAt = Date.now();
+
+    /**
+     * Whether the claim could already have lapsed, which is what separates a real loss from this
+     * run's own release overtaking its last renewal.
+     *
+     * `stop` cannot cancel an attempt that has already fired, so a finishing run races its own
+     * `release`: the DELETE lands first, the UPDATE matches nothing, and a run that COMPLETED is
+     * reported as having lost its claim. Those false lines arrive in same-second cohorts whenever a
+     * stall releases queued statements together — the burst shape that made this line unusable.
+     *
+     * Reading `stopped` after the await was the obvious way to tell them apart and is the wrong
+     * one: it says the run finished, never why the renewal failed to match. A claim that lapsed at
+     * 60 s and was taken over by another process, on a run that then finished at 70 s, answers false
+     * at 75 s with `stopped` set — a real double run, dropped. And because the window is the length
+     * of the outstanding attempt, it is widest exactly when a slow database makes losses likely.
+     *
+     * This asks the question the row can actually answer. The database set `expires` to at least
+     * `acceptedAt + LEASE_TTL_SECONDS`, so inside that span no other process can have satisfied
+     * `acquire`'s `WHERE expires <= now()` — nobody can have taken it, and a false must be our own
+     * release. Past it the claim may genuinely have gone, and the loss is reported. `stopped` does
+     * not appear: a completed run and a running one are told apart by the same test, correctly.
+     */
+    const mayHaveLapsed = (): boolean => Date.now() - acceptedAt >= LEASE_TTL_SECONDS * 1000;
 
     const schedule = (delay: number): void => {
       // Unref'd: a pending timer must never hold the process open on shutdown.
@@ -521,23 +564,13 @@ export class CronLeaseService implements OnModuleInit {
         try {
           const stillOurs = await this.renew(job, owner);
 
-          if (Date.now() - startedAt >= SLOW_RENEWAL_MS)
-            this.logger.warn(`Renewing the lease for ${job} took ${secondsSince(startedAt)} s (owner ${owner})`);
-
           if (stillOurs) {
-            lastRenewal = Date.now();
-          } else if (!stopped && !reportedLoss) {
-            // `stopped` is read AFTER the await, and that is the whole point of reading it here.
-            // A renewal already in flight cannot be cancelled by `stop`, so a run that finishes
-            // while one is outstanding races its own release: the DELETE can overtake the UPDATE,
-            // which then matches nothing and looks exactly like a lost claim. Reporting that would
-            // be a false loss for a run that COMPLETED — and a database stall releasing queued
-            // statements together produces them in same-second cohorts, which is precisely the
-            // burst shape that made the existing line unusable as a measurement.
+            acceptedAt = startedAt;
+          } else if (!reportedLoss && mayHaveLapsed()) {
             reportedLoss = true;
             this.logger.error(
-              `Lost the lease for ${job} while it was still running ` +
-                `(owner ${owner}, ${secondsSince(lastRenewal)} s since the last successful renewal)`,
+              `Lost the lease for ${job} while it was still running (owner ${owner}, ` +
+                `${Util.secondsDiff(new Date(acceptedAt)).toFixed(1)} s since the last successful renewal)`,
             );
           }
         } catch (e) {
@@ -545,10 +578,25 @@ export class CronLeaseService implements OnModuleInit {
           this.logger.error(`Could not extend the lease for ${job}`, e);
         }
 
-        // Whatever this attempt already spent comes off the next wait, so the cadence holds at one
-        // interval instead of drifting out behind a slow database. Never negative: an attempt that
-        // outran the interval is already overdue and re-arms at once.
-        if (!stopped) schedule(Math.max(0, RENEWAL_INTERVAL_MS - (Date.now() - startedAt)));
+        // Measured across BOTH outcomes, which is why it sits outside the try. A renewal that is
+        // slow and then REJECTS is exactly what the statement timeout this threshold is named after
+        // would produce, and reporting only the arm that answered would miss precisely that case.
+        if (!reportedSlow && Util.secondsDiff(new Date(startedAt)) * 1000 >= SLOW_RENEWAL_MS) {
+          reportedSlow = true;
+          this.logger.warn(
+            `Renewing the lease for ${job} took ${Util.secondsDiff(new Date(startedAt)).toFixed(1)} s ` +
+              `(owner ${owner}); further slow renewals of this run are not reported`,
+          );
+        }
+
+        // Whatever this attempt already spent comes off the next wait, so a slow answer does not
+        // push the next attempt out behind it. Clamped at BOTH ends: `Date.now()` is a wall clock,
+        // and a backward step — NTP correction, resume from suspend — would otherwise make the
+        // elapsed term negative and the wait longer than an interval, on the one timer that must
+        // not miss a deadline. Zero is the other end: an attempt that outran the interval is
+        // already overdue and re-arms at once.
+        const elapsed = Date.now() - startedAt;
+        if (!stopped) schedule(Math.min(RENEWAL_INTERVAL_MS, Math.max(0, RENEWAL_INTERVAL_MS - elapsed)));
       }, delay);
       timer.unref();
     };

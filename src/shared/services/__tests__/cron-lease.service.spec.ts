@@ -738,7 +738,7 @@ describe('CronLeaseService', () => {
 
   describe('reporting a lost lease', () => {
     // The line is a measurement, not just an alert: the TTL has to be dimensioned on how OFTEN a
-    // claim is really lost. Both cases below are ways the old line counted something else.
+    // claim is really lost. Each case below is a way the old line counted something else.
 
     /** Acquire succeeds; `renew` is whatever the case needs; DELETE (release) answers empty. */
     function leaseWith(renew: () => Promise<unknown>) {
@@ -750,10 +750,11 @@ describe('CronLeaseService', () => {
       });
     }
 
-    it('stays quiet when the run finished while a renewal was still in flight', async () => {
+    it('stays quiet when the run finished before the claim could have lapsed', async () => {
       // `stop` clears the timer but cannot cancel a renewal that has already fired. The release
-      // then races it: the DELETE lands first, the UPDATE matches nothing, and a run that just
-      // COMPLETED looked exactly like one that lost its claim.
+      // then races it: the DELETE lands first, the UPDATE matches nothing, and a run that
+      // COMPLETED looked exactly like one that lost its claim. Within the TTL no other process can
+      // have taken the row, so matching nothing can only be this run's own release.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {
@@ -773,11 +774,47 @@ describe('CronLeaseService', () => {
         finish();
         await run;
 
-        // The renewal answers only now, after the run has already handed the claim back.
+        // Answers at ~20 s, a third of the way into a 60 s claim: it cannot have lapsed.
         answer([[], 0]);
         await settle();
 
         expect(error).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('reports the loss when the claim could have lapsed, even though the run has finished', async () => {
+      // The case suppressing on "the run has finished" dropped. A stalled renewal outlives the
+      // expiry, another process takes the job over, the run then ends, and the stalled attempt
+      // finally answers — a real double run, discovered by the only attempt that could discover it.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let answer: (result: [unknown[], number]) => void;
+        const onQuery = leaseWith(() => new Promise((resolve) => (answer = resolve)));
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        finish();
+        await run;
+
+        // The claim was good until 60 s; the stalled statement answers well past it.
+        jest.advanceTimersByTime(60_000);
+        answer([[], 0]);
+        await settle();
+
+        expect(error).toHaveBeenCalledTimes(1);
+        expect(error.mock.calls[0][0]).toContain('Lost the lease');
       } finally {
         jest.useRealTimers();
       }
@@ -798,7 +835,8 @@ describe('CronLeaseService', () => {
         const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
         await settle();
 
-        for (let i = 0; i < 5; i++) {
+        // Well past the 60 s expiry, so the loss is real and every later attempt sees it too.
+        for (let i = 0; i < 6; i++) {
           jest.advanceTimersByTime(20_000);
           await settle();
         }
@@ -827,13 +865,60 @@ describe('CronLeaseService', () => {
         const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
         await settle();
 
-        jest.advanceTimersByTime(20_000);
-        await settle();
+        // Three attempts: the first two are inside the claim, the third is the one that may report.
+        for (let i = 0; i < 3; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
 
         const line = error.mock.calls[0][0];
         expect(line).toContain('SomeService::job');
         expect(line).toContain('worker:');
-        expect(line).toContain('20.0 s since the last successful renewal');
+        expect(line).toContain('60.0 s since the last successful renewal');
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('measures the age of the claim from a renewal that succeeded, not from the acquire', async () => {
+      // Pins that a successful renewal advances the reference point. Without it the age would be
+      // measured from the claim forever, and the first attempt past 60 s would report a loss on a
+      // run whose renewals had been landing all along.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let succeed = true;
+        const onQuery = leaseWith(() => Promise.resolve([[], succeed ? 1 : 0]));
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        // Renewals land for a while, carrying the claim well past its original expiry.
+        for (let i = 0; i < 5; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(error).not.toHaveBeenCalled();
+
+        // From here they match nothing. The first two are still inside the claim the last success
+        // bought; only the third is far enough out to be a loss.
+        succeed = false;
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+        expect(error).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(40_000);
+        await settle();
+        expect(error).toHaveBeenCalledTimes(1);
 
         finish();
         await run;
@@ -847,33 +932,45 @@ describe('CronLeaseService', () => {
     // Only a FAILING renewal was ever visible. A slow one silently spends the margin the TTL
     // provides, which is the thing any cadence decision has to be measured against.
 
-    /** Runs one renewal that takes `tookMs` to answer, and returns the warnings it produced. */
-    async function renewalTaking(tookMs: number) {
+    /**
+     * Runs renewals that each take `tookMs` to answer, `attempts` of them, and returns the
+     * warnings produced. `outcome` decides whether the statement answers or rejects.
+     */
+    async function renewalsTaking(tookMs: number, attempts = 1, outcome: 'answers' | 'rejects' = 'answers') {
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
 
       try {
-        let answer: (result: [unknown[], number]) => void;
+        let settleRenewal: (result: [unknown[], number]) => void;
+        let rejectRenewal: (e: Error) => void;
         const onQuery = jest.fn().mockImplementation((sql: string) => {
           if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
-          if (sql.includes('UPDATE')) return new Promise((resolve) => (answer = resolve));
+          if (sql.includes('UPDATE'))
+            return new Promise((resolve, reject) => {
+              settleRenewal = resolve;
+              rejectRenewal = reject;
+            });
 
           return Promise.resolve([]);
         });
 
         const { service } = buildService({ onQuery });
         const warn = jest.spyOn(service['logger'], 'warn').mockImplementation();
+        jest.spyOn(service['logger'], 'error').mockImplementation();
 
         let finish: () => void;
         const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
         await settle();
 
-        jest.advanceTimersByTime(20_000);
-        await settle();
+        for (let i = 0; i < attempts; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
 
-        // The clock moves while the statement is outstanding, which is what the line measures.
-        jest.advanceTimersByTime(tookMs);
-        answer([[], 1]);
-        await settle();
+          // The clock moves while the statement is outstanding, which is what the line measures.
+          jest.advanceTimersByTime(tookMs);
+          if (outcome === 'answers') settleRenewal([[], 1]);
+          else rejectRenewal(new Error('connection terminated'));
+          await settle();
+        }
 
         finish();
         await run;
@@ -885,16 +982,33 @@ describe('CronLeaseService', () => {
     }
 
     it('reports one that took longer than the threshold', async () => {
-      const warn = await renewalTaking(6_000);
+      const warn = await renewalsTaking(6_000);
 
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn.mock.calls[0][0]).toContain('6.0 s');
     });
 
     it('stays quiet for one that answered promptly', async () => {
-      const warn = await renewalTaking(50);
+      const warn = await renewalsTaking(50);
 
       expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('reports one that was slow and then REJECTED', async () => {
+      // The case a statement timeout produces, and the one the threshold is named after. Measuring
+      // inside the success branch would have reported nothing at all for it.
+      const warn = await renewalsTaking(6_000, 1, 'rejects');
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('6.0 s');
+    });
+
+    it('reports slowness once per run, not per attempt', async () => {
+      // Unlike a loss, slowness persists: a line per attempt would emit ~360 of them for a
+      // two-hour run and make the count measure run length instead of runs affected.
+      const warn = await renewalsTaking(6_000, 4);
+
+      expect(warn).toHaveBeenCalledTimes(1);
     });
   });
 });
