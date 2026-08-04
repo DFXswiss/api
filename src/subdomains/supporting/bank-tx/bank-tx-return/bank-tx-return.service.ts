@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -8,7 +15,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -22,6 +29,28 @@ import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';
 @Injectable()
 export class BankTxReturnService {
   private readonly logger = new DfxLogger(BankTxReturnService);
+
+  // Compare-and-swap predicate for a refund: every column validateRefund rejects on, plus the
+  // user-request marker as observed.
+  //
+  // The marker is pinned to its stored value, not to IsNull(): the approval legs run on rows the
+  // user has already requested a refund for — chargebackTx selects chargebackAllowedDateUser as
+  // Not(IsNull()) — so pinning it null would make every automatic chargeback in the system claim
+  // nothing and 409 forever. Pinning the observed value still detects a concurrent write, and also
+  // stops an approval from paying out against details the user changed after it read them.
+  //
+  // Build this before chargebackFillUp runs: it assigns the new state onto the entity, so a
+  // predicate built afterwards would pin the values this refund is about to write.
+  private static refundClaimWhere(entity: BankTxReturn): FindOptionsWhere<BankTxReturn> {
+    return {
+      id: entity.id,
+      chargebackOutput: IsNull(),
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: entity.chargebackAllowedDateUser ?? IsNull(),
+      chargebackDate: IsNull(),
+      chargebackBankTx: IsNull(),
+    };
+  }
 
   constructor(
     private readonly bankTxReturnRepo: BankTxReturnRepository,
@@ -215,23 +244,17 @@ export class BankTxReturnService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset)) {
-      dto.chargebackOutput = await this.fiatOutputService.createInternal(
-        FiatOutputType.BANK_TX_RETURN,
-        { bankTxReturn },
-        bankTxReturn.id,
-        false,
-        {
-          iban: chargebackIban,
-          amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? bankTxReturn.chargebackAsset,
-          ...creditorData,
-        },
-      );
-    }
+    // Read before chargebackFillUp assigns over the entity below, so the condition keeps seeing
+    // pre-call state whatever that assignment does to chargebackAsset.
+    const createsChargebackOutput = Boolean(
+      dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset),
+    );
 
-    await this.bankTxReturnRepo.update(
-      ...bankTxReturn.chargebackFillUp(
+    await this.bankTxReturnRepo.manager.transaction(async (manager) => {
+      // Built before chargebackFillUp assigns over the entity, so it pins the state this refund was
+      // validated against rather than the state it is about to write.
+      const claimWhere = BankTxReturnService.refundClaimWhere(bankTxReturn);
+      const [, update] = bankTxReturn.chargebackFillUp(
         chargebackIban,
         chargebackReferenceAmount,
         chargebackAmount,
@@ -239,10 +262,36 @@ export class BankTxReturnService {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
-        dto.chargebackOutput,
         bankTxReturn.chargebackBankRemittanceInfo,
         creditorData,
-      ),
-    );
+      );
+      const claim = await manager.update(BankTxReturn, claimWhere, update);
+      if (claim.affected !== 1) throw new ConflictException('BankTxReturn refund state changed concurrently');
+
+      // FiatOutput.bankTxReturn is the inverse side of BankTxReturn.chargebackOutput, so saving it
+      // writes chargebackOutputId onto this row as a side effect. That FK and the state write above
+      // must commit together: chargebackTx selects on `chargebackOutput: IsNull()` and
+      // validateRefund rejects on the same column, so a row carrying one without the other is
+      // neither retried nor refundable by hand.
+      //
+      // It must also come after the claim, not before: the claim pins chargebackOutput to IsNull(),
+      // so writing the FK first would make the claim match nothing and conflict with this very
+      // transaction — the bug #4656 fixed on the BuyCrypto side.
+      if (createsChargebackOutput) {
+        bankTxReturn.chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BANK_TX_RETURN,
+          { bankTxReturn },
+          bankTxReturn.id,
+          false,
+          {
+            iban: chargebackIban,
+            amount: chargebackAmount,
+            currency: chargebackAsset,
+            ...creditorData,
+          },
+          manager,
+        );
+      }
+    });
   }
 }
