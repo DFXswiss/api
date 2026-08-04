@@ -659,10 +659,12 @@ export class AmlHelperService {
     // would then make `AmlService.postProcessing` record a compliance review that never happened (an
     // automatic recompute yields PASS whenever the screening is switched off).
     //
-    // What survives this: a Scorechain hit is on record independently of the comment — the screening row
-    // and its compliance PDF are written when the hit is found. `transaction_aml_check` is NOT a reliable
-    // trail here: it only writes when `amlCheck`/`amlReason` actually change, which they do not while the
-    // transaction is inside the ten-minute grace period below.
+    // What survives this: the screening row of a hit is persisted independently of the comment, and a
+    // cached hit reuses the row of the screening that found it. The compliance PDF on top is best effort
+    // only — it is attempted for a fresh screening with a userData, and a failure there is logged rather
+    // than raised. `transaction_aml_check` is NOT a reliable trail here either: it only writes when
+    // `amlCheck`/`amlReason` actually change, which they do not while the transaction is inside the
+    // ten-minute grace period below.
     if (amlErrors.length === 0)
       return {
         bankData,
