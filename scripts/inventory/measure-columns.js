@@ -137,7 +137,7 @@ async function main() {
   fs.writeFileSync(OUT_MEASURED, JSON.stringify(out, null, 1));
   // A site whose entity resolved but whose relation tree does not: the document shows it as a
   // dash, which is what it is — but the count belongs in the log, so a new one is not silent.
-  const unresolved = out.filter((o) => o.error && o.entity && o.error !== 'entity not found');
+  const unresolved = out.filter((o) => o.error && o.entity && o.kind !== 'raw-sql' && o.error !== 'entity not found');
   if (unresolved.length) {
     console.error(`not measurable although the entity resolved: ${unresolved.length}`);
     for (const u of unresolved) console.error(`  ${u.file}:${u.line}  ${u.entity}  ${u.error}`);

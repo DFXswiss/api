@@ -107,11 +107,18 @@ its own careful measurement, and a number stated loosely here would be one more 
 **`exact` and `lower bound` are split on the wrong criterion.** `render-docs.py` calls a site exact
 when a `relations` tree is written at the call, and a lower bound otherwise. That is right for a
 `find` site, whose tree can arrive as a parameter so that only the base query is visible. It is
-wrong for a query builder, which has no relations tree and into which none can arrive: its width
-does not become larger later. The exception
+wrong for a query builder, which has no relations tree and into which none can arrive. The
+exception
 is a query builder carrying a `leftJoinAndSelect`: there the joined entity is not counted, and the
 width really is a lower bound. So the second group in `docs/load-sites.md` mixes two different
 things, and the sentence explaining it is true only of the `find` sites in it.
+
+One more thing belongs beside it: the extractor reads the source as text. It follows a builder to
+the end of its statement and no further, so a builder mutated elsewhere is not seen, and it does
+not remove block comments, so a commented-out query still counts. Neither shows up in the current
+inventory, and both are the kind of thing the four test levels in `read-path-projections.md` exist
+to catch downstream — but a width from this tool is a reading of the source, not a trace of a
+running query.
 
 **The call graph keys symbols by class and method name alone**, and a good number of class names in
 this repository are declared more than once — `KycService` and `KycController` in the deprecated
