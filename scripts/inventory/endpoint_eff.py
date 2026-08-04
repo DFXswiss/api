@@ -15,6 +15,11 @@ Kategorien je Ladestelle (an den TypeORM-Metadaten verifiziert):
 import re, glob, os, json
 from collections import defaultdict
 
+def read_text(path):
+    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return fh.read()
+
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
     raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
@@ -108,7 +113,7 @@ DIRECT = defaultdict(dict)       # cls -> meth -> set(kategorien)
 
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     if '__tests__' in f or '.spec.' in f: continue
-    s = open(f, encoding='utf-8', errors='replace').read()
+    s = read_text(f)
     s = re.sub(r'(?m)(?<!:)//[^\n]*', '', s)          # nur Zeilenkommentare, URLs geschuetzt
     rel = f.replace(SRC + '/', 'src/')
     classes = [(m.start(), m.group(1)) for m in
@@ -204,8 +209,10 @@ for cls in METHODS:
         LOCAL_OK[key] = ok
 
 # Gemessene Spaltenzahl je Ladestelle (aus der TypeORM-Messung), Zuordnung ueber Datei+Zeile
+with open(SP + '/sites-measured.json') as fh:
+    _measured = json.load(fh)
 MEAS = {(s['file'], s['line']): s.get('cols')
-        for s in json.load(open(SP + '/sites-measured.json')) if s.get('cols')}
+        for s in _measured if s.get('cols')}
 
 KINDS = {k: set(DIRECT[k[0]].get(k[1], set())) for k in LOCAL_OK}
 OK = dict(LOCAL_OK)
@@ -262,7 +269,8 @@ MANUAL_NO_DB = {
     ('AppController', 'getVersion'):            'liest dist/version.txt von der Platte',
 }
 
-eps = json.load(open(SP + '/table.json'))
+with open(SP + '/table.json') as fh:
+    eps = json.load(fh)
 out = []
 for r in eps:
     k, ok = reach(r['controller'], r['handler'])
@@ -275,13 +283,14 @@ for r in eps:
 # Beruehrt ueberhaupt ein Spec diesen Endpunkt? Streng: dieselbe Datei nennt den Controller
 # UND ruft den Handler auf. Schwaches Signal und Untergrenze - Specs, die eine Route ueber HTTP
 # ansteuern, ohne den Handler zu nennen, fallen durch.
-SPECS = [open(f, encoding='utf-8', errors='replace').read()
+SPECS = [read_text(f)
          for f in glob.glob(os.path.join(SRC, '**', '*.spec.ts'), recursive=True)]
 for r in out:
     pat = re.compile(r'\b' + re.escape(r['handler']) + r'\s*\(')
     r['spec'] = any(r['controller'] in txt and pat.search(txt) for txt in SPECS)
 
-json.dump(out, open(SP + '/endpoint-eff.json', 'w'), indent=1)
+with open(SP + '/endpoint-eff.json', 'w') as fh:
+    json.dump(out, fh, indent=1)
 
 from collections import Counter
 # Aufrufer-abhaengige Projektion: `request.select(query.select)` - nur projiziert, wenn der

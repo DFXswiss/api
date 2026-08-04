@@ -63,8 +63,10 @@ def label_of(s):
 def main(pub_ref, pub_path, out_path):
     pub = subprocess.run(["git", "-C", REPO, "show", f"{pub_ref}:{pub_path}"],
                          capture_output=True, text=True).stdout
-    old = json.load(open(S + "/gen/old/sites-measured.json"))
-    new = json.load(open(S + "/gen/new/sites-measured.json"))
+    with open(S + "/gen/old/sites-measured.json") as fh:
+        old = json.load(fh)
+    with open(S + "/gen/new/sites-measured.json") as fh:
+        new = json.load(fh)
 
     by_line = {(s['file'], s['line']): s for s in old}
     old_pool = defaultdict(list)
@@ -124,8 +126,10 @@ def main(pub_ref, pub_path, out_path):
     first = out.index(header)
     last = max(i for i, l in enumerate(out) if l.startswith('|') and len(l.split('|')) == 8)
     out = out[:first + 2] + rows + out[last + 1:]
-    open(out_path, 'w', encoding='utf-8').write('\n'.join(out))
-    json.dump(stats, open(out_path + '.stats.json', 'w'), default=str)
+    with open(out_path, 'w', encoding='utf-8') as fh:
+        fh.write('\n'.join(out))
+    with open(out_path + '.stats.json', 'w') as fh:
+        json.dump(stats, fh, default=str)
 
 
 if __name__ == '__main__':

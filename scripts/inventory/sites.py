@@ -7,6 +7,11 @@ Die Spaltenzahl misst anschliessend TypeORM selbst (measure.js).
 """
 import re, glob, os, json
 
+def read_text(path):
+    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return fh.read()
+
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
     raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
@@ -51,7 +56,7 @@ def norm(d):
 
 ENTITIES = set()
 for f in glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True):
-    s = open(f, encoding='utf-8', errors='replace').read()
+    s = read_text(f)
     if '@Entity(' in s or '@ChildEntity(' in s:
         ENTITIES.update(m.group(1) for m in CLASSRE.finditer(s))
 
@@ -61,7 +66,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
     # Testinfrastruktur ist keine Ladestelle der Anwendung: sie legt das Schema an und
     # erzeugt Fixtures, laeuft aber nie im Anfragepfad.
     if f.endswith('projection-test.util.ts'): continue
-    raw = open(f, encoding='utf-8', errors='replace').read()
+    raw = read_text(f)
     if not READ.search(raw): continue
     s = strip_comments(raw)
     rel = f.replace(SRC + '/', 'src/')
@@ -178,7 +183,8 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
                       'call': call, 'kind': kind, 'entity': entity, 'via': via,
                       'relations': tree, 'select': select})
 
-json.dump(sites, open(SP + '/sites.json', 'w'), indent=1)
+with open(SP + '/sites.json', 'w') as fh:
+    json.dump(sites, fh, indent=1)
 from collections import Counter
 print(f"Ladestellen gefunden: {len(sites)}")
 print("  nach Mechanik:", dict(Counter(s['kind'] for s in sites)))

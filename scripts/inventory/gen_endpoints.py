@@ -2,6 +2,11 @@
 """Erzeugt die Endpunkt-Tabelle aus den Controllern und verifiziert sie gegen die Routenliste."""
 import re, glob, os, json
 
+def read_text(path):
+    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return fh.read()
+
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
     raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
@@ -15,7 +20,7 @@ SIG = re.compile(r'^\s{2}(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*(?
 rows = []
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.controller.ts'), recursive=True)):
     if '__tests__' in f: continue
-    s = open(f, encoding='utf-8', errors='replace').read()
+    s = read_text(f)
     # Eine Datei kann mehrere @Controller-Klassen mit verschiedenen Basispfaden enthalten
     # (z.B. 'custody' und 'custody/admin'). Jeden Endpunkt dem vorangehenden zuordnen.
     scopes = []
@@ -46,9 +51,10 @@ rows.sort(key=lambda r: (r['path'], r['verb']))
 ref = set()
 p = SP + '/prod-norm.txt'
 if os.path.exists(p):
-    for line in open(p):
-        parts = line.strip().split(' ', 1)
-        if len(parts) == 2: ref.add((parts[0].upper(), parts[1]))
+    with open(p) as fh:
+        for line in fh:
+            parts = line.strip().split(' ', 1)
+            if len(parts) == 2: ref.add((parts[0].upper(), parts[1]))
 mine = set((r['verb'], r['path']) for r in rows)
 print(f"Endpunkte aus dem Code:        {len(rows)} ({len(mine)} eindeutige Verb/Pfad-Paare)")
 if ref:
@@ -57,7 +63,8 @@ if ref:
     print(f"  nur in Referenz:  {len(ref - mine)}  {sorted(ref - mine)[:6]}")
     print(f"  Deckung:          {100*len(mine & ref)/max(len(ref),1):.1f} %")
 
-json.dump(rows, open(SP + '/endpoints.json', 'w'), indent=1)
+with open(SP + '/endpoints.json', 'w') as fh:
+    json.dump(rows, fh, indent=1)
 by_ctrl = {}
 for r in rows: by_ctrl.setdefault(r['controller'], []).append(r)
 print(f"\nController: {len(by_ctrl)}   intern markiert: {sum(1 for r in rows if r['internal'])}")

@@ -7,6 +7,11 @@ mehrzeiligem @UseGuards( der Guard als Handler gelesen.
 """
 import re, glob, os, json
 
+def read_text(path):
+    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return fh.read()
+
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
     raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
@@ -68,7 +73,7 @@ def scope_path(arg):
 rows = []
 for f in sorted(glob.glob(os.path.join(SRC, '**', '*.controller.ts'), recursive=True)):
     if '__tests__' in f: continue
-    s = open(f, encoding='utf-8', errors='replace').read()
+    s = read_text(f)
     rel = f.replace(SRC + '/', 'src/')
     scopes = []
     for m in CTRL_START.finditer(s):
@@ -88,6 +93,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.controller.ts'), recursive=
                      'internal': '@ApiExcludeEndpoint' in block})
 
 rows.sort(key=lambda r: (r['path'], r['verb']))
-json.dump(rows, open(SP + '/table.json', 'w'), indent=1)
+with open(SP + '/table.json', 'w') as fh:
+    json.dump(rows, fh, indent=1)
 print('Routen:', len(rows), '| ohne erkannten Handler:', sum(1 for r in rows if r['handler'] == '?'),
       '| intern:', sum(1 for r in rows if r['internal']))

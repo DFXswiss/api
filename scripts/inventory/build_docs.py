@@ -3,6 +3,11 @@
 import json, re, os
 from collections import Counter
 
+def read_text(path):
+    """Datei vollständig einlesen und das Handle sofort wieder schliessen."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return fh.read()
+
 SP = os.environ.get("INVENTORY_WORK")
 if not SP:
     raise SystemExit("INVENTORY_WORK is not set - run this through scripts/inventory/run.sh")
@@ -10,8 +15,10 @@ SRC = os.environ.get("API_SRC")
 if not SRC:
     raise SystemExit("API_SRC is not set - run this through scripts/inventory/run.sh")
 SRC = SRC.rstrip('/') + '/'
-eps = json.load(open(SP + '/endpoint-eff.json'))
-sites = json.load(open(SP + '/sites-measured.json'))
+with open(SP + '/endpoint-eff.json') as fh:
+    eps = json.load(fh)
+with open(SP + '/sites-measured.json') as fh:
+    sites = json.load(fh)
 
 CALLER_SELECT = {'/gs/db', '/gs/db/custom'}
 def access(e):
@@ -27,14 +34,14 @@ def is_write_qb(s):
     f = SRC + s['file'].replace('src/', '')
     if f not in cache:
         cache[f] = re.sub(r'(?m)(?<!:)//[^\n]*', '',
-                          open(f, encoding='utf-8', errors='replace').read()).split('\n')
+                          read_text(f)).split('\n')
     chain = '\n'.join(cache[f][s['line'] - 1:s['line'] + 25]).split(';')[0]
     return bool(re.search(r'\.(update|delete|insert|softDelete|restore)\s*\(', chain))
 
 def raw_kind(s):
     """Rohes SQL: Sperre, Schreibvorgang oder echter Lesevorgang."""
     f = SRC + s['file'].replace('src/', '')
-    body = '\n'.join(open(f, encoding='utf-8', errors='replace').read()
+    body = '\n'.join(read_text(f)
                      .split('\n')[s['line'] - 1:s['line'] + 8])
     if 'pg_advisory' in body: return 'lock'
     if re.search(r'\bINSERT\b|\bUPDATE\b|\bDELETE\b', body): return 'write'
@@ -315,7 +322,8 @@ for e in sorted(eps, key=lambda r: (r['path'], r['verb'], r['version'])):
              f"`{e['controller']}.{e['handler']}` | " +
              f"`{e['file'].replace('src/','')}` |")
 o += ["", "⚠️ = not registered at runtime, see *Known discrepancy* above."]
-open(SP + '/endpoints.md', 'w').write("\n".join(o) + "\n")
+with open(SP + '/endpoints.md', 'w') as fh:
+    fh.write("\n".join(o) + "\n")
 
 # ---------------- 2. Ladestellen ----------------
 t = ["# Database load sites", "",
@@ -382,7 +390,8 @@ for s in sorted(loads, key=lambda x: (-(x.get('cols') or 0), x['file'], x['line'
     t.append(f"| {s.get('cols') or '—'} | {s.get('joins') if s.get('cols') else '—'} | {mech} | " +
              f"`{s['entity'] or '—'}` | `{s['file'].replace('src/','')}:{s['line']}` | " +
              f"{where} |")
-open(SP + '/load-sites.md', 'w').write("\n".join(t) + "\n")
+with open(SP + '/load-sites.md', 'w') as fh:
+    fh.write("\n".join(t) + "\n")
 
 print(f"endpoints.md {len(o)} Zeilen | load-sites.md {len(t)} Zeilen")
 print(f"Zugriffsarten: {dict(acc)} | Versionen: {dict(ver)}")
