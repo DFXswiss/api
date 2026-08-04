@@ -29,7 +29,14 @@ describe('HealthController — address letter check', () => {
     });
   }
 
-  const healthy = { backlog: 5, claimedWithoutLetter: 0, exhausted: 0, sentWithoutFile: 0, hoursSinceLastLetter: 2 };
+  const healthy = {
+    backlog: 5,
+    claimedWithoutLetter: 0,
+    exhausted: 0,
+    sentWithoutFile: 0,
+    hoursSinceLastLetter: 2,
+    letterBalance: 42,
+  };
 
   beforeAll(() => {
     new ConfigService();
@@ -112,6 +119,25 @@ describe('HealthController — address letter check', () => {
     expect(body.checks.addressLetter.detail).toContain('undated');
   });
 
+  it('reports an exhausted provider balance before the letters start failing', async () => {
+    const body = await respond({ ...healthy, letterBalance: 0 });
+
+    expect(body.checks.addressLetter.status).toBe('degraded');
+    expect(body.checks.addressLetter.detail).toContain('provider balance 0');
+  });
+
+  it('reports an unknown provider balance — unconfigured or unreachable blocks the queue too', async () => {
+    const body = await respond({ ...healthy, letterBalance: null });
+
+    expect(body.checks.addressLetter.detail).toContain('provider balance unknown');
+  });
+
+  it('stays quiet about the balance while there is nothing to send', async () => {
+    const body = await respond({ ...healthy, backlog: 0, letterBalance: null });
+
+    expect(body.checks.addressLetter).toEqual({ status: 'ok' });
+  });
+
   it('reports missing data instead of silently passing', async () => {
     const body = await respond(undefined);
 
@@ -125,6 +151,7 @@ describe('HealthController — address letter check', () => {
       exhausted: 99,
       sentWithoutFile: 99,
       hoursSinceLastLetter: 999,
+      letterBalance: null,
     });
 
     expect(body.checks.addressLetter.status).toBe('degraded');

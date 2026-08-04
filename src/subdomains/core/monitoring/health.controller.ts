@@ -208,10 +208,12 @@ export class HealthController {
       exhausted?: number;
       sentWithoutFile?: number;
       hoursSinceLastLetter?: number | null;
+      letterBalance?: number | null;
     };
     if (!data) return { status: HealthStatus.DEGRADED, detail: 'No address letter data' };
 
-    const { maxHoursWithoutLetter, backlogThreshold, maxObservationAgeMinutes } = Config.letter.addressLetter;
+    const { maxHoursWithoutLetter, backlogThreshold, maxObservationAgeMinutes, minBalance } =
+      Config.letter.addressLetter;
 
     const issues: string[] = [];
     // The values below are only as current as the observation they come from. When the observer stops
@@ -231,6 +233,13 @@ export class HealthController {
       if (data.hoursSinceLastLetter == null) issues.push('no letter ever sent');
       else if (data.hoursSinceLastLetter > maxHoursWithoutLetter)
         issues.push(`no letter sent for ${data.hoursSinceLastLetter}h`);
+    }
+    // Credit at the provider decides whether anything can go out at all, and it runs out silently:
+    // every send simply fails. Only reported while there is something to send, and `null` counts -
+    // it means the provider is unconfigured or did not answer, which blocks the queue just the same.
+    if (data.backlog > 0) {
+      if (data.letterBalance == null) issues.push('provider balance unknown');
+      else if (data.letterBalance <= minBalance) issues.push(`provider balance ${data.letterBalance}`);
     }
     if (data.claimedWithoutLetter > 0) issues.push(`${data.claimedWithoutLetter} claims with unknown outcome`);
     if (data.exhausted > 0) issues.push(`${data.exhausted} accounts out of retries`);
