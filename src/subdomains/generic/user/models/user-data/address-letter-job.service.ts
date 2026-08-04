@@ -154,10 +154,11 @@ enum TransitionResult {
  *
  * ## Throughput
  *
- * `Config.letter.addressLetter.batchSize` per run at a ten-minute interval caps the job. Normal load
- * is a few dozen letters a day, so the cap only bites on a backlog — the multi-day outage that
- * prompted this replacement left about a hundred accounts waiting, and that drains in roughly twenty
- * minutes rather than in one uncontrolled burst.
+ * `Config.letter.addressLetter.batchSize` per run at a ten-minute interval caps the job at sixty
+ * letters an hour by default. Normal load is a few dozen letters a day, so the cap only bites on a
+ * backlog — the multi-day outage that prompted this replacement left about a hundred accounts waiting,
+ * which is ten runs, so a good hour and a half rather than one uncontrolled burst. That is roughly the
+ * pace the automation managed, and the point is the ceiling, not the speed.
  */
 @Injectable()
 export class AddressLetterJobService {
