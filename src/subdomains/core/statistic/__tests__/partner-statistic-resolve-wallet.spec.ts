@@ -83,4 +83,15 @@ describe('PartnerStatisticService.resolveWalletId', () => {
     const jwt = { role: UserRole.CLIENT_COMPANY } as JwtPayload;
     await expect(service.resolveWalletId(jwt)).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('NON_CUSTODIAL_WALLET_PARTNER without jwt.user: rejects without DB access', async () => {
+    // Mirror of CLIENT_COMPANY-without-user: role alone is not enough; a partner token must
+    // carry a user id. Early abort before userRepo — otherwise a missing user id would hit
+    // findOne with undefined and either 500 or a false "no wallet" path.
+    const jwt = { role: UserRole.NON_CUSTODIAL_WALLET_PARTNER } as JwtPayload;
+
+    await expect(service.resolveWalletId(jwt)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.resolveWalletId(jwt)).rejects.toThrow(/Partner wallet required/i);
+    expect(findOne).not.toHaveBeenCalled();
+  });
 });

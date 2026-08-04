@@ -122,6 +122,7 @@ const PINNED_LOGIC = [
   'src/subdomains/core/statistic/partner-statistic-rate-limit.guard.ts',
   'src/subdomains/core/statistic/partner-statistic.controller.ts',
   'src/subdomains/core/statistic/partner-statistic.enum.ts',
+  'src/subdomains/core/statistic/partner-statistic.service.ts',
   'src/subdomains/core/trading/enums/index.ts',
   'src/subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts',
   'src/subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts',

@@ -605,6 +605,14 @@ describe('PartnerStatisticService', () => {
       expect(service.parseDate(input)).toBe(input);
     });
 
+    it('rejects an Invalid Date instance', () => {
+      // Distinct from the string path that later isNaN-checks after new Date(value):
+      // a pre-built Invalid Date must not pass through as a period bound.
+      const invalid = new Date(NaN);
+      expect(() => service.parseDate(invalid)).toThrow(BadRequestException);
+      expect(() => service.parseDate(invalid)).toThrow(/Invalid date/);
+    });
+
     it('returns undefined for null/empty', () => {
       expect(service.parseDate(undefined)).toBeUndefined();
       expect(service.parseDate('')).toBeUndefined();
@@ -984,6 +992,19 @@ describe('PartnerStatisticService', () => {
       // Nameless volume must not appear under any key
       expect(merged.every((r) => r.volume !== 999)).toBe(true);
     });
+
+    it('treats null volume/transactions cells as zero (NamedAggregateRow allows null)', () => {
+      // Type-level: AggregateRow.volume is string|number|null. SQL uses COALESCE so live
+      // drivers rarely hand null, but mergeNamedRows must still coerce rather than NaN.
+      const merged = service.mergeNamedRows([
+        { name: 'BTC', volume: null, transactions: null },
+        { name: 'ETH', volume: undefined as unknown as null, transactions: undefined as unknown as null },
+      ]);
+      expect(merged).toEqual([
+        { name: 'BTC', volume: 0, transactions: 0 },
+        { name: 'ETH', volume: 0, transactions: 0 },
+      ]);
+    });
   });
 
   // --- K1: partial edge buckets --- //
@@ -1187,6 +1208,45 @@ describe('PartnerStatisticService', () => {
       // Same total pin as wallet-scope isolation: an extra unscoped WHERE slips past 18 alone.
       expect(whereClauses).toHaveLength(GET_STATISTICS_CLAUSE_BUDGET.WHERE_CLAUSES);
       expectActiveUserUnionShape();
+    });
+  });
+
+  // --- zero-transaction average --- //
+
+  describe('averageTransactionVolume when no transactions', () => {
+    it('is null when buy+sell+swap transaction count is zero (not 0/0 → NaN)', async () => {
+      fixtures.set(
+        1,
+        emptyFixture({
+          allTime: { buy: 0, sell: 0, registeredUsers: 3, tradingUsers: 0 },
+        }),
+      );
+
+      const result = await service.getStatistics(1, PERIOD_FROM, PERIOD_TO);
+
+      expect(result.totals.transactions.total).toBe(0);
+      expect(result.totals.volume.total).toBe(0);
+      expect(result.totals.averageTransactionVolume).toBeNull();
+    });
+  });
+
+  // --- nested query gate reuse --- //
+
+  describe('withQueryGate nested reuse', () => {
+    it('reuses the existing ALS gate instead of nesting a second semaphore', async () => {
+      // Production only enters withQueryGate once per request (getStatistics / getTimeline).
+      // Nested reuse is the safety net if a public method ever calls another; without it each
+      // layer would open PARTNER_STATISTIC_QUERY_CONCURRENCY workers of its own.
+      const als = (PartnerStatisticService as unknown as { queryGateAls: { getStore: () => unknown } }).queryGateAls;
+      let nestedSawSameGate = false;
+      await service['withQueryGate'](async () => {
+        const outer = als.getStore();
+        expect(outer).toBeDefined();
+        await service['withQueryGate'](async () => {
+          nestedSawSameGate = als.getStore() === outer;
+        });
+      });
+      expect(nestedSawSameGate).toBe(true);
     });
   });
 
