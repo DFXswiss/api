@@ -252,11 +252,12 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   serviceProviders?: string; // semicolon separated ServiceProvider add-ons (e.g. RealUnit); DFX core never reads this, only the RealUnit dashboards
 
-  // Compliance has reviewed this account's Scorechain findings with the customer and released them.
-  // Set once by compliance (never automatically), it suppresses the Scorechain screening for this
-  // account's deposits and withdrawals — same "set means checked, no expiry" semantics as the
-  // phoneCall*CheckDate fields below. Every other AML check still runs, so a payment is only released
-  // automatically when nothing else is open.
+  // Date on which compliance reviewed this account's Scorechain findings with the customer and released
+  // them. Set by compliance only (never automatically); it suppresses the Scorechain screening of this
+  // account's DEPOSITS while it is valid — see `hasValidScorechainReview`. Withdrawal screening is
+  // deliberately never suppressed by it: that control asks whether DFX may pay INTO an address, which a
+  // review of the customer's funding source does not answer. Every other AML check still runs, so a
+  // payment is only released automatically when nothing else is open.
   @Column({ type: 'timestamp', nullable: true })
   scorechainCheckDate?: Date;
 
@@ -684,6 +685,16 @@ export class UserData extends IEntity {
       RiskStatus.BLOCKED_BUY_FIAT,
       RiskStatus.SUSPICIOUS,
     ].includes(this.riskStatus);
+  }
+
+  // A compliance Scorechain review expires after half a year (`amlScorechainReviewValidity`): the funding
+  // picture of an account is re-assessed rather than trusted indefinitely. Deliberately stricter than the
+  // phoneCall*CheckDate fields this is modelled on — those record a one-off fact about a person, this one
+  // records a risk assessment that ages. Same shape as `hasValidNameCheckDate` above.
+  get hasValidScorechainReview(): boolean {
+    return (
+      this.scorechainCheckDate != null && Util.daysDiff(this.scorechainCheckDate) <= Config.amlScorechainReviewValidity
+    );
   }
 
   get isRiskBlocked(): boolean {

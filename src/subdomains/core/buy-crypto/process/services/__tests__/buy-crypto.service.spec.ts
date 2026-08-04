@@ -316,7 +316,7 @@ describe('BuyCryptoService', () => {
         id: 42,
         outputAsset: { blockchain: Blockchain.ETHEREUM },
         targetAddress: '0xabc',
-        userData: { id: 5, scorechainCheckDate: new Date('2026-08-04') },
+        userData: { id: 5, hasValidScorechainReview: true },
       } as unknown as BuyCrypto;
       jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
       const screening = Object.assign(new ScorechainScreening(), { isNewlyScreened: false });

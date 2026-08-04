@@ -175,26 +175,39 @@ describe('BuyCryptoPreparationService', () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest
-        .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({ id: 42, scorechainCheckDate: new Date('2026-08-04') } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
 
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
-    it('skips the provider for a compliance-reviewed account (withdrawal)', async () => {
+    // The review covers where the customer's money came from, not whether DFX may pay INTO a given
+    // address — so a payout to a listed address must still be caught for a reviewed account.
+    it('still screens the withdrawal address of a compliance-reviewed account', async () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: null,
         outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
       });
       jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
-      jest
-        .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({ id: 42, scorechainCheckDate: new Date('2026-08-04') } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
+      jest.spyOn(scorechainScreeningService, 'screenWithdrawalAddress').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
-      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
-      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalled();
+    });
+
+    // An expired review is no review: the account is screened again after the validity window.
+    it('screens the deposit again once the review has expired', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
     });
 
     // The two date columns sit next to each other on the entity, so reading the wrong one is the
@@ -205,7 +218,11 @@ describe('BuyCryptoPreparationService', () => {
       });
       jest
         .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({ id: 42, scorechainCheckDate: null, phoneCallCheckDate: new Date('2026-08-04') } as any);
+        .mockReturnValue({
+          id: 42,
+          hasValidScorechainReview: false,
+          phoneCallCheckDate: new Date('2026-08-04'),
+        } as any);
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
@@ -233,7 +250,7 @@ describe('BuyCryptoPreparationService', () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, scorechainCheckDate: null } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 

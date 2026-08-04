@@ -262,9 +262,7 @@ describe('BuyFiatPreparationService', () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest
-        .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({ id: 42, scorechainCheckDate: new Date('2026-08-04') } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
 
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
@@ -276,7 +274,11 @@ describe('BuyFiatPreparationService', () => {
       });
       jest
         .spyOn(entity, 'userData', 'get')
-        .mockReturnValue({ id: 42, scorechainCheckDate: null, phoneCallCheckDate: new Date('2026-08-04') } as any);
+        .mockReturnValue({
+          id: 42,
+          hasValidScorechainReview: false,
+          phoneCallCheckDate: new Date('2026-08-04'),
+        } as any);
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
@@ -284,11 +286,11 @@ describe('BuyFiatPreparationService', () => {
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
     });
 
-    it('still screens an account without a review date', async () => {
+    it('still screens an account without a valid review', async () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, scorechainCheckDate: null } as any);
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
