@@ -136,6 +136,11 @@ Neither is a matter of adding names: a count reads without materialising a row, 
 width-zero treatment the `getCount()` sites get rather than the whole-rows treatment a `find` gets,
 and the list needs to know what it is looking at rather than what it is called.
 
+A third case of the same shape: `resolve-endpoints.py` treats every `.query(...)` as a raw read,
+while `render-docs.py` separately recognises a raw `INSERT` and an advisory lock as operations that
+load nothing. That distinction never reaches endpoint resolution, so an endpoint whose only raw
+statement is a write or a lock is recorded as reading rather than as reading nothing.
+
 **The call graph keys symbols by class and method name alone**, and a good number of class names in
 this repository are declared more than once — `KycService` and `KycController` in the deprecated
 and the current generation, and the strategy families that repeat a name once per blockchain. Two

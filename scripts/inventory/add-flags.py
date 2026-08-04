@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Adds `deprecated` to table.json and determines `version` from the full decorator block.
 
-The block between the route decorator and the method is delimited exactly, counting brackets and
-respecting strings and comments. A window of a fixed number of lines would miss a multi-line
-@ApiOperation({ ... deprecated: true }).
+The block between the route decorator and the method is delimited by counting brackets, with
+string literals skipped whole. Comments are not skipped, so a bracket inside one would count. A
+window of a fixed number of lines would miss a multi-line @ApiOperation({ ... deprecated: true }).
 """
 import re, glob, os, json
 

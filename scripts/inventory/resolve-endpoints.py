@@ -49,7 +49,7 @@ def body_start(s, i):
         c = s[j]
         if c == '<': lt += 1
         elif c == '>':
-            if lt: lt -= 1                     # do not count '=>' in function types as a closer
+            if lt: lt -= 1                     # guard only: a '>' outside '<...>' must not go negative
         elif c == ';' and lt == 0:
             return -1                      # an abstract declaration, no body
         elif c == '{':
