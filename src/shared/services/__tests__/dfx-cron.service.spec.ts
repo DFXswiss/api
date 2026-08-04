@@ -288,6 +288,7 @@ describe('DfxCronService', () => {
       const query = jest.fn().mockImplementation((sql: string) => {
         if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
         if (sql.includes('UPDATE')) return Promise.resolve([[], 1]);
+        if (sql.includes('DELETE')) return Promise.resolve([[], 1]);
         return Promise.resolve([]);
       });
       const leaseService = new CronLeaseService(createMock<DataSource>({ query }));
