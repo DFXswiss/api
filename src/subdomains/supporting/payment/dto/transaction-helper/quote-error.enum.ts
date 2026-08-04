@@ -29,4 +29,7 @@ export enum QuoteError {
   STORED_PERSONAL_IBAN_IS_NO_LONGER_ACTIVE = 'StoredPersonalIbanIsNoLongerActive',
   STORED_BANK_NO_LONGER_ACCEPTS_PAYMENTS = 'StoredBankNoLongerAcceptsPayments',
   NO_BANK_AVAILABLE_FOR_THIS_CURRENCY = 'NoBankAvailableForThisCurrency',
+  COLLECTION_ACCOUNT_INVOICE_REQUIRES_PERSONAL_IBAN = 'CollectionAccountInvoiceRequiresPersonalIban',
+  COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED = 'CollectionAccountInvoiceCurrencyNotSupported',
+  COLLECTION_ACCOUNT_INVOICE_REFERENCE_MISSING = 'CollectionAccountInvoiceReferenceMissing',
 }

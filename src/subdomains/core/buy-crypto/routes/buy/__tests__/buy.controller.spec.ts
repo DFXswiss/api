@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Config } from 'src/config/config';
@@ -11,6 +12,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -76,41 +78,120 @@ describe('BuyController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('passes the persisted bank and virtual-IBAN IDs into invoice bank resolution', async () => {
-    Config.invoice.currencies = ['EUR'];
+  describe('generateInvoicePDF', () => {
     const userData = { id: 7, isInvoiceDataComplete: true } as any;
-    const request = {
-      id: 99,
-      userData,
-      isValid: true,
-      isComplete: false,
-      routeId: 42,
-      sourceId: 2,
-      amount: 100,
-      sourcePaymentMethod: FiatPaymentMethod.BANK,
-      bankId: 19,
-      virtualIbanId: 501,
-    } as any;
-    const buy = { id: 42, asset: { id: 10 } } as any;
-    const bankInfo = { iban: 'LI75088110105923K000E', reference: 'ABCD-EFGH-IJKL' } as any;
-    jest.spyOn(transactionRequestService, 'getOrThrow').mockResolvedValue(request);
-    jest.spyOn(userService, 'getUser').mockResolvedValue({ wallet: {} } as any);
-    jest.spyOn(buyService, 'get').mockResolvedValue(buy);
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue({ id: 2, name: 'EUR' } as any);
-    jest.spyOn(buyService, 'getBankInfoForRequest').mockResolvedValue(bankInfo);
-    jest.spyOn(swissQrService, 'createInvoiceFromRequest').mockResolvedValue('pdf-data');
+    const jwt = { user: 1, account: 7 } as any;
 
-    await expect(controller.generateInvoicePDF({ user: 1, account: 7 } as any, 99)).resolves.toEqual({
-      pdfData: 'pdf-data',
+    function baseRequest(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 99,
+        userData,
+        isValid: true,
+        isComplete: false,
+        routeId: 42,
+        sourceId: 2,
+        amount: 100,
+        sourcePaymentMethod: FiatPaymentMethod.BANK,
+        bankId: 19,
+        virtualIbanId: 501,
+        ...overrides,
+      } as any;
+    }
+
+    function baseBuy(overrides: Record<string, unknown> = {}) {
+      return { id: 42, asset: { id: 10 }, bankUsage: 'ABCD-EFGH-IJKL', ...overrides } as any;
+    }
+
+    function setupHappyPath(options?: { request?: any; buy?: any; currencyName?: string; bankInfo?: any }) {
+      Config.invoice.currencies = ['EUR', 'CHF'];
+      const request = options?.request ?? baseRequest();
+      const buy = options?.buy ?? baseBuy();
+      const bankInfo = options?.bankInfo ?? ({ iban: 'LI75088110105923K000E', reference: 'ABCD-EFGH-IJKL' } as any);
+      jest.spyOn(transactionRequestService, 'getOrThrow').mockResolvedValue(request);
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ wallet: {} } as any);
+      jest.spyOn(buyService, 'get').mockResolvedValue(buy);
+      jest.spyOn(fiatService, 'getFiat').mockResolvedValue({ id: 2, name: options?.currencyName ?? 'EUR' } as any);
+      jest.spyOn(buyService, 'getBankInfoForRequest').mockResolvedValue(bankInfo);
+      jest.spyOn(swissQrService, 'createInvoiceFromRequest').mockResolvedValue('pdf-data');
+      return { request, buy, bankInfo };
+    }
+
+    it('passes the persisted bank and virtual-IBAN IDs into invoice bank resolution', async () => {
+      const { buy } = setupHappyPath();
+
+      await expect(controller.generateInvoicePDF(jwt, 99, {})).resolves.toEqual({
+        pdfData: 'pdf-data',
+      });
+      expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ userData, currency: 'EUR' }),
+        buy,
+        true,
+        19,
+        501,
+        buy.asset,
+        {},
+      );
     });
-    expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ userData, currency: 'EUR' }),
-      buy,
-      true,
-      19,
-      501,
-      buy.asset,
-      {},
-    );
+
+    it('skips the virtual IBAN when collectionAccount is set', async () => {
+      const { buy } = setupHappyPath();
+
+      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).resolves.toEqual({
+        pdfData: 'pdf-data',
+      });
+      expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ userData, currency: 'EUR' }),
+        buy,
+        true,
+        19,
+        undefined,
+        buy.asset,
+        {},
+      );
+    });
+
+    it('still passes the virtual IBAN when collectionAccount is not set', async () => {
+      const { buy } = setupHappyPath();
+
+      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: false })).resolves.toEqual({
+        pdfData: 'pdf-data',
+      });
+      expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ userData, currency: 'EUR' }),
+        buy,
+        true,
+        19,
+        501,
+        buy.asset,
+        {},
+      );
+    });
+
+    it('rejects collectionAccount when the request has no personal virtual IBAN', async () => {
+      setupHappyPath({ request: baseRequest({ virtualIbanId: undefined }) });
+
+      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
+        new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REQUIRES_PERSONAL_IBAN),
+      );
+      expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
+    });
+
+    it('rejects collectionAccount when the currency is not EUR', async () => {
+      setupHappyPath({ currencyName: 'CHF' });
+
+      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
+        new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED),
+      );
+      expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
+    });
+
+    it('rejects collectionAccount when the buy has no payment reference', async () => {
+      setupHappyPath({ buy: baseBuy({ bankUsage: undefined }) });
+
+      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
+        new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REFERENCE_MISSING),
+      );
+      expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
+    });
   });
 });
