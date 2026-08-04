@@ -1085,9 +1085,20 @@ describe('CronLeaseService', () => {
         await settle();
         expect(error).toHaveBeenCalledTimes(1);
 
-        // The row is ours again, and stays ours for several more attempts.
+        // The row is ours again for a while — the revive the latch has to survive.
         matches = 1;
         for (let i = 0; i < 3; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(error).toHaveBeenCalledTimes(1);
+
+        // And then lost again. This is what makes the test able to fail: a successful renewal logs
+        // nothing, so clearing the latch in that arm would go unnoticed without a second loss to
+        // report. Still one line.
+        matches = 0;
+        for (let i = 0; i < 2; i++) {
           jest.advanceTimersByTime(20_000);
           await settle();
         }
@@ -1373,6 +1384,16 @@ describe('CronLeaseService', () => {
       }
     });
 
+    it('does not report a record too small to see in the line it prints', async () => {
+      // The line renders one decimal. Comparing raw milliseconds makes a steadily degrading
+      // database set a new record on nearly every attempt — 6000, 6001, 6002 — emitting a line
+      // for each, all reading `6.0 s`. That is one line per attempt, which is the unlatched
+      // repetition the high-water mark exists to remove.
+      const warn = await renewalsTaking([6_000, 6_001, 6_002, 6_003]);
+
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
     it('reports only a new worst, keeping the largest rather than the first', async () => {
       // Latching on the first would freeze the number at 6 s for a run that later renewed in 300 s,
       // and 300 s is what a timeout would have to be sized against. A line per attempt would
@@ -1384,6 +1405,74 @@ describe('CronLeaseService', () => {
         expect.stringContaining('7.0 s'),
         expect.stringContaining('300.0 s'),
       ]);
+    });
+  });
+
+  describe('a run that has finished', () => {
+    it('stops renewing, and stays stopped', async () => {
+      // `stop` clears the timer and the re-arm is guarded on it. Neither was asserted anywhere:
+      // every other fake-timer test either checks before the run ends or drops to real timers
+      // straight after. Without the guard a finished run renews forever, holding a pooled
+      // connection per stale run — the feedback loop the class doc cites for rejecting
+      // `pg_advisory_lock` — and `ourReleaseTookTheRow` keeps the loss line silent throughout.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let renewals = 0;
+        let outstanding = false;
+        let answerOutstanding: (result: [unknown[], number]) => void;
+        const onQuery = jest.fn().mockImplementation((sql: string) => {
+          if (sql.includes('INSERT INTO')) return Promise.resolve([{ owner: 'worker:1' }]);
+          if (sql.includes('UPDATE')) {
+            renewals++;
+            if (outstanding) return new Promise((resolve) => (answerOutstanding = resolve));
+
+            return Promise.resolve([[], 1]);
+          }
+
+          return Promise.resolve([[], 1]);
+        });
+
+        const { service } = buildService({ onQuery });
+        jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        // Stepped one interval at a time: the re-arm is scheduled from an async continuation, so a
+        // single long advance would only ever fire the timer that was already armed.
+        for (let i = 0; i < 2; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(renewals).toEqual(2);
+
+        // The third attempt is left OUTSTANDING while the run ends. This is the case `stopped`
+        // exists for: `clearTimeout` disposes of an armed timer, but an attempt already in flight
+        // resumes afterwards and would re-arm from its own continuation.
+        outstanding = true;
+        jest.advanceTimersByTime(20_000);
+        await settle();
+        expect(renewals).toEqual(3);
+
+        finish();
+        await run;
+
+        answerOutstanding([[], 1]);
+        await settle();
+
+        // Several more intervals pass with the run long over.
+        for (let i = 0; i < 6; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(renewals).toEqual(3);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

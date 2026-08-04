@@ -63,12 +63,13 @@ const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
 /**
  * How long a renewal round trip may take before it is reported.
  *
- * The cadence above bounds when the next attempt STARTS, not how long one takes, and a slow round
- * trip pushes the row's next EXTENSION out by its own length: consecutive executions land
- * `max(interval, round trip)` apart rather than an interval apart, so a renewal answering in 40 s
- * leaves the claim closer to its expiry than the schedule suggests. Not because the row goes
- * unextended for the whole trip — a renewal that succeeds extends it mid-flight, as the block above
- * says — but because the NEXT one is that much further away. Only a renewal that FAILED was ever
+ * The cadence above bounds when the next attempt STARTS, not how long one takes: consecutive
+ * executions land `max(interval, round trip)` apart. Inside the interval the re-arm absorbs the
+ * latency exactly and nothing moves; once a round trip exceeds it, each extension pushes the next
+ * one out by its own length, so a renewal answering in 40 s leaves the claim closer to its expiry
+ * than the schedule suggests. Not because the row goes unextended for the whole trip — a renewal
+ * that succeeds extends it mid-flight, as the block above says — but because the NEXT one is that
+ * much further away. Only a renewal that FAILED was ever
  * visible, so that span was reported as nothing at all.
  *
  * Five seconds is far outside the normal shape of the statement it times: a single-row UPDATE by
@@ -198,7 +199,7 @@ export class CronLeaseService implements OnModuleInit {
    * claim lapse, and then both runs match `name + owner`. The first one to finish would delete the
    * row the second is holding, and a third process could start the job alongside it. Renewal has
    * the mirror problem: the old run would keep extending a claim it no longer has, and its
-   * `stillOurs` check would come back true because it is comparing against itself.
+   * renewal's own check would come back true because it is comparing against itself.
    *
    * With one identity per run, both statements name the run that took the claim. The old run's
    * renewal returns false and says so, and its release matches nothing.
@@ -563,9 +564,8 @@ export class CronLeaseService implements OnModuleInit {
    * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every
    * attempt. The run carries on to its own end — up to two hours for the longest timeouts — and
    * an unlatched line would repeat every 20 s for all of it, turning one event into some 360
-   * lines. Counting
-   * lines would then measure how LONG the affected runs were, not how OFTEN the claim was lost,
-   * which is the number the TTL has to be dimensioned on.
+   * lines. Counting lines would then measure how LONG the affected runs were, not how OFTEN the
+   * claim was lost, which is the number the TTL has to be dimensioned on.
    *
    * The latch is one-way on purpose, though not because a lapsed claim is always taken over —
    * `renew` carries no expiry predicate, so a claim nobody else has claimed yet is silently revived
@@ -676,9 +676,10 @@ export class CronLeaseService implements OnModuleInit {
         // and inflate the claim's age by the same amount.
         //
         // Kept as millisecond deltas rather than `Util.secondsDiff`, which takes `Date`s and
-        // answers in seconds — both feed millisecond arithmetic (`SLOW_RENEWAL_MS`, and the
-        // re-arm below), and the age needs clamping, since a backward clock step would otherwise
-        // render it negative.
+        // answers in seconds. `elapsed` feeds millisecond arithmetic directly — the
+        // `SLOW_RENEWAL_MS` comparison and the re-arm below — and is left unclamped, since the
+        // re-arm's own `Math.min` handles a backward clock step. `unconfirmedFor` is only ever
+        // printed, and is clamped here because that same step would otherwise render it negative.
         const elapsed = Date.now() - startedAt;
         const unconfirmedFor = Math.max(0, Date.now() - acceptedAt);
 
@@ -700,7 +701,12 @@ export class CronLeaseService implements OnModuleInit {
         // runs affected; latching the FIRST one instead would hold the number at 6 s for a run
         // whose renewals then went to 300 s, and 300 s is what a timeout would have to be sized
         // against. A monotonic high-water mark is a handful of lines and keeps the largest.
-        if (elapsed >= SLOW_RENEWAL_MS && elapsed > worstReportedMs) {
+        // Compared at the granularity it PRINTS. On raw milliseconds a steadily degrading database
+        // sets a new record on almost every attempt — 6000 ms, then 6001, then 6002 — and emits a
+        // line for each, all reading `took 6.0 s`. That is one line per attempt, which is the
+        // unlatched repetition this mark exists to remove, arriving through the rule meant to
+        // prevent it. A record now has to be visibly larger than the one already reported.
+        if (elapsed >= SLOW_RENEWAL_MS && Math.round(elapsed / 100) > Math.round(worstReportedMs / 100)) {
           worstReportedMs = elapsed;
           this.logger.warn(`Renewing the lease for ${job} took ${(elapsed / 1000).toFixed(1)} s (owner ${owner})`);
         }
