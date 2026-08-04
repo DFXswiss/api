@@ -1412,7 +1412,9 @@ describe('CronLeaseService', () => {
       // different buckets and emits two identical lines — the degeneracy this rule removes.
       const warn = await renewalsTaking([6_000, 6_050]);
 
-      expect(warn).toHaveBeenCalledTimes(1);
+      // By content rather than count, so the surviving line is pinned as the one this case is
+      // about — a count alone would not say which of the two attempts produced it.
+      expect(warn.mock.calls.map((c) => c[0])).toEqual([expect.stringContaining('6.0 s')]);
     });
 
     it('reports only a new worst, keeping the largest rather than the first', async () => {
