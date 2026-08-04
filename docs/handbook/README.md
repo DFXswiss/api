@@ -43,7 +43,10 @@ Guards (Build bricht ab bei Verletzung; Überschreitung ist nie ein Fehler):
 
 - **Floor:** mindestens 11 PDFs, 24 Mails, 17 Docs, 10 Assets
 - **Magic-Bytes + Mindestgrösse:** PDF `%PDF`, PNG, JPEG; jeweils > 1000 Bytes
-- **HTML-Integrität:** jedes Artefakt im Manifest muss auf Disk existieren; jedes lokale `src`/`href` in generierten Doc-Seiten muss auf eine Repo-Datei zeigen (existierende, aber nicht ins Handbook kopierte Dateien → Warnung; fehlende Pfade → Fehler)
+- **HTML-Integrität:** jedes Artefakt im Manifest muss auf Disk existieren; jedes lokale `src`/`href` in generierten Doc-Seiten muss auf eine Repo-Datei zeigen (existierende, aber nicht ins Handbook kopierte Dateien → Warnung; fehlende Pfade → Fehler;
+  Verweise, die aus dem Repo-Root ausbrechen → Fehler). Links auf andere Handbook-Dokumente
+  werden beim Rendern auf deren `.html`-Ausgabepfad umgeschrieben, damit sie im ausgelieferten
+  Handbook nicht ins Leere zeigen
 - **Mail-Trigger:** stdout- und stderr-Zeilen, die mit `[trigger] Missing` beginnen, sind ein Fehler
 
 Metadaten in `scripts/handbook/metadata.json` sind **nur Anreicherung** (deutsche Titel/

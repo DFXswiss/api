@@ -121,7 +121,10 @@ jobs:
             .filter((p) => p && p !== 'index.html');
           // Always include index.html as a gated page sample
           paths.unshift('index.html');
-          fs.writeFileSync('/tmp/handbook-sample-paths.txt', paths.join('\n') + '\n');
+          // Encode per segment: a filename may legitimately contain '#' or '?',
+          // which curl would otherwise read as fragment/query and cut the path short.
+          const encoded = paths.map((p) => p.split('/').map(encodeURIComponent).join('/'));
+          fs.writeFileSync('/tmp/handbook-sample-paths.txt', encoded.join('\n') + '\n');
           console.log('sampling paths:\n' + paths.join('\n'));
           NODE
 
@@ -129,12 +132,16 @@ jobs:
             [ -n "$path" ] || continue
             code=$(curl -sS -o /dev/null -w '%{http_code}' -u ci:ci --max-time 10 \
               "http://127.0.0.1:8080/${path}")
-            if [ "$code" = "404" ]; then
-              echo "artifact sample 404: ${path}" >&2
-              docker logs handbook-smoke >&2 || true
-              exit 1
-            fi
-            echo "ok ${code} ${path}"
+            # Anything outside 2xx is a failure. Checking only for 404 let a 401,
+            # 403 or 500 pass as if the artifact were served correctly.
+            case "$code" in
+              2*) echo "ok ${code} ${path}" ;;
+              *)
+                echo "artifact sample ${code}: ${path}" >&2
+                docker logs handbook-smoke >&2 || true
+                exit 1
+                ;;
+            esac
           done < /tmp/handbook-sample-paths.txt
 
           # PDF inline disposition sample (first pdfs artifact if any)
