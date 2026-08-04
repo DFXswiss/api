@@ -6,9 +6,9 @@
  *   - `buildMetadatas()` statt `initialize()`, also OHNE Datenbank.
  * Das Ausgabeformat ist unverändert, damit build_docs.py es unbesehen lesen.
  *
- * Der Stub-Bootstrap stammt aus proof.js und ist in reference_dfx_api_typeorm_metadata_messung
- * begründet: native Module fehlen auf diesem Worker, src/config/config erzwingt ~300 Env-Variablen,
- * und @arkade-os/sdk ist ESM. Keine der Entities liest die Config innerhalb eines Dekorators, die
+ * Der Stub-Bootstrap ist nötig, weil beim blossen Laden der Entity-Module drei Dinge im Weg stehen:
+ * native Module fehlen je nach Host, src/config/config erzwingt beim Import ~300 Env-Variablen, und
+ * @arkade-os/sdk ist ESM. Keine der Entities liest die Config innerhalb eines Dekorators, die
  * Metadaten hängen also nicht daran.
  */
 const Module = require('module');
