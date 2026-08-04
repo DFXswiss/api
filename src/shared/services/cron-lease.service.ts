@@ -337,8 +337,9 @@ export class CronLeaseService implements OnModuleInit {
     // Read BEFORE the claim is issued, not after it answers. The database stamps `expires` from
     // its own clock when it executes the statement, which is after this line and before the answer
     // gets back here; taking the later of the two would credit the claim with a round trip it never
-    // had. Only used to describe how old a claim is in the loss line, but the direction of that
-    // error is the one that would understate it.
+    // had. `keepAlive` uses it for both things that follow from when the claim really started: the
+    // delay before the first renewal, and the age printed if the claim is lost before any renewal
+    // has confirmed it.
     const claimedAt = Date.now();
 
     let acquired: boolean;
@@ -601,6 +602,20 @@ export class CronLeaseService implements OnModuleInit {
     const ourReleaseTookTheRow = (): Promise<boolean> => releasing?.catch(() => false) ?? Promise.resolve(false);
 
     /**
+     * Emits the loss, once per run, from whichever of the two things notices it first.
+     *
+     * `unconfirmedForMs` is passed in rather than read here because the renewal path samples it
+     * when the RENEWAL settles, before it waits on the release — see the sampling comment below.
+     */
+    const reportLoss = (unconfirmedForMs: number): void => {
+      reportedLoss = true;
+      this.logger.error(
+        `Lost the lease for ${job} (owner ${owner}, ` +
+          `${(unconfirmedForMs / 1000).toFixed(1)} s since the claim was last confirmed)`,
+      );
+    };
+
+    /**
      * When the claim was last confirmed to name this run — the claim itself to begin with, then the
      * START of each renewal the row accepted.
      *
@@ -624,13 +639,15 @@ export class CronLeaseService implements OnModuleInit {
           failure = e instanceof Error ? e : new Error(String(e));
         }
 
-        // Sampled the instant the RENEWAL settles, before anything else is awaited. Taken as raw
-        // deltas rather than through `Util.secondsDiff`, which reads the clock itself: the whole
-        // point is WHEN these are measured, and the age additionally needs clamping — a backward
-        // clock step would otherwise print a negative one. Both numbers
-        // below describe the renewal, and the branch under them waits on the release — whose round
-        // trip is the very thing this change exists to survive. Reading the clock after that wait
-        // would print a slow release as a slow renewal, and inflate the claim's age with it.
+        // Sampled the instant the RENEWAL settles, before anything else is awaited. The branch
+        // below waits on the release, whose round trip is the very thing this change exists to
+        // survive: reading the clock after that wait would print a slow release as a slow renewal
+        // and inflate the claim's age by the same amount.
+        //
+        // Kept as millisecond deltas rather than `Util.secondsDiff`, which takes `Date`s and
+        // answers in seconds — both feed millisecond arithmetic (`SLOW_RENEWAL_MS`, and the
+        // re-arm below), and the age needs clamping, since a backward clock step would otherwise
+        // render it negative.
         const elapsed = Date.now() - startedAt;
         const unconfirmedFor = Math.max(0, Date.now() - acceptedAt);
 
@@ -644,11 +661,7 @@ export class CronLeaseService implements OnModuleInit {
         } else if (renewed) {
           acceptedAt = startedAt;
         } else if (!reportedLoss && !(await ourReleaseTookTheRow())) {
-          reportedLoss = true;
-          this.logger.error(
-            `Lost the lease for ${job} (owner ${owner}, ` +
-              `${(unconfirmedFor / 1000).toFixed(1)} s since the claim was last confirmed)`,
-          );
+          reportLoss(unconfirmedFor);
         }
 
         // Reported only when it is the worst this run has seen. Slowness persists, so a line per
@@ -689,8 +702,23 @@ export class CronLeaseService implements OnModuleInit {
       // outstanding then waits for it before deciding, instead of reading a result that may not
       // have arrived yet; an attempt that answers before the release is issued at all sees nothing
       // to wait for, which is correct — with no DELETE in flight, matching nothing is a takeover.
+      //
+      // The release is also the second thing that can DISCOVER a loss, and for some runs the only
+      // one. A renewal is outstanding for its round trip out of every interval, and `stop` cancels
+      // an overdue one before it can run — so a job that blocks the event loop past the expiry,
+      // loses the claim, and then finishes has no renewal left to notice. Its DELETE removing zero
+      // rows is the same proof, and the only one left. Reporting only from the renewal would make
+      // the count a function of how long a run happens to continue past its loss, which is exactly
+      // what this line must not be. Both go through `reportLoss`, so the latch keeps it to one.
       releasing: (release: Promise<boolean>) => {
         releasing = release;
+
+        void release
+          .then((removed) => {
+            // A release that threw says nothing either way, and `run` reports that separately.
+            if (!removed && !reportedLoss) reportLoss(Math.max(0, Date.now() - acceptedAt));
+          })
+          .catch(() => undefined);
       },
     };
   }

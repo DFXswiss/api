@@ -901,7 +901,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `shared/repositories/cached.repository.ts:20` | `CachedRepository.findOneCachedBy` |
 | — | — | find | `—` | `shared/repositories/cached.repository.ts:24` | `CachedRepository.findCached` |
 | — | — | find | `—` | `shared/repositories/cached.repository.ts:28` | `CachedRepository.findCachedBy` |
-| — | — | raw-sql | `—` | `shared/services/cron-lease.service.ts:224` | `CronLeaseService.onModuleInit` |
+| — | — | raw-sql | `—` | `shared/services/cron-lease.service.ts:228` | `CronLeaseService.onModuleInit` |
 | — | — | find | `—` | `shared/services/http.service.ts:87` | `HttpService.getMockResponse` |
 | — | — | find | `—` | `shared/utils/util.ts:786` | `Util.clearTimeout` |
 | — | — | find | `—` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:339` | `BankTxConsumer.cutoverOwedOpeningChf` |

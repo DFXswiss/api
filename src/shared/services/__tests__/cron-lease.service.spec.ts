@@ -447,8 +447,9 @@ describe('CronLeaseService', () => {
         finish();
         await run;
 
-        // A renewal is still outstanding at release time here, so a false loss would be silent
-        // without this — the shape that hid one behind an unwatched logger before.
+        // Watched so a stray loss line cannot pass unnoticed here, as it could while this helper
+        // spied only on `warn`. It does not prove much on its own — the outstanding renewal in the
+        // 45 s case never answers — but an unwatched logger is how one hid before.
         expect(error).not.toHaveBeenCalled();
 
         return { afterAnswer, immediately };
@@ -868,6 +869,70 @@ describe('CronLeaseService', () => {
       }
     });
 
+    it('reports a loss the release alone can see, with no renewal left to notice it', async () => {
+      // A renewal is outstanding only for its round trip out of every interval, and `stop` cancels
+      // an overdue one before it can run. A job that blocks the event loop past the expiry, loses
+      // the claim and then finishes therefore has no renewal left — its DELETE removing zero rows
+      // is the only remaining proof. Reporting only from the renewal would make the count depend
+      // on how long a run happens to continue past its loss.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        // No renewal ever fires: the run ends before the first one is due.
+        const onQuery = lease({
+          renew: () => Promise.resolve([[], 1]),
+          release: () => Promise.resolve([[], 0]),
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        await service.run('SomeService::job', () => Promise.resolve());
+        await settle();
+
+        expect(error).toHaveBeenCalledTimes(1);
+        expect(error.mock.calls[0][0]).toContain('Lost the lease');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('does not report twice when the renewal and the release both see the loss', async () => {
+      // Both discoverers share one latch, so the run that has a renewal outstanding AND a release
+      // that removed nothing still produces a single line.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let answerRenewal: (result: [unknown[], number]) => void;
+        const onQuery = lease({
+          renew: () => new Promise((resolve) => (answerRenewal = resolve)),
+          release: () => Promise.resolve([[], 0]),
+        });
+
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+        jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+
+        finish();
+        await run;
+
+        answerRenewal([[], 0]);
+        await settle();
+
+        const lost = error.mock.calls.map((c) => c[0]).filter((line: string) => line.includes('Lost the lease'));
+        expect(lost).toHaveLength(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('reports a loss while the run is still going', async () => {
       // Nothing has been released here at all, so the run is simply no longer the owner.
       jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
@@ -908,6 +973,42 @@ describe('CronLeaseService', () => {
         await settle();
 
         for (let i = 0; i < 6; i++) {
+          jest.advanceTimersByTime(20_000);
+          await settle();
+        }
+
+        expect(error).toHaveBeenCalledTimes(1);
+
+        finish();
+        await run;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('stays silent when a renewal succeeds again after a loss was reported', async () => {
+      // `renew` carries no expiry predicate, so a claim that lapsed and that nobody else has taken
+      // is silently revived by a late renewal and answers true. The latch has to survive that: the
+      // loss happened, and a second line for the same run would double-count it.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+
+      try {
+        let matches = 0;
+        const onQuery = lease({ renew: () => Promise.resolve([[], matches]) });
+        const { service } = buildService({ onQuery });
+        const error = jest.spyOn(service['logger'], 'error').mockImplementation();
+
+        let finish: () => void;
+        const run = service.run('SomeService::job', () => new Promise<void>((resolve) => (finish = resolve)));
+        await settle();
+
+        jest.advanceTimersByTime(20_000);
+        await settle();
+        expect(error).toHaveBeenCalledTimes(1);
+
+        // The row is ours again, and stays ours for several more attempts.
+        matches = 1;
+        for (let i = 0; i < 3; i++) {
           jest.advanceTimersByTime(20_000);
           await settle();
         }
