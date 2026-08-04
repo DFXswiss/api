@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **534 decorated route entries** across 94 controller files, of which **533 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 296 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **537 decorated route entries** across 94 controller files, of which **536 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -23,20 +23,20 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 2 endpoints read only what they need and 432 do not, so the column reads `not yet` almost everywhere. Two further endpoints project only when the caller supplies a field list and load the whole table otherwise, which is why they are counted separately rather than as converted. That is the point of recording it: the number is the distance to the target.
+Today 2 endpoints read only what they need and 435 do not, so the column reads `not yet` almost everywhere. Two further endpoints project only when the caller supplies a field list and load the whole table otherwise, which is why they are counted separately rather than as converted. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
 | Data access | Endpoints | Share |
 | ----------- | --------: | ----: |
-| `whole rows` | 432 | 81 % |
+| `whole rows` | 435 | 81 % |
 | `none` | 98 | 18 % |
 | `projected` | 2 | 0 % |
 | `caller-defined` | 2 | 0 % |
 
 Two endpoints are classified as reading only what they need, on the strength of reads resolved in the source rather than an exhaustive proof: `PUT /log/financial/validity`, whose query names `log.id` and `log.valid`, and `POST /gs/debug`, which assembles its select list from the request. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise. How far the test suite actually covers those reads is recorded per site in [read-path-projections.md](read-path-projections.md#which-endpoints-these-apply-to); the short answer is that the projection behind `PUT /log/financial/validity` is never executed in a test.
 
-Among the 432 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 320 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns; the widest measured query sits at 1453, so a little over two hundred columns separate it from a statement the database rejects.
+Among the 435 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 321 exceed 100, 90 exceed 500 and 19 exceed 1000. Postgres refuses a statement with more than 1664 columns; the widest an endpoint can trigger is 1363, so about three hundred columns separate it from a statement the database rejects. The load-site table records a wider one still, at 1453 — that site is reached by a scheduled job rather than by a request.
 
 ### How to read this column, and how not to
 
@@ -50,10 +50,10 @@ Among the 432 that fetch whole rows, the widest query they can trigger is **308 
 
 Stated exactly, so the numbers can be checked rather than believed:
 
-- **436 of the 534 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 432 is a lower bound in that direction. In the other direction 429 of them are backed by at least one measured query; the remaining three are the entries discussed below.
+- **448 of the 537 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 435 is a lower bound in that direction. In the other direction 431 of them are backed by at least one measured query; the remaining four are the entries discussed below.
 - All 98 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
 - The 2 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
-- 3 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`, `PUT /userData/:id/volumes`. Those three are also the ones most exposed to the upper bound described in [load-sites.md](load-sites.md#measurements): with no measured query behind them, nothing here shows that they reach a whole-row read at all.
+- 4 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file`, `PUT /userData/:id/volumes` and `PUT /buyCrypto/:id/amlCheck/reviewReset`. Those four are also the ones most exposed to the upper bound described in [load-sites.md](load-sites.md#measurements): with no measured query behind them, nothing here shows that they reach a whole-row read at all.
 
 ### Two controller classes may share a name
 
@@ -97,7 +97,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 
 ## How the values are produced
 
-- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 527 distinct method/path pairs match, with no entry left over on either side. The 533 registered rows exceed that by the six pairs served under two versions.
+- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 530 distinct method/path pairs match, with no entry left over on either side. The 536 registered rows exceed that by the six pairs served under two versions.
 - **Ver** — from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default. Note that the version follows the class, not the folder: the controllers under `generic/kyc/` are not uniformly v2 — `KycAdminController` carries no version decorator and is therefore served under the default.
 - **Data access** — the union over the call graph, following injected fields, locally constructed repositories and multi-line call chains. `find*` pulls in eager relations, `createQueryBuilder` does not, a bare identifier passed to `.select(...)` is the root alias and loads every column, while anything else — an array, a qualified column such as `.select('userData.id', 'id')`, or an expression such as `COUNT(*)` — narrows it, and `.update()/.delete()/.insert()` are writes that load nothing.
 - **Max cols** — the query is built from the real entity metadata and its SELECT list counted, so the number is measured rather than estimated. It is still a lower bound wherever the load site takes its `relations` tree as a parameter, or the call graph did not resolve: both can only add sites and widen queries, never the reverse.
@@ -173,8 +173,8 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/buy/personalIban` | public | whole rows | 253 | not yet |  | `BuyController.createPersonalIban` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buy/quote` | public | whole rows | 143 | not yet |  | `BuyController.getBuyQuote` | `subdomains/core/buy-crypto/routes/buy/buy.controller.ts` |
 | PUT | 1 |  | `/buyCrypto/:id` | hidden | whole rows | 1090 | not yet |  | `BuyCryptoController.update` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
-| DELETE | 1 |  | `/buyCrypto/:id/amlCheck` | hidden | whole rows | 422 | not yet |  | `BuyCryptoController.resetAmlCheck` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | PUT | 1 |  | `/buyCrypto/:id/amlCheck` | hidden | whole rows | 1090 | not yet |  | `BuyCryptoController.manualPassAmlCheck` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
+| PUT | 1 |  | `/buyCrypto/:id/amlCheck/reviewReset` | hidden | whole rows | — | not yet |  | `BuyCryptoController.resetAmlCheckForReview` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | POST | 1 |  | `/buyCrypto/:id/refund` | hidden | whole rows | 1051 | not yet |  | `BuyCryptoController.refundBuyCrypto` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | POST | 1 |  | `/buyCrypto/:id/scorechain` | hidden | whole rows | 717 | not yet |  | `BuyCryptoController.retriggerScorechain` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | POST | 1 |  | `/buyCrypto/:id/webhook` | hidden | whole rows | 844 | not yet |  | `BuyCryptoController.triggerWebhook` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
@@ -527,6 +527,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/support` | hidden | whole rows | 593 | not yet |  | `SupportController.searchUserByKey` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/:id` | hidden | whole rows | 826 | not yet |  | `SupportController.getUserData` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/:id/ip-log-pdf` | hidden | whole rows | 12 | not yet |  | `SupportController.getIpLogPdf` | `subdomains/generic/support/support.controller.ts` |
+| POST | 1 |  | `/support/:id/limit-request-pdf` | hidden | whole rows | 253 | not yet |  | `SupportController.generateLimitRequestPdf` | `subdomains/generic/support/support.controller.ts` |
 | POST | 1 |  | `/support/:id/onboarding-pdf` | hidden | whole rows | 264 | not yet |  | `SupportController.generateOnboardingPdf` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/:id/scorechain` | hidden | whole rows | 14 | not yet |  | `SupportController.getScorechainScreenings` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/:id/transaction-pdf` | hidden | whole rows | 826 | not yet |  | `SupportController.getTransactionPdf` | `subdomains/generic/support/support.controller.ts` |
@@ -589,6 +590,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/transaction/ChainReport` | hidden | whole rows | 1363 | not yet | yes | `TransactionController.getCsvChainReport` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/CoinTracking` | hidden | whole rows | 1363 | not yet | yes | `TransactionController.getCsvCT` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | PUT | 1 |  | `/transaction/admin/:id` | hidden | whole rows | 276 | not yet |  | `TransactionAdminController.updateTransaction` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
+| POST | 1 |  | `/transaction/admin/:id/resume` | hidden | whole rows | 98 | not yet |  | `TransactionAdminController.resumeTransaction` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
 | POST | 1 |  | `/transaction/admin/:id/stop` | hidden | whole rows | 98 | not yet |  | `TransactionAdminController.stopTransaction` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
 | POST | 1 |  | `/transaction/admin/:txId/riskAssessment` | hidden | none | — | n/a |  | `TransactionAdminController.createRiskAssessment` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
 | PUT | 1 |  | `/transaction/admin/:txId/riskAssessment/:id` | hidden | whole rows | 13 | not yet |  | `TransactionAdminController.updateRiskAssessment` | `subdomains/supporting/payment/controllers/transaction-admin.controller.ts` |
@@ -634,6 +636,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/userData/:id/fee` | hidden | whole rows | 253 | not yet |  | `UserDataController.removeFee` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | 1 |  | `/userData/:id/fee` | hidden | whole rows | 253 | not yet |  | `UserDataController.addFee` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | POST | 1 |  | `/userData/:id/kycFile` | hidden | whole rows | 253 | not yet |  | `UserDataController.uploadKycFile` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
+| PUT | 1 |  | `/userData/:id/kycStatus/check` | hidden | whole rows | 364 | not yet |  | `UserDataController.setKycStatusCheck` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | 1 |  | `/userData/:id/merge` | hidden | whole rows | 364 | not yet |  | `UserDataController.mergeUserData` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | 1 |  | `/userData/:id/volumes` | hidden | whole rows | — | not yet |  | `UserDataController.updateVolumes` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |
 | PUT | 1 |  | `/userData/auditPeriodNumbers` | hidden | whole rows | 40 | not yet |  | `UserDataController.calculateAuditPeriodNumbers` | `subdomains/generic/user/models/user-data/user-data.controller.ts` |

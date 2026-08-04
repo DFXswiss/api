@@ -25,12 +25,12 @@ is treated as the latter.
 
 This service loads far more data than it returns. Measured against the real entity metadata:
 
-- The whole database schema has **1,736 columns across 99 tables**.
+- The whole database schema has **1,742 columns across 100 tables**.
 - `PUT /v1/transaction/:id/invoice` selected **1,664 of them** — 96% of the entire schema — to
   render a PDF containing a handful of values. That query sat exactly on Postgres' limit of 1,664
   columns per statement, so a single column added elsewhere (`settlementEventId` on
   `transaction_request`) was enough to push it over.
-- Of the 534 route entries, **432 reach at least one load site that fetches whole rows**; 98 read
+- Of the 537 route entries, **435 reach at least one load site that fetches whole rows**; 98 read
   nothing at all, 2 read only the fields they need, and 2 more project only when the caller
   supplies a field list. The widest query a fetching endpoint can trigger is 308 columns at the
   median of the recorded maxima, and at least 19 of them exceed 1,000 — the call graph does not
@@ -49,9 +49,9 @@ and one on `LimitRequest` **434 across 15** — before any `relations` option is
 decision what to load therefore lives in the entity definition, not at the call site, and no call
 site can see what it triggers.
 
-**No read model.** Of the load sites in this repository — at most 1,105, see [load-sites.md](load-sites.md#measurements) — **six** name the columns they need:
-one query builder and the five raw statements. Practically all the rest request whole rows — 971 through the
-`find` family, and of the 129 query builders, 105 pass the root alias to `.select(...)`, which reads
+**No read model.** Of the load sites in this repository — at most 1,158, see [load-sites.md](load-sites.md#measurements) — **eight** name the columns they need:
+one query builder and the seven raw statements. Practically all the rest request whole rows — 1,021 through the
+`find` family, and of the 130 query builders, 105 pass the root alias to `.select(...)`, which reads
 like a projection but is not, while 23 pass no select at all. The same entities serve persistence,
 business logic and pure output paths such as invoices, receipts, history and exports — which need
 fields, not objects.
@@ -134,7 +134,7 @@ Leave `surname` out of the projection and `isInvoiceDataComplete` returns `false
 load returns `true`. The invoice is refused with "user data is not complete" although the data is
 complete. No error, no log entry.
 
-This service carries **234 such getters across 50 of its 112 entities**. In an application moving
+This service carries **238 such getters across 50 of its 113 entities**. In an application moving
 money, a silent wrong value is worse than a crash: a statement that exceeds the column limit fails
 loudly and is found at once, while a wrong value can run for weeks.
 
@@ -148,7 +148,7 @@ per endpoint as `0/4` through `4/4`; only `4/4` is done.
 To any load site that carries an explicit field list — that is where a forgotten field silently
 yields an empty value.
 
-Today that is **six sites**, and this is what the suite covers of them:
+Today that is **eight sites**, and this is what the suite covers of them:
 
 | Site | Form | Runs in a test | Column list asserted | Real database |
 | ---- | ---- | -------------- | -------------------- | ------------- |
@@ -156,12 +156,14 @@ Today that is **six sites**, and this is what the suite covers of them:
 | `log.repository.ts:341` — `getFinancialLogAssetPrices` | raw SQL, columns listed | **no** | no | no |
 | `log.repository.ts:511` — `getFinancialLogSummariesFull` | raw SQL, columns listed | yes | yes | no |
 | `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed | yes | yes | no |
-| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
+| `virtual-iban.service.ts:891` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
 | `gs.service.ts:337` — `executeDebugQuery` | raw SQL, list supplied by the caller | yes | yes | no |
+| `cron-lease.service.ts:186` — `onModuleInit` | raw SQL, `SELECT 1` — a reachability probe, no column to name | yes | n/a | no |
+| `bank-tx.service.ts:597` — `recoverRollingInternalTransfers` | raw SQL, columns listed | **no** | no | no |
 
 Read that column by column, because the three answers mean different things.
 
-**Runs in a test.** Three of the six are never executed. `getFinancialLogValidityChangeSet` is
+**Runs in a test.** Four of the eight are never executed. `getFinancialLogValidityChangeSet` is
 replaced by `jest.spyOn(logRepo, …).mockResolvedValue([…])` at all nine of its appearances, so the
 projection line itself never runs. `getFinancialLogAssetPrices` is stood in for by a hand-written
 fake that reimplements the filtering in TypeScript. `hasOrderedOwnershipPath` appears in no spec at
@@ -176,7 +178,7 @@ without being level 3: that level requires level 1 to fail, and level 1 is satis
 these sites. For the three that never run, removing a column changes nothing at all — the mock
 supplies the value regardless.
 
-**Real database.** None of the six. Every spec stubs the boundary — `createQueryBuilder` as a
+**Real database.** None of the eight. Every spec stubs the boundary — `createQueryBuilder` as a
 chainable mock in the repository spec, `createMock<DataSource>()` in the service spec. A mock cannot
 observe which columns were requested, so **level 1, the completeness test, is satisfied nowhere
 today**, not even for the three sites whose SQL is asserted. Asserting that a column appears in a
