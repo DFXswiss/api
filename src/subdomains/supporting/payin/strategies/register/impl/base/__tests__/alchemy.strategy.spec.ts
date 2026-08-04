@@ -58,6 +58,34 @@ class TestAlchemyStrategy extends AlchemyStrategy {
   }
 }
 
+function createNftWebhook(category: string, rawValue: string): AlchemyWebhookDto {
+  return {
+    webhookId: 'webhook-1',
+    id: `event-nft-${category}`,
+    createdAt: '2026-08-04T00:00:00.000Z',
+    type: 'ADDRESS_ACTIVITY',
+    event: {
+      network: 'ETH_MAINNET',
+      activity: [
+        {
+          fromAddress: SENDER_ADDRESS,
+          toAddress: RECEIVER_ADDRESS,
+          blockNum: '0x10',
+          hash: `0x${'b'.repeat(64)}`,
+          value: undefined as unknown as number,
+          asset: undefined as unknown as string,
+          category,
+          rawContract: {
+            rawValue,
+            decimals: undefined as unknown as number,
+            address: '0xbd22475fbce80e181af62418be9786f8443de3e4',
+          },
+        },
+      ],
+    },
+  };
+}
+
 function createWebhook(chainId: string, decimals: number): AlchemyWebhookDto {
   return {
     webhookId: 'webhook-1',
@@ -149,6 +177,33 @@ describe('AlchemyStrategy priced pay-in boundary', () => {
     expect(storedPayIns).toHaveLength(1);
     expect(storedPayIns.at(0)).toMatchObject({ asset: ondo, status: PayInStatus.CREATED });
     await expect(payInService.getNewPayIns()).resolves.toEqual(storedPayIns);
+  });
+
+  it('skips an ERC-1155 spam mint whose raw event data would parse as an absurd amount', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    // TransferSingle event data: tokenId=1 ++ value=1 — read as one integer this is (2^256 + 1) wei
+    const tokenIdPlusValue = `0x${'1'.padStart(64, '0')}${'1'.padStart(64, '0')}`;
+
+    await strategy.process(createNftWebhook('erc1155', tokenIdPlusValue));
+
+    expect(storedPayIns).toHaveLength(0);
+  });
+
+  it('skips an ERC-721 transfer regardless of category casing', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(createNftWebhook('ERC721', `0x${'f'.repeat(64)}`));
+
+    expect(storedPayIns).toHaveLength(0);
+  });
+
+  it('skips a specialnft transfer', async () => {
+    jest.spyOn(assetService, 'getPayInAssets').mockResolvedValue([]);
+
+    await strategy.process(createNftWebhook('specialnft', '0x1'));
+
+    expect(storedPayIns).toHaveLength(0);
   });
 
   it('stores an inert unpriced DGC input as FAILED and never returns it for processing', async () => {

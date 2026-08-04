@@ -13,6 +13,8 @@ import { Util } from 'src/shared/utils/util';
 import { PayInEntry } from '../../../../interfaces';
 import { EvmStrategy } from './evm.strategy';
 
+const NftCategories = ['erc721', 'erc1155', 'specialnft'];
+
 export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleInit {
   protected addressWebhookMessageQueue: QueueHandler;
   protected assetTransfersMessageQueue: QueueHandler;
@@ -60,7 +62,12 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
 
     const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
-    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
+    const fungibleTransactions = this.filterWebhookTransactionsByFungibleCategory(dto);
+    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(
+      fromAddresses,
+      toAddresses,
+      fungibleTransactions,
+    );
     const transactions = AlchemyTransactionMapper.mapWebhookActivities(relevantTransactions);
 
     const payInEntries = transactions.map((tx) => this.mapAlchemyTransaction(tx, supportedAssets)).filter((p) => p);
@@ -71,14 +78,18 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     }
   }
 
+  // NFT activities (mass airdrop spam) carry the raw event data (tokenId ++ value) in rawContract.rawValue,
+  // which mapAlchemyTransaction would misread as an 18-decimal token amount (~1.16e59) — they are never pay-ins
+  private filterWebhookTransactionsByFungibleCategory(dto: AlchemyWebhookDto): AlchemyWebhookActivityDto[] {
+    return dto.event.activity.filter((tx) => !NftCategories.includes(tx.category?.toLowerCase()));
+  }
+
   private filterWebhookTransactionsByRelevantAddresses(
     fromAddresses: string[],
     toAddresses: string[],
-    dto: AlchemyWebhookDto,
+    activities: AlchemyWebhookActivityDto[],
   ): AlchemyWebhookActivityDto[] {
-    const notFromOwnAddresses = dto.event.activity.filter(
-      (tx) => !Util.includesIgnoreCase(fromAddresses, tx.fromAddress),
-    );
+    const notFromOwnAddresses = activities.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.fromAddress));
 
     return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.toAddress));
   }
