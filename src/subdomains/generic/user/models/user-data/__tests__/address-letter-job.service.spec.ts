@@ -36,6 +36,7 @@ describe('AddressLetterJobService', () => {
   // Releases and the proof stamp run inside a transaction, so they go through the manager's repository
   // rather than through the injected one. This captures them.
   let txUpdate: jest.Mock;
+  let txFindOneBy: jest.Mock;
 
   // synthetic test data only (public repo) — never a real customer name, address or account id
   function createUserData(id: number, overrides: Partial<any> = {}): any {
@@ -109,8 +110,11 @@ describe('AddressLetterJobService', () => {
 
     queryBuilder = createQueryBuilder([]);
     txUpdate = jest.fn().mockResolvedValue({ affected: 1 });
+    txFindOneBy = jest.fn().mockResolvedValue({ id: 7 });
     Object.defineProperty(userDataRepo, 'manager', {
-      value: { transaction: (fn: any) => fn({ getRepository: () => ({ update: txUpdate }) }) },
+      value: {
+        transaction: (fn: any) => fn({ getRepository: () => ({ update: txUpdate, findOneBy: txFindOneBy }) }),
+      },
       configurable: true,
     });
     jest.spyOn(userDataRepo, 'createQueryBuilder').mockReturnValue(queryBuilder);
@@ -119,6 +123,7 @@ describe('AddressLetterJobService', () => {
     jest.spyOn(addressLetterPdfService, 'generatePdf').mockResolvedValue({ base64: 'cGRm', pageCount: 1 });
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockResolvedValue({ file: { id: 1 } as any, url: 'url' });
     jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
+    jest.spyOn(kycFileService, 'invalidateKycFile').mockResolvedValue(true);
     jest.spyOn(kycLogService, 'createAddressLetterLog').mockResolvedValue(undefined);
     jest.spyOn(letterService, 'sendLetter').mockResolvedValue(true);
     Object.defineProperty(letterService, 'isConfigured', { get: () => true, configurable: true });
@@ -467,6 +472,40 @@ describe('AddressLetterJobService', () => {
     );
     expect(log[1]).toContain('valid true -> false');
     expect(log[4]).toBe(42);
+  });
+
+  it('leaves the document alone when the invalidation finds nothing to change', async () => {
+    withCandidates(createUserData(7));
+    jest.spyOn(kycDocumentService, 'uploadUserFile').mockRejectedValue(new Error('storage down'));
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockImplementation(() =>
+        Promise.resolve([{ id: 42, name: (kycDocumentService.uploadUserFile as jest.Mock).mock.calls[0][2] }] as any),
+      );
+    // the row was already invalid, so the compare-and-set changes nothing
+    jest.spyOn(kycFileService, 'invalidateKycFile').mockResolvedValue(false);
+
+    await service.sendAddressLetters();
+
+    // the event describing a transition that did not happen is rolled back with the transaction
+    expect(kycFileService.invalidateKycFileCache).not.toHaveBeenCalled();
+  });
+
+  it('does not invalidate a document once the claim moved on', async () => {
+    withCandidates(createUserData(7));
+    jest.spyOn(kycDocumentService, 'uploadUserFile').mockRejectedValue(new Error('storage down'));
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockImplementation(() =>
+        Promise.resolve([{ id: 42, name: (kycDocumentService.uploadUserFile as jest.Mock).mock.calls[0][2] }] as any),
+      );
+    // someone reconciled the account meanwhile, so this attempt no longer owns the claim
+    txFindOneBy.mockResolvedValue(null);
+
+    await service.sendAddressLetters();
+
+    expect(kycFileService.invalidateKycFile).not.toHaveBeenCalled();
+    expect(kycFileService.invalidateKycFileCache).not.toHaveBeenCalled();
   });
 
   it('bills the pages it actually rendered', async () => {

@@ -290,7 +290,7 @@ export class AddressLetterJobService {
         break;
       }
 
-      await this.attachKycFile(userData, pdf.base64, sentAt);
+      await this.attachKycFile(userData, claimedAt, pdf.base64, sentAt);
     }
 
     await this.escalate(exhausted, unknown, lastError, systemicError);
@@ -452,7 +452,7 @@ export class AddressLetterJobService {
    * letter is already on its way, so a failing upload must not revoke the AML proof. It is reported
    * instead — `AddressLetterObserver.sentWithoutFile` counts exactly this case.
    */
-  private async attachKycFile(userData: UserData, base64: string, date: Date): Promise<void> {
+  private async attachKycFile(userData: UserData, claimedAt: Date, base64: string, date: Date): Promise<void> {
     // The lower-case `postversand` is load-bearing, not decoration: the compliance report
     // "Überprüfung der Wohnsitzadresse" (`Config.kyc.fileDownloadConfig` id 10) collects these letters with
     // `file.name.includes('postversand')`, case-sensitively, over the same `user/<id>/UserNotes` prefix
@@ -479,7 +479,7 @@ export class AddressLetterJobService {
       // `uploadUserFile` writes the row before the blob, so a failed storage upload leaves a valid row
       // without a blob behind. Left alone, the observer's anti-join would count the document as present
       // and `sentWithoutFile` would stay silent about the very case it exists for.
-      await this.invalidateOrphanFile(userData, name, e.message);
+      await this.invalidateOrphanFile(userData, claimedAt, name, e.message);
       await this.logDocument(userData, `document upload failed: ${e.message}`);
     }
   }
@@ -499,7 +499,7 @@ export class AddressLetterJobService {
    * mutable snapshot column, and `true -> false` would otherwise be an overwrite with no recoverable
    * previous value. Log and update share one transaction, and the log names the file it describes.
    */
-  private async invalidateOrphanFile(userData: UserData, name: string, reason: string): Promise<void> {
+  private async invalidateOrphanFile(userData: UserData, claimedAt: Date, name: string, reason: string): Promise<void> {
     const files = await this.kycFileService
       .getUserDataKycFiles(userData.id)
       .catch(() => [] as { id: number; name: string }[]);
@@ -508,6 +508,13 @@ export class AddressLetterJobService {
 
     await this.userDataRepo.manager
       .transaction(async (manager) => {
+        // Same ownership rule as every other destructive write: only the attempt that still holds the
+        // claim may invalidate its document. A stale attempt resuming after a manual reconciliation
+        // would otherwise undo a document someone had just repaired. A check, not a lock - the file
+        // compare-and-set below is what makes the write itself safe.
+        const owned = await manager.getRepository(UserData).findOneBy({ id: userData.id, letterClaimDate: claimedAt });
+        if (!owned) throw new ClaimLostError(userData.id);
+
         await this.kycLogService.createAddressLetterLog(
           userData,
           `document invalidated: file ${orphan.id} valid true -> false`,

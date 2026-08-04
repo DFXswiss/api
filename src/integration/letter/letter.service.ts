@@ -42,28 +42,39 @@ export class LetterService {
    *
    * `false` means the provider answered and refused the job - it is read by callers as proof that
    * nothing was sent, so it may only be returned for an answer that actually says so. A response whose
-   * shape is not recognised is ambiguous: the job may well have been created, and reporting "not sent"
-   * would invite a second, irreversible physical letter. Those throw instead, which callers treat as an
-   * unknown outcome.
+   * shape is not recognised, or that carries any sign of a created job, is ambiguous: reporting "not
+   * sent" would invite a second, irreversible physical letter. Those throw instead, which callers treat
+   * as an unknown outcome.
+   *
+   * One attempt, with a bounded wait: without a timeout a half-open connection hangs the caller
+   * indefinitely, and the cron timeout does not cancel work in flight - it only governs the lock. A
+   * retry is deliberately not configured either, because a repeat of an unanswered request is exactly
+   * how one letter becomes two.
    */
   async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
     return this.http
-      .post<LetterResponse>(`${Config.letter.url}/setJob`, {
-        auth: Config.letter.auth,
-        letter: {
-          base64_file: sendLetterDTO.data,
-          base64_checksum: Util.createHash(sendLetterDTO.data, 'md5'),
-          specification: {
-            page: sendLetterDTO.page,
-            color: sendLetterDTO.color,
-            mode: sendLetterDTO.mode,
-            ship: sendLetterDTO.ship,
+      .post<LetterResponse>(
+        `${Config.letter.url}/setJob`,
+        {
+          auth: Config.letter.auth,
+          letter: {
+            base64_file: sendLetterDTO.data,
+            base64_checksum: Util.createHash(sendLetterDTO.data, 'md5'),
+            specification: {
+              page: sendLetterDTO.page,
+              color: sendLetterDTO.color,
+              mode: sendLetterDTO.mode,
+              ship: sendLetterDTO.ship,
+            },
           },
         },
-      })
+        { timeout: 30000, tryCount: 1 },
+      )
       .then((r) => {
         if (r?.status === 200) return true;
-        if (typeof r?.status === 'number') return false;
+        // A job id means a job exists, whatever the status says next to it. Calling that a refusal is
+        // the one mistake that produces a second physical letter.
+        if (!r?.letter?.job_id && typeof r?.status === 'number') return false;
 
         throw new Error(`Unexpected letter provider response: ${JSON.stringify(r)?.slice(0, 200)}`);
       });

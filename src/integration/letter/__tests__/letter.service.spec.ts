@@ -42,6 +42,20 @@ describe('LetterService.sendLetter', () => {
     jest.spyOn(http, 'post').mockResolvedValue({ status: 200, letter: { job_id: 'j1' } } as never);
 
     await expect(service.sendLetter(dto)).resolves.toBe(true);
+    // one attempt, bounded: a repeat of an unanswered request is how one letter becomes two, and an
+    // unbounded wait hangs the dispatch where nothing can escalate it
+    expect(http.post).toHaveBeenCalledWith(
+      expect.stringContaining('/setJob'),
+      expect.anything(),
+      expect.objectContaining({ timeout: 30000, tryCount: 1 }),
+    );
+  });
+
+  it('refuses to call a response carrying a job id a refusal', async () => {
+    jest.spyOn(http, 'post').mockResolvedValue({ status: 202, letter: { job_id: 'j1' } } as never);
+
+    // a job id means a job exists, whatever the status next to it says
+    await expect(service.sendLetter(dto)).rejects.toThrow('Unexpected letter provider response');
   });
 
   it('reports a refusal the provider actually stated', async () => {
