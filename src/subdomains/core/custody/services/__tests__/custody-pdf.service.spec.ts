@@ -1,14 +1,14 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config, ConfigService } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { CoinGeckoService } from 'src/subdomains/supporting/pricing/services/integration/coin-gecko.service';
@@ -210,6 +210,15 @@ describe('CustodyPdfService', () => {
     );
 
     await expect(service.generateCustodyPdf(accountId, pdfDto())).rejects.toThrow(/cannot calculate interest/);
+  });
+
+  it('rejects a future statement date before touching any data', async () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await expect(service.generateCustodyPdf(accountId, pdfDto({ date: future }))).rejects.toThrow(BadRequestException);
+
+    expect(userDataService.getUserData).not.toHaveBeenCalled();
+    expect(custodyService.calculateAccruedInterest).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when the account is missing', async () => {
