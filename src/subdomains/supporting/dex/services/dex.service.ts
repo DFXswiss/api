@@ -184,6 +184,8 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isReady: boolean; purchaseTxId: string; targetAmount: number; targetAsset: string }> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.liquidityOrderRepo.findOne({
       where: { context, correlationId },
       order: { id: 'DESC' },
@@ -201,6 +203,8 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.liquidityOrderRepo.findOne({
       where: { context, correlationId },
       order: { id: 'DESC' },
@@ -228,6 +232,8 @@ export class DexService {
   }
 
   async cancelOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const orders = await this.liquidityOrderRepo.find({
       where: { context, correlationId },
     });
@@ -239,6 +245,8 @@ export class DexService {
   }
 
   async hasOrder(context: LiquidityOrderContext, correlationId: string): Promise<boolean> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     return this.liquidityOrderRepo
       .findOne({ where: { context, correlationId }, loadEagerRelations: false })
       .then((o) => o != null);

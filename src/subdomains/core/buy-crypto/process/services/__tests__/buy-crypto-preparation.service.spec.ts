@@ -24,6 +24,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EntityManager, IsNull } from 'typeorm';
+import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -154,6 +155,41 @@ describe('BuyCryptoPreparationService', () => {
       expect(manager.save).not.toHaveBeenCalled();
       expect(manager.update).not.toHaveBeenCalled();
       expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+
+    // getBankByIban returns undefined for an absent iban rather than an arbitrary bank, and
+    // BankTx.accountIban is nullable, so the optional chain on the result is load-bearing here — a
+    // plain `b.name` would throw into refreshFee's per-entity catch and stall the tx forever.
+    it('resolves bankIn as undefined when the iban matches no bank', async () => {
+      const entity = createCustomBuyCrypto({ bankTx: createDefaultBankTx(), amlCheck: CheckStatus.PASS });
+      const manager = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce({ id: entity.id })
+          .mockResolvedValueOnce({ ...entity }),
+        save: jest.fn(),
+        update: jest.fn(),
+      };
+      Object.defineProperty(buyCryptoRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({} as any);
+      jest.spyOn(pricingService, 'getPrice').mockResolvedValue(Price.create('EUR', 'CHF', 1));
+      const getTxFeeInfos = jest.spyOn(transactionHelper, 'getTxFeeInfos').mockResolvedValue({} as any);
+      jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(undefined);
+
+      await service.refreshFee();
+
+      // The assertion has to sit PAST the bankIn resolution: refreshFee catches per entity, so a
+      // TypeError from dereferencing the undefined bank is swallowed and the call simply resolves.
+      // Reaching getTxFeeInfos is what proves the optional chain held.
+      expect(getTxFeeInfos).toHaveBeenCalled();
     });
   });
 

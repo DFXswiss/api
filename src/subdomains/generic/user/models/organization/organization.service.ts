@@ -30,6 +30,10 @@ export class OrganizationService {
 
     for (const entity of entities) {
       try {
+        // Nothing to match or create on — creating here would insert a nameless organisation per
+        // affected user, one per cron run.
+        if (!entity.organizationName) continue;
+
         const organization =
           (await this.getOrganizationByName(entity.organizationName, entity.organizationZip)) ??
           (await this.createOrganization({
@@ -83,9 +87,10 @@ export class OrganizationService {
   }
 
   async getOrganizationByName(name: string, zip: string): Promise<Organization> {
-    // Both are nullable columns on UserData. With either absent the remaining condition matches on
-    // its own, so an unrelated Organization comes back and gets linked to the user.
-    if (!name || !zip) return undefined;
+    // organizationName is nullable on UserData, and without it the zip matches on its own — an
+    // unrelated organisation comes back and gets linked. An absent zip is fine to drop: the name
+    // still scopes the query, and matching every zip for a name is the dedup this is here for.
+    if (!name) return undefined;
 
     return this.organizationRepo.findOneBy({ name, zip });
   }
