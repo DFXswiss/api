@@ -12,7 +12,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
-import { LegacyFileSyncDto } from '../dto/kyc-legacy-file.dto';
+import { LegacyFileSyncDto, SyncLegacyFilesQueryDto } from '../dto/kyc-legacy-file.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { NameCheckLog } from '../entities/name-check-log.entity';
 import { KycAdminService } from '../services/kyc-admin.service';
@@ -109,10 +109,7 @@ export class KycAdminController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
-  async syncLegacyFiles(
-    @Query('dryRun') dryRun?: string,
-    @Query('userDataId') userDataId?: string,
-  ): Promise<LegacyFileSyncDto> {
-    return this.kycLegacyFileService.syncLegacyFiles(dryRun !== 'false', userDataId ? +userDataId : undefined);
+  async syncLegacyFiles(@Query() query: SyncLegacyFilesQueryDto): Promise<LegacyFileSyncDto> {
+    return this.kycLegacyFileService.syncLegacyFiles(query.dryRun !== 'false', query.userDataId);
   }
 }

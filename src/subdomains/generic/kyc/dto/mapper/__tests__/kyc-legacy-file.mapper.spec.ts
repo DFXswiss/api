@@ -1,5 +1,5 @@
 import { FileSubType, FileType } from '../../kyc-file.dto';
-import { LegacyFileSkipReason } from '../../kyc-legacy-file.dto';
+import { LegacyFileSkipReason, MaxPathLength } from '../../kyc-legacy-file.dto';
 import { KycLegacyFileMapper } from '../kyc-legacy-file.mapper';
 
 describe('KycLegacyFileMapper', () => {
@@ -120,6 +120,7 @@ describe('KycLegacyFileMapper', () => {
         `spider/${userDataId}/online-identification/1699356511987/liveness.png`,
         `spider/${userDataId}/online-identification/1699356511987/security.jpg`,
         `spider/${userDataId}/online-identification/1699356511987/idcard-front.jpg`,
+        `spider/${userDataId}/online-identification/1699356511987/USERFACE.JPG`,
         `spider/${userDataId}/video_identification/1699356511987/protocol.pdf`,
         `spider/${userDataId}/video_identification/1699356511987/recording.mp4`,
         `spider/${userDataId}/video_identification/1699356511987/audio.mp3`,
@@ -132,6 +133,8 @@ describe('KycLegacyFileMapper', () => {
         'liveness.png': FileSubType.IDENT_SELFIE,
         'security.jpg': FileSubType.IDENT_SELFIE,
         'idcard-front.jpg': FileSubType.IDENT_DOC,
+        // the provider was not consistent about case, and the classification must not depend on it
+        'USERFACE.JPG': FileSubType.IDENT_SELFIE,
         'protocol.pdf': FileSubType.IDENT_REPORT,
         'recording.mp4': FileSubType.IDENT_RECORDING,
         'audio.mp3': FileSubType.IDENT_RECORDING,
@@ -188,6 +191,32 @@ describe('KycLegacyFileMapper', () => {
       ]);
 
       expect(entries.map((e) => e.name)).toEqual(['doc.pdf', 'x/doc.pdf', 'folder-c/x/doc.pdf']);
+    });
+  });
+
+  describe('path length', () => {
+    const prefix = `spider/${userDataId}/user-added-document/`;
+
+    function keyOfLength(length: number): string {
+      return `${prefix}${'a'.repeat(length - prefix.length - '.pdf'.length)}.pdf`;
+    }
+
+    it('catalogs a key that still fits the catalog column', () => {
+      const key = keyOfLength(MaxPathLength);
+
+      const { entries, skipped } = map([key]);
+
+      expect(entries.map((e) => e.path)).toEqual([key]);
+      expect(skipped).toEqual([]);
+    });
+
+    it('skips a key the catalog column could not hold', () => {
+      const key = keyOfLength(MaxPathLength + 1);
+
+      const { entries, skipped } = map([key]);
+
+      expect(entries).toEqual([]);
+      expect(skipped).toEqual([LegacyFileSkipReason.PATH_TOO_LONG]);
     });
   });
 });

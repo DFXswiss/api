@@ -1,5 +1,5 @@
 import { FileSubType, FileType } from '../kyc-file.dto';
-import { LegacyFileEntry, LegacyFileMapping, LegacyFileSkipReason } from '../kyc-legacy-file.dto';
+import { LegacyFileEntry, LegacyFileMapping, LegacyFileSkipReason, MaxPathLength } from '../kyc-legacy-file.dto';
 
 // Legacy KYC documents from the Spider era are stored under `spider/<userDataId>/…` (and
 // `spider/<userDataId>-organization/…` for the business documents of the same account), a layout that
@@ -56,6 +56,14 @@ export class KycLegacyFileMapper {
 
       if (!DOCUMENT_EXTENSIONS.includes(path.extension)) {
         skipped.push(LegacyFileSkipReason.UNSUPPORTED_EXTENSION);
+        continue;
+      }
+
+      // A key the catalog column cannot hold is reported here rather than at the insert: the write would
+      // fail on that one row and take its whole batch with it, and a dry run would have announced a row
+      // the write could never produce.
+      if (key.length > MaxPathLength) {
+        skipped.push(LegacyFileSkipReason.PATH_TOO_LONG);
         continue;
       }
 

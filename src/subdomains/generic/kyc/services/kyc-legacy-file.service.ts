@@ -10,8 +10,10 @@ import {
   LegacyFileSkipReason,
   LegacyFileSyncDto,
   LegacyFileTypeCountDto,
+  MaxDbId,
 } from '../dto/kyc-legacy-file.dto';
 import { KycLegacyFileMapper } from '../dto/mapper/kyc-legacy-file.mapper';
+import { KycFile } from '../entities/kyc-file.entity';
 import { KycFileRepository } from '../repositories/kyc-file.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
 
@@ -20,6 +22,11 @@ const ORGANIZATION_SUFFIX = '-organization';
 const OWNER_BATCH_SIZE = 100;
 const QUERY_BATCH_SIZE = 1000;
 const MAX_EXAMPLES = 20;
+
+interface CreateFilesResult {
+  inserted: number;
+  conflicts: number;
+}
 
 /**
  * Catalogs the legacy Spider-era KYC documents in `kyc_file`.
@@ -84,7 +91,12 @@ export class KycLegacyFileService {
         }
 
         wouldInsert += newEntries.length;
-        if (!dryRun) inserted += await this.createFiles(newEntries);
+
+        if (!dryRun) {
+          const created = await this.createFiles(newEntries);
+          inserted += created.inserted;
+          this.count(skipCounts, LegacyFileSkipReason.ALREADY_CATALOGED, created.conflicts);
+        }
       },
       OWNER_BATCH_SIZE,
     );
@@ -133,7 +145,10 @@ export class KycLegacyFileService {
         : ownerSegment;
       const ownerId = +owner;
 
-      if (!owner || !Number.isInteger(ownerId)) {
+      // The segment is only an account id if it reads like one and fits the int4 column it is matched
+      // against — a longer digit sequence (a timestamp, say) would otherwise reach the query and make
+      // Postgres fail the whole run with a numeric range error.
+      if (!Config.formats.number.test(owner) || ownerId > MaxDbId) {
         invalidKeys++;
         continue;
       }
@@ -172,8 +187,12 @@ export class KycLegacyFileService {
     return entries.filter((e) => !catalogedPaths.has(e.path));
   }
 
-  private async createFiles(entries: LegacyFileEntry[]): Promise<number> {
-    if (!entries.length) return 0;
+  // The catalog check and the insert are two statements, so an overlapping run of this same job — the
+  // full run is long enough for an admin to start a second one — can write a row in between. The partial
+  // unique index on `path` is what turns that race into a conflict instead of a duplicate document, and
+  // the conflict is counted like any other already-catalogued blob so the run finishes either way.
+  private async createFiles(entries: LegacyFileEntry[]): Promise<CreateFilesResult> {
+    if (!entries.length) return { inserted: 0, conflicts: 0 };
 
     const files = entries.map((e) =>
       this.kycFileRepo.create({
@@ -188,10 +207,47 @@ export class KycLegacyFileService {
       }),
     );
 
-    await this.kycFileRepo.save(files);
-    this.kycFileRepo.invalidateCache();
+    try {
+      await this.kycFileRepo.save(files);
+      this.kycFileRepo.invalidateCache();
 
-    return files.length;
+      return { inserted: files.length, conflicts: 0 };
+    } catch (e) {
+      if (!this.isPathConflict(e)) throw e;
+
+      return this.createFilesIndividually(files);
+    }
+  }
+
+  // One conflicting blob must not cost the rest of its batch, so the batch is written again row by row.
+  private async createFilesIndividually(files: KycFile[]): Promise<CreateFilesResult> {
+    let inserted = 0;
+    let conflicts = 0;
+
+    for (const file of files) {
+      try {
+        await this.kycFileRepo.save(file);
+        inserted++;
+      } catch (e) {
+        if (!this.isPathConflict(e)) throw e;
+        conflicts++;
+      }
+    }
+
+    if (inserted) this.kycFileRepo.invalidateCache();
+
+    return { inserted, conflicts };
+  }
+
+  // Postgres unique_violation (SQLSTATE 23505) on the partial unique index over `path`. Any other unique
+  // violation — a uid collision, say — is a different fault and stays an error.
+  private isPathConflict(error: unknown): boolean {
+    const e = error as { code?: string; constraint?: string };
+    const pathIndex = this.kycFileRepo.metadata.indices.find(
+      (i) => i.isUnique && i.columns.some((c) => c.propertyName === 'path'),
+    )?.name;
+
+    return e?.code === '23505' && e.constraint != null && e.constraint === pathIndex;
   }
 
   private count<T>(counts: Map<T, number>, key: T, amount: number): void {
