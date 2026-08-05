@@ -1,7 +1,7 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
-import { BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
+import { BlobContent, KeyDate, StorageService } from 'src/integration/infrastructure/storage/storage.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -53,6 +53,11 @@ export class KycDocumentService {
   // many users (e.g. the legacy Spider catalog), where only the blob key is needed.
   async listKeysByPrefix(prefix: string): Promise<string[]> {
     return this.storageService.listKeys(prefix);
+  }
+
+  // Keys with the date the store holds for them, at the cost of the listing alone.
+  async listKeyDatesByPrefix(prefix: string): Promise<KeyDate[]> {
+    return this.storageService.listKeyDates(prefix);
   }
 
   async listFilesByPrefixes(prefixes: string[]): Promise<KycFileBlob[]> {

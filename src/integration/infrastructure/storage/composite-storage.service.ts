@@ -2,7 +2,7 @@ import { Config, StorageReadSource, StorageWriteMode } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AzureStorageService } from './azure-storage.service';
 import { S3StorageService } from './s3-storage.service';
-import { Blob, BlobContent, StorageService } from './storage.service';
+import { Blob, BlobContent, KeyDate, StorageService } from './storage.service';
 
 /**
  * Dual-write storage layer for the Azure→MinIO cutover.
@@ -56,6 +56,10 @@ export class CompositeStorageService extends StorageService {
 
   async listKeys(prefix?: string): Promise<string[]> {
     return this.readBackend().listKeys(prefix);
+  }
+
+  async listKeyDates(prefix?: string): Promise<KeyDate[]> {
+    return this.readBackend().listKeyDates(prefix);
   }
 
   async getBlob(name: string): Promise<BlobContent> {

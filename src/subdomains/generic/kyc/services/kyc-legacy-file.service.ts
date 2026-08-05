@@ -1,6 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { KeyDate } from 'src/integration/infrastructure/storage/storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -122,7 +123,14 @@ export class KycLegacyFileService {
   }
 
   async syncLegacyFiles(dryRun: boolean, userDataId?: number): Promise<LegacyFileSyncDto> {
-    const keys = await this.listKeys(userDataId);
+    const keyDates = await this.listKeyDates(userDataId);
+    const keys = keyDates.map((k) => k.key);
+    // The date the store holds for a blob, which for a Spider-era document is when it was written -
+    // years before this run. Carried into the catalog row below, because the row IS the document as
+    // far as everything reading the catalog is concerned, and a row stamped today would make a 2019
+    // document look like the newest evidence on the account.
+    const blobDates = new Map(keyDates.filter((k) => k.lastModified).map((k) => [k.key, k.lastModified]));
+
     const { keysByOwner, invalidKeys } = this.groupByOwner(keys);
 
     const ownerIds = Array.from(keysByOwner.keys());
@@ -171,7 +179,7 @@ export class KycLegacyFileService {
         wouldInsert += newEntries.length;
 
         if (!dryRun) {
-          const created = await this.createFiles(newEntries);
+          const created = await this.createFiles(newEntries, blobDates);
           inserted += created.inserted;
           this.count(skipCounts, LegacyFileSkipReason.ALREADY_CATALOGED, created.conflicts);
         }
@@ -225,12 +233,12 @@ export class KycLegacyFileService {
     this.logger.info(`Legacy KYC file backfill already completed (${LEGACY_FILE_SYNC_COMPLETED_KEY}), skipping`);
   }
 
-  private async listKeys(userDataId?: number): Promise<string[]> {
-    if (!userDataId) return this.kycDocumentService.listKeysByPrefix(SPIDER_PREFIX);
+  private async listKeyDates(userDataId?: number): Promise<KeyDate[]> {
+    if (!userDataId) return this.kycDocumentService.listKeyDatesByPrefix(SPIDER_PREFIX);
 
     const keys = await Promise.all([
-      this.kycDocumentService.listKeysByPrefix(`${SPIDER_PREFIX}${userDataId}/`),
-      this.kycDocumentService.listKeysByPrefix(`${SPIDER_PREFIX}${userDataId}${ORGANIZATION_SUFFIX}/`),
+      this.kycDocumentService.listKeyDatesByPrefix(`${SPIDER_PREFIX}${userDataId}/`),
+      this.kycDocumentService.listKeyDatesByPrefix(`${SPIDER_PREFIX}${userDataId}${ORGANIZATION_SUFFIX}/`),
     ]);
 
     return keys.flat();
@@ -295,7 +303,7 @@ export class KycLegacyFileService {
   // full run is long enough for an admin to start a second one — can write a row in between. The partial
   // unique index on `path` is what turns that race into a conflict instead of a duplicate document, and
   // the conflict is counted like any other already-catalogued blob so the run finishes either way.
-  private async createFiles(entries: LegacyFileEntry[]): Promise<CreateFilesResult> {
+  private async createFiles(entries: LegacyFileEntry[], blobDates: Map<string, Date>): Promise<CreateFilesResult> {
     if (!entries.length) return { inserted: 0, conflicts: 0 };
 
     const files = entries.map((e) =>
@@ -308,6 +316,12 @@ export class KycLegacyFileService {
         valid: true,
         uid: Util.createUid(Config.prefixes.kycFileUidPrefix),
         userData: { id: e.userDataId },
+        // The blob's own date, so the row dates the document rather than the backfill. TypeORM keeps
+        // an explicitly set `@CreateDateColumn` on insert (only the Mongo driver overwrites it), and
+        // `legacy-file-created.projection.spec.ts` holds that against a real database. Left unset when
+        // the listing carried no date: the column default then stamps the run, which is wrong by the
+        // same amount as before this and is the only alternative that does not cost a request per blob.
+        created: blobDates.get(e.path),
       }),
     );
 

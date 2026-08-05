@@ -1,6 +1,6 @@
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import { Config } from 'src/config/config';
-import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
+import { Blob, BlobContent, BlobMetaData, KeyDate, StorageService } from './storage.service';
 
 /**
  * Azure Blob storage implementation. Talks to Azure Storage via a connection string
@@ -71,6 +71,29 @@ export class AzureStorageService extends StorageService {
       const batch = await iterator.next();
 
       const items: string[] | undefined = batch.value?.segment?.blobItems?.map((i) => i.name);
+      if (items) keys.push(...items);
+
+      done = batch.done;
+    }
+
+    return keys;
+  }
+
+  // `createdOn` is what the container recorded when the object was written; `lastModified` is the
+  // fallback for an object whose creation time the listing does not carry.
+  async listKeyDates(prefix?: string): Promise<KeyDate[]> {
+    const iterator = this.client.listBlobsFlat({ prefix }).byPage({ maxPageSize: 100 });
+
+    const keys: KeyDate[] = [];
+
+    let done = false;
+    while (!done) {
+      const batch = await iterator.next();
+
+      const items: KeyDate[] | undefined = batch.value?.segment?.blobItems?.map((i) => ({
+        key: i.name,
+        lastModified: i.properties?.createdOn ?? i.properties?.lastModified,
+      }));
       if (items) keys.push(...items);
 
       done = batch.done;

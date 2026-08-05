@@ -9,7 +9,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Config } from 'src/config/config';
-import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
+import { Blob, BlobContent, BlobMetaData, KeyDate, StorageService } from './storage.service';
 import { GEBUEV_RETENTION_FLOOR_DAYS, GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
 
 /** Validated bucket default retention; unit matches what the bucket returned (Years or Days). */
@@ -220,6 +220,25 @@ export class S3StorageService extends StorageService {
       );
 
       for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+
+    return keys;
+  }
+
+  // S3 has no creation timestamp, so `LastModified` is the only date there is - and the listing
+  // carries it, which is what keeps this to one request per page rather than one per object.
+  async listKeyDates(prefix?: string): Promise<KeyDate[]> {
+    const keys: KeyDate[] = [];
+
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.container, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }),
+      );
+
+      for (const o of res.Contents ?? []) if (o.Key) keys.push({ key: o.Key, lastModified: o.LastModified });
 
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
