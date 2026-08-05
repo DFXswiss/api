@@ -135,7 +135,7 @@ Jobs by area:
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
-scan, so multi-line declarations are included — a line-based match misses 28 of them. Interval,
+scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
 count is asserted against a raw text count of the decorator: **142 = 142**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
