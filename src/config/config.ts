@@ -158,6 +158,8 @@ export class Configuration {
     // from a text column via jsonb_each over a two-day price window — roughly one third of total production DB
     // time for a secondary process that is not currently productively consumed downstream.
     // Re-verify DB load with the same method before flipping this back on; otherwise that load returns unnoticed.
+    // Takes effect through `disabledProcesses()` (bottom of this file), which is what keeps the switched-off
+    // jobs out of the cron lease entirely — the in-body `isLedgerReady()` guards run only after it is claimed.
     enabled: false,
     reconciliationToleranceChf: +(process.env.LEDGER_RECONCILIATION_TOLERANCE_CHF ?? 1),
     transitAlarmThresholdDays: +(process.env.LEDGER_TRANSIT_ALARM_THRESHOLD_DAYS ?? 3),
@@ -180,6 +182,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  amlScorechainReviewValidity = 180; // days
   allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
@@ -1525,10 +1528,29 @@ export class Configuration {
   cronRole = parseCronRole(process.env.CRON_ROLE);
 
   // --- HELPERS --- //
-  disabledProcesses = () =>
+
+  // Every ledger `Process`, derived from the enum's OWN key names rather than a hand-maintained list —
+  // a future `Process.LEDGER_*` entry is covered without an edit here.
+  private ledgerProcesses = (): Process[] =>
+    (Object.keys(Process) as (keyof typeof Process)[]).filter((k) => k.startsWith('LEDGER_')).map((k) => Process[k]);
+
+  // The ledger master switch (`ledger.enabled`) reaches its jobs through the per-process kill-switch,
+  // not only through the job bodies. `skipWhenDisabled` sits OUTSIDE the cron lease
+  // (`dfx-cron.service.ts`), so a switched-off ledger job drops out of cron operation entirely instead
+  // of claiming a lease, waiting out the jitter and releasing it again every tick — nine minute-jobs
+  // writing to `cron_lease` twice a minute to do nothing, long enough for lease renewals to fall due.
+  //
+  // The in-body `isLedgerReady()` guards stay as they are: they are the cutover gate, which this does not
+  // replace — it only decides whether the jobs take part in cron at all. Nor does it make the switch
+  // settable at runtime: it stays hard-coded in the config, and the `disabledProcess` setting can still
+  // disable individual ledger processes once it is back on.
+  disabledProcesses = (): Process[] =>
     process.env.DISABLED_PROCESSES === '*'
       ? Object.values(Process)
-      : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
+      : [
+          ...((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]),
+          ...(this.ledger.enabled ? [] : this.ledgerProcesses()),
+        ];
 }
 
 /**

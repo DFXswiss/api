@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -10,7 +17,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
@@ -76,7 +83,20 @@ export class FiatOutputService {
     return bank ? { accountIban: bank.iban, bank } : { accountIban: undefined, bank: undefined };
   }
 
+  // Defense against a double refund: once a chargeback bank TX is linked (refund executed
+  // externally and matched, or linked manually), no further refund output may be created - guards
+  // both the admin route (create) and every internal path (createInternal).
+  private async assertChargebackNotExecuted(buyCryptoId: number, manager?: EntityManager): Promise<void> {
+    const repo = manager?.getRepository(BuyCrypto) ?? this.buyCryptoRepo;
+    const alreadyRefunded = await repo.existsBy({ id: buyCryptoId, chargebackBankTx: { id: Not(IsNull()) } });
+    if (alreadyRefunded)
+      throw new ConflictException('Chargeback already executed for this buy-crypto (chargeback bank TX linked)');
+  }
+
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
+    if (dto.type === FiatOutputType.BUY_CRYPTO_FAIL && dto.buyCryptoId)
+      await this.assertChargebackNotExecuted(dto.buyCryptoId);
+
     this.validateRequiredCreditorFields(dto);
 
     if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId || dto.bankTxRepeatId) {
@@ -144,6 +164,9 @@ export class FiatOutputService {
     inputCreditorData?: Partial<FiatOutput>,
     manager?: EntityManager,
   ): Promise<FiatOutput> {
+    if (type === FiatOutputType.BUY_CRYPTO_FAIL && buyCrypto)
+      await this.assertChargebackNotExecuted(buyCrypto.id, manager);
+
     let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
 
     // For BuyFiat without inputCreditorData: auto-populate from seller's UserData

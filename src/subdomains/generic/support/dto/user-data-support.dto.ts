@@ -543,6 +543,7 @@ export class UserDataDetailDto {
   highRisk?: boolean;
   pep?: boolean;
   bankTransactionVerification?: CheckStatus;
+  scorechainCheckDate?: Date;
   olkypayAllowed?: boolean;
 
   // PaymentLink Data

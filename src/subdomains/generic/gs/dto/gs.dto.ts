@@ -1521,6 +1521,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'postAmlCheck',
       'recallAgreementAccepted',
       'riskStatus',
+      'scorechainCheckDate',
       'sellVolume',
       'status',
       'totalCustodyBalanceChfAuditPeriod',
