@@ -33,11 +33,13 @@ describeDb('AddRealUnitLegalAcceptance migration (real Postgres grandfathering)'
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     AddRealUnitLegalAcceptance = require('../../../../../migration/1783900000000-AddRealUnitLegalAcceptance');
     dataSource = await createMigrationDataSource(DATABASE);
-  });
+    // Creating a database copies template1 and takes several round trips — comfortably past Jest's
+    // default 5s hook budget on a loaded machine, and the main suite sets no testTimeout of its own.
+  }, 60000);
 
   afterAll(async () => {
     await destroyMigrationDataSource(dataSource, DATABASE);
-  });
+  }, 60000);
 
   beforeEach(async () => {
     qr = dataSource.createQueryRunner();

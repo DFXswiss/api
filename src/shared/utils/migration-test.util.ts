@@ -52,13 +52,19 @@ export async function createMigrationDataSource(database: string): Promise<DataS
 export async function destroyMigrationDataSource(dataSource: DataSource | undefined, database: string): Promise<void> {
   // Closed first, and dropped from a connection to a different database: Postgres refuses to drop a
   // database that still has a session on it, and this one's own connection is such a session.
-  if (dataSource?.isInitialized) await dataSource.destroy();
-
-  const bootstrap = new DataSource({ type: 'postgres', url: MIGRATION_TEST_PG, logging: false });
-  await bootstrap.initialize();
+  //
+  // The drop runs even when closing fails, or a connection this helper could not close would leave
+  // the database behind for good — nothing later in the run would revisit it. FORCE is what makes
+  // that branch work: it terminates the session that `destroy()` did not.
   try {
-    await bootstrap.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
+    if (dataSource?.isInitialized) await dataSource.destroy();
   } finally {
-    await bootstrap.destroy();
+    const bootstrap = new DataSource({ type: 'postgres', url: MIGRATION_TEST_PG, logging: false });
+    await bootstrap.initialize();
+    try {
+      await bootstrap.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
+    } finally {
+      await bootstrap.destroy();
+    }
   }
 }

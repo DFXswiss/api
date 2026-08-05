@@ -52,11 +52,13 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     AddAktionariatRegistration = require('../../../../../migration/1783704351182-AddAktionariatRegistration');
     dataSource = await createMigrationDataSource(DATABASE);
-  });
+    // Creating a database copies template1 and takes several round trips — comfortably past Jest's
+    // default 5s hook budget on a loaded machine, and the main suite sets no testTimeout of its own.
+  }, 60000);
 
   afterAll(async () => {
     await destroyMigrationDataSource(dataSource, DATABASE);
-  });
+  }, 60000);
 
   // inserts a kyc_step; userDataId is the owning account and must match the resolved user's
   const insertStep = (name: string, status: string, result: string | null, created: string, userDataId: number) =>
