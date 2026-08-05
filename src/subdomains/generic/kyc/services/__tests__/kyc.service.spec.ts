@@ -719,8 +719,8 @@ describe('KycService reviewIdentSteps file sync', () => {
     userDataService = createMock<UserDataService>();
     userDataService.getUserDataByBirthday.mockResolvedValue([]);
     identFileService = createMock<KycFileService>();
-    // the default is the step whose report is missing, which is the case the retry net exists for
-    identFileService.hasIdentReport.mockResolvedValue(false);
+    // the default is the step without a valid report, which is the case the retry net exists for
+    identFileService.hasValidIdentReport.mockResolvedValue(false);
 
     // with getIdentCheckErrors, createStepLog and syncIdentFilesInternal stubbed below, the review
     // path only touches these deps; avoid wiring all constructor deps
@@ -756,7 +756,7 @@ describe('KycService reviewIdentSteps file sync', () => {
 
     expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
     // the type guard comes first, so a non-Sumsub step is not worth a database round trip
-    expect(identFileService.hasIdentReport).not.toHaveBeenCalled();
+    expect(identFileService.hasValidIdentReport).not.toHaveBeenCalled();
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
@@ -767,7 +767,7 @@ describe('KycService reviewIdentSteps file sync', () => {
     await service.reviewIdentSteps();
 
     // asked about the step, not about the account - see the regression case below
-    expect(identFileService.hasIdentReport).toHaveBeenCalledWith(step.id);
+    expect(identFileService.hasValidIdentReport).toHaveBeenCalledWith(step.id);
     expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
@@ -776,7 +776,7 @@ describe('KycService reviewIdentSteps file sync', () => {
   it.each(sumsubTypes)('skips the file sync of a %s ident step that already has its report', async (type) => {
     const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
-    identFileService.hasIdentReport.mockResolvedValue(true);
+    identFileService.hasValidIdentReport.mockResolvedValue(true);
 
     await service.reviewIdentSteps();
 

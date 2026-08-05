@@ -286,18 +286,20 @@ export class KycService {
         // document in updateIdentManual, and syncIdentFilesInternal throws on every other type. An
         // unguarded call therefore wedged manual idents in INTERNAL_REVIEW to be retried forever.
         //
-        // The document check asks about THIS step. Account-wide it asked whether the account holds an
-        // IDENT_REPORT anywhere, so a single older report - an earlier Sumsub ident, or a Spider-era
-        // document catalogued from the legacy storage - switched the retry net off for every later
-        // ident of that account: the step advanced without its documents, with no error and no log
-        // line. Only the step's own files can say whether THIS ident was fetched.
+        // The document check asks about THIS step, and about its VALID files. Account-wide it asked
+        // whether the account holds an IDENT_REPORT anywhere, so a single older report - an earlier
+        // Sumsub ident, or a Spider-era document catalogued from the legacy storage - switched the
+        // retry net off for every later ident of that account: the step advanced without its
+        // documents, with no error and no log line. A rejected attempt on the step itself is the same
+        // trap one level down, because it stores its documents against that step as invalid; only a
+        // valid report says the documents of THIS ident were fetched.
         //
         // Asked last, after the two in-memory conditions: it is a database round trip, and the
         // conditions in front of it leave only the steps that are about to advance.
         if (
           entity.isSumsub &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW) &&
-          !(await this.kycFileService.hasIdentReport(entity.id))
+          !(await this.kycFileService.hasValidIdentReport(entity.id))
         )
           await this.syncIdentFilesInternal(entity);
 
