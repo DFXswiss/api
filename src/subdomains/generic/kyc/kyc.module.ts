@@ -33,7 +33,6 @@ import { SumsubService } from './services/integration/sum-sub.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycClientService } from './services/kyc-client.service';
 import { KycFileService } from './services/kyc-file.service';
-import { KycLegacyFileService } from './services/kyc-legacy-file.service';
 import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
@@ -77,7 +76,6 @@ import { TfaService } from './services/tfa.service';
     DilisenseService,
     FinancialService,
     KycFileService,
-    KycLegacyFileService,
     KycLogRepository,
     KycStepRepository,
     KycFileRepository,

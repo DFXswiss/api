@@ -136,6 +136,7 @@ const PINNED_LOGIC = [
   'src/subdomains/generic/kyc/enums/file-category.enum.ts',
   'src/subdomains/generic/kyc/enums/kyc-step-name.enum.ts',
   'src/subdomains/generic/kyc/enums/review-status.enum.ts',
+  'src/subdomains/generic/kyc/utils/legacy-document-date.ts',
   'src/subdomains/generic/support/dto/onboarding-pdf.dto.ts',
   'src/subdomains/generic/support/dto/user-data-support.dto.ts',
   'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto.ts',
