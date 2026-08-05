@@ -728,13 +728,12 @@ describe('Payout non-EVM leaf strategies', () => {
       expect(assetService.getMoneroCoin).toHaveBeenCalledTimes(1);
     });
 
-    it('dispatchPayout(...) delegates to PayoutMoneroService#sendToMany(...)', async () => {
-      jest.spyOn(payoutMoneroService, 'sendToMany').mockResolvedValue('XMR_TX');
-      const payout: PayoutGroup = [{ addressTo: 'ADDR', amount: 1 }];
-
-      await expect(strategy.dispatchPayoutWrapper(CONTEXT, payout)).resolves.toBe('XMR_TX');
-
-      expect(payoutMoneroService.sendToMany).toHaveBeenCalledWith(CONTEXT, payout);
+    // Monero has no atomic dispatch by design (#4673): `transfer` builds, signs and relays in one call
+    // and its -38 cannot be attributed to a phase. The leaf must fail loudly rather than quietly offer
+    // the atomic path back, so pin the trap. The split it exists to protect is covered in
+    // payout-monero-relay-split.spec.ts.
+    it('dispatchPayout(...) refuses the atomic path', () => {
+      expect(() => strategy.dispatchPayoutWrapper()).toThrow('Monero payouts are broadcast via broadcastPayout');
     });
 
     it('doPayoutForContext(...) splices groups up to the size cap and pays out until orders are drained', async () => {
@@ -963,8 +962,8 @@ class MoneroStrategyWrapper extends MoneroStrategy {
     return this.doPayoutForContext(context, orders);
   }
 
-  dispatchPayoutWrapper(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    return this.dispatchPayout(context, payout);
+  dispatchPayoutWrapper(): Promise<string> {
+    return this.dispatchPayout();
   }
 }
 

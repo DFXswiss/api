@@ -136,11 +136,21 @@ export interface GetSendTransferResultDto {
     amount: number;
     fee: number;
     tx_hash: string;
+    // only returned when the request sets get_tx_metadata
+    tx_metadata?: string;
   };
   error?: {
     code: number;
     message: string;
   };
+}
+
+// A transaction the wallet has built and signed but not relayed (`transfer` with do_not_relay, #4673).
+// `metadata` is the wallet's tx_metadata blob and the input to the separate `relay_tx` call, which
+// re-submits this exact transaction - so `txId` is already the final, durable id.
+export interface MoneroSignedTxDto {
+  txId: string;
+  metadata: string;
 }
 
 export interface GetTransfersResultDto {

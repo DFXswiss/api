@@ -3,7 +3,12 @@
  *
  * The wallet RPC's 'transfer' method builds, signs and relays a Monero transaction atomically.
  * Connection-establishment failures and the two official pre-funding wallet codes remain plain;
- * timeouts, resets, malformed responses and every other RPC code stay fail-closed.
+ * timeouts, resets, malformed responses and every other RPC code stay fail-closed. That path is still
+ * used by callers with no order to persist a pre-relay txid against (dex withdrawal, pay-in forwarding).
+ *
+ * The payout path instead splits it into buildTransfer (do_not_relay, provably pre-broadcast, plain
+ * errors) and relayTransfer (the sole in-flight step, fail-closed) — see #4673 and the split's
+ * end-to-end behaviour in payout-monero-relay-split.spec.ts.
  */
 
 import { HttpService } from 'src/shared/services/http.service';
@@ -55,6 +60,18 @@ describe('MoneroClient - broadcast boundary', () => {
       const result = await client.sendTransfers(payout);
 
       expect(result.txid).toBe('TX_HASH_01');
+    });
+
+    // Left unset, ring_size arrives as 0, the wallet turns that into mixin 0 and adjust_mixin silently
+    // raises it — "Requested ring size 1 too low, using 16" on every production transfer (#4673).
+    it('pins the ring size explicitly instead of relying on the wallet correcting it', async () => {
+      mockPost.mockResolvedValueOnce({
+        result: { amount: 1500000000000, fee: 10000000000, tx_hash: 'TX_HASH_01' },
+      });
+
+      await client.sendTransfers(payout);
+
+      expect(mockPost.mock.calls[0][1].params).toMatchObject({ ring_size: 16 });
     });
 
     it('wraps a failure of the underlying HTTP call into a TxBroadcastError', async () => {
@@ -214,6 +231,154 @@ describe('MoneroClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Monero broadcast returned an empty tx hash');
+    });
+  });
+
+  // #4673: the two halves of the split the payout path uses instead of the atomic call above.
+  describe('buildTransfer(...)', () => {
+    const buildResponse = {
+      result: { amount: 1500000000000, fee: 10000000000, tx_hash: 'TX_HASH_01', tx_metadata: 'META_01' },
+    };
+
+    it('returns the signed transaction and its relay metadata', async () => {
+      mockPost.mockResolvedValueOnce(buildResponse);
+
+      await expect(client.buildTransfer(payout)).resolves.toEqual({ txId: 'TX_HASH_01', metadata: 'META_01' });
+    });
+
+    // The safety of the whole split rests on these three flags: do_not_relay makes fill_response skip
+    // commit_tx (no /sendrawtransaction, no add_unconfirmed_tx, no set_spent), get_tx_metadata is what
+    // makes the transaction relayable later without rebuilding it, and ring_size stops the wallet from
+    // silently choosing for us. Pinned as a request contract, not as an implementation detail.
+    it('requests a build-only transfer with relay metadata and a pinned ring size', async () => {
+      mockPost.mockResolvedValueOnce(buildResponse);
+
+      await client.buildTransfer(payout);
+
+      const [, body] = mockPost.mock.calls[0];
+      expect(body.method).toBe('transfer');
+      expect(body.params).toMatchObject({ do_not_relay: true, get_tx_metadata: true, ring_size: 16 });
+    });
+
+    // Regression guard, and the point of #4673: with do_not_relay the wallet cannot have relayed
+    // anything, so -38 here is provably pre-broadcast and must stay plain. Turning it into a
+    // TxBroadcastError would restore the escalation the split exists to remove.
+    it('keeps a build-phase -38 plain — do_not_relay means nothing was ever submitted', async () => {
+      mockPost.mockResolvedValue({ error: { code: -38, message: 'no connection to daemon' } });
+
+      await expect(client.buildTransfer(payout)).rejects.not.toBeInstanceOf(TxBroadcastError);
+      await expect(client.buildTransfer(payout)).rejects.toThrow('no connection to daemon');
+    });
+
+    it.each([
+      ['an ambiguous transport failure', Object.assign(new Error('ECONNRESET'), { code: 'ECONNRESET' })],
+      ['a timeout', Object.assign(new Error('ETIMEDOUT'), { code: 'ETIMEDOUT' })],
+    ])('keeps %s plain as well — the build phase has no in-flight state to protect', async (_, httpError) => {
+      mockPost.mockRejectedValueOnce(httpError);
+
+      await expect(client.buildTransfer(payout)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    // A transaction that cannot be relayed would have to be rebuilt, which is the one thing the split
+    // rules out — so an id without metadata is refused here rather than persisted as a dead end.
+    it.each([
+      ['an empty tx hash', { tx_hash: '', tx_metadata: 'META_01' }, 'empty tx hash'],
+      ['no metadata', { tx_hash: 'TX_HASH_01' }, 'no tx metadata'],
+    ])('rejects a build result with %s', async (_, result, message) => {
+      mockPost.mockResolvedValueOnce({ result: { amount: 1, fee: 1, ...result } });
+
+      await expect(client.buildTransfer(payout)).rejects.toThrow(message);
+    });
+
+    it.each([
+      ['no result and no error', {}, 'No result after building the Monero transfer'],
+      ['a null body', null, 'No response after building the Monero transfer'],
+    ])('rejects a response with %s', async (_, response, message) => {
+      mockPost.mockResolvedValueOnce(response);
+
+      await expect(client.buildTransfer(payout)).rejects.toThrow(message);
+    });
+  });
+
+  describe('relayTransfer(...)', () => {
+    it('relays the stored metadata and returns the tx hash', async () => {
+      mockPost.mockResolvedValueOnce({ result: { tx_hash: 'TX_HASH_01' } });
+
+      await expect(client.relayTransfer('META_01')).resolves.toBe('TX_HASH_01');
+
+      const [, body] = mockPost.mock.calls[0];
+      expect(body).toMatchObject({ method: 'relay_tx', params: { hex: 'META_01' } });
+    });
+
+    // The relay is the only step that can leave a transaction in flight, so it keeps #4238's
+    // fail-closed classification with no RPC-code allowlist at all — the pre-funding codes cannot
+    // occur once the transaction is signed, and -4 decoy-selection faults belong to the build phase.
+    it.each([
+      [-38, 'no connection to daemon'],
+      [-17, 'not enough money'],
+      [-4, 'failed to get output distribution'],
+    ])('keeps RPC code %i fail-closed, carrying the wallet error as cause', async (code, message) => {
+      const rpcError = { code, message };
+      mockPost.mockResolvedValueOnce({ error: rpcError });
+
+      let error: unknown;
+      try {
+        await client.relayTransfer('META_01');
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe(message);
+      // The wallet error is attached directly, not re-wrapped: an investigation needs the code, and
+      // classifying it a second time is what an allowlist creeping back in would look like.
+      expect((error as TxBroadcastError).cause).toBe(rpcError);
+    });
+
+    it('keeps an ECONNREFUSED failure plain because the request never reached the wallet', async () => {
+      const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      mockPost.mockRejectedValueOnce(connectionError);
+
+      await expect(client.relayTransfer('META_01')).rejects.toBe(connectionError);
+    });
+
+    // The cases above enter through mapRelayTransfer, which throws a TxBroadcastError that the boundary
+    // then returns untouched — so they never exercise the empty allowlist the relay is configured with.
+    // A THROWN error carrying a numeric RPC code is the shape that does reach it, and it must find
+    // nothing to match: allowlisting any code here would let a possibly-relayed transfer self-heal.
+    it.each([-38, -17, -4])('finds no allowlist to match for a thrown RPC code %i', async (code) => {
+      mockPost.mockRejectedValueOnce({ error: { code, message: 'no connection to daemon' } });
+
+      await expect(client.relayTransfer('META_01')).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it.each([
+      ['no result', {}, 'No result after relaying the Monero transfer'],
+      ['an empty tx hash', { result: { tx_hash: '' } }, 'Monero relay returned an empty tx hash'],
+    ])('fails closed on a response with %s', async (_, response, message) => {
+      mockPost.mockResolvedValueOnce(response);
+
+      await expect(client.relayTransfer('META_01')).rejects.toThrow(message);
+      await expect(client.relayTransfer('META_01')).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+  });
+
+  describe('isTxKnown(...)', () => {
+    it('reports a transaction the daemon knows — including one that is only in the pool', async () => {
+      mockPost.mockResolvedValueOnce({ status: 'OK', txs: [{ tx_hash: 'TX_HASH_01', as_json: '{}' }] });
+
+      await expect(client.isTxKnown('TX_HASH_01')).resolves.toBe(true);
+    });
+
+    // An unknown hash comes back as status OK with the hash under missed_tx, so `txs` is absent or
+    // empty. Both mean "not relayed"; reading txs[0] out of an empty array used to throw instead.
+    it.each([
+      ['an absent txs list', { status: 'OK' }],
+      ['an empty txs list', { status: 'OK', txs: [] }],
+    ])('reports a transaction the daemon does not have (%s)', async (_, response) => {
+      mockPost.mockResolvedValueOnce(response);
+
+      await expect(client.isTxKnown('TX_HASH_01')).resolves.toBe(false);
     });
   });
 
