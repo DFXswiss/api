@@ -90,6 +90,11 @@ const MONERO_REQUEST_TIMEOUT_MS = 30_000;
 // wallet_rpc_server turns that into mixin 0 and adjust_mixin then raises it to the consensus minimum,
 // logging "Requested ring size 1 too low, using 16" on every production transfer (#4673). 16 is
 // CRYPTONOTE_DEFAULT_TX_MIXIN + 1 and therefore the value the wallet was already choosing.
+//
+// The trade this makes: adjust_mixin used to absorb a consensus minimum bump on its own, and now a bump
+// needs a change here. It applies to every caller of transferParams — the payout split below, and
+// sendTransfers for dex withdrawal and pay-in forwarding — so treat it as a consensus constant, not a
+// payout preference.
 const MONERO_RING_SIZE = 16;
 
 export class MoneroClient extends BlockchainClient implements CoinOnly {

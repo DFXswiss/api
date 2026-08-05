@@ -20,11 +20,11 @@
  */
 
 import { mock } from 'jest-mock-extended';
-import { IsNull } from 'typeorm';
 import { Config, ConfigService } from 'src/config/config';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { FindOperator, IsNull } from 'typeorm';
 import { createCustomPayoutOrder } from '../../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import { PayoutBroadcastException } from '../../../exceptions/payout-broadcast.exception';
@@ -271,8 +271,9 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       expect(buildTransferSpy).not.toHaveBeenCalled();
     });
 
-    // An id without metadata cannot be relayed. Resuming it would fall through to a rebuild of a
-    // transaction whose id is already recorded, so the group is rebuilt explicitly and re-persisted.
+    // An id without metadata cannot be relayed, so resuming it would fall through to a rebuild that
+    // skipped both the balance gate and the unrelayed-tx set. doPayoutForContext keeps such an order on
+    // the ordinary path; reaching send directly, as here, still rebuilds and re-persists.
     it('rebuilds when the id was recorded without metadata', async () => {
       const order = signedOrder({ signedPayoutTxMetadata: null });
 
@@ -281,6 +282,20 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       expect(isTxKnownSpy).not.toHaveBeenCalled();
       expect(buildTransferSpy).toHaveBeenCalledTimes(1);
       expect(signedTxPersists()).toHaveLength(1);
+    });
+
+    // ...and doPayoutForContext must not route it down the resume path to get there. That path skips
+    // both the unlocked-balance gate and the unrelayed-tx set, on the premise that it never builds —
+    // true only while the partition demands the metadata as well as the id. The zero balance is the
+    // observable: on the ordinary path it stops the build, on the resume path nothing checks it.
+    it('routes an id without metadata down the ordinary path, where the balance gate applies', async () => {
+      const order = confirmedOrder({ signedPayoutTxId: SIGNED_TX_ID, signedPayoutTxMetadata: null });
+      jest.spyOn(payoutMoneroService, 'getUnlockedBalance').mockResolvedValue(0);
+
+      await strategy.doPayoutForContextWrapper(CONTEXT, [order]);
+
+      expect(buildTransferSpy).not.toHaveBeenCalled();
+      expect(relayTransferSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -406,6 +421,36 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       expect(second.signedPayoutTxId).toBeUndefined();
     });
 
+    // The reason it is a set of ids and not a flag. Context A's build fails to relay and leaves its
+    // transaction open; context B then resumes and successfully relays a DIFFERENT transaction. A flag
+    // would be cleared by B's success and B would build against a balance that still counts A's inputs.
+    it('does not let one context’s successful relay clear another context’s open transaction', async () => {
+      const failing = confirmedOrder({ id: 1, context: PayoutOrderContext.BUY_CRYPTO, destinationAddress: 'DEST_A' });
+      const resumable = confirmedOrder({
+        id: 2,
+        context: PayoutOrderContext.REF_PAYOUT,
+        destinationAddress: 'DEST_B',
+        signedPayoutTxId: 'TX_B',
+        signedPayoutTxMetadata: 'META_B',
+      });
+      const fresh = confirmedOrder({ id: 3, context: PayoutOrderContext.REF_PAYOUT, destinationAddress: 'DEST_C' });
+      unlockedBalance(100);
+      // The build's relay fails; the resumed transaction's relay succeeds.
+      relayTransferSpy.mockImplementation((metadata: string) =>
+        metadata === 'META_B'
+          ? Promise.resolve('TX_B')
+          : Promise.reject(new PayoutBroadcastException(NO_DAEMON_CONNECTION)),
+      );
+
+      await strategy.doPayoutWrapper([failing, resumable, fresh]);
+
+      expect(resumable.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      // Only context A's build ran. DEST_C must wait: A's transaction still holds its inputs.
+      expect(buildTransferSpy).toHaveBeenCalledTimes(1);
+      expect(fresh.signedPayoutTxId).toBeUndefined();
+      expect(fresh.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
     // The latch must not survive the run: the next one re-reads the orders and resumes the transaction
     // through the resume path, which is where it belongs.
     it('clears the latch for the next run', async () => {
@@ -451,9 +496,18 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       });
     });
 
+    // The scenario the pin exists for: a concurrent run signed a transaction for this order, failed to
+    // relay it, and rolled it back — so the row is PREPARATION_CONFIRMED again and a status-only claim
+    // would win it and rebuild. Only the pinned claim misses, which is the safe outcome.
     it('skips an order whose row gained a signed tx since the snapshot, rather than rebuilding it', async () => {
       const staleOrder = confirmedOrder({ id: 7 });
-      repoUpdateSpy.mockResolvedValue({ affected: 0 } as any);
+      // The row now holds a signed tx, so a claim demanding IS NULL matches nothing while an unpinned
+      // one still matches on status alone.
+      repoUpdateSpy.mockImplementation((criteria: any) =>
+        Promise.resolve({
+          affected: !Array.isArray(criteria) && criteria.signedPayoutTxId instanceof FindOperator ? 0 : 1,
+        } as any),
+      );
 
       await strategy.sendWrapper(CONTEXT, [staleOrder]);
 

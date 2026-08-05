@@ -21,22 +21,27 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
 
   private readonly averageTransactionSize = 1600; // Bytes
 
-  // True while a transaction this run signed has no returned relay behind it. Until commit_tx completes
-  // the wallet has not marked that transaction's inputs spent — do_not_relay skips commit_tx outright,
-  // and a relay whose response was lost throws before set_spent — so getUnlockedBalance still counts
-  // them and anything built next is free to select them a second time. Latched on the strategy rather
-  // than per context because the contexts of one payout run share a single wallet, and reset for every
-  // run in doPayout below.
+  // The transactions this run has signed and has no returned relay for. Until commit_tx completes the
+  // wallet has not marked a transaction's inputs spent — do_not_relay skips commit_tx outright, and a
+  // relay whose response was lost throws before set_spent — so getUnlockedBalance still counts them
+  // and anything built next is free to select them a second time. Kept on the strategy rather than per
+  // context because the contexts of one payout run share a single wallet, and reset for every run in
+  // doPayout below.
+  //
+  // A set of ids and not a flag: one run can hold several signed transactions at once, and a relay
+  // that returns settles only its own. As a flag, a context that resumed and relayed an old
+  // transaction would clear the mark left by an earlier context whose build had failed to relay, and
+  // the next build would go out against a balance that still counted that transaction's inputs.
   //
   // Its bound, stated rather than papered over: it orders the groups WITHIN a run. Payout runs are
   // serial by construction — PayoutService awaits each strategy, the cron holds an in-process lock and
   // a cross-process lease — so two runs only overlap if one exceeds the 1800 s cron timeout inside one
-  // process, and a crash loses the flag entirely. Neither leaves a rebuild reachable: the designation
+  // process, and a crash loses the set entirely. Neither leaves a rebuild reachable: the designation
   // claim is pinned on the signed tx, so a stale run cannot rebuild a signed order. What is left is
   // that a run in either of those states can build against a balance that still counts an earlier
   // transaction's inputs, whose worst case is a rejected transaction and stuck orders — recoverable,
   // because the order holds a durable id and retryUncertainPayout can discard a verified-absent one.
-  private hasUnrelayedSignedTx = false;
+  private readonly unrelayedSignedTxIds = new Set<string>();
 
   constructor(
     notificationService: NotificationService,
@@ -62,11 +67,11 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     return { asset: await this.feeAsset(), amount: feeAmount };
   }
 
-  // The only entry point that spans this run's contexts, and therefore where the shared-wallet latch
+  // The only entry point that spans this run's contexts, and therefore where the shared-wallet set
   // belongs. It is reset rather than carried over: a fresh run re-reads the orders, so an unrelayed
   // transaction still open from last time comes back through the resume path above.
   async doPayout(orders: PayoutOrder[]): Promise<void> {
-    this.hasUnrelayedSignedTx = false;
+    this.unrelayedSignedTxIds.clear();
 
     await super.doPayout(orders);
   }
@@ -79,8 +84,13 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     // the signed tx id so every order that transaction pays travels together and lands on the same
     // payoutTxId; regrouping the survivors would relay a transaction paying orders no longer tracked.
     // No unlocked-balance gate here either: that gate exists to avoid building a transaction the wallet
-    // cannot fund, and these inputs were selected when the transaction was built.
-    const [signedOrders, unsignedOrders] = Util.partition(orders, (o) => Boolean(o.signedPayoutTxId));
+    // cannot fund, and these inputs were selected when the transaction was built. Which is only sound
+    // because this path provably cannot build — hence a predicate on BOTH columns. An id without
+    // metadata cannot be relayed, and admitting it here would fall through to a rebuild that skipped
+    // both the balance gate and the set above; it belongs on the ordinary path, which applies them.
+    const [signedOrders, unsignedOrders] = Util.partition(orders, (o) =>
+      Boolean(o.signedPayoutTxId && o.signedPayoutTxMetadata),
+    );
 
     for (const [signedTxId, group] of Util.groupBy<PayoutOrder, string>(signedOrders, 'signedPayoutTxId')) {
       try {
@@ -98,7 +108,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
       // reads the wallet, and the wallet has not marked that transaction's inputs spent — so it would
       // hand the same outputs out twice and the two transactions would race for them. Waiting a round
       // costs 30 s; the next one resumes the relay first, and a relay that returns runs set_spent.
-      if (this.hasUnrelayedSignedTx) {
+      if (this.unrelayedSignedTxIds.size) {
         this.logger.info(
           `XMR payout: deferring ${pendingOrders.length} order(s), a signed tx has no relay behind it yet`,
         );
@@ -123,10 +133,10 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
       }
     }
 
+    // The reason is no longer always the balance — the set above defers too, and says so on its own
+    // line — so the summary states the count and leaves the cause to whichever branch broke the loop.
     if (paidOutOrders > 0 || pendingOrders.length > 0) {
-      this.logger.info(
-        `XMR payout: ${paidOutOrders} paid, ${pendingOrders.length} pending (insufficient unlocked balance)`,
-      );
+      this.logger.info(`XMR payout: ${paidOutOrders} paid, ${pendingOrders.length} pending`);
     }
   }
 
@@ -165,7 +175,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     // Latched before the lookup, not after it: a hit means the earlier relay reached the daemon but
     // lost its response, and commit_tx throws on that response — before set_spent. The wallet's
     // balance stays overstated until the transaction confirms, so this run must not build against it.
-    if (resumed) this.hasUnrelayedSignedTx = true;
+    if (resumed) this.unrelayedSignedTxIds.add(resumed.txId);
 
     // Look up a resumed transaction before relaying it again: the earlier relay may well have reached
     // the daemon and only lost its response, in which case the transaction is already in the pool under
@@ -180,7 +190,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
       const relayedTxId = await this.payoutMoneroService.relayTransfer(signedTx.metadata);
       // A relay that returned ran commit_tx to completion, so set_spent has fired and the wallet's
       // unlocked balance is honest again — the next group may be built.
-      this.hasUnrelayedSignedTx = false;
+      this.unrelayedSignedTxIds.delete(signedTx.txId);
 
       return relayedTxId;
     } catch (e) {
@@ -253,7 +263,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     const signedTx = await this.payoutMoneroService.buildTransfer(payout);
     // Latched on the build, not on the persist: a transaction that was signed but not recorded still
     // holds unreserved inputs in the wallet, and a partial persist even leaves rows that will resume it.
-    this.hasUnrelayedSignedTx = true;
+    this.unrelayedSignedTxIds.add(signedTx.txId);
 
     const result = await this.payoutOrderRepo.update(
       designated.map((o) => o.id),

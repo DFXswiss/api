@@ -4,7 +4,7 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import * as processServiceModule from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, LessThan, MoreThan } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan } from 'typeorm';
 import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
@@ -132,7 +132,7 @@ describe('PayoutService', () => {
       await service.retryUncertainPayout(accountId, baseDto);
 
       expect(updateSpy).toHaveBeenCalledWith(
-        { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN, signedPayoutTxId: IsNull() },
         {
           status: PayoutOrderStatus.PREPARATION_CONFIRMED,
           retryCount: 0,
@@ -140,7 +140,8 @@ describe('PayoutService', () => {
           signedPayoutTxMetadata: null,
         },
       );
-      expect(infoSpy).toHaveBeenCalled();
+      // No signed tx to discard, so the audit line must not invent one.
+      expect(infoSpy.mock.calls[0][0]).not.toContain('discarded signedPayoutTxId');
     });
 
     // #4673: the automatic path re-relays a signed-but-unrelayed transaction, which is always safe, so
@@ -163,6 +164,9 @@ describe('PayoutService', () => {
       await service.retryUncertainPayout(accountId, baseDto);
 
       expect(updateSpy.mock.calls[0][1]).toMatchObject({ signedPayoutTxId: null, signedPayoutTxMetadata: null });
+      // Pinned on the id the operator actually verified: signPayout writes that column with no status
+      // predicate, so an unpinned WHERE could discard an id nobody checked.
+      expect(updateSpy.mock.calls[0][0]).toMatchObject({ signedPayoutTxId: 'DEAD_XMR_TX' });
       expect(infoSpy.mock.calls[0][0]).toContain("discarded signedPayoutTxId 'DEAD_XMR_TX'");
     });
 

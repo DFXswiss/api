@@ -168,8 +168,17 @@ export class PayoutService {
     // below. The assertion carries the same weight it always did — asserting it wrongly here rebuilds
     // over a transaction that did land, i.e. pays twice — which is why the automatic path never
     // discards and re-relays instead, and why only a human who checked that id may take this route.
+    // The signed tx is pinned as well as the status: the operator asserted absence about the id they
+    // READ, while MoneroStrategy#signPayout writes that column with no status predicate — deliberately,
+    // so an order escalated mid-flight still gets its record. Without the pin those two interleave and
+    // this discards an id nobody verified. A miss is reported as a conflict, and the operator retries
+    // against the row as it now stands.
     const result = await this.payoutOrderRepo.update(
-      { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+      {
+        id: order.id,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        signedPayoutTxId: order.signedPayoutTxId ?? IsNull(),
+      },
       {
         status: PayoutOrderStatus.PREPARATION_CONFIRMED,
         retryCount: 0,
@@ -183,7 +192,9 @@ export class PayoutService {
     // until the next broadcast attempt overwrites it; the retry BUDGET is restored above so a
     // verified manual retry tolerates transient pre-broadcast errors instead of re-escalating.
     this.logger.info(
-      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', discarded signedPayoutTxId '${order.signedPayoutTxId}', reference: ${dto.verificationReference}`,
+      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}'${
+        order.signedPayoutTxId ? `, discarded signedPayoutTxId '${order.signedPayoutTxId}'` : ''
+      }, reference: ${dto.verificationReference}`,
     );
   }
 
