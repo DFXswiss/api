@@ -17,6 +17,7 @@ import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/tra
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { createCustomBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -272,11 +273,12 @@ describe('BuyFiatPreparationService', () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest.spyOn(entity, 'userData', 'get').mockReturnValue({
-        id: 42,
-        hasValidScorechainReview: false,
-        phoneCallCheckDate: new Date('2026-08-04'),
-      } as any);
+      // A real UserData, so `hasValidScorechainReview` is computed by the getter instead of being handed
+      // in: reading `phoneCallCheckDate` there — the realistic copy-paste error, the columns are adjacent
+      // on the entity — has to turn this test red, and a hard-coded flag would hide exactly that.
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue(Object.assign(new UserData(), { id: 42, phoneCallCheckDate: new Date() }));
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 

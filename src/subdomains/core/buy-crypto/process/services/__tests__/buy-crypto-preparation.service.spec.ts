@@ -16,6 +16,7 @@ import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outc
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -329,11 +330,12 @@ describe('BuyCryptoPreparationService', () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
-      jest.spyOn(entity, 'userData', 'get').mockReturnValue({
-        id: 42,
-        hasValidScorechainReview: false,
-        phoneCallCheckDate: new Date('2026-08-04'),
-      } as any);
+      // A real UserData, so `hasValidScorechainReview` is computed by the getter instead of being handed
+      // in: reading `phoneCallCheckDate` there — the realistic copy-paste error, the columns are adjacent
+      // on the entity — has to turn this test red, and a hard-coded flag would hide exactly that.
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue(Object.assign(new UserData(), { id: 42, phoneCallCheckDate: new Date() }));
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
@@ -341,8 +343,10 @@ describe('BuyCryptoPreparationService', () => {
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
     });
 
-    // No account means no review; the comment in the gate states this explicitly, so pin it rather
-    // than relying on the default fixture happening to have no userData.
+    // No account means no review — pinned on the gate in isolation. Note that the orchestrated path does
+    // not reach this branch today: `getAmlCheckInput` runs first and dereferences `entity.userData`
+    // unguarded, so a transaction without an account throws before the gate is called. The guard matters
+    // for direct callers and for keeping the gate correct if that order ever changes.
     it('screens a transaction without an account', async () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
