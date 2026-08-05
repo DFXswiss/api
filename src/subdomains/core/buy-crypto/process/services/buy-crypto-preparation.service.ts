@@ -84,6 +84,25 @@ export class BuyCryptoPreparationService {
     if (!objectId || !toScorechainBlockchain(blockchain)) return ScorechainOutcome.PASS;
 
     try {
+      // Compliance has reviewed this account's Scorechain findings with the customer and released them
+      // (`scorechainCheckDate`, valid for a limited time — see `hasValidScorechainReview`). The on-chain
+      // verdict never changes for a permanently tainted source, so without this every further deposit
+      // would be routed to the same manual review again.
+      //
+      // DEPOSITS ONLY. The withdrawal screening asks a different question — may DFX pay INTO this
+      // address — which a review of the customer's funding source does not answer; a payout to a listed
+      // address must never be waved through by it. Address-scoped payout exemptions belong to #4402.
+      //
+      // Deliberately NOT fail-closed on a missing userData: no account means no review, so the screening
+      // runs. Inside the try on purpose: like every other userData access here, a failure must become
+      // UNAVAILABLE (manual review), never an exception that leaves the transaction without a verdict.
+      if (isDeposit && entity.userData?.hasValidScorechainReview) {
+        this.logger.info(
+          `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
+        );
+        return ScorechainOutcome.PASS;
+      }
+
       const screening = isDeposit
         ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
         : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);

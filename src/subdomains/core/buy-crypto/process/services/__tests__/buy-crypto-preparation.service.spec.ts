@@ -272,6 +272,93 @@ describe('BuyCryptoPreparationService', () => {
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
+    // A permanently tainted source never changes its on-chain verdict, so without the exemption every
+    // further payment of an already-reviewed account repeats the identical manual review.
+    it('skips the provider for a compliance-reviewed account (deposit)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    // The review covers where the customer's money came from, not whether DFX may pay INTO a given
+    // address — so a payout to a listed address must still be caught for a reviewed account.
+    it('still screens the withdrawal address of a compliance-reviewed account', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
+      jest.spyOn(scorechainScreeningService, 'screenWithdrawalAddress').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalled();
+    });
+
+    // An expired review is no review: the account is screened again after the validity window.
+    it('screens the deposit again once the review has expired', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
+    // The two date columns sit next to each other on the entity, so reading the wrong one is the
+    // realistic copy-paste error — and it would exempt every account that ever had a phone check.
+    it('is not triggered by a phone-call check date', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({
+        id: 42,
+        hasValidScorechainReview: false,
+        phoneCallCheckDate: new Date('2026-08-04'),
+      } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
+    // No account means no review; the comment in the gate states this explicitly, so pin it rather
+    // than relying on the default fixture happening to have no userData.
+    it('screens a transaction without an account', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue(undefined as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
+    // Without a date the account was never reviewed: the screening has to run, or the exemption would
+    // silently cover every account.
+    it('still screens an account without a review date', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
     it('yields no signal (false) and skips the provider for an unsupported chain', async () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: null,
