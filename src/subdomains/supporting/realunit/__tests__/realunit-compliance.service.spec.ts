@@ -190,6 +190,54 @@ describe('RealUnitComplianceService', () => {
       });
     });
 
+    // A legacy catalog row (`path` set) points at a Spider-era document, and the date it carries is the
+    // best one the backfill could establish - after the storage migration that can be the day of the
+    // migration, i.e. newer than every real document. It must not become the reported check.
+    it('keeps a legacy catalog row behind a current file of the same type', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_nc',
+          type: FileType.NAME_CHECK,
+          name: 'nc.pdf',
+          created: new Date('2025-05-13'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_legacy_nc',
+          type: FileType.NAME_CHECK,
+          name: 'legacy-nc.pdf',
+          path: 'spider/1/check/gen_1/report.pdf',
+          created: new Date('2026-07-13'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.nameCheck).toMatchObject({ fileUid: 'kyc_nc', date: new Date('2025-05-13') });
+    });
+
+    // The other direction: filtering legacy rows out instead of ranking them behind would leave the
+    // field empty, and an empty check reads as a compliance gap rather than as old evidence.
+    it('reports a legacy catalog row when it is the only evidence of its type', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_legacy_nc',
+          type: FileType.NAME_CHECK,
+          name: 'legacy-nc.pdf',
+          path: 'spider/1/check/gen_1/report.pdf',
+          created: new Date('2021-03-04'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.nameCheck).toMatchObject({ fileUid: 'kyc_legacy_nc', date: new Date('2021-03-04') });
+    });
+
     it('reports the completed ident step even when a later follow-up attempt exists', async () => {
       mockDossierDefaults();
       kycService.getStepsByUserData.mockResolvedValue([

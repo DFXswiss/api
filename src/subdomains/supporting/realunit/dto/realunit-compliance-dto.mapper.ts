@@ -142,11 +142,25 @@ export class RealUnitComplianceDtoMapper {
     };
   }
 
+  /**
+   * The file that stands for a check, newest first — but never a legacy row ahead of a current one.
+   *
+   * A row carrying `path` was catalogued from the Spider-era storage by the legacy backfill, and its
+   * date is the best one that could be established for a document written years ago: from the storage
+   * path where it carries the run's timestamp, otherwise from the store, which after the migration
+   * between storage backends reports the day of that migration for every object alike. Compared on
+   * `created` alone, such a row can therefore outrank the Dilisense or Sumsub document that actually
+   * describes the account today, and the dossier would name a Spider document as the current check.
+   *
+   * Ranked behind rather than filtered out: a legacy row is real evidence when it is the only one
+   * there is, and dropping it would leave the field empty — which the dashboard renders as a missing
+   * check, i.e. as a compliance gap that does not exist (see RealUnitChecksDto).
+   */
   private static latestFileOfType(files: KycFile[], type: FileType): KycFile | undefined {
-    return Util.maxObj(
-      files.filter((f) => f.type === type),
-      'created',
-    );
+    const ofType = files.filter((f) => f.type === type);
+    const current = ofType.filter((f) => f.path == null);
+
+    return Util.maxObj(current.length ? current : ofType, 'created');
   }
 
   // --- KYC FILES --- //
