@@ -57,8 +57,8 @@ def strip_line_comments(s):
 
     Block comments are left alone because a regex literal can look like one. `[^\\n]*` never
     consumes the newline, so line numbers stay identical to the source — every stage keys on
-    (file, line) and the whole join depends on all of them stripping identically. Hence one
-    implementation rather than a copy per stage.
+    the position of a site, by line and column, and the whole join depends on all of them
+    stripping identically. Hence one implementation rather than a copy per stage.
     """
     return LINE_COMMENT.sub('', s)
 
