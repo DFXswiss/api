@@ -54,7 +54,7 @@ export class CustodyService {
    * ever displayed with (CustodyAssetBalanceDtoMapper), so nothing visible is discarded — even
    * for the priciest custody asset it is worth far less than a rounded rappen.
    */
-  private static readonly BALANCE_DUST = 1e-8;
+  static readonly BALANCE_DUST = 1e-8;
 
   constructor(
     private readonly userService: UserService,
@@ -463,7 +463,7 @@ export class CustodyService {
    * clamped, checked before the negative-total guard (see accrueTranche() and the check right
    * after the loop below for why).
    */
-  private async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
+  async calculateAccruedInterest(userIds: number[], asset: Asset, dueDate: Date): Promise<number> {
     // Exclude NULL amounts at the query level — mirrors updateCustodyBalance()'s SQL SUM(),
     // which silently skips NULLs; interest and balance must be derived from the same order
     // set, or they drift apart.
