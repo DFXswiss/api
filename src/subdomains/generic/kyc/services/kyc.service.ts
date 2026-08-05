@@ -763,7 +763,12 @@ export class KycService {
     const result = urlAsJson ? { url } : url;
 
     await this.kycStepRepo.update(
-      ...kycStep.update(kycStep.reviewStatusForIdentLevel(ReviewStatus.MANUAL_REVIEW), result),
+      ...kycStep.update(
+        kycStep.reviewStatusForIdentLevel(ReviewStatus.MANUAL_REVIEW),
+        result,
+        undefined,
+        kycStep.sequenceNumber,
+      ),
     );
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -905,7 +910,7 @@ export class KycService {
 
     await this.verify2fa(user, ip);
 
-    await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
+    await this.kycStepRepo.update(...kycStep.inProgress(data.responses));
 
     const complete = FinancialService.isComplete(data.responses, user.accountType);
     if (complete) {
@@ -999,7 +1004,7 @@ export class KycService {
     data: KycStepResult,
     reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
-    await this.kycStepRepo.update(...kycStep.update(reviewStatus, data));
+    await this.kycStepRepo.update(...kycStep.update(reviewStatus, data, undefined, kycStep.sequenceNumber));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -1654,7 +1659,9 @@ export class KycService {
   ): Promise<void> {
     if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
       if (data) {
-        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
+        await this.kycStepRepo.update(
+          ...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data, undefined, kycStep.sequenceNumber),
+        );
         await this.createStepLog(user, kycStep);
       }
       return;
@@ -1665,11 +1672,15 @@ export class KycService {
 
     if (data) {
       if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
-        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.IGNORED, data, comment));
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.IGNORED, data, comment, kycStep.sequenceNumber));
       } else if (errors.length > 0) {
-        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.MANUAL_REVIEW, data, comment));
+        await this.kycStepRepo.update(
+          ...kycStep.update(ReviewStatus.MANUAL_REVIEW, data, comment, kycStep.sequenceNumber),
+        );
       } else {
-        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.COMPLETED, data));
+        await this.kycStepRepo.update(
+          ...kycStep.update(ReviewStatus.COMPLETED, data, undefined, kycStep.sequenceNumber),
+        );
         await this.checkDfxApproval(kycStep.userData, kycStep);
       }
     } else {
