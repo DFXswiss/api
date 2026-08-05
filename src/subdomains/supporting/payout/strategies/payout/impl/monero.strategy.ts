@@ -26,7 +26,16 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   // and a relay whose response was lost throws before set_spent — so getUnlockedBalance still counts
   // them and anything built next is free to select them a second time. Latched on the strategy rather
   // than per context because the contexts of one payout run share a single wallet, and reset for every
-  // run in doPayout below. Payout runs of one strategy are serial (PayoutService awaits each).
+  // run in doPayout below.
+  //
+  // Its bound, stated rather than papered over: it orders the groups WITHIN a run. Payout runs are
+  // serial by construction — PayoutService awaits each strategy, the cron holds an in-process lock and
+  // a cross-process lease — so two runs only overlap if one exceeds the 1800 s cron timeout inside one
+  // process, and a crash loses the flag entirely. Neither leaves a rebuild reachable: the designation
+  // claim is pinned on the signed tx, so a stale run cannot rebuild a signed order. What is left is
+  // that a run in either of those states can build against a balance that still counts an earlier
+  // transaction's inputs, whose worst case is a rejected transaction and stuck orders — recoverable,
+  // because the order holds a durable id and retryUncertainPayout can discard a verified-absent one.
   private hasUnrelayedSignedTx = false;
 
   constructor(

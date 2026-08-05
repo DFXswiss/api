@@ -164,7 +164,10 @@ export class PayoutService {
     // be relayed at all would loop forever, since nothing else ever clears these columns. It is
     // noBroadcastVerified that licenses the discard: the operator has confirmed signedPayoutTxId is
     // absent from the chain, the same assertion every other chain's retry already rebuilds on, and
-    // now a lookup rather than an inference. The discarded id is logged below.
+    // now a lookup of one id rather than an inference from a wallet log. The discarded id is logged
+    // below. The assertion carries the same weight it always did — asserting it wrongly here rebuilds
+    // over a transaction that did land, i.e. pays twice — which is why the automatic path never
+    // discards and re-relays instead, and why only a human who checked that id may take this route.
     const result = await this.payoutOrderRepo.update(
       { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
       {
