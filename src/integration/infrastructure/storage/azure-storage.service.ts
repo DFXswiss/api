@@ -92,7 +92,7 @@ export class AzureStorageService extends StorageService {
 
       const items: KeyDate[] | undefined = batch.value?.segment?.blobItems?.map((i) => ({
         key: i.name,
-        lastModified: i.properties?.createdOn ?? i.properties?.lastModified,
+        created: i.properties?.createdOn ?? i.properties?.lastModified,
       }));
       if (items) keys.push(...items);
 

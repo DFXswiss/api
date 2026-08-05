@@ -11,6 +11,7 @@ import { In } from 'typeorm';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import {
+  LegacyFileDateSourceDto,
   LegacyFileEntry,
   LegacyFileSkipReason,
   LegacyFileSyncDto,
@@ -113,6 +114,7 @@ export class KycLegacyFileService {
     await this.settingService.set(LEGACY_FILE_SYNC_COMPLETED_KEY, new Date().toISOString());
 
     const skipped = result.skipped.map(({ reason, count }) => `${reason}: ${count}`).join(', ');
+    const { fromPath, fromListing, fromDefault, oldest, newest } = result.dated;
     this.logger.info(
       `Legacy KYC file backfill complete in ${Util.round(Util.secondsDiff(startedAt), 1)} s: ${
         result.inserted
@@ -120,16 +122,24 @@ export class KycLegacyFileService {
         skipped || 'none'
       })`,
     );
+
+    // Separate line, and not an afterthought on the one above: a run that dated every row by the store
+    // or by nothing produces a catalog that all looks equally recent, and the span is what shows it.
+    this.logger.info(
+      `Legacy KYC file backfill dates: ${fromPath} from path, ${fromListing} from listing, ${fromDefault} left to the column default, spanning ${
+        oldest?.toISOString() ?? 'n/a'
+      } to ${newest?.toISOString() ?? 'n/a'}`,
+    );
   }
 
   async syncLegacyFiles(dryRun: boolean, userDataId?: number): Promise<LegacyFileSyncDto> {
     const keyDates = await this.listKeyDates(userDataId);
     const keys = keyDates.map((k) => k.key);
-    // The date the store holds for a blob, which for a Spider-era document is when it was written -
-    // years before this run. Carried into the catalog row below, because the row IS the document as
-    // far as everything reading the catalog is concerned, and a row stamped today would make a 2019
-    // document look like the newest evidence on the account.
-    const blobDates = new Map(keyDates.filter((k) => k.lastModified).map((k) => [k.key, k.lastModified]));
+    // The date the STORE holds for a blob. Second choice behind the date in the path: after the move
+    // between storage backends every object carries the day of that move, so this dates the object
+    // rather than the document. Kept anyway, because it is still older than the run for any store
+    // that was not migrated, and the alternative for those rows is no date at all.
+    const blobDates = new Map(keyDates.filter((k) => k.created).map((k) => [k.key, k.created]));
 
     const { keysByOwner, invalidKeys } = this.groupByOwner(keys);
 
@@ -139,6 +149,7 @@ export class KycLegacyFileService {
     const typeCounts = new Map<string, number>();
     const skipCounts = new Map<LegacyFileSkipReason, number>();
     const examples: LegacyFileEntry[] = [];
+    const dated: LegacyFileDateSourceDto = { fromPath: 0, fromListing: 0, fromDefault: 0 };
     let inserted = 0;
     let wouldInsert = 0;
 
@@ -171,15 +182,19 @@ export class KycLegacyFileService {
         const newEntries = await this.filterCataloged(entries);
         this.count(skipCounts, LegacyFileSkipReason.ALREADY_CATALOGED, entries.length - newEntries.length);
 
+        const dates = new Map<string, Date>();
+
         for (const entry of newEntries) {
           this.count(typeCounts, `${entry.type}/${entry.subType ?? ''}`, 1);
           if (examples.length < MAX_EXAMPLES) examples.push(entry);
+
+          this.resolveDate(entry, blobDates, dates, dated);
         }
 
         wouldInsert += newEntries.length;
 
         if (!dryRun) {
-          const created = await this.createFiles(newEntries, blobDates);
+          const created = await this.createFiles(newEntries, dates);
           inserted += created.inserted;
           this.count(skipCounts, LegacyFileSkipReason.ALREADY_CATALOGED, created.conflicts);
         }
@@ -211,10 +226,38 @@ export class KycLegacyFileService {
       byType: this.toTypeCounts(typeCounts),
       skipped: Array.from(skipCounts.entries()).map(([reason, count]) => ({ reason, count })),
       examples,
+      dated,
     };
   }
 
   // --- HELPER METHODS --- //
+
+  /**
+   * The date one catalog row is written with, and where it came from.
+   *
+   * The path first: it is the only source that dates the DOCUMENT. The store's date second, which
+   * after a migration between backends is the date of that migration for every object alike. Nothing
+   * third, leaving the column default — the row is then stamped with the run, which is what every
+   * row of this backfill would carry without any of this.
+   */
+  private resolveDate(
+    entry: LegacyFileEntry,
+    blobDates: Map<string, Date>,
+    dates: Map<string, Date>,
+    dated: LegacyFileDateSourceDto,
+  ): void {
+    const date = entry.date ?? blobDates.get(entry.path);
+
+    if (entry.date) dated.fromPath++;
+    else if (date) dated.fromListing++;
+    else dated.fromDefault++;
+
+    if (!date) return;
+
+    dates.set(entry.path, date);
+    dated.oldest = dated.oldest && dated.oldest < date ? dated.oldest : date;
+    dated.newest = dated.newest && dated.newest > date ? dated.newest : date;
+  }
 
   // Presence, not a value: the setting carries the completion timestamp. Read on every tick rather
   // than cached in a field, so clearing the row is enough to make the backfill run again — the
@@ -303,7 +346,7 @@ export class KycLegacyFileService {
   // full run is long enough for an admin to start a second one — can write a row in between. The partial
   // unique index on `path` is what turns that race into a conflict instead of a duplicate document, and
   // the conflict is counted like any other already-catalogued blob so the run finishes either way.
-  private async createFiles(entries: LegacyFileEntry[], blobDates: Map<string, Date>): Promise<CreateFilesResult> {
+  private async createFiles(entries: LegacyFileEntry[], dates: Map<string, Date>): Promise<CreateFilesResult> {
     if (!entries.length) return { inserted: 0, conflicts: 0 };
 
     const files = entries.map((e) =>
@@ -316,12 +359,12 @@ export class KycLegacyFileService {
         valid: true,
         uid: Util.createUid(Config.prefixes.kycFileUidPrefix),
         userData: { id: e.userDataId },
-        // The blob's own date, so the row dates the document rather than the backfill. TypeORM keeps
-        // an explicitly set `@CreateDateColumn` on insert (only the Mongo driver overwrites it), and
-        // `legacy-file-created.projection.spec.ts` holds that against a real database. Left unset when
-        // the listing carried no date: the column default then stamps the run, which is wrong by the
-        // same amount as before this and is the only alternative that does not cost a request per blob.
-        created: blobDates.get(e.path),
+        // The document's date, so the row dates the document rather than the backfill - see
+        // `resolveDate` for where it comes from. TypeORM keeps an explicitly set `@CreateDateColumn`
+        // on insert (only the Mongo driver overwrites it), and `legacy-file-created.projection.spec.ts`
+        // holds that against a real database. Left unset where no date could be established: the
+        // column default then stamps the run, which is what every row would carry without any of this.
+        created: dates.get(e.path),
       }),
     );
 

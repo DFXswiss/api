@@ -10,6 +10,14 @@ const SPIDER_SCOPE = 'spider';
 const ORGANIZATION_SUFFIX = '-organization';
 const CHECK_FOLDER = 'check';
 const CHECK_RUN_PATTERN = /^gen_(\d+)$/;
+// A path segment that is a bare epoch in milliseconds — the moment of the Spider run, kept in the
+// folder name (`online-identification/1699356511987/…`). Thirteen digits is the shape of that window;
+// a ten-digit second value is not read as one, because guessing the unit would silently place a
+// document in 1970 or in the far future rather than leave it undated.
+const EPOCH_MILLIS_PATTERN = /^\d{13}$/;
+// Spider predates DFX, so nothing stored under it can be older than this; anything below is a segment
+// that merely looks like a timestamp.
+const EARLIEST_DOCUMENT_DATE = new Date('2015-01-01T00:00:00.000Z');
 const IDENT_FOLDERS = ['online-identification', 'video_identification'];
 
 // Everything else stored next to the documents is a machine artifact of the Spider run (raw provider
@@ -86,7 +94,7 @@ export class KycLegacyFileMapper {
       }
 
       const { type, subType } = this.toFileType(path);
-      entries.push({ userDataId, name: path.name, type, subType, path: path.key });
+      entries.push({ userDataId, name: path.name, type, subType, path: path.key, date: this.pathDate(path) });
       paths.push(path);
     }
 
@@ -116,6 +124,28 @@ export class KycLegacyFileMapper {
       name,
       extension: extensionIndex > 0 ? name.substring(extensionIndex + 1).toLowerCase() : '',
     };
+  }
+
+  /**
+   * The document's own date, where the path carries it.
+   *
+   * This is the only date that describes the DOCUMENT. What the store reports for the object is the
+   * date of the object, which after a migration between backends is the date of that migration — the
+   * same day for every blob, and therefore useless for telling a 2019 document from a 2023 one.
+   *
+   * Only the folder segments are read, never the file name: a name may contain any number. A value
+   * outside the plausible window is discarded rather than corrected, so an undated row is the outcome
+   * of a segment that cannot be trusted, not a guess.
+   */
+  private static pathDate(path: LegacyFilePath): Date | undefined {
+    for (const segment of path.segments.slice(0, -1)) {
+      if (!EPOCH_MILLIS_PATTERN.test(segment)) continue;
+
+      const date = new Date(+segment);
+      if (date >= EARLIEST_DOCUMENT_DATE && date <= new Date()) return date;
+    }
+
+    return undefined;
   }
 
   private static toFileType(path: LegacyFilePath): { type: FileType; subType?: FileSubType } {

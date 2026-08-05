@@ -50,6 +50,8 @@ describe('CompositeStorageService', () => {
   let azureListBlobs: jest.SpyInstance;
   let s3ListKeys: jest.SpyInstance;
   let azureListKeys: jest.SpyInstance;
+  let s3ListKeyDates: jest.SpyInstance;
+  let azureListKeyDates: jest.SpyInstance;
   let s3Copy: jest.SpyInstance;
   let azureCopy: jest.SpyInstance;
 
@@ -92,6 +94,12 @@ describe('CompositeStorageService', () => {
     azureListBlobs = jest.spyOn(AzureStorageService.prototype, 'listBlobs').mockResolvedValue([]);
     s3ListKeys = jest.spyOn(S3StorageService.prototype, 'listKeys').mockResolvedValue(['s3-key']);
     azureListKeys = jest.spyOn(AzureStorageService.prototype, 'listKeys').mockResolvedValue(['azure-key']);
+    s3ListKeyDates = jest
+      .spyOn(S3StorageService.prototype, 'listKeyDates')
+      .mockResolvedValue([{ key: 's3-key', created: new Date('2026-07-13T00:00:00.000Z') }]);
+    azureListKeyDates = jest
+      .spyOn(AzureStorageService.prototype, 'listKeyDates')
+      .mockResolvedValue([{ key: 'azure-key', created: new Date('2023-11-07T00:00:00.000Z') }]);
     s3Copy = jest.spyOn(S3StorageService.prototype, 'copyBlobs').mockResolvedValue(['dst/from-s3']);
     azureCopy = jest.spyOn(AzureStorageService.prototype, 'copyBlobs').mockResolvedValue(['dst/from-azure']);
   });
@@ -240,7 +248,7 @@ describe('CompositeStorageService', () => {
       ['azure', 'azure'],
       ['s3', 's3'],
     ])(
-      'writeMode=%s readSource=%s: getBlob/listBlobs/listKeys only touch the read backend',
+      'writeMode=%s readSource=%s: getBlob/listBlobs/listKeys/listKeyDates only touch the read backend',
       async (writeMode, readSource) => {
         await provideConfig(writeMode, readSource);
         const service = new CompositeStorageService(CONTAINER);
@@ -248,24 +256,44 @@ describe('CompositeStorageService', () => {
         await service.getBlob('x');
         await service.listBlobs('p/');
         await service.listKeys('p/');
+        await service.listKeyDates('p/');
 
         if (readSource === 'azure') {
           expect(azureGetBlob).toHaveBeenCalledWith('x');
           expect(azureListBlobs).toHaveBeenCalledWith('p/');
           expect(azureListKeys).toHaveBeenCalledWith('p/');
+          expect(azureListKeyDates).toHaveBeenCalledWith('p/');
           expect(s3GetBlob).not.toHaveBeenCalled();
           expect(s3ListBlobs).not.toHaveBeenCalled();
           expect(s3ListKeys).not.toHaveBeenCalled();
+          expect(s3ListKeyDates).not.toHaveBeenCalled();
         } else {
           expect(s3GetBlob).toHaveBeenCalledWith('x');
           expect(s3ListBlobs).toHaveBeenCalledWith('p/');
           expect(s3ListKeys).toHaveBeenCalledWith('p/');
+          expect(s3ListKeyDates).toHaveBeenCalledWith('p/');
           expect(azureGetBlob).not.toHaveBeenCalled();
           expect(azureListBlobs).not.toHaveBeenCalled();
           expect(azureListKeys).not.toHaveBeenCalled();
+          expect(azureListKeyDates).not.toHaveBeenCalled();
         }
       },
     );
+  });
+
+  describe('listKeyDates', () => {
+    // The dates decide how the legacy KYC catalog rows are stamped, so which store answers is not a
+    // routing detail: the two backends report different dates for the same object.
+    it.each<[StorageWriteMode, StorageReadSource, string]>([
+      ['dual', 'azure', 'azure-key'],
+      ['dual', 's3', 's3-key'],
+    ])('writeMode=%s readSource=%s answers with the dates of the read backend', async (writeMode, readSource, key) => {
+      await provideConfig(writeMode, readSource);
+
+      await expect(new CompositeStorageService(CONTAINER).listKeyDates('p/')).resolves.toEqual([
+        { key, created: expect.any(Date) },
+      ]);
+    });
   });
 
   describe('copyBlobs dual mode', () => {

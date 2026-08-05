@@ -27,13 +27,18 @@ describe('KycLegacyFileService', () => {
   ];
 
   const pathIndexName = 'IDX_kyc_file_path';
-  // the date the store holds for the legacy blobs - years before any run of this backfill
-  const blobDate = new Date('2023-04-05T06:07:08.000Z');
+  // the epoch segment the ident keys above carry, which is the document's own date
+  const pathDate = new Date(1699356511987);
+  // what the store reports: after the migration between storage backends that is the day of the
+  // migration for every object alike, so it ranks behind the path
+  const storeDate = new Date('2026-07-13T00:00:00.000Z');
+  // a key of a folder that carries no timestamp segment - the shape of the name-check documents
+  const undatedKey = `spider/${userDataId}/user-added-document/proof.pdf`;
 
   // No default for the date: it has to be passed, so the case of a listing WITHOUT one cannot be
   // written as an explicit `undefined` that a default silently turns back into a date.
-  function keyDates(list: string[], lastModified?: Date): { key: string; lastModified?: Date }[] {
-    return list.map((key) => ({ key, lastModified }));
+  function keyDates(list: string[], created?: Date): { key: string; created?: Date }[] {
+    return list.map((key) => ({ key, created }));
   }
 
   function skipCount(skipped: { reason: LegacyFileSkipReason; count: number }[], reason: LegacyFileSkipReason): number {
@@ -61,7 +66,7 @@ describe('KycLegacyFileService', () => {
     settingService = createMock<SettingService>();
     userDataService = createMock<UserDataService>();
 
-    (kycDocumentService.listKeyDatesByPrefix as jest.Mock).mockResolvedValue(keyDates(keys, blobDate));
+    (kycDocumentService.listKeyDatesByPrefix as jest.Mock).mockResolvedValue(keyDates(keys, storeDate));
     (kycFileRepo.find as jest.Mock).mockResolvedValue([]);
     (kycFileRepo.create as jest.Mock).mockImplementation((dto) => dto as KycFile);
     (kycFileRepo.save as jest.Mock).mockImplementation((files) => Promise.resolve(files));
@@ -112,21 +117,39 @@ describe('KycLegacyFileService', () => {
 
   // The catalog row stands in for the document everywhere the catalog is read, and one consumer -
   // the RealUnit compliance evidence - picks the NEWEST file of a type. A row stamped with the run
-  // would make a document from 2023 outrank every later one.
-  it('dates a catalog row by its blob, not by the run', async () => {
-    await service.syncLegacyFiles(false);
+  // would make a document from 2019 outrank every later one.
+  //
+  // The path wins over the store: the store reports the day of the storage migration for every object
+  // alike, which is newer than every real document rather than older.
+  it('dates a catalog row by the timestamp in its path', async () => {
+    const result = await service.syncLegacyFiles(false);
 
     const files = (kycFileRepo.save as jest.Mock).mock.calls[0][0] as KycFile[];
-    expect(files.every((f) => f.created === blobDate)).toBe(true);
+    expect(files.every((f) => f.created?.getTime() === pathDate.getTime())).toBe(true);
+    expect(result.dated).toMatchObject({ fromPath: 2, fromListing: 0, fromDefault: 0 });
+    expect(result.dated.oldest).toEqual(pathDate);
+    expect(result.dated.newest).toEqual(pathDate);
   });
 
-  it('leaves the date to the column default when the listing carries none', async () => {
-    (kycDocumentService.listKeyDatesByPrefix as jest.Mock).mockResolvedValue(keyDates(keys));
+  it('falls back to the date of the store where the path carries none', async () => {
+    (kycDocumentService.listKeyDatesByPrefix as jest.Mock).mockResolvedValue(keyDates([undatedKey], storeDate));
 
-    await service.syncLegacyFiles(false);
+    const result = await service.syncLegacyFiles(false);
+
+    const files = (kycFileRepo.save as jest.Mock).mock.calls[0][0] as KycFile[];
+    expect(files.every((f) => f.created === storeDate)).toBe(true);
+    expect(result.dated).toMatchObject({ fromPath: 0, fromListing: 1, fromDefault: 0 });
+  });
+
+  it('leaves the date to the column default when neither path nor listing carries one', async () => {
+    (kycDocumentService.listKeyDatesByPrefix as jest.Mock).mockResolvedValue(keyDates([undatedKey]));
+
+    const result = await service.syncLegacyFiles(false);
 
     const files = (kycFileRepo.save as jest.Mock).mock.calls[0][0] as KycFile[];
     expect(files.every((f) => f.created === undefined)).toBe(true);
+    expect(result.dated).toMatchObject({ fromPath: 0, fromListing: 0, fromDefault: 1 });
+    expect(result.dated.oldest).toBeUndefined();
   });
 
   it('skips a blob that is already catalogued', async () => {
@@ -168,7 +191,7 @@ describe('KycLegacyFileService', () => {
             `spider/${userDataId}-x/user-added-document/proof.pdf`,
             keys[0],
           ],
-          blobDate,
+          storeDate,
         ),
       );
 

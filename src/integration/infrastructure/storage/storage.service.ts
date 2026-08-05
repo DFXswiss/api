@@ -19,13 +19,17 @@ export interface BlobContent extends BlobMetaData {
 /**
  * A key and the date the store holds for it, as the listing itself reports them.
  *
- * The date is the object's date, not the document's: a store that received the object through a
- * copy — a migration between backends, say — reports the copy. It is the best date available
- * without a request per object, and the caller has to be able to live with that.
+ * `created` follows the vocabulary of `BlobMetaData`: on Azure it is the creation time, on S3 the
+ * last-modified time, because S3 has no creation time at all — the same equivalence `toMetaData`
+ * already makes there.
+ *
+ * It dates the OBJECT, not the document: a store that received the object through a copy — a
+ * migration between backends, say — reports the copy, and every object of such a migration then
+ * carries the same date. A caller that needs the document's own date has to get it elsewhere.
  */
 export interface KeyDate {
   key: string;
-  lastModified?: Date;
+  created?: Date;
 }
 
 /**

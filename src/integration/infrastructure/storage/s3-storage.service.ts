@@ -238,7 +238,7 @@ export class S3StorageService extends StorageService {
         new ListObjectsV2Command({ Bucket: this.container, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }),
       );
 
-      for (const o of res.Contents ?? []) if (o.Key) keys.push({ key: o.Key, lastModified: o.LastModified });
+      for (const o of res.Contents ?? []) if (o.Key) keys.push({ key: o.Key, created: o.LastModified });
 
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);

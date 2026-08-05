@@ -56,7 +56,7 @@ export class MockStorageService extends StorageService {
   }
 
   async listKeyDates(prefix?: string): Promise<KeyDate[]> {
-    return this.listKeys(prefix).then((keys) => keys.map((key) => ({ key, lastModified: new Date() })));
+    return this.listKeys(prefix).then((keys) => keys.map((key) => ({ key, created: new Date() })));
   }
 
   async getBlob(name: string): Promise<BlobContent> {

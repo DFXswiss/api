@@ -237,6 +237,48 @@ describe('AzureStorageService', () => {
       expect(keys).toEqual(['a', 'b']);
       expect(containerClient.listBlobsFlat).toHaveBeenCalledWith({ prefix: 'pref/' });
     });
+
+    // The dates come out of the listing itself - no per-object request, which is what makes this
+    // usable over a prefix holding hundreds of thousands of objects.
+    it('listKeyDates takes the creation date from the listing', async () => {
+      const createdOn = new Date('2023-11-07T12:48:31.987Z');
+      containerClient = mockContainerClient({
+        blobItems: [{ name: 'a', properties: { createdOn, lastModified: new Date('2026-07-13T00:00:00.000Z') } }],
+      });
+      fromConnectionString.mockReturnValue({
+        getContainerClient: jest.fn().mockReturnValue(containerClient),
+      } as never);
+
+      const keys = await new AzureStorageService(CONTAINER).listKeyDates('pref/');
+
+      expect(keys).toEqual([{ key: 'a', created: createdOn }]);
+      expect(containerClient.listBlobsFlat).toHaveBeenCalledWith({ prefix: 'pref/' });
+      expect(containerClient._blobClient.getProperties).not.toHaveBeenCalled();
+    });
+
+    it('listKeyDates falls back to the modification date, and reports none where the listing has neither', async () => {
+      const lastModified = new Date('2026-07-13T00:00:00.000Z');
+      containerClient = mockContainerClient({
+        blobItems: [{ name: 'a', properties: { lastModified } }, { name: 'b', properties: {} }, { name: 'c' }],
+      });
+      fromConnectionString.mockReturnValue({
+        getContainerClient: jest.fn().mockReturnValue(containerClient),
+      } as never);
+
+      const keys = await new AzureStorageService(CONTAINER).listKeyDates();
+
+      expect(keys).toEqual([
+        { key: 'a', created: lastModified },
+        { key: 'b', created: undefined },
+        { key: 'c', created: undefined },
+      ]);
+    });
+
+    it('listKeyDates returns nothing for an empty listing', async () => {
+      const keys = await new AzureStorageService(CONTAINER).listKeyDates('empty/');
+
+      expect(keys).toEqual([]);
+    });
   });
 
   describe('copyBlobs', () => {

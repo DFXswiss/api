@@ -85,6 +85,18 @@ describe('MockStorageService', () => {
       expect(await service.listKeys('nope/')).toEqual([]);
     });
 
+    it('listKeyDates answers the same keys, each with a date', async () => {
+      const service = new MockStorageService('mock-spec-key-dates');
+      await service.uploadBlob('user/1/a.png', Buffer.from('a'), 'image/png');
+      await service.uploadBlob('user/1/b.pdf', Buffer.from('b'), 'application/pdf');
+      await service.uploadBlob('user/2/c.png', Buffer.from('c'), 'image/png');
+
+      const keys = await service.listKeyDates('user/1/');
+
+      expect(keys.map((k) => k.key).sort()).toEqual(['user/1/a.png', 'user/1/b.pdf']);
+      expect(keys.every((k) => k.created instanceof Date)).toBe(true);
+    });
+
     it('lists all entries of the container when no prefix is given', async () => {
       const service = new MockStorageService('mock-spec-keys-all');
       await service.uploadBlob('x.png', Buffer.from('x'), 'image/png');
