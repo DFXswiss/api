@@ -573,6 +573,13 @@ export class UserData extends IEntity {
     return this.phoneCallExternalAccountCheckValues?.split(';');
   }
 
+  get hasRejectedCall(): boolean {
+    return (
+      [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.USER_REVOKE_DECISION].includes(this.phoneCallStatus) &&
+      !this.phoneCallAccepted
+    );
+  }
+
   addPhoneCallExternalAccountCheckValue(specialAccountValue: string): void {
     const existing = this.phoneCallExternalAccountCheckValuesObject;
     if (existing?.includes(specialAccountValue)) return;
