@@ -19,6 +19,7 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { EntityManager, FindOptionsRelations, FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
@@ -41,6 +42,7 @@ export class BankDataService {
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
+    private readonly bankService: BankService,
     // circular dependency across the User/Kyc domains; make it explicit so resolution is import-order-independent
     @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
@@ -431,6 +433,14 @@ export class BankDataService {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
+    // A DFX-owned IBAN must never become a user's bankData: getUserDataForBankTx keys on
+    // bankTx.senderAccount, so such a row claims every transfer sent from that DFX account, and the
+    // lookup behind it ignores `active`. @IsDfxIban guards only the inbound DTOs, and not every
+    // caller here passes a ValidationPipe. areKnownBankIbans normalizes both sides, matching the
+    // decorator's intent for callers that hand over unnormalized user input.
+    // Only the caller-supplied door: rows minted from bankTx.senderAccount are not guarded here.
+    if (await this.bankService.areKnownBankIbans(dto.iban)) throw new BadRequestException('DFX IBAN not allowed');
+
     if (!(await this.isValidIbanCountry(dto.iban)))
       throw new BadRequestException('IBAN country is currently not supported');
 
@@ -483,7 +493,11 @@ export class BankDataService {
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {
     const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
 
-    return ibanCountry.isEnabled(kycType);
+    // free text reaches this via the support-issue caller, which does no structural IBAN check, so a
+    // prefix that is not a country code resolves to null. isEnabled's switch has no default either,
+    // hence the explicit false rather than a bare `?.` — unknown means not valid, and the declared
+    // return type stays true.
+    return ibanCountry?.isEnabled(kycType) ?? false;
   }
 
   get bankDataObservable(): Observable<BankData> {

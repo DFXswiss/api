@@ -1039,6 +1039,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
   payout_order: {
     // `lastError` excluded — 2048-char text from external API failure modes.
+    // `signedPayoutTxMetadata` excluded — multi-kB serialised transaction blob; `signedPayoutTxId` is
+    // the field an investigation actually needs, and it is listed.
     columns: [
       'id',
       'created',
@@ -1059,6 +1061,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'preparationFeeAssetId',
       'releasedPayoutTxIds',
       'retryCount',
+      'signedPayoutTxId',
       'status',
       'transferTxId',
     ],

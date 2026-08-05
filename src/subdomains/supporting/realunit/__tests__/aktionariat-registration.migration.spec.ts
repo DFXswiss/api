@@ -1,9 +1,15 @@
+import { createMigrationDataSource, destroyMigrationDataSource } from 'src/shared/utils/migration-test.util';
 import { DataSource, QueryRunner } from 'typeorm';
 
 // This suite runs the real backfill against a throwaway Postgres. It is skipped unless a connection
 // string is provided (so CI, which has no DB, stays green); the disposable-DB dry-run on m5me sets it.
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
+
+// Its own database. `user` and `aktionariat_registration` are built by the grandfathering spec too,
+// and Jest schedules the two files on parallel workers against the same server — sharing one database
+// means each beforeEach drops the other's tables mid-test.
+const DATABASE = 'mig_aktionariat_registration';
 
 // The migration is plain CommonJS (module.exports = class ...); required lazily inside beforeAll so a
 // skipped run (CI, no DB) never pulls the .js through the TS transform.
@@ -45,13 +51,14 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     AddAktionariatRegistration = require('../../../../../migration/1783704351182-AddAktionariatRegistration');
-    dataSource = new DataSource({ type: 'postgres', url: PG_URL });
-    await dataSource.initialize();
-  });
+    dataSource = await createMigrationDataSource(DATABASE);
+    // Creating a database copies template1 and takes several round trips — comfortably past Jest's
+    // default 5s hook budget on a loaded machine, and the main suite sets no testTimeout of its own.
+  }, 60000);
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
-  });
+    await destroyMigrationDataSource(dataSource, DATABASE);
+  }, 60000);
 
   // inserts a kyc_step; userDataId is the owning account and must match the resolved user's
   const insertStep = (name: string, status: string, result: string | null, created: string, userDataId: number) =>
@@ -288,7 +295,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       '2026-07-10T10:00:00Z',
       10,
     );
-  });
+    // Same reason as the hooks above, per test: this is DDL and seed rows against a real server, and
+    // the 5s default is what makes a contended machine fail here rather than in the assertions.
+  }, 60000);
 
   afterEach(async () => {
     await qr.release();
@@ -543,8 +552,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await runUp();
     await runDown();
 
-    // scope to this suite's schema: the purge-migration suite creates the same-named table in its own
-    // isolated schema on a parallel jest worker, and an unscoped catalog query would see it (flaky CI)
+    // `public` is this suite's own database's schema — the one the migration created the table in.
+    // No other suite can reach it, so the filter pins the query to the table this test dropped rather
+    // than guarding against a neighbour, which is what it did while every suite shared one database.
     const exists = await count(
       `SELECT count(*) FROM information_schema.tables WHERE table_name = 'aktionariat_registration' AND table_schema = 'public'`,
     );

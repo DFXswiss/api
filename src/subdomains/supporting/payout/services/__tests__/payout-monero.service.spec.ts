@@ -1,10 +1,11 @@
 /**
  * Unit Tests for PayoutMoneroService
  *
- * Mirrors PayoutCardanoService: a TxBroadcastError from the (shared, non-payout-specific)
- * MoneroClient means the on-chain send was reached (tx may already be relayed) and must surface
- * as PayoutBroadcastException so BitcoinBasedStrategy#send keeps the order PAYOUT_DESIGNATED
- * (fail-closed) instead of rolling back and risking a double-spend on retry.
+ * The Monero payout path broadcasts in two phases (#4673). The build phase runs with do_not_relay, so
+ * the wallet never reaches commit_tx and its failures are provably pre-broadcast — they must stay plain
+ * and roll back for auto-retry. Only the relay phase can leave a transaction in flight, so only there
+ * does a TxBroadcastError from the (shared, non-payout-specific) MoneroClient surface as a
+ * PayoutBroadcastException, which keeps BitcoinBasedStrategy#send fail-closed by default.
  */
 
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
@@ -18,21 +19,27 @@ import { PayoutMoneroService } from '../payout-monero.service';
 describe('PayoutMoneroService', () => {
   let service: PayoutMoneroService;
   let mockClient: jest.Mocked<MoneroClient>;
-  let sendTransfersSpy: jest.Mock;
+  let buildTransferSpy: jest.Mock;
+  let relayTransferSpy: jest.Mock;
+  let isTxKnownSpy: jest.Mock;
   let getTransactionSpy: jest.Mock;
   let getUnlockedBalanceSpy: jest.Mock;
   let getFeeEstimateSpy: jest.Mock;
   let isHealthySpy: jest.Mock;
 
   beforeEach(() => {
-    sendTransfersSpy = jest.fn().mockResolvedValue({ txid: 'TX_HASH_01', amount: 1.5, fee: 0.01 });
+    buildTransferSpy = jest.fn().mockResolvedValue({ txId: 'TX_HASH_01', metadata: 'META_01' });
+    relayTransferSpy = jest.fn().mockResolvedValue('TX_HASH_01');
+    isTxKnownSpy = jest.fn();
     getTransactionSpy = jest.fn();
     getUnlockedBalanceSpy = jest.fn();
     getFeeEstimateSpy = jest.fn();
     isHealthySpy = jest.fn();
 
     mockClient = {
-      sendTransfers: sendTransfersSpy,
+      buildTransfer: buildTransferSpy,
+      relayTransfer: relayTransferSpy,
+      isTxKnown: isTxKnownSpy,
       getTransaction: getTransactionSpy,
       getUnlockedBalance: getUnlockedBalanceSpy,
       getFeeEstimate: getFeeEstimateSpy,
@@ -46,40 +53,24 @@ describe('PayoutMoneroService', () => {
     service = new PayoutMoneroService(mockMoneroService);
   });
 
-  describe('sendToMany()', () => {
-    it('should propagate the tx id on success', async () => {
-      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 1.5 }];
+  describe('buildTransfer()', () => {
+    const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 1.5 }];
 
-      const result = await service.sendToMany(PayoutOrderContext.BUY_CRYPTO, payout);
-
-      expect(result).toBe('TX_HASH_01');
+    it('should propagate the signed transaction on success', async () => {
+      await expect(service.buildTransfer(payout)).resolves.toEqual({ txId: 'TX_HASH_01', metadata: 'META_01' });
+      expect(buildTransferSpy).toHaveBeenCalledWith(payout);
     });
 
-    it('should wrap a TxBroadcastError from the client into a PayoutBroadcastException, keeping message and cause', async () => {
-      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 1.5 }];
-      const cause = new TxBroadcastError('Failed to send tx');
-      sendTransfersSpy.mockRejectedValueOnce(cause);
+    // Regression guard for the point of the split: the build phase runs with do_not_relay, so the wallet
+    // never reaches commit_tx and reserves nothing. Wrapping its failures as PayoutBroadcastException
+    // would park a provably safe order for a human — the escalation #4673 exists to remove.
+    it('should NOT wrap a client failure into a PayoutBroadcastException', async () => {
+      const plainError = new Error('no connection to daemon');
+      buildTransferSpy.mockRejectedValueOnce(plainError);
 
       let error: unknown;
       try {
-        await service.sendToMany(PayoutOrderContext.BUY_CRYPTO, payout);
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).toBeInstanceOf(PayoutBroadcastException);
-      expect((error as PayoutBroadcastException).message).toBe('Failed to send tx');
-      expect((error as PayoutBroadcastException).cause).toBe(cause);
-    });
-
-    it('should propagate a non-TxBroadcastError from the client unchanged', async () => {
-      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 1.5 }];
-      const plainError = new Error('unrelated client error');
-      sendTransfersSpy.mockRejectedValueOnce(plainError);
-
-      let error: unknown;
-      try {
-        await service.sendToMany(PayoutOrderContext.BUY_CRYPTO, payout);
+        await service.buildTransfer(payout);
       } catch (e) {
         error = e;
       }
@@ -88,13 +79,57 @@ describe('PayoutMoneroService', () => {
       expect(error).not.toBeInstanceOf(PayoutBroadcastException);
     });
 
-    it('throws a descriptive error when a successful call returns no transfer', async () => {
-      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 1.5 }];
-      sendTransfersSpy.mockResolvedValueOnce(undefined);
+    it('throws a descriptive error when a successful call returns no transaction', async () => {
+      buildTransferSpy.mockResolvedValueOnce(undefined);
 
-      await expect(service.sendToMany(PayoutOrderContext.BUY_CRYPTO, payout)).rejects.toThrow(
-        'Error while sending payment by Monero ADDR_01',
-      );
+      await expect(service.buildTransfer(payout)).rejects.toThrow('Error while building Monero payment ADDR_01');
+    });
+  });
+
+  describe('relayTransfer()', () => {
+    it('should propagate the relayed tx id on success', async () => {
+      await expect(service.relayTransfer('META_01')).resolves.toBe('TX_HASH_01');
+      expect(relayTransferSpy).toHaveBeenCalledWith('META_01');
+    });
+
+    it('should wrap a TxBroadcastError from the client into a PayoutBroadcastException, keeping message and cause', async () => {
+      const cause = new TxBroadcastError('no connection to daemon');
+      relayTransferSpy.mockRejectedValueOnce(cause);
+
+      let error: unknown;
+      try {
+        await service.relayTransfer('META_01');
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(PayoutBroadcastException);
+      expect((error as PayoutBroadcastException).message).toBe('no connection to daemon');
+      expect((error as PayoutBroadcastException).cause).toBe(cause);
+    });
+
+    it('should propagate a non-TxBroadcastError from the client unchanged', async () => {
+      const plainError = new Error('unrelated client error');
+      relayTransferSpy.mockRejectedValueOnce(plainError);
+
+      let error: unknown;
+      try {
+        await service.relayTransfer('META_01');
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBe(plainError);
+      expect(error).not.toBeInstanceOf(PayoutBroadcastException);
+    });
+  });
+
+  describe('isTxKnown()', () => {
+    it('delegates to the default client', async () => {
+      isTxKnownSpy.mockResolvedValue(true);
+
+      await expect(service.isTxKnown('TX_HASH_01')).resolves.toBe(true);
+      expect(isTxKnownSpy).toHaveBeenCalledWith('TX_HASH_01');
     });
   });
 
