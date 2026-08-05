@@ -197,6 +197,21 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       expect(order.lastError).toContain(SIGNED_TX_ID);
     });
 
+    // Only the fail-closed broadcast exception is downgraded. Anything else out of the relay layer — a
+    // bug, or the service passing through something that was never a TxBroadcastError — travels
+    // untouched, so the recorded failure says what actually happened rather than being relabelled as
+    // an unconfirmed relay of a transaction that may never have been submitted.
+    it('propagates a non-broadcast error from the relay unchanged', async () => {
+      const order = confirmedOrder();
+      relayTransferSpy.mockRejectedValueOnce(new Error('unrelated relay-layer failure'));
+
+      await strategy.sendWrapper(CONTEXT, [order]);
+
+      expect(order.lastError).toBe('unrelated relay-layer failure');
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(order.signedPayoutTxId).toBe(SIGNED_TX_ID);
+    });
+
     // The downgrade to a retryable error is licensed by the persisted metadata alone: without it the
     // retry would be a rebuild, and then failing closed is the only correct outcome.
     it('stays fail-closed on a relay failure when the order carries no persisted metadata', async () => {
