@@ -82,7 +82,10 @@ EXTERNAL = {'Map', 'Set', 'Date', 'Array', 'Promise', 'JSON', 'Object', 'Queue',
             'I18nService', 'JwtService', 'Cron', 'Lock', 'ProcessService'}
 
 ARROW = re.compile(r'\s*(?:\([^()]*\)|\w+)\s*=>')
-REPOISH = re.compile(r'repo|repository', re.I)
+# Receivers that read from the database. `manager` is the EntityManager handed into a
+# transaction callback — `manager.find(CustodyAccount, {...})` is a genuine repository read, and
+# leaving it out dropped seven of them without even marking the edge as unresolved.
+REPOISH = re.compile(r'repo|repository|entitymanager|^manager$', re.I)
 
 def is_db_find(body, fm, cls):
     """Tells `repo.find({...})` apart from `array.find(x => ...)`.
@@ -149,8 +152,14 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
 
         kinds = DIRECT[cls].setdefault(name, set())
         sites = SITES_OF.setdefault((cls, name), set())
-        def at(off):                                   # line number of the load site
-            return rel, s[:ob + 1 + off].count('\n') + 1
+        def at(off):
+            """(file, line, column) of the load site.
+
+            The column is part of the key because a line can carry two calls; keying on the
+            line alone collapses them into one and loses the second one's measurement.
+            """
+            pos = ob + 1 + off
+            return rel, s[:pos].count('\n') + 1, pos - (s.rfind('\n', 0, pos) + 1)
         for fm in FIND.finditer(mb):
             if is_db_find(mb, fm, cls):
                 kinds.add('over'); sites.add(at(fm.start()))
@@ -214,10 +223,12 @@ for cls in METHODS:
                 EDGES[key].add((sub_cls, called))
         LOCAL_OK[key] = ok
 
-# Measured column count per load site (from the TypeORM measurement), joined on file+line
+# Measured column count per load site (from the TypeORM measurement), joined on file+line+column.
+# `sites.py` records the column for exactly this reason: two calls on one line would otherwise
+# share a key, and the second measurement would overwrite the first.
 with open(SP + '/sites-measured.json') as fh:
     _measured = json.load(fh)
-MEAS = {(s['file'], s['line']): s.get('cols')
+MEAS = {(s['file'], s['line'], s.get('col')): s.get('cols')
         for s in _measured if s.get('cols')}
 if not MEAS:
     raise SystemExit("sites-measured.json carries no column counts - measure.js produced "

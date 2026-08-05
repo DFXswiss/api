@@ -226,9 +226,19 @@ def _lines(src, rel):
     return _cache[rel]
 
 
+CHAIN_WINDOW = 1500
+
+
 def is_write_qb(src, s):
-    """Does this `createQueryBuilder` chain carry a write terminator?"""
-    chain = '\n'.join(_lines(src, s['file'])[s['line'] - 1:s['line'] + 25]).split(';')[0]
+    """Does this `createQueryBuilder` chain carry a write terminator?
+
+    The same character window the per-endpoint walk and `select_kind` use. It used to be a
+    26-line window here, which is a different measure of the same chain: a long enough
+    `.where()` run before the `.update()` would have made the site a write in one document and
+    a read in the other.
+    """
+    text = '\n'.join(_lines(src, s['file'])[s['line'] - 1:])
+    chain = text[:CHAIN_WINDOW].split(';')[0]
     return bool(WRITE_CHAIN.search(chain))
 
 

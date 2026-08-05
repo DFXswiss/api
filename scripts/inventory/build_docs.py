@@ -45,6 +45,15 @@ qb = [s for s in loads if s['kind'] == 'query-builder']
 sel = Counter(s['select'] for s in qb)
 writes = sum(1 for s in sites if s['write'])
 qb_writes = sum(1 for s in sites if s['kind'] == 'query-builder' and s['write'])
+# `find` sites whose target entity did not resolve. This group holds both repository reads and
+# plain array `.find(...)` calls — the scan matches by name, and the two are indistinguishable
+# that way. It is what makes the total an upper bound rather than a count.
+unresolved_find = sum(1 for s in loads if s['kind'] == 'find' and not s['entity'])
+# Share of that group that turned out to be array operations when read in the source. A sample
+# of 30 rows came out at 21 to 9; hand-maintained, like the tables further down — re-sample it
+# if the figure is ever leaned on for more than an order of magnitude.
+ARRAY_SHARE = 0.7
+
 meas = [s for s in loads if s.get('cols')]
 exact = [s for s in meas if s['relations']]
 lower = [s for s in meas if not s['relations']]
@@ -309,8 +318,10 @@ with open(SP + '/endpoints.md', 'w') as fh:
 
 # ---------------- 2. Load sites ----------------
 t = ["# Database load sites", "",
-     f"Every place in the code that reads from the database: **{len(loads)} load sites** across " +
-     f"{len({s['file'] for s in loads})} files.", "",
+     f"Every place in the code that reads from the database: **at most {len(loads)} load sites** " +
+     "across " +
+     f"{len({s['file'] for s in loads})} files — an upper bound, for the reason given under " +
+     "*Measurements*.", "",
      "This is the level at which the statement is unambiguous. An endpoint reaches several load " +
      "sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads " +
      "efficiently has no single answer. Asking it of a load site does. " +
@@ -355,6 +366,14 @@ t = ["# Database load sites", "",
      "is visible here. `transaction.service.ts` is the clearest case — its callers pass trees " +
      "reaching well over a thousand columns.",
      f"- {len(loads) - len(meas)} could not be measured: no resolvable target entity, or raw SQL.",
+     "",
+     "**That last group is also why the total is an upper bound.** The collection matches `find` " +
+     "by name, and `find` on a repository is indistinguishable by name from `find` on an array. " +
+     "Where the target entity resolved, the distinction is settled; where it did not, the group " +
+     f"holds both. That group holds {unresolved_find} rows; a sample read in the source came out " +
+     f"at roughly {int(ARRAY_SHARE * 100)} % array operations, so on the order of " +
+     f"{round(unresolved_find * ARRAY_SHARE / 10) * 10} of them are not database reads at all, " +
+     f"and the true count is nearer {round((len(loads) - unresolved_find * ARRAY_SHARE) / 50) * 50}.",
      "",
      f"Median across measured sites: **{median(cols_sorted)} columns**. " +
      f"{len([c for c in cols_sorted if c > 1000])} sites exceed 1000, " +

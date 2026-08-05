@@ -103,6 +103,7 @@ Some values cannot be derived and are kept as constants. A change to the code th
 - `endpoint_eff.py` → `MANUAL_NO_DB`: endpoints whose call graph ends at a target chosen at runtime, with the reason each reads nothing. The reason is rendered verbatim into `endpoints.md`; this is the only place it is maintained.
 - `add_version_deprecated.py` → `NAMED`: maps `GetConfig().kycVersion` to its value, because the config is not loaded during a run.
 - `classify.py` → `CALLER_SELECT`: endpoints whose projection depends on a field list in the request.
+- `build_docs.py` → `ARRAY_SHARE`: what fraction of the `find` sites with no resolvable entity turned out to be array operations rather than repository reads, from a sample read in the source. It only feeds the order-of-magnitude caveat on the load-site total; re-sample it if that figure is ever leaned on for more.
 
 ## Origin and known rough edges
 
@@ -116,6 +117,8 @@ These scripts were developed outside this repository and checked in here for the
 - `endpoint_eff.py` decided "does this narrow its columns" with its own regex, recognising only a literal `.select([...])`. Every endpoint projecting through `PROJECTION.apply(...)`, naming its columns one at a time, or counting was classified as loading whole rows: a run produced 444 `whole rows` / 2 `projected` against the published 410 / 36, marked all seventeen converted endpoints `not yet`, and rendered the sentence "the other -15 were already projecting" without anything failing. It now calls `classify.select_kind`, and `build_docs.py` refuses to render if a `CONVERTED` endpoint does not come out projected.
 
 Remaining properties worth knowing:
+
+- **The load-site total is an upper bound, not a count.** The scan matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolves, the distinction is settled; where it does not, the group holds both — currently some 343 rows, of which a sample suggests around 240 are array operations. The rendered document says so, in the headline and under *Measurements*; `endpoints.md` is unaffected, because the per-endpoint walk applies `is_db_find` and drops array calls. Narrowing the scan itself would change the published figures and needs its own validation, so the honest caveat comes first.
 
 - The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are reported on stderr.
 - `fix_handlers.py` overlaps with `make_table.py` in handler detection. Both now go through `tsparse.py`, so they can no longer disagree, but whether the step can be dropped entirely has not been established without a differential run — so it stays in the pipeline.

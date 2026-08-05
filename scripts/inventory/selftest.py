@@ -83,6 +83,16 @@ export class WidgetController {
     return this.service.noSelect();
   }
 
+  @Get('viaManager')
+  async managerWidgets(): Promise<Widget[]> {
+    return this.service.viaEntityManager();
+  }
+
+  @Get('arraySearch')
+  async arrayWidgets(): Promise<Widget> {
+    return this.service.searchesAnArray([]);
+  }
+
   @Post('sync')
   @ApiExcludeEndpoint()
   @ApiOperation({ description: 'takes a (parenthesised) note', deprecated: true })
@@ -209,6 +219,52 @@ export class WidgetService {
     `);
   }
 
+  async viaEntityManager(): Promise<Widget[]> {
+    return this.dataSource.transaction(async (manager) => manager.find(Widget, { where: { id: 1 } }));
+  }
+
+  async searchesAnArray(rows: Widget[]): Promise<Widget> {
+    return rows.find((r) => r.name === 'x');
+  }
+
+  async writeChainPastTheOldWindow(): Promise<void> {
+    await this.widgetRepo
+      .createQueryBuilder('w')
+      .andWhere('w.c0 = :c0', { c0: 0 })
+      .andWhere('w.c1 = :c1', { c1: 1 })
+      .andWhere('w.c2 = :c2', { c2: 2 })
+      .andWhere('w.c3 = :c3', { c3: 3 })
+      .andWhere('w.c4 = :c4', { c4: 4 })
+      .andWhere('w.c5 = :c5', { c5: 5 })
+      .andWhere('w.c6 = :c6', { c6: 6 })
+      .andWhere('w.c7 = :c7', { c7: 7 })
+      .andWhere('w.c8 = :c8', { c8: 8 })
+      .andWhere('w.c9 = :c9', { c9: 9 })
+      .andWhere('w.c10 = :c10', { c10: 10 })
+      .andWhere('w.c11 = :c11', { c11: 11 })
+      .andWhere('w.c12 = :c12', { c12: 12 })
+      .andWhere('w.c13 = :c13', { c13: 13 })
+      .andWhere('w.c14 = :c14', { c14: 14 })
+      .andWhere('w.c15 = :c15', { c15: 15 })
+      .andWhere('w.c16 = :c16', { c16: 16 })
+      .andWhere('w.c17 = :c17', { c17: 17 })
+      .andWhere('w.c18 = :c18', { c18: 18 })
+      .andWhere('w.c19 = :c19', { c19: 19 })
+      .andWhere('w.c20 = :c20', { c20: 20 })
+      .andWhere('w.c21 = :c21', { c21: 21 })
+      .andWhere('w.c22 = :c22', { c22: 22 })
+      .andWhere('w.c23 = :c23', { c23: 23 })
+      .andWhere('w.c24 = :c24', { c24: 24 })
+      .andWhere('w.c25 = :c25', { c25: 25 })
+      .andWhere('w.c26 = :c26', { c26: 26 })
+      .andWhere('w.c27 = :c27', { c27: 27 })
+      .andWhere('w.c28 = :c28', { c28: 28 })
+      .andWhere('w.c29 = :c29', { c29: 29 })
+      .update()
+      .set({ name: 'x' })
+      .execute();
+  }
+
   async rawRead(): Promise<unknown> {
     return this.widgetRepo.query('SELECT name FROM widget WHERE id = $1', [1]);
   }
@@ -289,6 +345,11 @@ def test_write_classification(src, sites):
     classify.annotate(src, sites)
     by_method = {s['method']: s for s in sites}
     check('update chain is a write', by_method['writeChain']['write'], True)
+    # The write terminator sits past the 26-line window this check used to use, while the
+    # per-endpoint walk looked at 1500 characters — two measures of the same chain, free to
+    # disagree. Both use the character window now.
+    check('write past a long where-chain is a write',
+          by_method['writeChainPastTheOldWindow']['write'], True)
     check('advisory lock is a write', by_method['takeLock']['write'], True)
     check('raw INSERT is a write', by_method['rawInsert']['write'], True)
     # A fixed window classified this as a read: the write keyword is far past its end.
@@ -348,6 +409,13 @@ def test_endpoint_matches_site_classification(src, work):
     check('count only reaches the endpoint as projected', kinds('/widget/counted'), {'proj'})
     check('no select reaches the endpoint as over-fetching', kinds('/widget/whole'), {'over'})
     # A raw write or lock is not a read and must not make the endpoint one.
+    # `manager.find(Entity, …)` inside a transaction callback is a genuine repository read.
+    # It used to be dropped outright — not even marked as an unresolved edge.
+    check('entity manager read reaches the endpoint',
+          'over' in (kinds('/widget/viaManager') or set()), True)
+    # …while `rows.find(r => …)` on an array is not a database read at all.
+    check('array find does not make an endpoint a reader',
+          kinds('/widget/arraySearch'), set())
     check('lock and raw write are not reads',
           classify.raw_kind_of("query('SELECT pg_advisory_xact_lock(1)')"), 'lock')
     check('raw INSERT is not a read',
