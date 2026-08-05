@@ -36,6 +36,13 @@ export function IsDfxPhone(validationOptions?: ValidationOptions) {
   };
 }
 
-export function DfxPhoneTransform({ value }: TransformFnParams): string | undefined {
+// Single source of truth for phone normalization (E.164). Also used by comparisons against
+// stored values, which may predate this normalization (introduced 2024-07) and therefore
+// still carry their original formatting.
+export function normalizeDfxPhone(value: string | undefined): string | undefined {
   return value ? PhoneNumber(value)?.number : value;
+}
+
+export function DfxPhoneTransform({ value }: TransformFnParams): string | undefined {
+  return normalizeDfxPhone(value);
 }

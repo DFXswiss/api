@@ -2916,7 +2916,7 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('isPersonalDataMatching (KYC prefill match gate)', () => {
+  describe('getPersonalDataMismatches (KYC prefill match gate)', () => {
     // fully aligned userData/dto pair (ASCII only, so transliteration is a no-op on both sides)
     const matchingUserData = (): any => ({
       firstname: 'Erika',
@@ -2944,16 +2944,54 @@ describe('RealUnitService', () => {
       },
     });
 
-    it('returns true when every personal-data field (including the birthday) matches', () => {
-      const ok = (service as any).isPersonalDataMatching(matchingUserData(), matchingDto());
-      expect(ok).toBe(true);
+    it('reports no mismatch when every personal-data field (including the birthday) matches', () => {
+      expect((service as any).getPersonalDataMismatches(matchingUserData(), matchingDto())).toEqual([]);
     });
 
-    it('returns false when only the birthday differs (last field checked)', () => {
+    it('reports the birthday when only the birthday differs (last field checked)', () => {
       const dto = matchingDto();
       dto.birthday = '1991-02-02';
-      const ok = (service as any).isPersonalDataMatching(matchingUserData(), dto);
-      expect(ok).toBe(false);
+      expect((service as any).getPersonalDataMismatches(matchingUserData(), dto)).toEqual(['birthday']);
+    });
+
+    it('accepts a stored phone in legacy formatting against the normalized submission (pre-2024-07 rows kept their typed format)', () => {
+      const userData = matchingUserData();
+      userData.phone = '+41 79 000 00 00';
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
+    });
+
+    it('still rejects a genuinely different phone number', () => {
+      const userData = matchingUserData();
+      userData.phone = '+41799999999';
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual(['phone']);
+    });
+
+    it('falls back to a raw comparison for unparseable phone values instead of treating them as equal', () => {
+      const userData = matchingUserData();
+      userData.phone = 'not-a-phone';
+      const dto = matchingDto();
+      dto.kycData.phone = 'also-not-a-phone';
+      expect((service as any).getPersonalDataMismatches(userData, dto)).toEqual(['phone']);
+    });
+
+    it('accepts stored values with stray whitespace (inbound values arrive trimmed)', () => {
+      const userData = matchingUserData();
+      userData.firstname = ' Erika ';
+      userData.zip = '8001 ';
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
+    });
+
+    it('collects every mismatching field name, not only the first', () => {
+      const userData = matchingUserData();
+      userData.phone = '+41799999999';
+      userData.zip = '8002';
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual(['phone', 'zip']);
+    });
+
+    it('reports the birthday instead of crashing when the stored birthday is null (set at ident, not registration)', () => {
+      const userData = matchingUserData();
+      userData.birthday = null;
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual(['birthday']);
     });
   });
 
@@ -3988,16 +4026,19 @@ describe('RealUnitService', () => {
       expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
     });
 
-    it('throws BadRequestException when existing personal data does not match', async () => {
+    it('throws BadRequestException when existing personal data does not match and logs the field names only', async () => {
       userService.getUserByAddress.mockResolvedValue({
         userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
       } as any);
       jest
         .spyOn(service as any, 'findRegistration')
         .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
-      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(false);
+      jest.spyOn(service as any, 'getPersonalDataMismatches').mockReturnValue(['phone', 'zip']);
 
       await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
+
+      // The log carries the field names for diagnosability, never the values.
+      expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('[phone, zip]'));
     });
 
     it('forwards without re-saving matching personal data and returns COMPLETED', async () => {
@@ -4007,7 +4048,7 @@ describe('RealUnitService', () => {
       jest
         .spyOn(service as any, 'findRegistration')
         .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
-      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      jest.spyOn(service as any, 'getPersonalDataMismatches').mockReturnValue([]);
       const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
 
       const status = await service.completeRegistration(1, dto);
@@ -4058,7 +4099,7 @@ describe('RealUnitService', () => {
       jest
         .spyOn(service as any, 'findRegistration')
         .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
-      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      jest.spyOn(service as any, 'getPersonalDataMismatches').mockReturnValue([]);
       jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(false);
 
       const status = await service.completeRegistration(1, dto);
@@ -5401,7 +5442,7 @@ describe('RealUnitService', () => {
             tin: STALE,
           };
           userService.getUserByAddress.mockResolvedValue({ userData } as any);
-          jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+          jest.spyOn(service as any, 'getPersonalDataMismatches').mockReturnValue([]);
 
           const status = await service.completeRegistration(1, dto);
 
@@ -5438,7 +5479,7 @@ describe('RealUnitService', () => {
         tin: STALE,
       };
       userService.getUserByAddress.mockResolvedValue({ userData } as any);
-      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      jest.spyOn(service as any, 'getPersonalDataMismatches').mockReturnValue([]);
       logService.create.mockRejectedValue(new Error('log down'));
 
       await expect(service.completeRegistration(1, dto)).rejects.toThrow('log down');
@@ -5577,7 +5618,7 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('isPersonalDataMatching (organization account branch)', () => {
+  describe('getPersonalDataMismatches (organization account branch)', () => {
     const orgUserData = (): any => ({
       firstname: 'Erika',
       surname: 'Mueller',
@@ -5618,47 +5659,54 @@ describe('RealUnitService', () => {
       },
     });
 
-    it('returns true when all organization fields match', () => {
-      expect((service as any).isPersonalDataMatching(orgUserData(), orgDto())).toBe(true);
+    it('reports no mismatch when all organization fields match', () => {
+      expect((service as any).getPersonalDataMismatches(orgUserData(), orgDto())).toEqual([]);
     });
 
-    it('returns false when the organization name differs', () => {
+    it('reports the organization name when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationName = 'Other AG';
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationName']);
     });
 
-    it('returns false when the organization street differs', () => {
+    it('reports the organization street when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.street = 'Wrongstrasse';
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationStreet']);
     });
 
-    it('returns false when the organization house number differs', () => {
+    it('reports the organization house number when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.houseNumber = '9';
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationHouseNumber']);
     });
 
-    it('returns false when the organization city differs', () => {
+    it('reports the organization city when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.city = 'Wrongtown';
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationCity']);
     });
 
-    it('returns false when the organization zip differs', () => {
+    it('reports the organization zip when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.zip = '0000';
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationZip']);
     });
 
-    it('returns false when the organization country differs', () => {
+    it('reports the organization country when it differs', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.country = { id: 99 };
-      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationCountry']);
     });
 
-    it('returns true when neither side carries organization detail (null org fields match via ?? null)', () => {
+    it('reports no mismatch when stored organization values carry stray whitespace (inbound arrives trimmed)', () => {
+      const userData = orgUserData();
+      userData.organizationName = 'ACME AG ';
+      userData.organizationZip = ' 6300';
+      expect((service as any).getPersonalDataMismatches(userData, orgDto())).toEqual([]);
+    });
+
+    it('reports no mismatch when neither side carries organization detail (null org fields match via ?? null)', () => {
       const userData = orgUserData();
       userData.organizationName = null;
       userData.organizationStreet = null;
@@ -5669,7 +5717,7 @@ describe('RealUnitService', () => {
       const dto = orgDto();
       dto.kycData.organizationName = undefined;
       dto.kycData.organizationAddress = undefined;
-      expect((service as any).isPersonalDataMatching(userData, dto)).toBe(true);
+      expect((service as any).getPersonalDataMismatches(userData, dto)).toEqual([]);
     });
   });
 

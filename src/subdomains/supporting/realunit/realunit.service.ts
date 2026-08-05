@@ -53,6 +53,7 @@ import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enu
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { normalizeDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -852,8 +853,18 @@ export class RealUnitService {
 
     // validate personal data
     const hasExistingData = userData.firstname != null;
-    if (hasExistingData && !this.isPersonalDataMatching(userData, dto)) {
-      throw new BadRequestException('Personal data does not match existing data');
+    if (hasExistingData) {
+      const mismatches = this.getPersonalDataMismatches(userData, dto);
+      if (mismatches.length) {
+        // Field names only, never values: this rejection is otherwise undiagnosable from the
+        // outside (the response deliberately does not disclose which field differs).
+        this.logger.warn(
+          `RealUnit registration rejected for user data ${userData.id}: personal data mismatch in [${mismatches.join(
+            ', ',
+          )}]`,
+        );
+        throw new BadRequestException('Personal data does not match existing data');
+      }
     }
 
     // Personal data first (first-time only). TINs are intentionally NOT written here:
@@ -1433,7 +1444,7 @@ export class RealUnitService {
 
   // Pre-fill source for first-time RealUnit registrations: maps the user's existing DFX KYC data into
   // the Aktionariat-shaped DTO. The corresponding `completeRegistration` validation
-  // (`isPersonalDataMatching`) compares the submitted KycPersonalData/address against the same
+  // (`getPersonalDataMismatches`) compares the submitted KycPersonalData/address against the same
   // user_data fields, so the values returned here are guaranteed to pass that check.
   private toUserDataDtoFromUserData(userData: UserData): RealUnitUserDataDto | undefined {
     // Without verified personal data there is nothing useful to pre-fill — the app will continue to
@@ -1488,37 +1499,59 @@ export class RealUnitService {
     };
   }
 
-  private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
+  private getPersonalDataMismatches(userData: UserData, dto: RealUnitRegistrationDto): string[] {
     const kycData = dto.kycData;
     // Transliterate both sides: legacy rows still hold ASCII (pre-fix), new rows hold UTF-8.
-    const asciiEq = (a?: string, b?: string): boolean => transliterate(a ?? '') === transliterate(b ?? '');
+    // Trim both sides: inbound values are trimmed by their DTO transforms, so stray whitespace
+    // in a legacy row must not count as a data difference.
+    const asciiEq = (a?: string, b?: string): boolean =>
+      transliterate((a ?? '').trim()) === transliterate((b ?? '').trim());
+    // Stored phones written before the E.164 transform existed (2024-07) keep whatever formatting
+    // the user typed, and no backfill ever ran — so normalize BOTH sides with the same function
+    // the DTO transform uses. Unparseable values fall back to a raw (trimmed) comparison.
+    const normalizePhone = (value?: string): string => {
+      const trimmed = value?.trim() ?? '';
+      return normalizeDfxPhone(trimmed) ?? trimmed;
+    };
+    const phoneEq = (a?: string, b?: string): boolean => normalizePhone(a) === normalizePhone(b);
 
-    if (!asciiEq(kycData.firstName, userData.firstname)) return false;
-    if (!asciiEq(kycData.lastName, userData.surname)) return false;
-    if (kycData.phone !== userData.phone) return false;
-    if (kycData.accountType !== userData.accountType) return false;
+    const mismatches: string[] = [];
+    if (!asciiEq(kycData.firstName, userData.firstname)) mismatches.push('firstName');
+    if (!asciiEq(kycData.lastName, userData.surname)) mismatches.push('lastName');
+    if (!phoneEq(kycData.phone, userData.phone)) mismatches.push('phone');
+    if (kycData.accountType !== userData.accountType) mismatches.push('accountType');
 
-    if (!asciiEq(kycData.address.street, userData.street)) return false;
-    if (!asciiEq(kycData.address.houseNumber, userData.houseNumber)) return false;
-    if (!asciiEq(kycData.address.city, userData.location)) return false;
-    if (!asciiEq(kycData.address.zip, userData.zip)) return false;
-    if (kycData.address.country?.id !== userData.country?.id) return false;
+    if (!asciiEq(kycData.address.street, userData.street)) mismatches.push('street');
+    if (!asciiEq(kycData.address.houseNumber, userData.houseNumber)) mismatches.push('houseNumber');
+    if (!asciiEq(kycData.address.city, userData.location)) mismatches.push('city');
+    if (!asciiEq(kycData.address.zip, userData.zip)) mismatches.push('zip');
+    if (kycData.address.country?.id !== userData.country?.id) mismatches.push('country');
 
     if (kycData.accountType !== AccountType.PERSONAL) {
-      if ((kycData.organizationName ?? null) !== (userData.organizationName ?? null)) return false;
-      if ((kycData.organizationAddress?.street ?? null) !== (userData.organizationStreet ?? null)) return false;
-      if ((kycData.organizationAddress?.houseNumber ?? null) !== (userData.organizationHouseNumber ?? null))
-        return false;
-      if ((kycData.organizationAddress?.city ?? null) !== (userData.organizationLocation ?? null)) return false;
-      if ((kycData.organizationAddress?.zip ?? null) !== (userData.organizationZip ?? null)) return false;
+      // Trim-only (no transliteration): keeps the exact null-vs-empty semantics of the original
+      // comparison while forgiving stray whitespace on legacy rows, same as the personal fields.
+      const trimOrNull = (value?: string): string | null => value?.trim() ?? null;
+      if (trimOrNull(kycData.organizationName) !== trimOrNull(userData.organizationName))
+        mismatches.push('organizationName');
+      if (trimOrNull(kycData.organizationAddress?.street) !== trimOrNull(userData.organizationStreet))
+        mismatches.push('organizationStreet');
+      if (trimOrNull(kycData.organizationAddress?.houseNumber) !== trimOrNull(userData.organizationHouseNumber))
+        mismatches.push('organizationHouseNumber');
+      if (trimOrNull(kycData.organizationAddress?.city) !== trimOrNull(userData.organizationLocation))
+        mismatches.push('organizationCity');
+      if (trimOrNull(kycData.organizationAddress?.zip) !== trimOrNull(userData.organizationZip))
+        mismatches.push('organizationZip');
       if ((kycData.organizationAddress?.country?.id ?? null) !== (userData.organizationCountry?.id ?? null))
-        return false;
+        mismatches.push('organizationCountry');
     }
 
-    if (dto.nationality !== userData.nationality?.symbol) return false;
-    if (dto.birthday !== Util.isoDate(userData.birthday)) return false;
+    if (dto.nationality !== userData.nationality?.symbol) mismatches.push('nationality');
+    // Null-safe: personal data (firstname) exists from LEVEL_20 while the birthday only arrives at
+    // ident, so a null stored birthday is a reachable state and must report as a mismatch, not throw.
+    if ((dto.birthday ?? null) !== (userData.birthday ? Util.isoDate(userData.birthday) : null))
+      mismatches.push('birthday');
 
-    return true;
+    return mismatches;
   }
 
   // Forwards a RealUnit registration to Aktionariat and persists the queryable, per-wallet registration row
