@@ -44,7 +44,6 @@ export INVENTORY_WORK
 python3 "$HERE/sites.py"
 DIST="$DIST" node "$HERE/measure.js" "$INVENTORY_WORK/sites.json" "$INVENTORY_WORK/sites-measured.json" "$INVENTORY_WORK/meta-tables.json"
 python3 "$HERE/make_table.py"
-python3 "$HERE/fix_handlers.py"
 python3 "$HERE/add_version_deprecated.py"
 python3 "$HERE/endpoint_eff.py"
 python3 "$HERE/build_docs.py"

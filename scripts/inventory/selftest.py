@@ -378,7 +378,6 @@ def test_write_classification(src, sites):
 def test_route_table(src, work):
     print("route table survives multi-line decorators")
     run_step('make_table.py', src, work)
-    run_step('fix_handlers.py', src, work)
     run_step('add_version_deprecated.py', src, work)
     rows = {(r['verb'], r['path']): r for r in read_json(os.path.join(work, 'table.json'))}
     listing = rows.get(('GET', '/widget/list'))
@@ -464,9 +463,9 @@ def test_measure_reports_unresolvable_projection(work):
     if not os.path.exists(os.path.join(dist, holder.replace('.ts', '.js'))):
         print(f"  skip  {holder} not in dist/")
         return
-    site = {'file': holder, 'line': 1, 'cls': 'R', 'method': None, 'call': 'createQueryBuilder',
-            'kind': 'query-builder', 'entity': None, 'via': None, 'relations': None,
-            'select': classify.SEL_FIELD_LIST}
+    site = {'file': holder, 'line': 1, 'col': 0, 'cls': 'R', 'method': None,
+            'call': 'createQueryBuilder', 'kind': 'query-builder', 'entity': None, 'via': None,
+            'relations': None, 'select': classify.SEL_FIELD_LIST, 'projection': None}
     sites = [
         {**site, 'method': 'ok', 'projection': 'BUY_CRYPTO_BUY_HISTORY_PROJECTION'},
         {**site, 'method': 'gone', 'projection': 'RENAMED_PROJECTION'},
@@ -488,6 +487,20 @@ def test_measure_reports_unresolvable_projection(work):
     # default-query measurement would show up here as a number in the hundreds.
     check('projection width is not the entity width', bool(cols and cols < 100), True)
     check('unresolvable projection has no column count', out['gone'].get('cols'), None)
+    # A query builder does not expand eager relations. Measuring it through setFindOptions()
+    # does, which reported the `PriceRule` sites at 53 columns against the entity's 20.
+    qb_site = {**site, 'method': 'builder', 'kind': 'query-builder', 'entity': 'BuyCrypto',
+               'select': classify.SEL_NO_SELECT}
+    find_site = {**qb_site, 'method': 'finder', 'kind': 'find'}
+    del qb_site['projection'], find_site['projection']
+    write_json(sites_path, [qb_site, find_site])
+    subprocess.run(['node', os.path.join(HERE, 'measure.js'), sites_path, measured_path,
+                    os.path.join(work, 'measure-tables2.json')],
+                   capture_output=True, text=True, env=dict(os.environ, DIST=dist), cwd=repo)
+    widths = {m['method']: m.get('cols') for m in read_json(measured_path)}
+    check('query builder measured without eager relations',
+          widths.get('builder') is not None and widths['builder'] < widths.get('finder', 0), True)
+
     check('unresolvable projection is reported', bool(out['gone'].get('error')), True)
 
 

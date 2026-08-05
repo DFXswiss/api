@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Shared TypeScript decorator parsing.
 
-`make_table.py`, `fix_handlers.py` and `add_version_deprecated.py` all need to walk from a
-route decorator to the method that follows it, skipping any decorators in between. Each used
-to carry its own copy; a copy that drifts is how the handler column silently picks up a guard
-name instead of the method. One implementation, three callers.
+`make_table.py` and `add_version_deprecated.py` both need to walk from a route decorator to the
+method that follows it, skipping any decorators in between. Each used to carry its own copy; a
+copy that drifts is how the handler column silently picks up a guard name instead of the
+method. One implementation, both callers.
 """
 import re
 

@@ -5,10 +5,9 @@ Standalone, not part of `run.sh`. Reads `$INVENTORY_WORK/prod-norm.txt`, which m
 lines of the form `<METHOD> <path>` taken from the application's `Mapped {...}` startup logs.
 
 This reads `table.json` rather than parsing the controllers again. The predecessor of this
-script carried its own copy of the route scan, with the handler detection bug that
-`fix_handlers.py` exists to correct and an `@ApiExcludeEndpoint` window that looked backwards
-into the *previous* handler's decorators. A verifier that re-derives what it verifies with
-weaker rules cannot confirm anything.
+script carried its own copy of the route scan, with a handler detection bug and an
+`@ApiExcludeEndpoint` window that looked backwards into the *previous* handler's decorators. A
+verifier that re-derives what it verifies with weaker rules cannot confirm anything.
 """
 import json, os, sys
 
