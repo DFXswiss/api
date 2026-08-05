@@ -730,7 +730,8 @@ describe('Payout non-EVM leaf strategies', () => {
 
     // Monero has no atomic dispatch by design (#4673): `transfer` builds, signs and relays in one call
     // and its -38 cannot be attributed to a phase. The leaf must fail loudly rather than quietly offer
-    // the atomic path back, so pin the trap — see broadcastPayout in payout-monero-relay-split.spec.ts.
+    // the atomic path back, so pin the trap. The split it exists to protect is covered in
+    // payout-monero-relay-split.spec.ts.
     it('dispatchPayout(...) refuses the atomic path', () => {
       expect(() => strategy.dispatchPayoutWrapper()).toThrow('Monero payouts are broadcast via broadcastPayout');
     });

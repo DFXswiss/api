@@ -101,7 +101,6 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     }
 
     const pendingOrders = [...unsignedOrders];
-    let paidOutOrders = 0;
 
     while (pendingOrders.length > 0) {
       // Do not start a second transaction while the first one's relay is still open. getUnlockedBalance
@@ -123,21 +122,24 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
 
       try {
         await this.sendXMR(context, group);
-        // Count what actually went out: `send` swallows a pre-broadcast failure and returns normally,
-        // so the group size would report a rolled-back group as paid during the very incident that
-        // needs surfacing.
-        paidOutOrders += group.filter((o) => o.status === PayoutOrderStatus.PAYOUT_PENDING).length;
       } catch (e) {
         this.logger.error(`Error paying out XMR orders`, e);
         break;
       }
     }
 
-    // The reason is no longer always the balance — the set above defers too, and says so on its own
-    // line — so the summary states the count and leaves the cause to whichever branch broke the loop.
-    if (paidOutOrders > 0 || pendingOrders.length > 0) {
-      this.logger.info(`XMR payout: ${paidOutOrders} paid, ${pendingOrders.length} pending`);
-    }
+    // Counted from the resulting status over EVERY order this context touched, resumed ones included.
+    // A running total added per group reported a rolled-back group as paid — `send` swallows a
+    // pre-broadcast failure and returns normally — during the very incident that needs surfacing.
+    //
+    // And it is emitted unconditionally. doPayoutForContext is only ever called with a non-empty group,
+    // so there is always something to report; the old `paid > 0 || pending > 0` guard silently dropped
+    // the two rounds worth reading, the one that only resumed and the one where every group failed and
+    // left nothing pending. The cause of any remainder belongs to whichever branch broke the loop —
+    // the deferral and the balance each say so on their own line.
+    const paidOutOrders = orders.filter((o) => o.status === PayoutOrderStatus.PAYOUT_PENDING).length;
+
+    this.logger.info(`XMR payout: ${paidOutOrders} paid, ${pendingOrders.length} pending`);
   }
 
   private splicePayoutGroup(orders: PayoutOrder[], maxAmount: number, maxSize: number): PayoutOrder[] {

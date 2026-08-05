@@ -183,10 +183,21 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       // recurring alert still fires before an order eventually exceeds this cap. Partition the
       // claim-owned `designated` subset (not the full input) so a claim-race loser is never touched.
       const cap = Config.payout.maxPreBroadcastRetries;
-      const retryableOrders = designated.filter((order) => order.retryCount <= cap);
       // The negated predicate deliberately routes a misconfigured NaN cap into the fail-closed
       // branch so the warning remains loud and no order silently falls out of the partition.
-      const cappedOrders = designated.filter((order) => !(order.retryCount <= cap));
+      const isCapped = (order: PayoutOrder) => !(order.retryCount <= cap);
+
+      // A group that shares a signed transaction is partitioned as a unit (#4673). That transaction
+      // pays EVERY order it was built for, so splitting the group splits its ownership: the rolled-back
+      // orders go on to relay it while the capped one escalates, is released by an operator who
+      // correctly verified the id was absent, and is rebuilt into a SECOND payment to an address the
+      // signed transaction already covers. retryCount is per order and group composition varies by
+      // round, so this split is reachable on an ordinary run. Fail closed — one capped order holds the
+      // whole signed group back for escalation, which keeps it resolvable together.
+      const splitsSignedGroup = designated.some((order) => order.signedPayoutTxId) && designated.some(isCapped);
+
+      const retryableOrders = splitsSignedGroup ? [] : designated.filter((order) => !isCapped(order));
+      const cappedOrders = splitsSignedGroup ? designated : designated.filter(isCapped);
 
       if (cappedOrders.length) {
         this.logger.warn(

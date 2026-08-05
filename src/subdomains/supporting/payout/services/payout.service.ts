@@ -154,6 +154,26 @@ export class PayoutService {
     if (dto.noBroadcastVerified !== true)
       throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
 
+    // A signed transaction is co-owned: it pays every order it was built for (#4673). Discarding it
+    // here while a sibling can still relay it would release THIS order for a rebuild and then let that
+    // relay pay its address anyway — a double payment the operator's check cannot catch, because
+    // absence at the moment they looked is not absence after a sibling relays. Only siblings the
+    // automatic path can still act on block it; ones already parked as PayoutUncertain relay nothing,
+    // so a whole group stays resolvable one order at a time and this cannot deadlock. A sibling that
+    // is merely retrying reaches the cap and joins them here, so it cannot block indefinitely either.
+    if (order.signedPayoutTxId) {
+      const relayableSiblings = await this.payoutOrderRepo.countBy({
+        id: Not(order.id),
+        signedPayoutTxId: order.signedPayoutTxId,
+        status: In([PayoutOrderStatus.PREPARATION_CONFIRMED, PayoutOrderStatus.PAYOUT_DESIGNATED]),
+      });
+
+      if (relayableSiblings)
+        throw new ConflictException(
+          `Payout order ${dto.id} shares signed tx ${order.signedPayoutTxId} with ${relayableSiblings} order(s) that can still relay it, not retried`,
+        );
+    }
+
     // Atomic conditional transition — a concurrent state change must not be overwritten.
     // Restore the pre-broadcast retry budget: orders that escalated via the cap still carry
     // retryCount = maxPreBroadcastRetries; without this reset the first transient pre-broadcast

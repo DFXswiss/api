@@ -201,8 +201,12 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
     // retry would be a rebuild, and then failing closed is the only correct outcome.
     it('stays fail-closed on a relay failure when the order carries no persisted metadata', async () => {
       const order = confirmedOrder();
-      // Persist reports success but writes nothing back onto the entity (stale row, wrong id, ...).
-      jest.spyOn(order, 'recordSignedPayoutTx').mockReturnValue(order);
+      // The id lands but the metadata does not, so the guard's second conjunct is the one under test:
+      // stubbing both away would let the id comparison alone carry the assertion.
+      jest.spyOn(order, 'recordSignedPayoutTx').mockImplementation(function (this: PayoutOrder, txId: string) {
+        this.signedPayoutTxId = txId;
+        return this;
+      });
       relayTransferSpy.mockRejectedValueOnce(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
 
       // `send` re-throws a PayoutBroadcastException rather than rolling back — that is the fail-closed
@@ -451,6 +455,51 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
       expect(fresh.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
     });
 
+    // A transaction that was signed but not recorded still holds unreserved inputs in the wallet, so
+    // the mark has to go on at the build and not at the persist.
+    it('defers the next group when the persist failed after a successful build', async () => {
+      const orders = [
+        confirmedOrder({ id: 1, amount: 1, destinationAddress: 'DEST_1' }),
+        confirmedOrder({ id: 2, amount: 1, destinationAddress: 'DEST_2' }),
+      ];
+      unlockedBalance(1);
+      repoUpdateSpy.mockImplementation((criteria: any) =>
+        Array.isArray(criteria) ? Promise.reject(new Error('DB write failed')) : Promise.resolve({ affected: 1 }),
+      );
+
+      await strategy.doPayoutWrapper(orders);
+
+      expect(buildTransferSpy).toHaveBeenCalledTimes(1);
+      expect(relayTransferSpy).not.toHaveBeenCalled();
+    });
+
+    it('reports the resumed orders in the round summary, not only the freshly built ones', async () => {
+      const resumed = confirmedOrder({
+        id: 1,
+        signedPayoutTxId: SIGNED_TX_ID,
+        signedPayoutTxMetadata: SIGNED_METADATA,
+      });
+      const infoSpy = jest.spyOn(strategy['logger'], 'info');
+      unlockedBalance(100);
+
+      await strategy.doPayoutWrapper([resumed]);
+
+      expect(resumed.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      // A resume-only round used to fall through the summary entirely — the incident-adjacent case.
+      expect(infoSpy.mock.calls.map(([m]) => m)).toContainEqual('XMR payout: 1 paid, 0 pending');
+    });
+
+    it('does not report a rolled-back group as paid', async () => {
+      const order = confirmedOrder({ id: 1, amount: 1 });
+      const infoSpy = jest.spyOn(strategy['logger'], 'info');
+      unlockedBalance(100);
+      buildTransferSpy.mockRejectedValue(new Error(NO_DAEMON_CONNECTION));
+
+      await strategy.doPayoutWrapper([order]);
+
+      expect(infoSpy.mock.calls.map(([m]) => m)).toContainEqual('XMR payout: 0 paid, 0 pending');
+    });
+
     // The latch must not survive the run: the next one re-reads the orders and resumes the transaction
     // through the resume path, which is where it belongs.
     it('clears the latch for the next run', async () => {
@@ -516,8 +565,42 @@ describe('MoneroStrategy - build/relay split (#4673)', () => {
     });
   });
 
-  it('refuses the atomic dispatch path outright', () => {
-    expect(() => strategy.dispatchPayoutWrapper()).toThrow('Monero payouts are broadcast via broadcastPayout');
+  // A signed transaction pays every order it was built for, so the retry cap must not partition a
+  // signed group: the rolled-back orders go on to relay it while the capped one escalates, is released
+  // by an operator who correctly verified the id was absent, and is rebuilt into a second payment to
+  // an address that transaction already covers.
+  describe('a signed group is never split by the retry cap', () => {
+    it('holds the whole group for escalation when one of its orders is capped', async () => {
+      const orders = [
+        confirmedOrder({ id: 1, destinationAddress: 'DEST_1', retryCount: 0 }),
+        confirmedOrder({ id: 2, destinationAddress: 'DEST_2', retryCount: Config.payout.maxPreBroadcastRetries }),
+      ];
+      relayTransferSpy.mockRejectedValue(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
+
+      await strategy.sendWrapper(CONTEXT, orders);
+
+      // Both left designated -> processFailedOrders escalates them together, still holding the id.
+      expect(orders.map((o) => o.status)).toEqual([
+        PayoutOrderStatus.PAYOUT_DESIGNATED,
+        PayoutOrderStatus.PAYOUT_DESIGNATED,
+      ]);
+      expect(orders.every((o) => o.signedPayoutTxId === SIGNED_TX_ID)).toBe(true);
+    });
+
+    it('still rolls the whole group back while every order is under the cap', async () => {
+      const orders = [
+        confirmedOrder({ id: 1, destinationAddress: 'DEST_1' }),
+        confirmedOrder({ id: 2, destinationAddress: 'DEST_2' }),
+      ];
+      relayTransferSpy.mockRejectedValue(new PayoutBroadcastException(NO_DAEMON_CONNECTION));
+
+      await strategy.sendWrapper(CONTEXT, orders);
+
+      expect(orders.map((o) => o.status)).toEqual([
+        PayoutOrderStatus.PREPARATION_CONFIRMED,
+        PayoutOrderStatus.PREPARATION_CONFIRMED,
+      ]);
+    });
   });
 });
 
@@ -532,9 +615,5 @@ class MoneroStrategyWrapper extends MoneroStrategy {
 
   doPayoutForContextWrapper(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     return this.doPayoutForContext(context, orders);
-  }
-
-  dispatchPayoutWrapper(): Promise<string> {
-    return this.dispatchPayout();
   }
 }
