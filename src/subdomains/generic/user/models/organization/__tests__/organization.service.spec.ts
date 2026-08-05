@@ -7,15 +7,41 @@ import { OrganizationService } from '../organization.service';
 describe('OrganizationService', () => {
   let service: OrganizationService;
   let organizationRepo: jest.Mocked<Partial<OrganizationRepository>>;
+  let userDataRepo: jest.Mocked<Partial<UserDataRepository>>;
 
   beforeEach(() => {
-    organizationRepo = { findOneBy: jest.fn() };
+    organizationRepo = { findOneBy: jest.fn(), create: jest.fn((dto) => dto), save: jest.fn() };
+    userDataRepo = { findBy: jest.fn().mockResolvedValue([]), update: jest.fn() };
 
     service = new OrganizationService(
       organizationRepo as unknown as OrganizationRepository,
       createMock<CountryService>(),
-      createMock<UserDataRepository>(),
+      userDataRepo as unknown as UserDataRepository,
     );
+  });
+
+  describe('syncOrganization', () => {
+    // Without the skip, a UserData with no organizationName falls through to createOrganization and
+    // persists a nameless organisation — one per affected user, once per cron run, forever, since
+    // the row keeps being re-selected while its organization stays null.
+    it('skips an entity with no organization name rather than creating one', async () => {
+      userDataRepo.findBy.mockResolvedValue([{ id: 1, organizationName: null, organizationZip: '8000' }] as never);
+
+      await service.syncOrganization();
+
+      expect(organizationRepo.save).not.toHaveBeenCalled();
+      expect(organizationRepo.findOneBy).not.toHaveBeenCalled();
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('still processes an entity that has a name', async () => {
+      userDataRepo.findBy.mockResolvedValue([{ id: 1, organizationName: 'Acme', organizationZip: '8000' }] as never);
+      organizationRepo.findOneBy.mockResolvedValue({ id: 9 } as never);
+
+      await service.syncOrganization();
+
+      expect(organizationRepo.findOneBy).toHaveBeenCalledWith({ name: 'Acme', zip: '8000' });
+    });
   });
 
   describe('getOrganizationByName', () => {
