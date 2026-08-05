@@ -19,8 +19,24 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import classify
+from tsparse import read_text
 
 FAILURES = []
+
+
+def read_json(path):
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def write_json(path, data):
+    with open(path, 'w') as fh:
+        json.dump(data, fh)
+
+
+def write_text(path, text):
+    with open(path, 'w') as fh:
+        fh.write(text)
 
 
 def check(name, got, want):
@@ -207,9 +223,9 @@ export class WidgetService {
 def build_fixture(root):
     src = os.path.join(root, 'src')
     os.makedirs(src)
-    open(os.path.join(src, 'widget.controller.ts'), 'w').write(CONTROLLER)
-    open(os.path.join(src, 'widget.entity.ts'), 'w').write(ENTITY)
-    open(os.path.join(src, 'widget.service.ts'), 'w').write(SERVICE)
+    write_text(os.path.join(src, 'widget.controller.ts'), CONTROLLER)
+    write_text(os.path.join(src, 'widget.entity.ts'), ENTITY)
+    write_text(os.path.join(src, 'widget.service.ts'), SERVICE)
     return src
 
 
@@ -226,7 +242,7 @@ def run_step(script, src, work):
 def test_select_categories(src, work):
     print("select categories are all recognised")
     run_step('sites.py', src, work)
-    sites = json.load(open(os.path.join(work, 'sites.json')))
+    sites = read_json(os.path.join(work, 'sites.json'))
     by_method = {s['method']: s for s in sites}
     check('field list', by_method['fieldList']['select'], classify.SEL_FIELD_LIST)
     check('field list via PROJECTION.apply', by_method['viaProjectionHelper']['select'],
@@ -293,7 +309,7 @@ def test_route_table(src, work):
     run_step('make_table.py', src, work)
     run_step('fix_handlers.py', src, work)
     run_step('add_version_deprecated.py', src, work)
-    rows = {(r['verb'], r['path']): r for r in json.load(open(os.path.join(work, 'table.json')))}
+    rows = {(r['verb'], r['path']): r for r in read_json(os.path.join(work, 'table.json'))}
     listing = rows.get(('GET', '/widget/list'))
     sync = rows.get(('POST', '/widget/sync'))
     # The multi-line `@UseGuards(` is the case that used to yield `AuthGuard` as the handler.
@@ -315,13 +331,13 @@ def test_endpoint_matches_site_classification(src, work):
     said the opposite of the truth for every deliberately converted endpoint.
     """
     print("endpoint classification agrees with site classification")
-    sites = json.load(open(os.path.join(work, 'sites.json')))
+    sites = read_json(os.path.join(work, 'sites.json'))
     # endpoint_eff.py joins on the measurement; widths are irrelevant to the category.
-    json.dump([dict(s, cols=5, joins=0) for s in sites],
-              open(os.path.join(work, 'sites-measured.json'), 'w'))
+    write_json(os.path.join(work, 'sites-measured.json'),
+               [dict(s, cols=5, joins=0) for s in sites])
     run_step('endpoint_eff.py', src, work)
     eps = {(e['verb'], e['path']): e for e in
-           json.load(open(os.path.join(work, 'endpoint-eff.json')))}
+           read_json(os.path.join(work, 'endpoint-eff.json'))}
 
     def kinds(path):
         e = eps.get(('GET', path))
@@ -368,7 +384,7 @@ def test_measure_reports_unresolvable_projection(work):
     ]
     sites_path = os.path.join(work, 'measure-sites.json')
     measured_path = os.path.join(work, 'measure-out.json')
-    json.dump(sites, open(sites_path, 'w'))
+    write_json(sites_path, sites)
     r = subprocess.run(['node', os.path.join(HERE, 'measure.js'), sites_path, measured_path,
                         os.path.join(work, 'measure-tables.json')],
                        capture_output=True, text=True, env=dict(os.environ, DIST=dist), cwd=repo)
@@ -376,7 +392,7 @@ def test_measure_reports_unresolvable_projection(work):
         print(f"  FAIL measure.js wrote nothing: {r.stderr.strip()[:300]}")
         FAILURES.append('measure.js')
         return
-    out = {m['method']: m for m in json.load(open(measured_path))}
+    out = {m['method']: m for m in read_json(measured_path)}
     cols = out['ok'].get('cols')
     check('resolvable projection measured at its field list', isinstance(cols, int) and cols > 0, True)
     # The entity is 300+ columns wide; the projection selects a dozen. A fall-through to the
@@ -394,7 +410,7 @@ def test_drift_excludes_writes(src, root, work):
     sites-measured.json — so the filter matched nothing.
     """
     print("apply_drift keeps write sites out of the document")
-    sites = json.load(open(os.path.join(work, 'sites.json')))
+    sites = read_json(os.path.join(work, 'sites.json'))
     measured = [dict(s, cols=7, joins=0) for s in sites]
 
     gen = os.path.join(work, 'gen')
@@ -405,8 +421,8 @@ def test_drift_excludes_writes(src, root, work):
     unrelated = [{'file': 'src/unrelated.service.ts', 'line': 99, 'cls': 'UnrelatedService',
                   'method': 'load', 'call': 'find', 'kind': 'find', 'entity': 'Unrelated',
                   'via': 'repo', 'relations': None, 'select': None, 'cols': 3, 'joins': 0}]
-    json.dump(unrelated, open(os.path.join(gen, 'old', 'sites-measured.json'), 'w'))
-    json.dump(measured, open(os.path.join(gen, 'new', 'sites-measured.json'), 'w'))
+    write_json(os.path.join(gen, 'old', 'sites-measured.json'), unrelated)
+    write_json(os.path.join(gen, 'new', 'sites-measured.json'), measured)
 
     pub = ("# Database load sites\n\nEvery place in the code that reads from the database.\n\n"
            "| Columns | Joins | Mechanism | Entity | Location | Method |\n"
@@ -414,7 +430,7 @@ def test_drift_excludes_writes(src, root, work):
            "| 1 | 0 | find | `Other` | `other.service.ts:1` | `OtherService.load` |\n\ntail\n")
     repo = os.path.join(work, 'pubrepo')
     os.makedirs(repo)
-    open(os.path.join(repo, 'load-sites.md'), 'w').write(pub)
+    write_text(os.path.join(repo, 'load-sites.md'), pub)
     git = ['git', '-C', repo]
     subprocess.run(git + ['init', '-q'], check=True)
     subprocess.run(git + ['config', 'user.email', 'selftest@example.com'], check=True)
@@ -432,7 +448,7 @@ def test_drift_excludes_writes(src, root, work):
         print(f"  FAIL apply_drift.py exited {r.returncode}: {r.stderr.strip()[:400]}")
         FAILURES.append('apply_drift.py')
         return
-    body = open(out).read()
+    body = read_text(out)
     check('write chain absent', 'writeChain' in body, False)
     check('advisory lock absent', 'takeLock' in body, False)
     check('raw INSERT absent', 'rawInsert' in body, False)
