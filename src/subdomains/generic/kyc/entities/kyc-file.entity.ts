@@ -7,9 +7,9 @@ import { KycLog } from './kyc-log.entity';
 import { KycStep } from './kyc-step.entity';
 
 @Entity()
-// One catalog row per blob: the backfill of the legacy documents checks the catalog before it writes,
-// and two overlapping runs would otherwise both pass that check and insert the same blob twice. Partial,
-// so it constrains the catalogued blobs only and leaves every canonical row (path null) unaffected.
+// One catalog row per blob: the compliance tooling reads the catalog rather than the storage, so a
+// second row for the same key would present one document as two. Partial, so it constrains the
+// catalogued blobs only and leaves every canonical row (path null) unaffected.
 @Index((f: KycFile) => [f.path], { unique: true, where: '"path" IS NOT NULL' })
 export class KycFile extends IEntity {
   @Column({ type: 'text' })

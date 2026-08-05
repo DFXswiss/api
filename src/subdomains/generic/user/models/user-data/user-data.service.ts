@@ -178,16 +178,6 @@ export class UserDataService {
     return this.userDataRepo.find({ where: { id: In(ids) } });
   }
 
-  // Existence check on ids that come from outside the database — e.g. the account ids read out of legacy
-  // KYC storage paths, where an account may have been merged away since. Only the id is needed to decide
-  // whether a row may reference it, so nothing else is loaded.
-  async getExistingUserDataIds(ids: number[]): Promise<number[]> {
-    if (!ids.length) return [];
-    return this.userDataRepo
-      .find({ where: { id: In(ids) }, select: { id: true }, loadEagerRelations: false })
-      .then((u) => u.map((d) => d.id));
-  }
-
   async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
     // exact token match on the semicolon list plus the merged-tombstone exclusion (mirrors the
     // UserData.isRealUnitCustomer getter), so the scope source and the per-issue membership check share one

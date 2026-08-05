@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **143 `@DfxCron` declarations** across 99 files and 34 areas.
+Every scheduled job this service runs: **142 `@DfxCron` declarations** across 98 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **143 `@DfxCron` declarations** across 99
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-121 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+120 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-119 of the 143 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+118 of the 142 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -79,7 +79,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 15 seconds | 1 |
 | 30 seconds | 10 |
 | minute | 53 |
-| 5 minutes | 19 |
+| 5 minutes | 18 |
 | 10 minutes | 16 |
 | 15 minutes | 1 |
 | hour | 16 |
@@ -107,7 +107,7 @@ Jobs by area:
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
 | `subdomains/core/payment-link` | 6 | 2 |
-| `subdomains/generic/kyc` | 5 | — |
+| `subdomains/generic/kyc` | 4 | — |
 | `subdomains/supporting/bank` | 4 | — |
 | `subdomains/supporting/bank-tx` | 4 | — |
 | `subdomains/supporting/fiat-output` | 4 | — |
@@ -135,9 +135,9 @@ Jobs by area:
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
-scan, so multi-line declarations are included — a line-based match misses 28 of them. Interval,
+scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **143 = 143**, no gap. Class and
+count is asserted against a raw text count of the decorator: **142 = 142**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -161,7 +161,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 143 declarations, 142 have a registration path.
+here rather than fixed in passing. Of the 142 declarations, 141 have a registration path.
 
 ## Jobs
 
@@ -246,7 +246,6 @@ here rather than fixed in passing. Of the 143 declarations, 142 have a registrat
 | 5 minutes | `BLOCKCHAIN_CONFIG_CHECK` | `worker` | `BlockchainConfigCheckService::logUnconfiguredClients` | `integration/blockchain/shared/services/blockchain-config-check.service.ts` |
 | 5 minutes | `EXCHANGE_TX_SYNC` | `worker` | `ExchangeTxService::syncExchangeJob` | `integration/exchange/services/exchange-tx.service.ts` |
 | 5 minutes | `CRYPTO_PAYOUT` | `worker` | `FaucetRequestService::checkFaucetRequests` | `subdomains/core/faucet-request/services/faucet-request.service.ts` |
-| 5 minutes | `KYC_LEGACY_FILE_SYNC` | `worker` | `KycLegacyFileService::runBackfill` | `subdomains/generic/kyc/services/kyc-legacy-file.service.ts` |
 | 5 minutes | `LEDGER_COA_BOOTSTRAP` | `worker` | `LedgerBookingJobService::runCoaBootstrap` | `subdomains/core/accounting/services/ledger-booking-job.service.ts` |
 | 5 minutes | `LEDGER_CUTOVER` | `worker` | `LedgerCutoverService::run` | `subdomains/core/accounting/services/ledger-cutover.service.ts` |
 | 5 minutes | `LIMIT_REQUEST_MAIL` | `worker` | `LimitRequestNotificationService::sendNotificationMails` | `subdomains/supporting/support-issue/services/limit-request-notification.service.ts` |
