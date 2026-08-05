@@ -166,12 +166,25 @@ export class RealUnitComplianceDtoMapper {
   private static latestFileOfType(files: KycFile[], type: FileType): { file: KycFile; date: Date } | undefined {
     const dated = files
       .filter((f) => f.type === type)
-      .map((f) => ({ file: f, date: f.path == null ? f.created : legacyDocumentDate(f.path) }))
+      .map((f) => ({ file: f, date: RealUnitComplianceDtoMapper.documentDate(f) }))
       .filter((f): f is { file: KycFile; date: Date } => f.date != null);
 
     const current = dated.filter((f) => f.file.path == null);
 
     return Util.maxObj(current.length ? current : dated, 'date');
+  }
+
+  /**
+   * The date that describes the DOCUMENT, or nothing.
+   *
+   * `kyc_file.created` answers it for every row written when its document was produced. On a row
+   * catalogued from the Spider-era storage (`path` set) it answers it only where the key carried a
+   * timestamp; where it did not, the column holds the day the backfill ran, and there is no date to
+   * report. The column cannot say which of the two it is — it is never null — so the key is read
+   * again, by the same function the backfill used to write it.
+   */
+  private static documentDate(file: KycFile): Date | undefined {
+    return file.path == null ? file.created : legacyDocumentDate(file.path);
   }
 
   // --- KYC FILES --- //
@@ -181,7 +194,11 @@ export class RealUnitComplianceDtoMapper {
       uid: file.uid,
       type: file.type,
       name: file.name,
-      created: file.created,
+      // Absent where the date is not the document's — the same rule the reported checks follow. The
+      // field carries no provenance of its own (`path` is deliberately not exposed), so a client
+      // cannot tell a document date from the day the backfill ran, and would read the second as the
+      // first: a file listed beside a missing check would look like evidence from last month.
+      created: RealUnitComplianceDtoMapper.documentDate(file),
     };
   }
 

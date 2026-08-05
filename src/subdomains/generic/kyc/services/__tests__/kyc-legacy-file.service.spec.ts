@@ -109,9 +109,6 @@ describe('KycLegacyFileService', () => {
   // The catalog row stands in for the document everywhere the catalog is read, and one consumer -
   // the RealUnit compliance evidence - picks the NEWEST file of a type. A row stamped with the run
   // would make a document from 2019 outrank every later one.
-  //
-  // The path wins over the store: the store reports the day of the storage migration for every object
-  // alike, which is newer than every real document rather than older.
   it('dates a catalog row by the timestamp in its path', async () => {
     const result = await service.syncLegacyFiles(false);
 

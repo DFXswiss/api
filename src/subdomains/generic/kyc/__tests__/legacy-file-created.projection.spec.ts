@@ -10,11 +10,11 @@ import { DataSource } from 'typeorm';
 const SCHEMA = 'legacy_file_created_spec';
 
 /**
- * The legacy KYC file backfill dates each catalog row by the blob it points at, so a document from
- * 2019 keeps 2019 rather than the date of the run. `kyc_file.created` is a `@CreateDateColumn`, and
- * whether an explicitly set value survives the insert is a property of the ORM and the driver — no
- * mocked repository can answer it, and the consumer that picks the NEWEST file of a type would turn
- * a wrong answer into wrong compliance evidence rather than into a failure.
+ * The legacy KYC file backfill dates each catalog row by the timestamp in its storage key, so a
+ * document from 2019 keeps 2019 rather than the date of the run. `kyc_file.created` is a
+ * `@CreateDateColumn`, and whether an explicitly set value survives the insert is a property of the
+ * ORM and the driver — no mocked repository can answer it, and the consumer that picks the NEWEST
+ * file of a type would turn a wrong answer into wrong compliance evidence rather than into a failure.
  *
  * Against a real database because that is the only place the question exists. TypeORM overwrites a
  * create-date only on the Mongo driver (`SubjectExecutor`), and its insert builder leaves the
@@ -45,8 +45,9 @@ describeProjection('KycFile created date', () => {
     expect(stored.created.toISOString()).toBe(blobDate.toISOString());
   }, 60000);
 
-  // The fallback the backfill takes when the listing carries no date for a blob: the column default
-  // stamps the row, which is what every other writer of this table gets.
+  // The fallback the backfill takes for a key that carries no timestamp: the column default stamps
+  // the row, which is what every other writer of this table gets. Such a row carries no date the
+  // dossier may report — `legacyDocumentDate` is what tells the two apart afterwards.
   //
   // Asserts THAT a date arrives, not which one. The column is timezone-naive and the default is the
   // database's own clock, so comparing it against this process's wall clock would measure the offset

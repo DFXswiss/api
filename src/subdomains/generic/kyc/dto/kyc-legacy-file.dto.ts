@@ -26,7 +26,7 @@ export interface LegacyFileEntry {
   type: FileType;
   subType?: FileSubType;
   path: string;
-  // The document's own date, read from the path where it carries one; see KycLegacyFileMapper.pathDate.
+  // The document's own date, read from the path where it carries one; see `legacyDocumentDate`.
   date?: Date;
 }
 
