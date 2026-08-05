@@ -42,16 +42,18 @@ export class WalletService {
 
     // The relations shape is part of the key: without it a caller that needs no relations and one
     // that needs `users` share an entry, and whichever asks first decides what the other gets.
-    const key = `idOrName:${id}:${name}:${JSON.stringify(relations)}`;
+    // Serialised as an array rather than interpolated, so a missing name cannot collide with the
+    // literal string 'undefined' — dto.wallet is a free-text field and could carry exactly that.
+    const key = `idOrName:${JSON.stringify([id, name, relations])}`;
 
     return this.repo.findOneCached(key, { where: [{ id }, { name }], relations });
   }
 
   async getKycClients(): Promise<Wallet[]> {
-    return this.repo.findCachedBy('kycClients:all', { isKycClient: true });
+    return this.repo.findCachedBy('kycClients', { isKycClient: true });
   }
 
   async getDefault(): Promise<Wallet> {
-    return this.repo.findOneCachedBy('default:wallet', { id: Config.defaultWalletId });
+    return this.repo.findOneCachedBy('default', { id: Config.defaultWalletId });
   }
 }
