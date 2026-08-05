@@ -656,7 +656,11 @@ export class KycService {
    * second would mark rejected data as verified and strand the user on IDENT.
    */
   async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
+    // `getUserData` answers null rather than throwing. Without this the next line fails with a bare
+    // TypeError, which the best-effort caller then logs as "the step stays open" — true, but it hides
+    // that the account itself could not be read.
     const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
+    if (!user) throw new NotFoundException(`User data ${userData.id} not found`);
 
     // Own rows only: a merge seeds inherited steps below 0, and orders them chronologically only within
     // a batch, so ranking across batches could let older history outrank a newer rejection.
