@@ -10,6 +10,16 @@ const SPIDER_SCOPE = 'spider';
 const ORGANIZATION_SUFFIX = '-organization';
 const CHECK_FOLDER = 'check';
 const CHECK_RUN_PATTERN = /^gen_(\d+)$/;
+// A path segment that is a bare epoch in milliseconds — the moment of the Spider run, kept in the
+// folder name (`online-identification/1699356511987/…`). Thirteen digits is the shape of that window;
+// a ten-digit second value is not read as one, because guessing the unit would silently place a
+// document in 1970 or in the far future rather than leave it undated.
+const EPOCH_MILLIS_PATTERN = /^\d{13}$/;
+// Spider predates DFX, so nothing stored under it can be older than this; anything below is a segment
+// that merely looks like a timestamp.
+const EARLIEST_DOCUMENT_DATE = new Date('2015-01-01T00:00:00.000Z');
+// `spider/<owner>/…` — neither segment is part of the document's path within the account.
+const SCOPE_AND_OWNER_SEGMENTS = 2;
 const IDENT_FOLDERS = ['online-identification', 'video_identification'];
 
 // Everything else stored next to the documents is a machine artifact of the Spider run (raw provider
@@ -37,6 +47,34 @@ interface LegacyFilePath {
   segments: string[];
   name: string;
   extension: string;
+}
+
+/**
+ * The date of a legacy KYC document, read from its storage key — or nothing, where the key does not
+ * carry one.
+ *
+ * The single source of truth for that derivation, exported because two places need the SAME answer:
+ * the backfill, which writes it into the catalog row, and the compliance dossier, which has to tell
+ * a row whose date is the document's from a row whose date is merely the day it was catalogued. The
+ * catalog cannot express that difference — `kyc_file.created` is never null — so the consumer
+ * re-derives it from the key, and both must derive it identically.
+ *
+ * Only the folder segments are read, and only those after the scope and the owner: a file name may
+ * contain any number, and an owner segment that looks like a timestamp is not one. A value outside
+ * the plausible window is discarded rather than corrected — an unknown date has to stay unknown,
+ * because every consumer of a wrong one reads it as fact.
+ */
+export function legacyDocumentDate(key: string): Date | undefined {
+  const folders = key.split('/').slice(SCOPE_AND_OWNER_SEGMENTS, -1);
+
+  for (const segment of folders) {
+    if (!EPOCH_MILLIS_PATTERN.test(segment)) continue;
+
+    const date = new Date(+segment);
+    if (date >= EARLIEST_DOCUMENT_DATE && date <= new Date()) return date;
+  }
+
+  return undefined;
 }
 
 export class KycLegacyFileMapper {
@@ -86,7 +124,7 @@ export class KycLegacyFileMapper {
       }
 
       const { type, subType } = this.toFileType(path);
-      entries.push({ userDataId, name: path.name, type, subType, path: path.key });
+      entries.push({ userDataId, name: path.name, type, subType, path: path.key, date: legacyDocumentDate(path.key) });
       paths.push(path);
     }
 

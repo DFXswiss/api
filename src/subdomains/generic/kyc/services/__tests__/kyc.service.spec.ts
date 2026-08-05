@@ -665,6 +665,7 @@ describe('KycService reviewIdentSteps file sync', () => {
   let service: KycService;
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
+  let identFileService: jest.Mocked<KycFileService>;
   let syncIdentFilesInternalSpy: jest.SpyInstance;
   // the status as seen by the repo, not as read after the run: manualReview() mutates the entity
   // in memory before the sync, so asserting on the entity afterwards would pass either way -
@@ -718,12 +719,16 @@ describe('KycService reviewIdentSteps file sync', () => {
     });
     userDataService = createMock<UserDataService>();
     userDataService.getUserDataByBirthday.mockResolvedValue([]);
+    identFileService = createMock<KycFileService>();
+    // the default is the step without a valid report, which is the case the retry net exists for
+    identFileService.hasValidIdentReport.mockResolvedValue(false);
 
     // with getIdentCheckErrors, createStepLog and syncIdentFilesInternal stubbed below, the review
     // path only touches these deps; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycStepRepo = kycStepRepo;
     (service as any).userDataService = userDataService;
+    (service as any).kycFileService = identFileService;
     (service as any).countryService = createMock<CountryService>();
     (service as any).logger = createMock<DfxLogger>();
 
@@ -751,28 +756,45 @@ describe('KycService reviewIdentSteps file sync', () => {
     await service.reviewIdentSteps();
 
     expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    // the type guard comes first, so a non-Sumsub step is not worth a database round trip
+    expect(identFileService.hasValidIdentReport).not.toHaveBeenCalled();
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
   it.each(sumsubTypes)('still syncs the files of a %s ident step that has no ident report yet', async (type) => {
-    // an unrelated file must not stand in for the report: only a missing IDENT_REPORT triggers the sync
-    const step = identStep(type, [createMock<KycFile>({ subType: FileSubType.IDENT_SELFIE })]);
+    const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
 
     await service.reviewIdentSteps();
 
+    // asked about the step, not about the account - see the regression case below
+    expect(identFileService.hasValidIdentReport).toHaveBeenCalledWith(step.id);
     expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
   // the normal case: the ident webhook already downloaded the report, so there is nothing to fetch
   it.each(sumsubTypes)('skips the file sync of a %s ident step that already has its report', async (type) => {
+    const step = identStep(type);
+    kycStepRepo.find.mockResolvedValue([step]);
+    identFileService.hasValidIdentReport.mockResolvedValue(true);
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+  });
+
+  // the regression this check was scoped for: the account carries a report from an earlier ident -
+  // a previous Sumsub run, or a Spider-era document catalogued from the legacy storage - while THIS
+  // step has none. Account-wide the retry net switched off here and the step advanced document-less.
+  it.each(sumsubTypes)('still syncs a %s ident step whose report belongs to another step', async (type) => {
     const step = identStep(type, [createMock<KycFile>({ subType: FileSubType.IDENT_REPORT })]);
     kycStepRepo.find.mockResolvedValue([step]);
 
     await service.reviewIdentSteps();
 
-    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 

@@ -219,4 +219,43 @@ describe('KycLegacyFileMapper', () => {
       expect(skipped).toEqual([LegacyFileSkipReason.PATH_TOO_LONG]);
     });
   });
+
+  // The date of the DOCUMENT, which the storage cannot answer: after the migration between storage
+  // backends every object carries the day of that migration. The Spider run kept its own timestamp in
+  // the folder name, and that is the only place a 2019 document is still distinguishable from a 2023 one.
+  describe('document date', () => {
+    it('reads the epoch segment of the folder', () => {
+      const { entries } = map([`spider/${userDataId}/online-identification/1699356511987/report.pdf`]);
+
+      expect(entries[0].date).toEqual(new Date(1699356511987));
+    });
+
+    it('leaves a folder without a timestamp segment undated', () => {
+      const { entries } = map([
+        `spider/${userDataId}/user-added-document/proof.pdf`,
+        `spider/${userDataId}/check/gen_12/report.pdf`,
+      ]);
+
+      expect(entries.map((e) => e.date)).toEqual([undefined, undefined]);
+    });
+
+    // A segment that merely looks like a timestamp is discarded rather than corrected: a wrong date is
+    // worse than none, because the row would then claim to date a document it does not.
+    it.each([
+      ['before the earliest plausible date', '1000000000000'],
+      ['in the future', `${Date.now() + 10 * 365 * 24 * 3600 * 1000}`],
+      ['not a millisecond value', '1699356511'],
+    ])('discards a segment %s', (_case, segment) => {
+      const { entries } = map([`spider/${userDataId}/online-identification/${segment}/report.pdf`]);
+
+      expect(entries[0].date).toBeUndefined();
+    });
+
+    // Only the folders are read: a file name may contain any number, including one that parses as a date.
+    it('never reads the date out of the file name', () => {
+      const { entries } = map([`spider/${userDataId}/user-added-document/1699356511987.pdf`]);
+
+      expect(entries[0].date).toBeUndefined();
+    });
+  });
 });

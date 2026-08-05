@@ -42,7 +42,10 @@ export class RealUnitKycFileDto {
   uid: string;
   type: FileType;
   name: string;
-  created: Date;
+  // Optional because a document catalogued from the Spider-era storage has a date only where its
+  // storage key carried one. Sending the alternative — the day that backfill ran — would date a
+  // document from 2019 as this month, and the field is rendered as the document's own date.
+  created?: Date;
 }
 
 // Reduced KYC step: `result`/`comment` (raw internal step data + potential DFX compliance note) and the
