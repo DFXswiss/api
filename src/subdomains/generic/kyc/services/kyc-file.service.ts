@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsRelations } from 'typeorm';
-import { CreateKycFileDto } from '../dto/kyc-file.dto';
+import { CreateKycFileDto, FileSubType } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
 import { KycFileRepository } from '../repositories/kyc-file.repository';
 
@@ -27,6 +27,18 @@ export class KycFileService {
     return this.kycFileRepository.findOne({
       where: { uid },
       relations,
+    });
+  }
+
+  // Whether ONE ident step has its report, asked per step rather than per account: an account can
+  // carry reports from earlier idents — a previous Sumsub run, or a Spider-era document catalogued
+  // from the legacy storage — and none of those say anything about the step being reviewed now.
+  // Uncached and unjoined on purpose: the caller asks it while deciding whether an ident may advance,
+  // so it has to see the row a webhook wrote seconds ago.
+  async hasIdentReport(kycStepId: number): Promise<boolean> {
+    return this.kycFileRepository.exists({
+      where: { kycStep: { id: kycStepId }, subType: FileSubType.IDENT_REPORT },
+      loadEagerRelations: false,
     });
   }
 

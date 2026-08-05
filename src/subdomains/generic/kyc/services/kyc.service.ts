@@ -69,7 +69,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
-import { FileSubType, FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -202,7 +202,9 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true, kycFiles: true, organization: { country: true } } },
+      // No kycFiles: the account-wide file set was loaded for the ident-report check below, which now
+      // asks about the step itself. Nothing else on this path reads it.
+      relations: { userData: { users: true, wallet: true, organization: { country: true } } },
     });
 
     for (const entity of entities) {
@@ -283,10 +285,19 @@ export class KycService {
         // Sumsub idents have files to sync (and an IDENT_REPORT at all), a manual ident uploads its
         // document in updateIdentManual, and syncIdentFilesInternal throws on every other type. An
         // unguarded call therefore wedged manual idents in INTERNAL_REVIEW to be retried forever.
+        //
+        // The document check asks about THIS step. Account-wide it asked whether the account holds an
+        // IDENT_REPORT anywhere, so a single older report - an earlier Sumsub ident, or a Spider-era
+        // document catalogued from the legacy storage - switched the retry net off for every later
+        // ident of that account: the step advanced without its documents, with no error and no log
+        // line. Only the step's own files can say whether THIS ident was fetched.
+        //
+        // Asked last, after the two in-memory conditions: it is a database round trip, and the
+        // conditions in front of it leave only the steps that are about to advance.
         if (
           entity.isSumsub &&
-          !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
-          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
+          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW) &&
+          !(await this.kycFileService.hasIdentReport(entity.id))
         )
           await this.syncIdentFilesInternal(entity);
 

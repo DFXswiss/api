@@ -215,9 +215,9 @@ export class KycLegacyFileService {
     return (await this.settingService.get(LEGACY_FILE_SYNC_COMPLETED_KEY)) != null;
   }
 
-  // Once per process, because the job keeps ticking every minute until the follow-up PR removes it,
-  // and a line a minute would say nothing the first one did not. The flag is checked before the log
-  // call rather than around it, so the skip itself stays silent afterwards.
+  // Once per process, because the job keeps ticking until the follow-up PR removes it and every
+  // later line would say nothing the first one did not. The flag is checked before the log call
+  // rather than around it, so the skip itself stays silent afterwards.
   private skipCompleted(): void {
     if (this.skipLogged) return;
 
