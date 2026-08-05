@@ -1519,10 +1519,24 @@ export class RealUnitService {
     if (!asciiEq(kycData.firstName, userData.firstname)) mismatches.push('firstName');
     if (!asciiEq(kycData.lastName, userData.surname)) mismatches.push('lastName');
     if (!phoneEq(kycData.phone, userData.phone)) mismatches.push('phone');
-    if (kycData.accountType !== userData.accountType) mismatches.push('accountType');
+    // Coerce like the prefill does (`toUserDataDtoFromUserData`): a null stored accountType IS a
+    // personal account (see `UserData.isPersonalAccount`), so the prefilled value must round-trip.
+    if (kycData.accountType !== (userData.accountType ?? AccountType.PERSONAL)) mismatches.push('accountType');
 
-    if (!asciiEq(kycData.address.street, userData.street)) mismatches.push('street');
-    if (!asciiEq(kycData.address.houseNumber, userData.houseNumber)) mismatches.push('houseNumber');
+    // Street and house number compare as ONE joined string: legacy rows may store the number
+    // inside `street` with `houseNumber` empty, while the client collects the two separately (its
+    // number field is mandatory, so such a row could never round-trip field-by-field). Both
+    // representations sign and forward the identical joined value — the split is presentation,
+    // not data. Same joining rule as `toUserDataDtoFromUserData`.
+    const joinAddress = (street?: string, houseNumber?: string): string =>
+      [street, houseNumber].filter((s) => s).join(' ');
+    if (
+      !asciiEq(
+        joinAddress(kycData.address.street, kycData.address.houseNumber),
+        joinAddress(userData.street, userData.houseNumber),
+      )
+    )
+      mismatches.push('street');
     if (!asciiEq(kycData.address.city, userData.location)) mismatches.push('city');
     if (!asciiEq(kycData.address.zip, userData.zip)) mismatches.push('zip');
     if (kycData.address.country?.id !== userData.country?.id) mismatches.push('country');
@@ -1533,10 +1547,11 @@ export class RealUnitService {
       const trimOrNull = (value?: string): string | null => value?.trim() ?? null;
       if (trimOrNull(kycData.organizationName) !== trimOrNull(userData.organizationName))
         mismatches.push('organizationName');
-      if (trimOrNull(kycData.organizationAddress?.street) !== trimOrNull(userData.organizationStreet))
+      if (
+        joinAddress(kycData.organizationAddress?.street, kycData.organizationAddress?.houseNumber).trim() !==
+        joinAddress(userData.organizationStreet, userData.organizationHouseNumber).trim()
+      )
         mismatches.push('organizationStreet');
-      if (trimOrNull(kycData.organizationAddress?.houseNumber) !== trimOrNull(userData.organizationHouseNumber))
-        mismatches.push('organizationHouseNumber');
       if (trimOrNull(kycData.organizationAddress?.city) !== trimOrNull(userData.organizationLocation))
         mismatches.push('organizationCity');
       if (trimOrNull(kycData.organizationAddress?.zip) !== trimOrNull(userData.organizationZip))

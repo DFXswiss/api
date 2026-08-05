@@ -2993,6 +2993,26 @@ describe('RealUnitService', () => {
       userData.birthday = null;
       expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual(['birthday']);
     });
+
+    it('accepts a stored street with the house number embedded against the split submission (pre-split rows)', () => {
+      const userData = matchingUserData();
+      userData.street = 'Bahnhofstrasse 1';
+      userData.houseNumber = null;
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
+    });
+
+    it('still rejects a genuinely different house number under the joined comparison', () => {
+      const userData = matchingUserData();
+      userData.street = 'Bahnhofstrasse 2';
+      userData.houseNumber = null;
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual(['street']);
+    });
+
+    it('treats a null stored accountType as Personal, mirroring the prefill coercion', () => {
+      const userData = matchingUserData();
+      userData.accountType = null;
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
+    });
   });
 
   describe('forwardRegistration (forwards the signed representation to Aktionariat)', () => {
@@ -5675,10 +5695,17 @@ describe('RealUnitService', () => {
       expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationStreet']);
     });
 
-    it('reports the organization house number when it differs', () => {
+    it('reports the organization street when the house number differs (joined comparison)', () => {
       const dto = orgDto();
       dto.kycData.organizationAddress.houseNumber = '9';
-      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationHouseNumber']);
+      expect((service as any).getPersonalDataMismatches(orgUserData(), dto)).toEqual(['organizationStreet']);
+    });
+
+    it('accepts an organization street with the number embedded against the split submission', () => {
+      const userData = orgUserData();
+      userData.organizationStreet = 'Industriestrasse 5';
+      userData.organizationHouseNumber = null;
+      expect((service as any).getPersonalDataMismatches(userData, orgDto())).toEqual([]);
     });
 
     it('reports the organization city when it differs', () => {
