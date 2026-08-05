@@ -6,6 +6,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
@@ -67,7 +68,7 @@ describe('CustodyPdfService', () => {
     jest.restoreAllMocks();
   });
 
-  function custodyUsers(...ids: number[]) {
+  function custodyUsers(...ids: number[]): User[] {
     return ids.map((id) => createCustomUser({ id, role: UserRole.CUSTODY }));
   }
 
@@ -75,7 +76,7 @@ describe('CustodyPdfService', () => {
     asset: ReturnType<typeof createCustomAsset>,
     balance: number,
     user: ReturnType<typeof createCustomUser>,
-  ) {
+  ): CustodyBalance {
     return Object.assign(new CustodyBalance(), { asset, balance, user });
   }
 
