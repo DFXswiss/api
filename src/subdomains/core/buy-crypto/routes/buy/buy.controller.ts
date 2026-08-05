@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
@@ -50,7 +50,6 @@ import { BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { BuyQuoteDto } from './dto/buy-quote.dto';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyInvoiceQuery } from './dto/get-buy-invoice-query.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
 import { PdfDto } from './dto/pdf.dto';
@@ -166,11 +165,18 @@ export class BuyController {
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, BuyActiveGuard())
+  @ApiQuery({
+    name: 'collectionAccount',
+    required: false,
+    type: Boolean,
+    description:
+      'If true, issue the invoice against the collection account instead of the personal virtual IBAN stored on the request',
+  })
   @ApiOkResponse({ type: PdfDto })
   async generateInvoicePDF(
     @GetJwt() jwt: JwtPayload,
     @Param('id', ParseIntPipe) id: number,
-    @Query() query: GetBuyInvoiceQuery,
+    @Query('collectionAccount') collectionAccount?: string,
   ): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
@@ -183,15 +189,14 @@ export class BuyController {
 
     // Optional switch: issue against the collection account (skip personal vIBAN). Fail closed —
     // never silently fall back to the personal IBAN when the caller asked for the collection account.
+    // Compare against the literal 'true' only (swap/sell includeTx, asset includePrivate) — query
+    // strings are not booleans; presence-based mapping would treat "false" as on.
     let virtualIbanId = request.virtualIbanId;
-    if (query.collectionAccount) {
+    if (collectionAccount === 'true') {
       if (request.virtualIbanId == null)
         throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REQUIRES_PERSONAL_IBAN);
       if (currency.name !== 'EUR')
         throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED);
-      // buildBankResponse uses buy.bankUsage as the payment reference; without it a collection-account
-      // transfer cannot be attributed.
-      if (!buy.bankUsage) throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REFERENCE_MISSING);
       virtualIbanId = undefined;
     }
 

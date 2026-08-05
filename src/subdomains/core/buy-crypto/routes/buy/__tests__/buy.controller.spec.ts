@@ -106,7 +106,13 @@ describe('BuyController', () => {
       Config.invoice.currencies = ['EUR', 'CHF'];
       const request = options?.request ?? baseRequest();
       const buy = options?.buy ?? baseBuy();
-      const bankInfo = options?.bankInfo ?? ({ iban: 'LI75088110105923K000E', reference: 'ABCD-EFGH-IJKL' } as any);
+      const bankInfo =
+        options?.bankInfo ??
+        ({
+          iban: 'LI32088110105923K000C',
+          reference: 'ABCD-EFGH-IJKL',
+          isPersonalIban: false,
+        } as any);
       jest.spyOn(transactionRequestService, 'getOrThrow').mockResolvedValue(request);
       jest.spyOn(userService, 'getUser').mockResolvedValue({ wallet: {} } as any);
       jest.spyOn(buyService, 'get').mockResolvedValue(buy);
@@ -116,10 +122,10 @@ describe('BuyController', () => {
       return { request, buy, bankInfo };
     }
 
-    it('passes the persisted bank and virtual-IBAN IDs into invoice bank resolution', async () => {
-      const { buy } = setupHappyPath();
+    it('passes the persisted bank and virtual-IBAN IDs into invoice bank resolution when collectionAccount is omitted', async () => {
+      const { request, buy, bankInfo } = setupHappyPath();
 
-      await expect(controller.generateInvoicePDF(jwt, 99, {})).resolves.toEqual({
+      await expect(controller.generateInvoicePDF(jwt, 99)).resolves.toEqual({
         pdfData: 'pdf-data',
       });
       expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
@@ -131,12 +137,24 @@ describe('BuyController', () => {
         buy.asset,
         {},
       );
+      expect(swissQrService.createInvoiceFromRequest).toHaveBeenCalledWith(
+        request.amount,
+        'EUR',
+        bankInfo.reference,
+        bankInfo,
+        request,
+      );
     });
 
-    it('skips the virtual IBAN when collectionAccount is set', async () => {
-      const { buy } = setupHappyPath();
+    it("skips the virtual IBAN when collectionAccount is the string 'true'", async () => {
+      const collectionBankInfo = {
+        iban: 'LI32088110105923K000C',
+        reference: 'ABCD-EFGH-IJKL',
+        isPersonalIban: false,
+      } as any;
+      const { request, buy } = setupHappyPath({ bankInfo: collectionBankInfo });
 
-      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).resolves.toEqual({
+      await expect(controller.generateInvoicePDF(jwt, 99, 'true')).resolves.toEqual({
         pdfData: 'pdf-data',
       });
       expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
@@ -148,12 +166,24 @@ describe('BuyController', () => {
         buy.asset,
         {},
       );
+      expect(swissQrService.createInvoiceFromRequest).toHaveBeenCalledWith(
+        request.amount,
+        'EUR',
+        collectionBankInfo.reference,
+        collectionBankInfo,
+        request,
+      );
     });
 
-    it('still passes the virtual IBAN when collectionAccount is not set', async () => {
-      const { buy } = setupHappyPath();
+    it("still passes the virtual IBAN when collectionAccount is the string 'false'", async () => {
+      const personalBankInfo = {
+        iban: 'LI75088110105923K000E',
+        reference: 'ABCD-EFGH-IJKL',
+        isPersonalIban: true,
+      } as any;
+      const { request, buy } = setupHappyPath({ bankInfo: personalBankInfo });
 
-      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: false })).resolves.toEqual({
+      await expect(controller.generateInvoicePDF(jwt, 99, 'false')).resolves.toEqual({
         pdfData: 'pdf-data',
       });
       expect(buyService.getBankInfoForRequest).toHaveBeenCalledWith(
@@ -165,33 +195,33 @@ describe('BuyController', () => {
         buy.asset,
         {},
       );
+      expect(swissQrService.createInvoiceFromRequest).toHaveBeenCalledWith(
+        request.amount,
+        'EUR',
+        personalBankInfo.reference,
+        personalBankInfo,
+        request,
+      );
     });
 
     it('rejects collectionAccount when the request has no personal virtual IBAN', async () => {
       setupHappyPath({ request: baseRequest({ virtualIbanId: undefined }) });
 
-      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
+      await expect(controller.generateInvoicePDF(jwt, 99, 'true')).rejects.toThrow(
         new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REQUIRES_PERSONAL_IBAN),
       );
       expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
+      expect(swissQrService.createInvoiceFromRequest).not.toHaveBeenCalled();
     });
 
     it('rejects collectionAccount when the currency is not EUR', async () => {
       setupHappyPath({ currencyName: 'CHF' });
 
-      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
+      await expect(controller.generateInvoicePDF(jwt, 99, 'true')).rejects.toThrow(
         new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED),
       );
       expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
-    });
-
-    it('rejects collectionAccount when the buy has no payment reference', async () => {
-      setupHappyPath({ buy: baseBuy({ bankUsage: undefined }) });
-
-      await expect(controller.generateInvoicePDF(jwt, 99, { collectionAccount: true })).rejects.toThrow(
-        new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REFERENCE_MISSING),
-      );
-      expect(buyService.getBankInfoForRequest).not.toHaveBeenCalled();
+      expect(swissQrService.createInvoiceFromRequest).not.toHaveBeenCalled();
     });
   });
 });

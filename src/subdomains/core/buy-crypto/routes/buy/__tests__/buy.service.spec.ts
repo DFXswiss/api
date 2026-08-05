@@ -635,6 +635,25 @@ describe('BuyService', () => {
       expect(virtualIbanService.getByIdForUser).not.toHaveBeenCalled();
     });
 
+    it('returns the collection-account bank IBAN and buy reference when virtualIbanId is omitted', async () => {
+      jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
+
+      const bankInfo = await service.getBankInfoForRequest(
+        { currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+        true,
+        19,
+        undefined,
+      );
+
+      expect(virtualIbanService.getByIdForUser).not.toHaveBeenCalled();
+      expect(bankInfo).toMatchObject({
+        iban: frickBank.iban,
+        isPersonalIban: false,
+        reference: buy.bankUsage,
+      });
+    });
+
     it('serves a fully live personal IBAN for an open quote', async () => {
       jest.spyOn(bankService, 'getBankByIdUncached').mockResolvedValue(frickBank as any);
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
