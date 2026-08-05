@@ -114,11 +114,22 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
         break;
       }
 
+      // Each exit says why on its own line, so the summary below does not have to guess. The develop
+      // version carried "(insufficient unlocked balance)" on the summary itself, which named the wrong
+      // cause as soon as any other branch could break the loop.
       const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
-      if (unlockedBalance <= 0) break;
+      if (unlockedBalance <= 0) {
+        this.logger.info(`XMR payout: deferring ${pendingOrders.length} order(s), no unlocked balance`);
+        break;
+      }
 
       const group = this.splicePayoutGroup(pendingOrders, unlockedBalance, 15);
-      if (group.length === 0) break;
+      if (group.length === 0) {
+        this.logger.info(
+          `XMR payout: deferring ${pendingOrders.length} order(s), unlocked balance ${unlockedBalance} is below the next payout`,
+        );
+        break;
+      }
 
       try {
         await this.sendXMR(context, group);

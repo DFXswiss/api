@@ -127,6 +127,7 @@ describe('PayoutService', () => {
       order.lastError = 'broadcast ambiguous';
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
       const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      const countSpy = jest.spyOn(payoutOrderRepo, 'countBy');
       const infoSpy = jest.spyOn(service['logger'], 'info');
 
       await service.retryUncertainPayout(accountId, baseDto);
@@ -140,8 +141,10 @@ describe('PayoutService', () => {
           signedPayoutTxMetadata: null,
         },
       );
-      // No signed tx to discard, so the audit line must not invent one.
+      // No signed tx to discard, so the audit line must not invent one — and the sibling lookup that
+      // only a signed tx needs must not run at all, or every BTC/EVM retry pays for a DB round-trip.
       expect(infoSpy.mock.calls[0][0]).not.toContain('discarded signedPayoutTxId');
+      expect(countSpy).not.toHaveBeenCalled();
     });
 
     // A signed tx pays every order it was built for. Releasing this one for a rebuild while a sibling
