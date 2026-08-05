@@ -28,7 +28,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
 
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    GrantSupportRoleOnDev = require('../../../../../../../migration/1785550000000-GrantSupportRoleOnDev');
+    GrantSupportRoleOnDev = require('../../../../../../../migration/1785950000000-GrantSupportRoleOnDev');
   });
 
   afterEach(() => {
@@ -125,7 +125,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    GrantSupportRoleOnDev = require('../../../../../../../migration/1785550000000-GrantSupportRoleOnDev');
+    GrantSupportRoleOnDev = require('../../../../../../../migration/1785950000000-GrantSupportRoleOnDev');
     dataSource = new DataSource({ type: 'postgres', url: PG_URL });
     await dataSource.initialize();
   });
@@ -239,7 +239,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
       fromRole: string;
       toRole: string;
     };
-    expect(message.migration).toBe('GrantSupportRoleOnDev1785550000000');
+    expect(message.migration).toBe('GrantSupportRoleOnDev1785950000000');
     expect(message.direction).toBe('up');
     expect(Number(message.affectedCount)).toBe(1);
     expect(message.userIds).toBe(String(targetId));
