@@ -3001,6 +3001,13 @@ describe('RealUnitService', () => {
       expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
     });
 
+    it('accepts stray whitespace at the street/houseNumber boundary (component trim inside the join)', () => {
+      const userData = matchingUserData();
+      userData.street = 'Bahnhofstrasse ';
+      userData.houseNumber = '1';
+      expect((service as any).getPersonalDataMismatches(userData, matchingDto())).toEqual([]);
+    });
+
     it('still rejects a genuinely different house number under the joined comparison', () => {
       const userData = matchingUserData();
       userData.street = 'Bahnhofstrasse 2';

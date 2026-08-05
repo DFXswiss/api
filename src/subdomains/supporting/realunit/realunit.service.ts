@@ -1529,7 +1529,10 @@ export class RealUnitService {
     // representations sign and forward the identical joined value — the split is presentation,
     // not data. Same joining rule as `toUserDataDtoFromUserData`.
     const joinAddress = (street?: string, houseNumber?: string): string =>
-      [street, houseNumber].filter((s) => s).join(' ');
+      [street, houseNumber]
+        .map((s) => s?.trim())
+        .filter((s) => s)
+        .join(' ');
     if (
       !asciiEq(
         joinAddress(kycData.address.street, kycData.address.houseNumber),
@@ -1548,8 +1551,8 @@ export class RealUnitService {
       if (trimOrNull(kycData.organizationName) !== trimOrNull(userData.organizationName))
         mismatches.push('organizationName');
       if (
-        joinAddress(kycData.organizationAddress?.street, kycData.organizationAddress?.houseNumber).trim() !==
-        joinAddress(userData.organizationStreet, userData.organizationHouseNumber).trim()
+        joinAddress(kycData.organizationAddress?.street, kycData.organizationAddress?.houseNumber) !==
+        joinAddress(userData.organizationStreet, userData.organizationHouseNumber)
       )
         mismatches.push('organizationStreet');
       if (trimOrNull(kycData.organizationAddress?.city) !== trimOrNull(userData.organizationLocation))
