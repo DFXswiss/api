@@ -11,6 +11,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -851,5 +852,191 @@ describe('KycService checkDfxApproval step promotion', () => {
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// A flow that writes personal data outside the step machinery (RealUnit registration) leaves the
+// PERSONAL_DATA step IN_PROGRESS: initiateStep's auto-completion is gated on `!preventDirectEvaluation`,
+// which any prior step row sets, so an account that once abandoned the step could never satisfy it again
+// and KycInfoMapper kept handing that stale step back as `currentStep`.
+describe('KycService completeSatisfiedPersonalDataStep', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let userDataService: jest.Mocked<UserDataService>;
+
+  const personalStep = (status: ReviewStatus, sequenceNumber = 0, result?: string, comment?: string): KycStep =>
+    Object.assign(new KycStep(), {
+      id: 2 + sequenceNumber,
+      name: KycStepName.PERSONAL_DATA,
+      status,
+      sequenceNumber,
+      result,
+      comment,
+    });
+
+  // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
+  const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
+    createCustomUserData({
+      id: 1,
+      accountType: AccountType.PERSONAL,
+      mail: 'test@test.com',
+      phone: '+41790000000',
+      firstname: 'Erika',
+      surname: 'Mueller',
+      street: 'Bahnhofstrasse 1',
+      location: 'Zurich',
+      zip: '8001',
+      kycSteps,
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    userDataService = createMock<UserDataService>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).userDataService = userDataService;
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+  });
+
+  const run = async (user: UserData): Promise<void> => {
+    userDataService.getUserData.mockResolvedValue(user);
+    // the caller's UserData need not carry `kycSteps`; the method reloads it itself
+    await service.completeSatisfiedPersonalDataStep(createCustomUserData({ id: user.id }));
+  };
+
+  it('completes a pending step and advances the process', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step]));
+
+    expect(userDataService.getUserData).toHaveBeenCalledWith(1, { kycSteps: true });
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(step.status).toBe(ReviewStatus.COMPLETED);
+    expect(step.getResult()).toMatchObject({ firstname: 'Erika', surname: 'Mueller', zip: '8001' });
+    expect((service as any).updateProgress).toHaveBeenCalled();
+  });
+
+  // preventDirectEvaluation exists so a retry does not paper over a prior rejection. A FAILED step must
+  // keep going through the normal flow rather than being silently resurrected by a registration.
+  it('leaves a FAILED step untouched', async () => {
+    const step = personalStep(ReviewStatus.FAILED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.FAILED);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // When Sumsub reports PROBLEMATIC_APPLICANT_DATA, restartStep FAILS the completed step and opens a fresh
+  // IN_PROGRESS one so the user can correct data that is present but wrong. isDataComplete is a non-null
+  // check and cannot see that, so without the failed-step guard the retry would be auto-completed with the
+  // same rejected data and the user stranded on IDENT instead of the correction step.
+  it('leaves a step re-opened by a rejection alone (FAILED + fresh IN_PROGRESS chain)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const reopened = personalStep(ReviewStatus.IN_PROGRESS, 1);
+    await run(completeUser([failed, reopened]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(reopened.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // A rejection the user has since remedied ends in a step that COMPLETED and was later cancelled by
+  // initiateStep. cancel() leaves `result` in place, so that row still carries the proof it was satisfied.
+  it('still completes when an older rejection was remedied before the step was re-opened', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const remedied = personalStep(ReviewStatus.CANCELED, 1, '{"firstname":"Erika"}');
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, remedied, pending]));
+
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(pending.status).toBe(ReviewStatus.COMPLETED);
+  });
+
+  // The negative twin. initiateStep also cancels a merely PENDING step, so a CANCELED row with no result is
+  // an untouched retry, not a remediation — the FAILED step behind it must still block.
+  it('leaves the chain alone when the cancelled step never completed (no result)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const untouched = personalStep(ReviewStatus.CANCELED, 1);
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, untouched, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Legacy merged-in accounts can carry two IN_PROGRESS steps, the merged-in one at a negative sequence.
+  // Closing that dead step would leave the live one open and the account still wedged.
+  it('closes the live pending step and ignores a merged-in one', async () => {
+    const merged = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.IN_PROGRESS, 0);
+    await run(completeUser([merged, live]));
+
+    expect(live.status).toBe(ReviewStatus.COMPLETED);
+    expect(merged.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Merged-in rows are history, not the account's own chain: a merge seeds them 100 below the floor, and
+  // batches are ordered chronologically only WITHIN a batch. Left in scope they would both vote on the
+  // verdict and be eligible for closing — completing a dead row while the account has no live step at all.
+  it('does nothing when the only pending step is merged-in', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -100);
+    await run(completeUser([mergedPending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // The shape carried by a number of merged prod accounts: the live chain is already COMPLETED at sequence 0
+  // and only a merged-in leftover is still pending. Closing that dead row would stamp a COMPLETED verdict and
+  // a step log onto history inherited from a merged-away account, and leave two COMPLETED rows behind.
+  it('does nothing when only a merged-in step is pending and the live step is already completed', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.COMPLETED, 0, '{"firstname":"Erika"}');
+    await run(completeUser([mergedPending, live]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // restartStep calls fail(undefined, …) and setResult(undefined) keeps the existing value, so a
+  // completed-then-restarted row still carries a stale result. Cancelling it afterwards must not read as a
+  // clean completion — the RESTARTED_STEP marker survives both writes and says the outcome was withdrawn.
+  it('leaves the chain alone when a restarted step was later cancelled but kept its stale result', async () => {
+    const withdrawn = personalStep(
+      ReviewStatus.CANCELED,
+      0,
+      '{"firstname":"Erika"}',
+      'PersonalDataNotMatching;RestartedStep',
+    );
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 1);
+    await run(completeUser([withdrawn, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  it('leaves an already completed step untouched', async () => {
+    const step = personalStep(ReviewStatus.COMPLETED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the account data is incomplete', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step], { surname: undefined }));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  it('does nothing when there is no PersonalData step', async () => {
+    await run(completeUser([]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
   });
 });

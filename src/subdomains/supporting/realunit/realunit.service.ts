@@ -1359,10 +1359,10 @@ export class RealUnitService {
         : RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     // Self-heal the best-effort KYC level-20 lift on the idempotent COMPLETED retry (see
-    // ensureRegistrationKycLevel): the prior forward completed the registration, so re-assert the lift
+    // ensureRegistrationKycState): the prior forward completed the registration, so re-assert the KYC state
     // here in case it did not land the first time. Monotonic and best-effort — never lowers the level,
     // never fails the retry.
-    if (registration.status === ReviewStatus.COMPLETED) await this.ensureRegistrationKycLevel(userData);
+    if (registration.status === ReviewStatus.COMPLETED) await this.ensureRegistrationKycState(userData);
 
     this.logger.info(
       `RealUnit registration idempotent retry for userData ${userData.id}, registration ${registration.id} → ${status}`,
@@ -1645,7 +1645,7 @@ export class RealUnitService {
         this.logger.info(
           `RealUnit registration concurrency collision resolved as idempotent for wallet ${dto.walletAddress}`,
         );
-        await this.ensureRegistrationKycLevel(userData);
+        await this.ensureRegistrationKycState(userData);
         return true;
       }
       // Signature mismatch on an already COMPLETED row must surface as 400, not as a soft forward failure.
@@ -1683,8 +1683,8 @@ export class RealUnitService {
       return false;
     }
 
-    // completed or idempotent: lift KYC level (best-effort, self-healing) and write the INFO audit log.
-    await this.ensureRegistrationKycLevel(userData);
+    // completed or idempotent: reconcile KYC state (best-effort) and write the INFO audit log.
+    await this.ensureRegistrationKycState(userData);
     await this.logAktionariatRegistration(
       LogSeverity.INFO,
       dto.walletAddress,
@@ -1709,6 +1709,25 @@ export class RealUnitService {
         `Failed to lift KYC level for RealUnit registration (userData ${userData.id}); will self-heal on retry: ${e?.message || e}`,
       );
     }
+  }
+
+  // Kept separate from ensureRegistrationKycLevel, which returns early at LEVEL_20 — exactly the state a
+  // stuck account is already in, so folding this in would skip every account that needs it.
+  private async ensureRegistrationPersonalDataStep(userData: UserData): Promise<void> {
+    try {
+      await this.kycService.completeSatisfiedPersonalDataStep(userData);
+    } catch (e) {
+      this.logger.error(
+        `Failed to close the PersonalData KYC step for RealUnit registration (userData ${userData.id}); the step stays open and needs manual reconciliation: ${e?.message || e}`,
+      );
+    }
+  }
+
+  // Prevents the wedge, does not cure it: an already-wedged wallet answers AlreadyRegistered and never
+  // re-posts register/complete, so it only comes back through here if it registers a further wallet.
+  private async ensureRegistrationKycState(userData: UserData): Promise<void> {
+    await this.ensureRegistrationKycLevel(userData);
+    await this.ensureRegistrationPersonalDataStep(userData);
   }
 
   // Aktionariat's registerUser answers "Existing user found, updated your address." when the signed email

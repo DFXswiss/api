@@ -902,6 +902,10 @@ export class UserData extends IEntity {
     return this.requiredKycFields.every((f) => this[f]);
   }
 
+  get kycFieldData(): Record<string, unknown> {
+    return this.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: this[curr] }), {});
+  }
+
   get requiredInvoiceFields(): string[] {
     return ['accountType'].concat(this.isPersonalAccount ? ['firstname', 'surname'] : ['organizationName']);
   }

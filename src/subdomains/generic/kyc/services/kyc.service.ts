@@ -646,6 +646,40 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  /**
+   * Closes a PERSONAL_DATA step for flows that write personal data outside the KYC step machinery
+   * (RealUnit registration), which otherwise leaves it open forever — `initiateStep` will not
+   * auto-complete a step that has been attempted before.
+   *
+   * An open step means one of two things and only the history tells them apart: abandoned, or re-opened
+   * by `restartStep` after identification rejected the data so the user can correct it. Closing the
+   * second would mark rejected data as verified and strand the user on IDENT.
+   */
+  async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
+    const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
+
+    // Own rows only: a merge seeds inherited steps below 0, and orders them chronologically only within
+    // a batch, so ranking across batches could let older history outrank a newer rejection.
+    const steps = user.getStepsWith(KycStepName.PERSONAL_DATA).filter((s) => s.sequenceNumber >= 0);
+
+    const lastSettled = Util.maxObj(
+      steps.filter((s) => s.hasSettledVerdict),
+      'sequenceNumber',
+    );
+    if (lastSettled?.isRejected) return;
+
+    const kycStep = Util.maxObj(
+      steps.filter((s) => s.isInProgress),
+      'sequenceNumber',
+    );
+    if (!kycStep || !user.isDataComplete) return;
+
+    await this.kycStepRepo.update(...kycStep.complete(user.kycFieldData));
+    await this.createStepLog(user, kycStep);
+
+    await this.updateProgress(user, false);
+  }
+
   async updateKycStep(
     kycHash: string,
     stepId: number,
@@ -1360,8 +1394,7 @@ export class KycService {
         const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
         if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
 
-        const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
-        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
+        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(user.kycFieldData);
         break;
       }
 
