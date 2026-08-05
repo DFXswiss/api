@@ -186,6 +186,19 @@ describe('BankService', () => {
     await expect(service.areKnownBankIbans(olkyEUR.iban, 'UNKNOWN-IBAN')).resolves.toBe(false);
   });
 
+  // Callers pass IBANs straight out of request bodies that are not all trimAll-normalized (e.g.
+  // TransactionIssueDto.senderIban is only HTML-sanitized), so separators *inside* the value have to
+  // be stripped too — surrounding whitespace alone is not enough.
+  it('identifies a known IBAN written with embedded separators', async () => {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue(createDefaultBanks());
+
+    const paperFormat = olkyEUR.iban.replace(/(.{4})/g, '$1 ').trim();
+    expect(paperFormat).not.toEqual(olkyEUR.iban);
+
+    await expect(service.areKnownBankIbans(paperFormat)).resolves.toBe(true);
+    await expect(service.areKnownBankIbans(olkyEUR.iban.replace(/(.{4})/g, '$1-'))).resolves.toBe(true);
+  });
+
   it('routes BANK EUR deposits to Bank Frick regardless of bank order', async () => {
     const incumbent = createCustomBank({ ...olkyEUR, receive: true });
     const frick = createCustomBank({ ...frickEUR, receive: true });
