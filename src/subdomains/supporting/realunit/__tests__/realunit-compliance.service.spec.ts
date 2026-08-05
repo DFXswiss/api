@@ -13,7 +13,6 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -566,7 +565,7 @@ describe('RealUnitComplianceService', () => {
 
       await expect(service.downloadCustomerFile(1, 'kyc_1', jwt)).rejects.toBeInstanceOf(NotFoundException);
 
-      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+      expect(kycDocumentService.downloadKycFile).not.toHaveBeenCalled();
       expect(kycLogService.createKycFileLog).not.toHaveBeenCalled();
     });
 
@@ -584,7 +583,7 @@ describe('RealUnitComplianceService', () => {
 
       await expect(service.downloadCustomerFile(1, 'kyc_2', jwt)).rejects.toBeInstanceOf(NotFoundException);
 
-      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+      expect(kycDocumentService.downloadKycFile).not.toHaveBeenCalled();
       expect(kycLogService.createKycFileLog).not.toHaveBeenCalled();
     });
 
@@ -607,16 +606,11 @@ describe('RealUnitComplianceService', () => {
 
       scopeService.assertCustomer.mockResolvedValue(undefined);
       kycFileService.getKycFile.mockResolvedValue(kycFile);
-      kycDocumentService.downloadFile.mockResolvedValue(blob);
+      kycDocumentService.downloadKycFile.mockResolvedValue(blob);
 
       const result = await service.downloadCustomerFile(1, 'kyc_3', jwt);
 
-      expect(kycDocumentService.downloadFile).toHaveBeenCalledWith(
-        FileCategory.USER,
-        1,
-        FileType.IDENTIFICATION,
-        'id.pdf',
-      );
+      expect(kycDocumentService.downloadKycFile).toHaveBeenCalledWith(kycFile, 1);
       expect(kycLogService.createKycFileLog).toHaveBeenCalledTimes(1);
       expect(kycLogService.createKycFileLog).toHaveBeenCalledWith(expect.stringContaining('42'), userData);
       expect(result).toMatchObject({ uid: 'kyc_3', name: 'id.pdf', type: FileType.IDENTIFICATION, content: blob.data });
@@ -635,7 +629,7 @@ describe('RealUnitComplianceService', () => {
 
       scopeService.assertCustomer.mockResolvedValue(undefined);
       kycFileService.getKycFile.mockResolvedValue(kycFile);
-      kycDocumentService.downloadFile.mockResolvedValue(blob);
+      kycDocumentService.downloadKycFile.mockResolvedValue(blob);
 
       const result = await service.downloadCustomerFile(1, 'kyc_4', jwt);
 
@@ -677,17 +671,15 @@ describe('RealUnitComplianceService', () => {
         newFile({ id: 2, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf' }),
         newFile({ id: 3, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf' }),
       ]);
-      kycDocumentService.downloadFile.mockResolvedValue(blob);
+      kycDocumentService.downloadKycFile.mockResolvedValue(blob);
 
       const zipContent = await service.downloadCustomerDossier(1, jwt);
 
       await expect(zipEntries(zipContent)).resolves.toEqual(['Identification/id.pdf', 'NameCheck/nc.pdf']);
-      expect(kycDocumentService.downloadFile).toHaveBeenCalledTimes(2);
-      expect(kycDocumentService.downloadFile).not.toHaveBeenCalledWith(
-        FileCategory.USER,
+      expect(kycDocumentService.downloadKycFile).toHaveBeenCalledTimes(2);
+      expect(kycDocumentService.downloadKycFile).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: FileType.USER_NOTES }),
         1,
-        FileType.USER_NOTES,
-        'note.pdf',
       );
       expect(kycLogService.createKycFileLog).toHaveBeenCalledTimes(1);
       expect(kycLogService.createKycFileLog).toHaveBeenCalledWith(
@@ -704,8 +696,8 @@ describe('RealUnitComplianceService', () => {
         newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
         newFile({ id: 2, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf' }),
       ]);
-      kycDocumentService.downloadFile.mockImplementation((_category, _id, type) =>
-        type === FileType.NAME_CHECK ? Promise.reject(new Error('storage error')) : Promise.resolve(blob),
+      kycDocumentService.downloadKycFile.mockImplementation((file) =>
+        file.type === FileType.NAME_CHECK ? Promise.reject(new Error('storage error')) : Promise.resolve(blob),
       );
 
       const zipContent = await service.downloadCustomerDossier(1, jwt);
@@ -725,7 +717,7 @@ describe('RealUnitComplianceService', () => {
       kycFileService.getUserDataKycFiles.mockResolvedValue([
         newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
       ]);
-      kycDocumentService.downloadFile.mockRejectedValue(new Error('storage down'));
+      kycDocumentService.downloadKycFile.mockRejectedValue(new Error('storage down'));
 
       await expect(service.downloadCustomerDossier(1, jwt)).rejects.toBeInstanceOf(ServiceUnavailableException);
 
@@ -740,7 +732,7 @@ describe('RealUnitComplianceService', () => {
         newFile({ id: 2, uid: 'kyc_b', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
         newFile({ id: 3, uid: 'kyc_c', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
       ]);
-      kycDocumentService.downloadFile.mockResolvedValue(blob);
+      kycDocumentService.downloadKycFile.mockResolvedValue(blob);
 
       const entries = await zipEntries(await service.downloadCustomerDossier(1, jwt));
 
@@ -764,7 +756,7 @@ describe('RealUnitComplianceService', () => {
         newFile({ id: 99, uid: 'kyc_c', type: FileType.IDENTIFICATION, name: '6_id.pdf' }),
         newFile({ id: 6, uid: 'kyc_b', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
       ]);
-      kycDocumentService.downloadFile.mockResolvedValue(blob);
+      kycDocumentService.downloadKycFile.mockResolvedValue(blob);
 
       const entries = await zipEntries(await service.downloadCustomerDossier(1, jwt));
 
@@ -789,7 +781,7 @@ describe('RealUnitComplianceService', () => {
 
       await expect(service.downloadCustomerDossier(1, jwt)).rejects.toBeInstanceOf(NotFoundException);
 
-      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+      expect(kycDocumentService.downloadKycFile).not.toHaveBeenCalled();
       expect(kycLogService.createKycFileLog).not.toHaveBeenCalled();
     });
 
@@ -799,7 +791,7 @@ describe('RealUnitComplianceService', () => {
       await expect(service.downloadCustomerDossier(2, jwt)).rejects.toBeInstanceOf(NotFoundException);
 
       expect(kycFileService.getUserDataKycFiles).not.toHaveBeenCalled();
-      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+      expect(kycDocumentService.downloadKycFile).not.toHaveBeenCalled();
     });
   });
 });

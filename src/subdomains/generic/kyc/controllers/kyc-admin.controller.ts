@@ -12,9 +12,11 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
+import { LegacyFileSyncDto } from '../dto/kyc-legacy-file.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { NameCheckLog } from '../entities/name-check-log.entity';
 import { KycAdminService } from '../services/kyc-admin.service';
+import { KycLegacyFileService } from '../services/kyc-legacy-file.service';
 import { KycLogService } from '../services/kyc-log.service';
 import { KycService } from '../services/kyc.service';
 import { NameCheckService } from '../services/name-check.service';
@@ -27,6 +29,7 @@ export class KycAdminController {
     private readonly nameCheckService: NameCheckService,
     private readonly kycAdminService: KycAdminService,
     private readonly kycService: KycService,
+    private readonly kycLegacyFileService: KycLegacyFileService,
     private readonly kycLogService: KycLogService,
     private readonly settingService: SettingService,
     private readonly userDataService: UserDataService,
@@ -97,5 +100,19 @@ export class KycAdminController {
   @ApiExcludeEndpoint()
   async syncIdentFiles(@Query('step') step: string): Promise<void> {
     return this.kycService.syncIdentFiles(+step);
+  }
+
+  // Temporary: catalogs the legacy Spider-era KYC documents in kyc_file, one account at a time
+  // (`userDataId`) or all of them. Anything but an explicit `dryRun=false` reports what it would write
+  // without writing it.
+  @Post('legacy-file/sync')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @ApiExcludeEndpoint()
+  async syncLegacyFiles(
+    @Query('dryRun') dryRun?: string,
+    @Query('userDataId') userDataId?: string,
+  ): Promise<LegacyFileSyncDto> {
+    return this.kycLegacyFileService.syncLegacyFiles(dryRun !== 'false', userDataId ? +userDataId : undefined);
   }
 }

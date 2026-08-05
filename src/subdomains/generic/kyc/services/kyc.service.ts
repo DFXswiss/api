@@ -85,7 +85,6 @@ import {
 } from '../dto/sum-sub.dto';
 import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
-import { FileCategory } from '../enums/file-category.enum';
 import { KycStepCancelable, KycStepIdentRequiredForReview, KycStepName } from '../enums/kyc-step-name.enum';
 import { KycContext, KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
@@ -491,12 +490,7 @@ export class KycService {
       if (jwt.tfaRequired) await this.tfaService.check(jwt.account, ip, TfaLevel.STRICT);
     }
 
-    const blob = await this.documentService.downloadFile(
-      FileCategory.USER,
-      kycFile.userData.id,
-      kycFile.type,
-      kycFile.name,
-    );
+    const blob = await this.documentService.downloadKycFile(kycFile, kycFile.userData.id);
 
     const log = `User ${jwt?.account} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);

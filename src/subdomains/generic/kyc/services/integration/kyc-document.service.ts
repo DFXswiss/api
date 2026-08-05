@@ -49,6 +49,12 @@ export class KycDocumentService {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
+  // Keys only, no per-object metadata fetch — the cheap listing for sweeps over a prefix that spans
+  // many users (e.g. the legacy Spider catalog), where only the blob key is needed.
+  async listKeysByPrefix(prefix: string): Promise<string[]> {
+    return this.storageService.listKeys(prefix);
+  }
+
   async listFilesByPrefixes(prefixes: string[]): Promise<KycFileBlob[]> {
     const files = await Promise.all(prefixes.map((p) => this.listFilesByPrefix(p)));
     return files.flat();
@@ -120,6 +126,16 @@ export class KycDocumentService {
 
   async downloadFile(category: FileCategory, userDataId: number, type: FileType, name: string): Promise<BlobContent> {
     return this.storageService.getBlob(this.toFileId(category, userDataId, type, name));
+  }
+
+  // Resolves a catalog row to its blob. A row carrying `path` points at a blob outside the canonical
+  // `user/<userDataId>/<type>/<name>` layout (legacy Spider documents), so the stored key wins; every
+  // other row keeps resolving by category, user, type and name. The user id is passed in because the
+  // callers that read the catalog do not all load the `userData` relation.
+  async downloadKycFile(file: KycFile, userDataId: number): Promise<BlobContent> {
+    return file.path
+      ? this.storageService.getBlob(file.path)
+      : this.downloadFile(FileCategory.USER, userDataId, file.type, file.name);
   }
 
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {

@@ -17,6 +17,12 @@ export class KycFile extends IEntity {
   @Column({ length: 256, nullable: true })
   subType: FileSubType;
 
+  // Full blob key inside the KYC container, set only for rows whose blob lies outside the canonical
+  // `user/<userDataId>/<type>/<name>` layout — the legacy Spider-era documents catalogued from
+  // `spider/<userDataId>/…`. Null keeps the canonical resolution by category, user, type and name.
+  @Column({ length: 512, nullable: true })
+  path?: string;
+
   @Column()
   protected: boolean;
 
