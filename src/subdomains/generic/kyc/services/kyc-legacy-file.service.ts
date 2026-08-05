@@ -26,6 +26,7 @@ const ORGANIZATION_SUFFIX = '-organization';
 const OWNER_BATCH_SIZE = 100;
 const QUERY_BATCH_SIZE = 1000;
 const MAX_EXAMPLES = 20;
+const PROGRESS_BATCH_INTERVAL = 10;
 
 /**
  * Marks the one-off backfill as done. The value is the completion timestamp rather than a bare
@@ -78,20 +79,23 @@ export class KycLegacyFileService {
    * already carries a catalog row is never catalogued twice. So no lock of its own is built here.
    * The setting is what stops the WORK once it has been done, not what makes the run unique.
    *
-   * The flag is written only after the sync returned. A run that throws leaves it unset, and the
-   * next tick starts over — which costs a repeated storage listing and nothing else.
+   * The flag is written only after the sync returned. A run that throws leaves it unset and the next
+   * tick starts over, which is why the interval is not a minute: a run that fails FAST — wrong
+   * storage credentials, a prefix that is not there — would otherwise repeat a full listing of the
+   * `spider/` prefix sixty times an hour, and there is no backoff anywhere to stop it.
    */
-  @DfxCron(CronExpression.EVERY_MINUTE, {
+  @DfxCron(CronExpression.EVERY_5_MINUTES, {
     scope: CronScope.WORKER,
     process: Process.KYC_LEGACY_FILE_SYNC,
-    // Two hours, the longest any job here declares. It is not a budget but the point at which a
-    // stalled run stops blocking the next tick in this process: the full run reads the whole
+    // Two hours, the ceiling this repository uses for long jobs. Not a budget but the point at which
+    // a stalled run stops blocking the next tick in this process: the full run reads the whole
     // `spider/` prefix, so it has to be far longer than the interval, and a repeat is harmless.
     timeout: 7200,
   })
   async runBackfill(): Promise<void> {
-    // Before anything else, so a completed backfill costs one indexed row read per tick and touches
-    // neither the storage nor `kyc_file`.
+    // Before anything else, so a completed backfill costs one indexed row read per tick on top of
+    // the lease this job takes and releases like any other, and touches neither the storage nor
+    // `kyc_file`.
     if (await this.isCompleted()) return this.skipCompleted();
 
     const startedAt = new Date();
@@ -99,13 +103,21 @@ export class KycLegacyFileService {
 
     const result = await this.syncLegacyFiles(false);
 
+    // Fail closed on an empty listing instead of latching the flag on it. Which store is read is
+    // configuration (`STORAGE_READ_SOURCE`), and a store whose `spider/` prefix is not there answers
+    // zero keys rather than throwing — marking THAT complete would retire the backfill silently, and
+    // the follow-up PR would then remove a job that never ran.
+    if (!result.keys) throw new Error('Legacy KYC file backfill found no objects under spider/');
+
     await this.settingService.set(LEGACY_FILE_SYNC_COMPLETED_KEY, new Date().toISOString());
 
     const skipped = result.skipped.map(({ reason, count }) => `${reason}: ${count}`).join(', ');
     this.logger.info(
       `Legacy KYC file backfill complete in ${Util.round(Util.secondsDiff(startedAt), 1)} s: ${
         result.inserted
-      } catalog rows written from ${result.keys} keys of ${result.owners} accounts, skipped (${skipped || 'none'})`,
+      } catalog rows written from ${result.keys} keys of ${result.owners} owner prefixes, skipped (${
+        skipped || 'none'
+      })`,
     );
   }
 
@@ -123,6 +135,9 @@ export class KycLegacyFileService {
     let wouldInsert = 0;
 
     this.count(skipCounts, LegacyFileSkipReason.INVALID_PATH, invalidKeys);
+
+    const totalBatches = Math.ceil(ownerIds.length / OWNER_BATCH_SIZE);
+    let batchNo = 0;
 
     await Util.doInBatches(
       ownerIds,
@@ -160,6 +175,15 @@ export class KycLegacyFileService {
           inserted += created.inserted;
           this.count(skipCounts, LegacyFileSkipReason.ALREADY_CATALOGED, created.conflicts);
         }
+
+        // A full run works through some hundred batches over many minutes, and between the first and
+        // the last line there is nothing to tell "still working" from "stuck" — the job runs on the
+        // worker, so there is no request to ask either. Every tenth batch is a handful of lines for
+        // the whole run and none at all for the single-account runs the admin route starts.
+        if (++batchNo % PROGRESS_BATCH_INTERVAL === 0)
+          this.logger.info(
+            `Legacy KYC file sync: batch ${batchNo}/${totalBatches}, ${wouldInsert} catalog rows so far (${inserted} written)`,
+          );
       },
       OWNER_BATCH_SIZE,
     );

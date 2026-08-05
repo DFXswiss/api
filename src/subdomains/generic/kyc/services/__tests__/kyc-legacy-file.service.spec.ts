@@ -222,5 +222,15 @@ describe('KycLegacyFileService', () => {
 
       expect(settingService.set).not.toHaveBeenCalled();
     });
+
+    // Listing the wrong store answers zero keys rather than throwing, and latching the flag on that
+    // would retire the backfill without it ever having run.
+    it('does not mark an empty listing complete', async () => {
+      (kycDocumentService.listKeysByPrefix as jest.Mock).mockResolvedValue([]);
+
+      await expect(service.runBackfill()).rejects.toThrow('found no objects');
+
+      expect(settingService.set).not.toHaveBeenCalled();
+    });
   });
 });
