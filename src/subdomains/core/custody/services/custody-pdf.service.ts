@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
@@ -28,6 +28,12 @@ export class CustodyPdfService {
   ) {}
 
   async generateCustodyPdf(accountId: number, dto: GetCustodyPdfDto): Promise<string> {
+    // Same guard as BalancePdfService.getBalanceData: without it, a future date would not only miss
+    // prices but now also project interest past today into a formal statement.
+    if (dto.date > new Date()) {
+      throw new BadRequestException('Date must be in the past');
+    }
+
     const account = await this.userDataService.getUserData(accountId, { language: true, users: true });
     if (!account) throw new NotFoundException('User not found');
 
