@@ -41,7 +41,10 @@ describe('AddLiquidityOrderAwaitingFinalizationIndex migration (SQL content)', (
 
     const sql = (queryRunner.query.mock.calls as [string][]).map(([statement]) => statement).join('\n');
 
-    expect(sql).toContain(`DROP INDEX "public"."${INDEX}"`);
+    expect(sql).toContain(`SET LOCAL lock_timeout = '5s'`);
+    // Unqualified: up() creates through search_path, so down() has to drop through it too.
+    expect(sql).toContain(`DROP INDEX "${INDEX}"`);
+    expect(sql).not.toContain(`DROP INDEX "public".`);
   });
 });
 

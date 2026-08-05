@@ -46,6 +46,15 @@ module.exports = class AddLiquidityOrderAwaitingFinalizationIndex1785900000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
-    await queryRunner.query(`DROP INDEX "public"."IDX_35b02b963661233664a9821d03"`);
+    // SET LOCAL is scoped to the whole transaction. Bounds WAIT time to acquire the lock, not how
+    // long the lock is held. Set once: this migration has a single DROP INDEX statement. `down()`
+    // takes the stricter lock of the two: PostgreSQL acquires ACCESS EXCLUSIVE for DROP INDEX,
+    // against the SHARE that CREATE INDEX takes, and ACCESS EXCLUSIVE conflicts with every other
+    // mode including the ACCESS SHARE a plain SELECT takes — so this blocks reads as well as writes.
+    await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
+    // Unqualified on purpose: the index is resolved through search_path, so up() and down() act on
+    // the same schema. Qualifying it `public` would make down() miss an index up() had just created
+    // in another schema — which is exactly what the migration spec does, and it failed on it.
+    await queryRunner.query(`DROP INDEX "IDX_35b02b963661233664a9821d03"`);
   }
 };
