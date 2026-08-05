@@ -26,16 +26,18 @@ describe('FiatOutputService', () => {
   let fiatOutputRepo: DeepMocked<FiatOutputServiceConstructor[0]>;
   let bankService: DeepMocked<FiatOutputServiceConstructor[6]>;
   let virtualIbanService: DeepMocked<FiatOutputServiceConstructor[8]>;
+  let buyCryptoRepo: DeepMocked<FiatOutputServiceConstructor[3]>;
 
   beforeEach(() => {
     fiatOutputRepo = createMock<FiatOutputServiceConstructor[0]>();
     bankService = createMock<FiatOutputServiceConstructor[6]>();
     virtualIbanService = createMock<FiatOutputServiceConstructor[8]>();
+    buyCryptoRepo = createMock<FiatOutputServiceConstructor[3]>();
     service = new FiatOutputService(
       fiatOutputRepo,
       createMock<FiatOutputServiceConstructor[1]>(),
       createMock<FiatOutputServiceConstructor[2]>(),
-      createMock<FiatOutputServiceConstructor[3]>(),
+      buyCryptoRepo,
       createMock<FiatOutputServiceConstructor[4]>(),
       createMock<FiatOutputServiceConstructor[5]>(),
       bankService,
@@ -258,6 +260,41 @@ describe('FiatOutputService', () => {
 
       await expect(service.update(id, dto)).rejects.toThrow(BadRequestException);
       expect(bankService.getBankByIban).toHaveBeenCalledWith(dto.accountIban);
+    });
+  });
+
+  describe('createInternal', () => {
+    it('refuses a BuyCryptoFail output once a chargeback bank TX is linked (double-refund guard)', async () => {
+      buyCryptoRepo.existsBy.mockResolvedValue(true);
+
+      await expect(
+        service.createInternal(FiatOutputType.BUY_CRYPTO_FAIL, { buyCrypto: { id: 7 } as never }, 7),
+      ).rejects.toThrow('Chargeback already executed for this buy-crypto (chargeback bank TX linked)');
+    });
+  });
+
+  describe('create', () => {
+    it('refuses the admin route for a buy-crypto with a linked chargeback bank TX (double-refund guard)', async () => {
+      buyCryptoRepo.existsBy.mockResolvedValue(true);
+
+      await expect(service.create({ type: FiatOutputType.BUY_CRYPTO_FAIL, buyCryptoId: 7 } as never)).rejects.toThrow(
+        'Chargeback already executed for this buy-crypto (chargeback bank TX linked)',
+      );
+    });
+
+    it('lets the admin route proceed past the guard when no chargeback bank TX is linked', async () => {
+      buyCryptoRepo.existsBy.mockResolvedValue(false);
+
+      await expect(service.create({ type: FiatOutputType.BUY_CRYPTO_FAIL, buyCryptoId: 7 } as never)).rejects.toThrow(
+        'Missing required creditor fields',
+      );
+    });
+
+    it('does not consult the double-refund guard for other output types', async () => {
+      await expect(service.create({ type: FiatOutputType.BUY_FIAT } as never)).rejects.toThrow(
+        'Missing required creditor fields',
+      );
+      expect(buyCryptoRepo.existsBy).not.toHaveBeenCalled();
     });
   });
 });
