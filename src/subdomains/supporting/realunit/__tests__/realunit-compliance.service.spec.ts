@@ -190,6 +190,182 @@ describe('RealUnitComplianceService', () => {
       });
     });
 
+    // A legacy catalog row (`path` set) points at a Spider-era document. Its `created` is the date of
+    // the document only where the storage key carried a timestamp; otherwise it is the day the
+    // backfill ran, which is newer than every real document. It must not become the reported check.
+    it('keeps a legacy catalog row behind a current file of the same type', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_nc',
+          type: FileType.NAME_CHECK,
+          name: 'nc.pdf',
+          created: new Date('2025-05-13'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_legacy_nc',
+          type: FileType.NAME_CHECK,
+          name: 'legacy-nc.pdf',
+          path: 'spider/1/check/gen_1/report.pdf',
+          created: new Date('2026-07-13'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.nameCheck).toMatchObject({ fileUid: 'kyc_nc', date: new Date('2025-05-13') });
+    });
+
+    // The real shape of a legacy name check: `check/gen_<n>/…` carries no timestamp anywhere, so the
+    // date of that screening is not recoverable and `created` is the day the backfill ran. Reporting
+    // it would tell a compliance officer that an account last screened years ago was screened this
+    // month; the empty field renders as an overdue check, which is what it is. The file itself stays
+    // in the list and stays downloadable.
+    it('reports no name check for a legacy row whose date is not recoverable', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_legacy_nc',
+          type: FileType.NAME_CHECK,
+          name: 'legacy-nc.pdf',
+          path: 'spider/1/check/gen_1/report.pdf',
+          created: new Date('2026-08-05'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.nameCheck).toBeUndefined();
+      expect(dossier.kycFiles.map((f) => f.uid)).toEqual(['kyc_legacy_nc']);
+    });
+
+    // The other direction: a legacy row whose key carries the timestamp of the Spider run is a check
+    // like any other, and reports the date of the document rather than the date of the backfill.
+    it('reports a legacy row whose date the path carries, with that date', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_legacy_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'legacy-id.pdf',
+          path: 'spider/1/online-identification/1699356511987/report.pdf',
+          created: new Date(1699356511987),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.identCheck).toMatchObject({
+        fileUid: 'kyc_legacy_ident',
+        date: new Date(1699356511987),
+      });
+    });
+
+    // The rule that a current file wins, tested where it actually bites: the legacy row is datable AND
+    // newer, so ranking by date alone would report the Spider document as the current identification.
+    it('prefers a current file over a legacy row that is datable and newer', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'id.pdf',
+          created: new Date('2020-01-01'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_legacy_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'legacy-id.pdf',
+          path: 'spider/1/online-identification/1699356511987/report.pdf',
+          created: new Date(1699356511987),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.identCheck).toMatchObject({
+        fileUid: 'kyc_ident',
+        date: new Date('2020-01-01'),
+      });
+    });
+
+    // Mixed provenance inside the legacy set: the undatable recording carries the date of the run and
+    // would win on `created` alone, displacing the report that actually knows when it was produced.
+    it('prefers the datable legacy row over an undatable one', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_legacy_report',
+          type: FileType.IDENTIFICATION,
+          name: 'report.pdf',
+          path: 'spider/1/online-identification/1699356511987/report.pdf',
+          created: new Date(1699356511987),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_legacy_recording',
+          type: FileType.IDENTIFICATION,
+          name: 'call.mp4',
+          path: 'spider/1/video_identification/call.mp4',
+          created: new Date('2026-08-05'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.identCheck).toMatchObject({
+        fileUid: 'kyc_legacy_report',
+        date: new Date(1699356511987),
+      });
+    });
+
+    // The same rule one field further: the dossier lists the document either way, but the date it
+    // shows must be the document's. An undatable legacy row beside a missing check would otherwise
+    // read as evidence from the month the backfill ran.
+    it('lists an undatable legacy document without a date, and a datable one with its own', async () => {
+      mockDossierDefaults();
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_nc',
+          type: FileType.NAME_CHECK,
+          name: 'nc.pdf',
+          created: new Date('2025-05-13'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_legacy_nc',
+          type: FileType.NAME_CHECK,
+          name: 'legacy-nc.pdf',
+          path: 'spider/1/check/gen_1/report.pdf',
+          created: new Date('2026-08-05'),
+        }),
+        newFile({
+          id: 3,
+          uid: 'kyc_legacy_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'legacy-id.pdf',
+          path: 'spider/1/online-identification/1699356511987/report.pdf',
+          created: new Date(1699356511987),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.kycFiles.map((f) => [f.uid, f.created])).toEqual([
+        ['kyc_nc', new Date('2025-05-13')],
+        ['kyc_legacy_nc', undefined],
+        ['kyc_legacy_ident', new Date(1699356511987)],
+      ]);
+    });
+
     it('reports the completed ident step even when a later follow-up attempt exists', async () => {
       mockDossierDefaults();
       kycService.getStepsByUserData.mockResolvedValue([

@@ -31,6 +31,8 @@ export enum Process {
   KYC_FINANCIAL_REVIEW = 'KycFinancialReview',
   KYC_RECOMMENDATION_REVIEW = 'KycRecommendationReview',
   KYC_MAIL = 'KycMail',
+  // temporary: the one-off legacy KYC file catalog backfill, removed again once it has run
+  KYC_LEGACY_FILE_SYNC = 'KycLegacyFileSync',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',

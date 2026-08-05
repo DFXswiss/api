@@ -211,6 +211,9 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsDate()
+  @MaxDate(() => new Date(), {
+    message: 'lastNameCheckDate must not be in the future: a check cannot be dated forward to extend its validity',
+  })
   @Type(() => Date)
   lastNameCheckDate?: Date;
 

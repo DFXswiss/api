@@ -304,7 +304,7 @@ export class MailFactory {
             url:
               specialTag?.tag === 'url'
                 ? {
-                    link: element.params?.url ?? specialTag.value,
+                    link: MailFactory.resolveLink(specialTag.value, element.params?.url),
                     button: element.params?.button,
                     text: specialTag.value,
                     textSuffix: specialTag.textSuffix,
@@ -349,5 +349,18 @@ export class MailFactory {
 
   static parseMailKey(mailKey: MailTranslationKey, value: string): string {
     return `${mailKey}.${value.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+  }
+
+  // Link target for a `[url:...]` tag. Two shapes exist in the mail translations and they mean
+  // different things:
+  //   `[url:Klick hier]` / `[url:{urlText}]` — the tag carries the display text, the caller supplies
+  //     the target through `params.url`.
+  //   `[url:https://app.dfx.swiss/settings?a=call]` — the text itself IS the target, written into the
+  //     translation because it is the same for every recipient.
+  // A caller-supplied `url` must not silently retarget the second shape: the mail would then show one
+  // address and open another, which reads as phishing and sends customers to the wrong page. Callers
+  // pass `url` for a whole block of lines, so the text is the only place that knows which shape it is.
+  private static resolveLink(tagValue: string, paramUrl?: string): string {
+    return /^https?:\/\//i.test(tagValue) ? tagValue : (paramUrl ?? tagValue);
   }
 }

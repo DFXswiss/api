@@ -6,6 +6,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
+import { KycError } from '../dto/kyc-error.enum';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
@@ -211,6 +212,17 @@ export class KycStep extends IEntity {
 
   get isDone(): boolean {
     return this.isInReview || this.isCompleted;
+  }
+
+  // `cancel()` leaves `result` untouched, so a cancelled step without one never completed.
+  get hasSettledVerdict(): boolean {
+    return !this.isInProgress && !(this.isCanceled && !this.result);
+  }
+
+  // Status alone is not enough: `restartStep` leaves a revoked completion's `result` in place, so a restarted
+  // row can later read as a clean completion. The marker survives every subsequent write.
+  get isRejected(): boolean {
+    return this.isFailed || (this.comment?.split(';').includes(KycError.RESTARTED_STEP) ?? false);
   }
 
   update(

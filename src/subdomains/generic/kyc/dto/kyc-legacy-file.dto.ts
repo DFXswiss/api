@@ -26,6 +26,8 @@ export interface LegacyFileEntry {
   type: FileType;
   subType?: FileSubType;
   path: string;
+  // The document's own date, read from the path where it carries one; see `legacyDocumentDate`.
+  date?: Date;
 }
 
 export interface LegacyFileMapping {
@@ -89,6 +91,29 @@ export class LegacyFileExampleDto {
 
   @ApiProperty()
   path: string;
+
+  @ApiPropertyOptional({ description: 'Document date read from the storage path' })
+  date?: Date;
+}
+
+/**
+ * How many of the written rows carry the date of their document, and what range those cover.
+ *
+ * Reported because the catalog row stands in for the document: a run that could date nothing
+ * produces rows that all look equally recent, which is visible here and nowhere else.
+ */
+export class LegacyFileDateSourceDto {
+  @ApiProperty({ description: 'Rows dated by the epoch segment of their storage path' })
+  fromPath: number;
+
+  @ApiProperty({ description: 'Rows whose path carries no date, left to the column default' })
+  fromDefault: number;
+
+  @ApiPropertyOptional({ description: 'Oldest date written' })
+  oldest?: Date;
+
+  @ApiPropertyOptional({ description: 'Newest date written' })
+  newest?: Date;
 }
 
 export class LegacyFileSyncDto {
@@ -115,4 +140,7 @@ export class LegacyFileSyncDto {
 
   @ApiProperty({ type: LegacyFileExampleDto, isArray: true })
   examples: LegacyFileExampleDto[];
+
+  @ApiProperty({ type: LegacyFileDateSourceDto })
+  dated: LegacyFileDateSourceDto;
 }

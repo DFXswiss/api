@@ -590,8 +590,15 @@ export class UserData extends IEntity {
       : specialAccountValue;
   }
 
+  // Bounded on both sides, like `hasValidScorechainReview` below: `daysDiff` goes negative for a date in
+  // the future, and a negative value satisfies `<=`, so a forward-dated check would stay valid far beyond
+  // `amlCheckLastNameCheckValidity` instead of expiring with it. An implausible date counts as no check at
+  // all, never as a longer one.
   get hasValidNameCheckDate(): boolean {
-    return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
+    if (this.lastNameCheckDate == null) return false;
+
+    const daysSinceCheck = Util.daysDiff(this.lastNameCheckDate);
+    return daysSinceCheck >= 0 && daysSinceCheck <= Config.amlCheckLastNameCheckValidity;
   }
 
   get kycUrl(): string {
@@ -893,6 +900,10 @@ export class UserData extends IEntity {
 
   get isDataComplete(): boolean {
     return this.requiredKycFields.every((f) => this[f]);
+  }
+
+  get kycFieldData(): Record<string, unknown> {
+    return this.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: this[curr] }), {});
   }
 
   get requiredInvoiceFields(): string[] {
