@@ -43,6 +43,14 @@ SELECT_STRING = re.compile(r'\.select\(\s*[\'"`]([^\'"`]*)[\'"`]')
 JOIN_AND_SELECT = re.compile(r'(?:left|inner)JoinAndSelect\s*\(')
 LINE_COMMENT = re.compile(r'(?m)(?<!:)//[^\n]*')
 
+# How far past a `createQueryBuilder(` to read its chain. One number, because these are
+# all the same window on the same thing — two measures of one chain were free to disagree.
+CHAIN_WINDOW = 1500
+# How far back to look for the assignment of a variable passed to `.select(...)`. A
+# different question from the chain window, so a different name rather than one shared
+# number that would tie two unrelated limits together.
+ASSIGNMENT_LOOKBEHIND = 1500
+
 
 def strip_line_comments(s):
     """Strip line comments only, protecting URLs.
@@ -63,7 +71,7 @@ def select_kind(text, m_start, m_end):
     projecting through the `PROJECTION.apply(...)` helper or naming its columns one at a time
     was classified as loading whole rows — including all of the deliberately converted ones.
     """
-    chain = text[m_end:m_end + 1500].split(';')[0]
+    chain = text[m_end:m_end + CHAIN_WINDOW].split(';')[0]
     # `getCount()`/`getExists()` discard the select list and emit COUNT(...) resp. SELECT 1 -
     # such chains materialise no row, whatever precedes them.
     if COUNTING.search(chain):
@@ -83,7 +91,7 @@ def select_kind(text, m_start, m_end):
         # something.
         v = SELECT_IDENT.search(chain)
         a = re.search(r"\b(?:const|let|var)\s+" + re.escape(v.group(1)) + r"\s*=\s*([^;\n]+)",
-                      text[max(0, m_start - 1500):m_start])
+                      text[max(0, m_start - ASSIGNMENT_LOOKBEHIND):m_start])
         select = SEL_NAMED_COLUMNS if a and not re.fullmatch(r"['\"`]\w+['\"`]", a.group(1).strip()) \
             else SEL_NO_SELECT
     elif SELECT_STRING.search(chain):
@@ -126,7 +134,7 @@ def selected_columns(text, m_start, m_end, kind):
     if kind == SEL_COUNT_ONLY:
         # COUNT(*)/SELECT 1 - no row is materialised, so a column count is meaningless here.
         return {'unmeasurable': True}
-    chain = text[m_end:m_end + 1500].split(';')[0]
+    chain = text[m_end:m_end + CHAIN_WINDOW].split(';')[0]
     before = text[max(0, m_start - 160):m_start]
     m = APPLY_HELPER.search(before)
     if m:
@@ -224,9 +232,6 @@ def _lines(src, rel):
     if rel not in _cache:
         _cache[rel] = strip_line_comments(read_text(src_path(src, rel))).split('\n')
     return _cache[rel]
-
-
-CHAIN_WINDOW = 1500
 
 
 def is_write_qb(src, s):

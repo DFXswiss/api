@@ -93,6 +93,11 @@ export class WidgetController {
     return this.service.searchesAnArray([]);
   }
 
+  @Get('twoOnOneLine')
+  async twoOnOneLineWidgets(): Promise<unknown[]> {
+    return this.service.twoBuildersOnOneLine();
+  }
+
   @Post('sync')
   @ApiExcludeEndpoint()
   @ApiOperation({ description: 'takes a (parenthesised) note', deprecated: true })
@@ -225,6 +230,11 @@ export class WidgetService {
 
   async searchesAnArray(rows: Widget[]): Promise<Widget> {
     return rows.find((r) => r.name === 'x');
+  }
+
+  async twoBuildersOnOneLine(): Promise<unknown[]> {
+    const wide = await this.widgetRepo.createQueryBuilder('a').getMany(); const narrow = await this.widgetRepo.createQueryBuilder('b').getMany();
+    return [wide, narrow];
   }
 
   async writeChainPastTheOldWindow(): Promise<void> {
@@ -393,9 +403,16 @@ def test_endpoint_matches_site_classification(src, work):
     """
     print("endpoint classification agrees with site classification")
     sites = read_json(os.path.join(work, 'sites.json'))
-    # endpoint_eff.py joins on the measurement; widths are irrelevant to the category.
-    write_json(os.path.join(work, 'sites-measured.json'),
-               [dict(s, cols=5, joins=0) for s in sites])
+    # endpoint_eff.py joins on the measurement. Widths are irrelevant to the category, except
+    # for the two sites sharing a line in `twoBuildersOnOneLine`: the wider one comes first, so
+    # a join keyed on (file, line) alone lets the narrower one overwrite it and the endpoint's
+    # widest query drops from 900 to 5.
+    measured = []
+    for s in sites:
+        wide = s['method'] == 'twoBuildersOnOneLine' and s['col'] == min(
+            x['col'] for x in sites if x['method'] == 'twoBuildersOnOneLine')
+        measured.append(dict(s, cols=900 if wide else 5, joins=0))
+    write_json(os.path.join(work, 'sites-measured.json'), measured)
     run_step('endpoint_eff.py', src, work)
     eps = {(e['verb'], e['path']): e for e in
            read_json(os.path.join(work, 'endpoint-eff.json'))}
@@ -416,6 +433,10 @@ def test_endpoint_matches_site_classification(src, work):
     # …while `rows.find(r => …)` on an array is not a database read at all.
     check('array find does not make an endpoint a reader',
           kinds('/widget/arraySearch'), set())
+    # Two builders on one line: both measurements have to survive the join. Keyed on
+    # (file, line) alone the second overwrites the first, and the wider query disappears.
+    two = eps.get(('GET', '/widget/twoOnOneLine'))
+    check('both measurements on one line survive the join', two and two['maxcol'], 900)
     check('lock and raw write are not reads',
           classify.raw_kind_of("query('SELECT pg_advisory_xact_lock(1)')"), 'lock')
     check('raw INSERT is not a read',

@@ -164,7 +164,7 @@ for f in sorted(glob.glob(os.path.join(SRC, '**', '*.ts'), recursive=True)):
             if is_db_find(mb, fm, cls):
                 kinds.add('over'); sites.add(at(fm.start()))
         for qm in QB.finditer(mb):
-            chain = mb[qm.end():qm.end() + 1500].split(';')[0]
+            chain = mb[qm.end():qm.end() + classify.CHAIN_WINDOW].split(';')[0]
             # `.update()/.delete()/.insert()` are write statements - they load nothing
             if classify.WRITE_CHAIN.search(chain): continue
             # The same categorisation sites.py records, so the endpoint-level and site-level
