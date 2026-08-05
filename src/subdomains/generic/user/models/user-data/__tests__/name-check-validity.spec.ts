@@ -35,8 +35,11 @@ describe('UserData.hasValidNameCheckDate', () => {
     expect(userDataWith(Util.daysAfter(365)).hasValidNameCheckDate).toBe(false);
   });
 
-  // The exact boundary decides whether the promised window is 90 or 89 days; time is frozen because
-  // `Util.daysBefore` is calendar-based and would drift by an hour across a DST change.
+  // The exact boundary decides whether the promised window is 90 or 89 days. Time is frozen so that
+  // `Date.now()` cannot advance between building the date and reading the getter — a few microseconds
+  // would already push `daysDiff` past the limit and make this test flaky. The limit itself is computed
+  // in milliseconds rather than through `Util.daysBefore`, which is calendar-based and would drift by an
+  // hour across a DST change.
   it('is still valid at exactly the configured window and expires one millisecond later', () => {
     const now = new Date('2026-08-05T12:00:00.000Z');
     jest.useFakeTimers().setSystemTime(now);
