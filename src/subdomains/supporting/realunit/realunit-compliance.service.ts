@@ -12,7 +12,6 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { FileType, KycFileDataDto } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycFileMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-file.mapper';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
-import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -167,12 +166,7 @@ export class RealUnitComplianceService {
     if (kycFile.userData?.id !== id) throw new NotFoundException('Not found'); // membership: file must belong to that customer
     if (!REALUNIT_DOWNLOADABLE_FILE_TYPES.includes(kycFile.type)) throw new NotFoundException('Not found'); // allowlist
 
-    const blob = await this.kycDocumentService.downloadFile(
-      FileCategory.USER,
-      kycFile.userData.id,
-      kycFile.type,
-      kycFile.name,
-    );
+    const blob = await this.kycDocumentService.downloadKycFile(kycFile, kycFile.userData.id);
 
     // Mandatory regulatory audit trail: record which RealUnit staff account downloaded which file.
     const log = `RealUnit staff ${jwt.account} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
@@ -204,7 +198,7 @@ export class RealUnitComplianceService {
 
     for (const file of files) {
       try {
-        const blob = await this.kycDocumentService.downloadFile(FileCategory.USER, id, file.type, file.name);
+        const blob = await this.kycDocumentService.downloadKycFile(file, id);
         // file.name may end with a raw customer upload name — sanitize the entry path (zip-slip)
         const sanitized = this.sanitizePathComponent(file.name);
         // Ensure a unique ZIP entry path so no file silently overwrites another — otherwise the audit trail below

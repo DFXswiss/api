@@ -137,7 +137,7 @@ describe('KycService getFileByUid protected-file access', () => {
     (service as any).kycLogService = createMock<KycLogService>();
     (service as any).tfaService = tfaService;
 
-    documentService.downloadFile.mockResolvedValue(
+    documentService.downloadKycFile.mockResolvedValue(
       createMock<BlobContent>({ contentType: 'application/pdf', data: Buffer.from('x') }),
     );
   });
@@ -150,7 +150,7 @@ describe('KycService getFileByUid protected-file access', () => {
       const dto = await service.getFileByUid('FILE-UID', jwtFor(role), ip);
 
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
   });
 
@@ -160,7 +160,7 @@ describe('KycService getFileByUid protected-file access', () => {
     await expect(service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    expect(documentService.downloadFile).not.toHaveBeenCalled();
+    expect(documentService.downloadKycFile).not.toHaveBeenCalled();
   });
 
   // The counterpart: a wrong role is a different problem with a different fix, so it must NOT produce
@@ -180,7 +180,7 @@ describe('KycService getFileByUid protected-file access', () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile());
 
     await expect(service.getFileByUid('FILE-UID', undefined, ip)).rejects.toBeInstanceOf(ForbiddenException);
-    expect(documentService.downloadFile).not.toHaveBeenCalled();
+    expect(documentService.downloadKycFile).not.toHaveBeenCalled();
   });
 
   // This route is OptionalJwtAuthGuard-only, so no RoleGuard has applied the staff KYC gate — the role
@@ -197,7 +197,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await expect(service.getFileByUid('FILE-UID', jwtFor(role), ip)).rejects.toBeInstanceOf(
         StaffKycRequiredException,
       );
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
 
     it('answers with the machine-readable code', async () => {
@@ -233,7 +233,7 @@ describe('KycService getFileByUid protected-file access', () => {
       kycFileService.getKycFile.mockResolvedValue(kycFile());
 
       await expect(service.getFileByUid('FILE-UID', jwtFor(role, statuses), ip)).rejects.toThrow('User is not active');
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
   });
 
@@ -243,7 +243,7 @@ describe('KycService getFileByUid protected-file access', () => {
     const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip);
 
     expect(dto.uid).toBe('FILE-UID');
-    expect(documentService.downloadFile).toHaveBeenCalled();
+    expect(documentService.downloadKycFile).toHaveBeenCalled();
   });
 
   // A mail-elevated staff token (tfaRequired) must pass STRICT 2FA before a protected file is served,
@@ -256,7 +256,7 @@ describe('KycService getFileByUid protected-file access', () => {
 
       expect(tfaService.check).toHaveBeenCalledWith(1, ip, TfaLevel.STRICT);
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
 
     it('blocks the download when 2FA verification fails', async () => {
@@ -266,7 +266,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await expect(
         service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip),
       ).rejects.toThrow('TFA required (strict)');
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
 
     it('skips 2FA for a wallet-login staff session (no tfaRequired marker)', async () => {
@@ -276,7 +276,7 @@ describe('KycService getFileByUid protected-file access', () => {
 
       expect(tfaService.check).not.toHaveBeenCalled();
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
 
     it('does not run 2FA for a non-protected file even with tfaRequired', async () => {
@@ -285,7 +285,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip);
 
       expect(tfaService.check).not.toHaveBeenCalled();
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
   });
 });
