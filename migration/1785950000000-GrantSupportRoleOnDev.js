@@ -15,7 +15,7 @@ const BLANK_CHARS =
 // Support account on DEV, targeted by wallet address (same pattern as the Compliance account in
 // 1785742000000). Matching is case-insensitive — EIP-55 checksummed form vs stored casing must not
 // decide a boot-fatal assertion.
-const SUPPORT_ACCOUNT_ADDRESS = '0xB6cA05F0e3e71B1C5568BD423A6682dc78469Ae8';
+const SUPPORT_ACCOUNT_ADDRESS = '0xA6a045551b210781D98725e9274af419f0602f72';
 
 /**
  * @class

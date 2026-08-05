@@ -5,7 +5,7 @@ const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
 const SCHEMA = 'grant_support_role_on_dev_spec';
 
-const TARGET_ADDRESS = '0xB6cA05F0e3e71B1C5568BD423A6682dc78469Ae8';
+const TARGET_ADDRESS = '0xA6a045551b210781D98725e9274af419f0602f72';
 const OTHER_ADDRESS = '0x1111111111111111111111111111111111111111';
 const STAFF_NAME_ENV = 'n_dev_support';
 const TEST_NAME = 'Test Name';
