@@ -1,9 +1,15 @@
+import { createMigrationDataSource, destroyMigrationDataSource } from 'src/shared/utils/migration-test.util';
 import { DataSource, QueryRunner } from 'typeorm';
 
 // This suite runs the real grandfathering backfill against a throwaway Postgres. It is skipped unless a
 // connection string is provided (so CI, which has no DB, stays green); the disposable-DB dry-run sets it.
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
+
+// Its own database. `user`, `user_data` and `aktionariat_registration` are built by the backfill spec
+// too, and Jest schedules the two files on parallel workers against the same server — sharing one
+// database means each beforeEach drops the other's tables mid-test.
+const DATABASE = 'mig_realunit_legal_acceptance';
 
 // The migration is plain CommonJS (module.exports = class ...); required lazily inside beforeAll so a
 // skipped run (CI, no DB) never pulls the .js through the TS transform.
@@ -26,12 +32,11 @@ describeDb('AddRealUnitLegalAcceptance migration (real Postgres grandfathering)'
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     AddRealUnitLegalAcceptance = require('../../../../../migration/1783900000000-AddRealUnitLegalAcceptance');
-    dataSource = new DataSource({ type: 'postgres', url: PG_URL });
-    await dataSource.initialize();
+    dataSource = await createMigrationDataSource(DATABASE);
   });
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
+    await destroyMigrationDataSource(dataSource, DATABASE);
   });
 
   beforeEach(async () => {

@@ -1,9 +1,15 @@
+import { createMigrationDataSource, destroyMigrationDataSource } from 'src/shared/utils/migration-test.util';
 import { DataSource, QueryRunner } from 'typeorm';
 
 // This suite runs the real backfill against a throwaway Postgres. It is skipped unless a connection
 // string is provided (so CI, which has no DB, stays green); the disposable-DB dry-run on m5me sets it.
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
+
+// Its own database. `user` and `aktionariat_registration` are built by the grandfathering spec too,
+// and Jest schedules the two files on parallel workers against the same server — sharing one database
+// means each beforeEach drops the other's tables mid-test.
+const DATABASE = 'mig_aktionariat_registration';
 
 // The migration is plain CommonJS (module.exports = class ...); required lazily inside beforeAll so a
 // skipped run (CI, no DB) never pulls the .js through the TS transform.
@@ -45,12 +51,11 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     AddAktionariatRegistration = require('../../../../../migration/1783704351182-AddAktionariatRegistration');
-    dataSource = new DataSource({ type: 'postgres', url: PG_URL });
-    await dataSource.initialize();
+    dataSource = await createMigrationDataSource(DATABASE);
   });
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
+    await destroyMigrationDataSource(dataSource, DATABASE);
   });
 
   // inserts a kyc_step; userDataId is the owning account and must match the resolved user's
