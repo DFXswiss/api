@@ -64,7 +64,9 @@ describeDb('AddRealUnitLegalAcceptance migration (real Postgres grandfathering)'
     await qr.query(
       `INSERT INTO "aktionariat_registration" ("id","status","userId") VALUES (100,'Completed',10),(101,'ManualReview',11),(102,'Completed',12),(103,'Completed',13),(104,'Failed',14)`,
     );
-  });
+    // Same reason as the hooks above, per test: this is DDL and seed rows against a real server, and
+    // the 5s default is what makes a contended machine fail here rather than in the assertions.
+  }, 60000);
 
   afterEach(async () => {
     await qr.release();

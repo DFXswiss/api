@@ -295,7 +295,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       '2026-07-10T10:00:00Z',
       10,
     );
-  });
+    // Same reason as the hooks above, per test: this is DDL and seed rows against a real server, and
+    // the 5s default is what makes a contended machine fail here rather than in the assertions.
+  }, 60000);
 
   afterEach(async () => {
     await qr.release();
