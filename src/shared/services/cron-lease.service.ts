@@ -24,21 +24,71 @@ const LEASE_TTL_SECONDS = 60;
 /**
  * Renew at a third of the lease.
  *
- * The timer below re-arms only once the previous attempt has settled, so the attempts fall at 20 s
- * and then 20 s after each answer — never earlier, and later whenever the database is slow.
+ * The timer below re-arms only once the previous attempt has settled, so at most one renewal is
+ * ever outstanding. The interval is then measured from when an attempt STARTED, not from when it
+ * answered: whatever the database has already spent comes off the next wait, and an answer that
+ * took longer than the interval re-arms immediately.
  *
- * What that buys is one QUICK failure, not one failure. An attempt that fails at once at 20 s puts
- * the next at 40 s, still 20 s inside the lease. An attempt that fails SLOWLY spends the margin
- * before it reports: one that comes back at 45 s puts the next at 65 s, five seconds after the
- * claim has already lapsed. The interval bounds when the next attempt starts relative to the last
- * ANSWER, and nothing here bounds when that answer arrives — there is no statement timeout on
- * these queries.
+ * Measuring from the answer is what this replaced, and it spent the margin twice. An attempt that
+ * FAILS slowly spends it before it reports: one fired at 20 s that comes back at 45 s put the next
+ * at 65 s, five seconds after the claim had already lapsed. The precondition matters — an attempt
+ * that SUCCEEDS extends the row when the database executes it, so the claim is good past 80 s and
+ * 65 s is well inside it. A database slow enough to be worth surviving was therefore the very thing
+ * that guaranteed the loss, in exactly the case that had no margin left to give.
  *
- * That is the honest shape of the margin, and it is why the expiry is not read as a guarantee
- * anywhere: a slow database is precisely the case where two processes can end up running the same
- * job, and the section "What it does not do" below says so.
+ * Attempts now start every `max(interval, round trip)` instead of every `interval + round trip`:
+ * unchanged while the database answers promptly, and no longer adding the latency on top of a wait
+ * that was already sized to absorb it.
+ *
+ * It does not restore the three-attempts-per-TTL the interval was chosen for. Nothing can, once a
+ * single round trip approaches the TTL — attempts then run back to back, one per round trip, and
+ * each holds a pooled connection for the whole of it rather than for a fraction. That is the
+ * deliberate trade: during an outage the claim is renewed as early as it possibly can be, at the
+ * cost of a continuous rather than intermittent connection. The failure path re-arms the same way
+ * and therefore has no backoff, which is the same trade seen from the other side.
+ *
+ * That cost feeds back on itself, and the class doc rejects `pg_advisory_lock` on the same grounds:
+ * a slower database means continuously renewing jobs, which means fewer free connections in a pool
+ * sized by `SQL_POOL_MAX`, which makes the database slower still. Bounding the round trip is what
+ * breaks the loop; the schedule alone cannot.
+ *
+ * What is still not bounded is the round trip itself — there is no statement timeout on these
+ * queries. A database slow to EVERY renewal cannot be renewed against at any cadence, and no
+ * schedule fixes that; SLOW_RENEWAL_MS below exists to measure how close that case is. So the
+ * expiry is still not read as a guarantee anywhere: a slow database remains the case where two
+ * processes can end up running the same job, and "What it does not do" below says so.
  */
 const RENEWAL_INTERVAL_MS = (LEASE_TTL_SECONDS / 3) * 1000;
+
+/**
+ * How long a renewal round trip may take before it is reported.
+ *
+ * The cadence above bounds when the next attempt STARTS, not how long one takes: consecutive
+ * executions land `max(interval, round trip)` apart. Inside the interval the re-arm absorbs the
+ * latency exactly and nothing moves; once a round trip exceeds it, each extension pushes the next
+ * one out by its own length, so a renewal answering in 40 s leaves the claim closer to its expiry
+ * than the schedule suggests. Not because the row goes unextended for the whole trip — a renewal
+ * that succeeds extends it mid-flight, as the block above says — but because the NEXT one is that
+ * much further away. Only a renewal that FAILED was ever
+ * visible, so that span was reported as nothing at all.
+ *
+ * Five seconds is far outside the normal shape of the statement it times: a single-row UPDATE by
+ * primary key. It is deliberately the same number a statement timeout on `renew` would use, so the
+ * lines say which runs such a bound would have cut, and how far past it they went.
+ *
+ * Emitted as a high-water mark: only when an attempt is slower than anything this run has already
+ * reported. Slowness PERSISTS, unlike a loss, so a line per attempt would emit some 360 of them for
+ * a two-hour run and count run length rather than runs affected — while reporting only the FIRST
+ * would freeze the number at 6 s for a run whose renewals then went to 300 s, and 300 s is what a
+ * timeout would have to be sized against. The high-water mark costs a handful of lines per run and
+ * keeps the largest. A run that reports none had every renewal inside the threshold.
+ *
+ * It is wall time, so one blocked event loop or one forward clock step sets a mark no real renewal
+ * beats, and the rest of that run's slow renewals go unreported. Reading these as a lower bound per
+ * run rather than a census is the honest use; the loss line, not this one, is what has to be
+ * countable.
+ */
+const SLOW_RENEWAL_MS = 5 * 1000;
 
 /**
  * How long shutdown waits for jobs that are still running. See `shutdown`.
@@ -74,8 +124,8 @@ const SHUTDOWN_GRACE_MS = 10 * 1000;
  * **What it does not do.** It does not bound how long two processes can run the same job at once.
  * If the holder stops renewing while it is still working — an unreachable database, an event loop
  * blocked past the expiry — the claim lapses and a second process may start the same job. The run
- * that lost the claim is neither stopped nor paused: `keepAlive` logs the loss at error level and
- * goes on renewing, and the run continues to its own end, which for a job declaring `timeout:
+ * that lost the claim is neither stopped nor paused: `keepAlive` logs the loss at error level once
+ * and goes on renewing, and the run continues to its own end, which for a job declaring `timeout:
  * 7200` is up to two hours. Nothing here can shorten that. A running function cannot be aborted
  * from the outside in JavaScript, and a cooperative check would have to sit at every write inside
  * every job — the same work as carrying the claim into every write, which is the fencing this
@@ -149,7 +199,7 @@ export class CronLeaseService implements OnModuleInit {
    * claim lapse, and then both runs match `name + owner`. The first one to finish would delete the
    * row the second is holding, and a third process could start the job alongside it. Renewal has
    * the mirror problem: the old run would keep extending a claim it no longer has, and its
-   * `stillOurs` check would come back true because it is comparing against itself.
+   * renewal's own check would come back true because it is comparing against itself.
    *
    * With one identity per run, both statements name the run that took the claim. The old run's
    * renewal returns false and says so, and its release matches nothing.
@@ -223,9 +273,13 @@ export class CronLeaseService implements OnModuleInit {
   }
 
   /**
-   * Pushes the expiry out while the job is still running. Returns false when this RUN is no longer
-   * the owner — which means the claim has lapsed and someone else has taken the job over, and this
-   * run should be treated as having lost it.
+   * Pushes the expiry out while the job is still running. Returns false when no row matches this
+   * RUN any more.
+   *
+   * That is not the same as "the claim was lost", and a caller must not read it as one. There are
+   * two ways to match nothing: the claim lapsed and another process took it over, or this run's own
+   * `release` already deleted the row while this statement was still in flight — which is a run that
+   * COMPLETED. `keepAlive` tells them apart before reporting anything; see the check there.
    */
   async renew(job: string, owner: string): Promise<boolean> {
     const [, affected] = await this.dataSource.query(
@@ -243,11 +297,27 @@ export class CronLeaseService implements OnModuleInit {
   /**
    * Releases the lease. Scoped to the owner that took it, so a run which already lost the lease
    * cannot delete the row another run is now holding — in another process or in this one.
+   *
+   * Returns whether a row actually went, which `keepAlive` uses in both directions.
+   *
+   * A DELETE that removed a row proves the row was still THIS run's at that moment, so any later
+   * renewal that matches nothing is matching nothing because of this — the suppression that keeps a
+   * completed run from reporting a loss it did not have.
+   *
+   * A DELETE that removed none proves the opposite just as firmly: the row had already been taken
+   * or was gone, and the loss is real. That answer is not only corroboration for a renewal — for a
+   * run whose renewal was never outstanding to see it, this statement is the ONLY thing that can
+   * discover the loss, and `keepAlive` reports it from here. See `releasing`.
    */
-  async release(job: string, owner: string): Promise<void> {
-    await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [job, owner]);
+  async release(job: string, owner: string): Promise<boolean> {
+    const [, affected] = await this.dataSource.query(`DELETE FROM "cron_lease" WHERE "name" = $1 AND "owner" = $2`, [
+      job,
+      owner,
+    ]);
 
     this.recordSuccess();
+
+    return affected > 0;
   }
 
   /**
@@ -276,6 +346,14 @@ export class CronLeaseService implements OnModuleInit {
     if (this.shuttingDown) return;
 
     const owner = this.newOwner();
+
+    // Read BEFORE the claim is issued, not after it answers. The database stamps `expires` from
+    // its own clock when it executes the statement, which is after this line and before the answer
+    // gets back here; taking the later of the two would credit the claim with a round trip it never
+    // had. `keepAlive` uses it for both things that follow from when the claim really started: the
+    // delay before the first renewal, and the age printed if the claim is lost before any renewal
+    // has confirmed it.
+    const claimedAt = Date.now();
 
     let acquired: boolean;
     try {
@@ -336,15 +414,25 @@ export class CronLeaseService implements OnModuleInit {
     // yet, so `shutdown` does not wait for it, and the process can exit before the release runs.
     // What then remains is a claim nobody holds — it lapses within the TTL like any other, which
     // is the bound that always applies. The release only ever shortens that wait.
-    const renewal = this.keepAlive(job, owner);
+    const renewal = this.keepAlive(job, owner, claimedAt);
 
-    return this.track(job, owner, task, () => {
+    return this.track(job, owner, task, async () => {
       renewal.stop();
 
-      return this.release(job, owner).catch((e) => {
+      // Handed over as a PROMISE, and before it is awaited. The renewal and the release run on
+      // different pooled connections, so the DELETE can execute first in the database while its
+      // answer arrives second here — passing the resolved value would leave an outstanding renewal
+      // deciding on a flag that is still unset, and reporting a loss for a row its own release had
+      // already taken. Giving it the promise lets it wait for the fact instead of racing it.
+      const releasing = this.release(job, owner);
+      renewal.releasing(releasing);
+
+      try {
+        await releasing;
+      } catch (e) {
         this.recordFailure(e);
         this.logger.error(`Could not release the lease for ${job}`, e);
-      });
+      }
     });
   }
 
@@ -458,40 +546,223 @@ export class CronLeaseService implements OnModuleInit {
    * A fixed interval fires whether or not the previous renewal has come back, and a database that
    * answers slowly is exactly the situation this has to survive: the attempts pile up, each one
    * occupying a pooled connection, and an older answer can land after a newer one. Re-arming only
-   * once the previous attempt has settled bounds that to a single outstanding statement. The price
-   * is that the renewals drift later by however long the database takes to answer, and the TTL —
-   * three times the interval — leaves room for one such answer to be slow or lost, not for a
-   * database that is slow to every one of them. See RENEWAL_INTERVAL_MS.
+   * once the previous attempt has settled bounds that to a single outstanding statement.
+   *
+   * The wait that follows is measured from when the attempt STARTED, so a slow answer no longer
+   * pushes the next attempt out behind it — it comes due sooner, or at once if the interval has
+   * already passed. Re-arming from the ANSWER instead added the database's latency to a wait that
+   * was already sized to include it, which is how a failed attempt answering at 45 s used to put
+   * the next one five seconds past the expiry. See RENEWAL_INTERVAL_MS.
    *
    * Losing the claim does not stop the run. There is nothing here that could stop it, and the
    * timer deliberately keeps going: this process holds the claim for as long as it can renew it.
+   *
+   * Two things can discover the loss — an outstanding renewal, and the release's own row count for
+   * a run that has no renewal left to notice — and both report through one latched path, so the
+   * line stays one per run whichever sees it. See `releasing`.
+   *
+   * Because the timer keeps going, the loss is reported as a TRANSITION rather than on every
+   * attempt. The run carries on to its own end — up to two hours for the longest timeouts — and
+   * an unlatched line would repeat every 20 s for all of it, turning one event into some 360
+   * lines. Counting lines would then measure how LONG the affected runs were, not how OFTEN the
+   * claim was lost, which is the number the TTL has to be dimensioned on.
+   *
+   * The latch is one-way on purpose, though not because a lapsed claim is always taken over —
+   * `renew` carries no expiry predicate, so a claim nobody else has claimed yet is silently revived
+   * by a late renewal and answers true. What cannot be undone is a FALSE: it means zero rows matched
+   * `name + owner`, so the row is either gone or already re-owned, and the owner is unique per run.
+   * Neither is reversible for this run, so clearing the latch would describe an unreachable state.
    */
-  private keepAlive(job: string, owner: string): { stop: () => void } {
+  private keepAlive(
+    job: string,
+    owner: string,
+    claimedAt: number,
+  ): { stop: () => void; releasing: (release: Promise<boolean>) => void } {
     let stopped = false;
     let timer: NodeJS.Timeout;
+    let reportedLoss = false;
+    let worstReportedMs = 0;
+    let renderedWorst = '';
 
-    const schedule = (): void => {
+    /**
+     * Whether this run's own `release` removed the row — the question the loss line turns on.
+     *
+     * This is the whole of the false-loss problem, and the row answers it exactly. `stop` cannot
+     * cancel an attempt that has already fired, so a finishing run races its own release: the
+     * DELETE lands first, the outstanding UPDATE then matches nothing, and a run that COMPLETED
+     * reads as one that lost its claim. Those false lines arrive in same-second cohorts whenever a
+     * stall releases queued statements together — the burst that made this line unusable.
+     *
+     * A DELETE that removed a row proves the row was still THIS run's when it ran, so nothing had
+     * taken it and any later unmatched renewal is unmatched because of that DELETE. A DELETE that
+     * removed nothing proves the row had already gone or been re-owned, and the loss is real and
+     * still reported.
+     *
+     * A release that THREW is the one case neither answer covers. An outstanding renewal treats it
+     * as "not ours" and reports, erring towards a line too many; the release-side discoverer stays
+     * silent, because a statement that never answered is not evidence of anything. So a run whose
+     * release throws with no renewal in flight reports no loss — only `Could not release the lease`,
+     * from `run`. That gap is the honest reading of the fact available, not an oversight.
+     *
+     * Two weaker tests were tried first and both were wrong. `stopped` says only that the run
+     * ended, never why the renewal matched nothing: a claim taken over at 60 s on a run that ends
+     * at 70 s answers false at 75 s with `stopped` set, dropping a real double run — and the window
+     * is widest exactly when a slow database makes losses likely. Comparing the claim's age against
+     * the TTL fixed that direction but not this one: "the claim COULD have lapsed" is equally true
+     * of a clean release that raced a stalled renewal, so the false lines came back for any stall
+     * past the remaining margin. It also rested on the app's clock agreeing with the database's,
+     * and on an expiry predicate that `acquire` applies only when the row still exists.
+     */
+    let releasing: Promise<boolean> | undefined;
+
+    /**
+     * Whether this run's own release is the reason a renewal matched nothing.
+     *
+     * Awaits the release when one is in flight, rather than reading a flag it may have set too
+     * late. A release that rejected answers false — unknown is not the same as safe, and the
+     * direction that errs towards a line too many is the right one for a double run.
+     */
+    const ourReleaseTookTheRow = (): Promise<boolean> => releasing?.catch(() => false) ?? Promise.resolve(false);
+
+    /**
+     * Emits the loss, once per run, from whichever of the two things notices it first.
+     *
+     * The latch is checked HERE rather than only at the call sites, and that placement is the
+     * whole point. The renewal discoverer tests it, then awaits the release before deciding — so a
+     * release that answers during that await can report first and leave the renewal resuming into
+     * a stale check. That ordering is the common one, not an exotic one: the renewal's UPDATE is
+     * issued up to an interval before the DELETE, so a stall that queues both answers it first.
+     * Guarding inside makes double reporting unreachable however the two round trips interleave.
+     *
+     * `unconfirmedForMs` is passed in rather than read here because the renewal path samples it
+     * when the RENEWAL settles, before it waits on the release — see the sampling comment below.
+     */
+    const reportLoss = (unconfirmedForMs: number): void => {
+      if (reportedLoss) return;
+
+      reportedLoss = true;
+      this.logger.error(
+        `Lost the lease for ${job} (owner ${owner}, ` +
+          `${(unconfirmedForMs / 1000).toFixed(1)} s since the claim was last confirmed)`,
+      );
+    };
+
+    /**
+     * When the claim was last confirmed to name this run — the claim itself to begin with, then the
+     * START of each renewal the row accepted.
+     *
+     * The start and not the answer, for the same reason the schedule uses the start: the database
+     * stamped `expires` when it executed the statement, which is before the answer arrived here, so
+     * anchoring on the answer would report a claim as younger than it is. Informational only — it
+     * is the age printed in the loss line, not a term in any decision.
+     */
+    let acceptedAt = claimedAt;
+
+    const schedule = (delay: number): void => {
       // Unref'd: a pending timer must never hold the process open on shutdown.
       timer = setTimeout(async () => {
+        const startedAt = Date.now();
+
+        let renewed: boolean | undefined;
+        let failure: Error | undefined;
         try {
-          const stillOurs = await this.renew(job, owner);
-          if (!stillOurs) this.logger.error(`Lost the lease for ${job} while it was still running`);
+          renewed = await this.renew(job, owner);
         } catch (e) {
-          this.recordFailure(e);
-          this.logger.error(`Could not extend the lease for ${job}`, e);
+          failure = e instanceof Error ? e : new Error(String(e));
         }
 
-        if (!stopped) schedule();
-      }, RENEWAL_INTERVAL_MS);
+        // Sampled the instant the RENEWAL settles, before anything else is awaited. The branch
+        // below waits on the release, whose round trip is the very thing this change exists to
+        // survive: reading the clock after that wait would print a slow release as a slow renewal
+        // and inflate the claim's age by the same amount.
+        //
+        // Kept as millisecond deltas rather than `Util.secondsDiff`, which takes `Date`s and
+        // answers in seconds. `elapsed` feeds millisecond arithmetic directly — the
+        // `SLOW_RENEWAL_MS` comparison and the re-arm below — and is left unclamped, since the
+        // re-arm's own `Math.min` handles a backward clock step. `unconfirmedFor` is only ever
+        // printed, and is clamped here because that same step would otherwise render it negative.
+        const elapsed = Date.now() - startedAt;
+        const unconfirmedFor = Math.max(0, Date.now() - acceptedAt);
+
+        if (failure) {
+          // Deliberately unrestricted, unlike the loss line below and the slow line under it. Each
+          // failure is a distinct event carrying its own cause, and it also feeds `takeFailures`
+          // for the heartbeat, which counts per window and would under-report a persistent outage
+          // if this line were latched or held to a high-water mark.
+          this.recordFailure(failure);
+          this.logger.error(`Could not extend the lease for ${job}`, failure);
+        } else if (renewed) {
+          acceptedAt = startedAt;
+        } else if (!reportedLoss && !(await ourReleaseTookTheRow())) {
+          reportLoss(unconfirmedFor);
+        }
+
+        // Reported only when it is the worst this run has seen. Slowness persists, so a line per
+        // attempt would emit some 360 of them for a two-hour run and count run length rather than
+        // runs affected; latching the FIRST one instead would hold the number at 6 s for a run
+        // whose renewals then went to 300 s, and 300 s is what a timeout would have to be sized
+        // against. A monotonic high-water mark is a handful of lines and keeps the largest.
+        // Gated on the RENDERED value, not on a proxy for it. On raw milliseconds a steadily
+        // degrading database sets a new record on almost every attempt — 6000 ms, then 6001, then
+        // 6002 — and emits a line for each, all reading `took 6.0 s`: one line per attempt, which
+        // is the unlatched repetition this mark exists to remove, arriving through the rule meant
+        // to prevent it. Rounding the comparison to 100 ms does not fix it either, because those
+        // buckets sit half a bucket off the printed ones — 6000 and 6050 render the same and land
+        // either side of a boundary. Comparing the string the line will actually carry is exact by
+        // construction: a record is reported only when it reads differently from the last one, and
+        // since it must also be numerically larger, differently can only mean larger.
+        const rendered = (elapsed / 1000).toFixed(1);
+        if (elapsed >= SLOW_RENEWAL_MS && elapsed > worstReportedMs && rendered !== renderedWorst) {
+          worstReportedMs = elapsed;
+          renderedWorst = rendered;
+          this.logger.warn(`Renewing the lease for ${job} took ${rendered} s (owner ${owner})`);
+        }
+
+        // Whatever this attempt already spent comes off the next wait, so a slow answer does not
+        // push the next attempt out behind it. Clamped at BOTH ends: `Date.now()` is a wall clock,
+        // and a backward step — NTP correction, resume from suspend — would otherwise make the
+        // elapsed term negative and the wait longer than an interval, on the one timer that must
+        // not miss a deadline. Zero is the other end: an attempt that outran the interval is
+        // already overdue and re-arms at once.
+        if (!stopped) schedule(Math.min(RENEWAL_INTERVAL_MS, Math.max(0, RENEWAL_INTERVAL_MS - elapsed)));
+      }, delay);
       timer.unref();
     };
 
-    schedule();
+    // Measured from when the claim was ISSUED, for the same reason every later arm is measured from
+    // when its attempt started. `keepAlive` is reached only once `acquire` has ANSWERED, so a flat
+    // interval here would add the claim's round trip to a wait already sized to contain it — the
+    // exact arithmetic this change removes everywhere else. A claim issued at 0 and answered at 45 s
+    // expires at ~60 s; a flat arm puts the first renewal at 65 s, five seconds too late, while this
+    // brings it due at once.
+    schedule(Math.min(RENEWAL_INTERVAL_MS, Math.max(0, RENEWAL_INTERVAL_MS - (Date.now() - claimedAt))));
 
     return {
       stop: () => {
         stopped = true;
         clearTimeout(timer);
+      },
+      // Given the moment the DELETE is issued, not when it answers. An attempt that is already
+      // outstanding then waits for it before deciding, instead of reading a result that may not
+      // have arrived yet; an attempt that answers before the release is issued at all sees nothing
+      // to wait for, which is correct — with no DELETE in flight, matching nothing is a takeover.
+      //
+      // The release is also the second thing that can DISCOVER a loss, and for some runs the only
+      // one. A renewal is outstanding for its round trip out of every interval, and `stop` cancels
+      // an overdue one before it can run — so a job that blocks the event loop past the expiry,
+      // loses the claim, and then finishes has no renewal left to notice. Its DELETE removing zero
+      // rows is the same proof, and the only one left. Reporting only from the renewal would make
+      // the count a function of how long a run happens to continue past its loss, which is exactly
+      // what this line must not be. Both go through `reportLoss`, so the latch keeps it to one.
+      releasing: (release: Promise<boolean>) => {
+        releasing = release;
+
+        void release
+          .then((removed) => {
+            // A release that threw says nothing either way, and `run` reports that separately.
+            if (!removed) reportLoss(Math.max(0, Date.now() - acceptedAt));
+          })
+          .catch(() => undefined);
       },
     };
   }

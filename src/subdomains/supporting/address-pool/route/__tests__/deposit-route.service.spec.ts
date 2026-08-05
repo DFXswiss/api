@@ -1,7 +1,11 @@
 import { createMock } from '@golevelup/ts-jest';
+import { NotFoundException } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { FindOneOptions, In } from 'typeorm';
+import { DepositRoute } from '../deposit-route.entity';
 import { DepositRouteRepository } from '../deposit-route.repository';
 import { DepositRouteService } from '../deposit-route.service';
 
@@ -51,6 +55,175 @@ describe('DepositRouteService', () => {
       expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: 42 }) }),
       );
+    });
+  });
+
+  describe('getByLabel scoping', () => {
+    // TypeORM drops relation objects whose properties are all undefined, so with no label the base
+    // where vanishes and a caller-supplied options.where becomes the only surviving condition —
+    // matching across every route. The query must not be issued at all.
+    it.each([undefined, null, ''])('does not query when the label is %p', async (label) => {
+      const route = await service.getByLabel(undefined, label as string);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('does not query when only a caller-supplied where survives', async () => {
+      const route = await service.getByLabel(undefined, undefined, {
+        relations: { paymentLinks: true },
+        where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+      } as FindOneOptions<DepositRoute>);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    // The falsy-label cases above all pass userId=undefined, which leaves `!label` weakenable to
+    // `!label && !userId` without any test noticing. A user-scoped call with no label still has to
+    // skip the query, or a caller-supplied where survives alongside the user predicate, unscoped by route.
+    it('does not query for a falsy label even when a userId is supplied', async () => {
+      const route = await service.getByLabel(7, undefined, {
+        where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+      } as FindOneOptions<DepositRoute>);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a label is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getByLabel(7, 'my-label');
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { route: { label: 'my-label' }, user: { id: 7 } } }),
+      );
+    });
+  });
+
+  describe('getPaymentRoutesForPublicName scoping', () => {
+    // GET /v1/paymentLink/locations has no auth guard. With publicName omitted the nested userData
+    // object is all-undefined and dropped, leaving only `active` + blockchain — i.e. every merchant's
+    // Lightning route, whose recipient addresses getLocations then returns.
+    it.each([undefined, null, ''])('does not query when the public name is %p', async (publicName) => {
+      const routes = await service.getPaymentRoutesForPublicName(publicName as string);
+
+      expect(routes).toStrictEqual([]);
+      expect(depositRouteRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a public name is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'find').mockResolvedValue([]);
+
+      await service.getPaymentRoutesForPublicName('acme');
+
+      // Whole where pinned: dropping `active` or the blockchain filter would flow inactive and
+      // non-Lightning routes into getLocations/assignPaymentLink with no test noticing.
+      expect(depositRouteRepo.find).toHaveBeenCalledWith({
+        where: {
+          active: true,
+          deposit: { blockchains: Blockchain.LIGHTNING },
+          user: { userData: { paymentLinksName: 'acme' } },
+        },
+        relations: { user: { userData: true } },
+      });
+    });
+  });
+
+  describe('getById scoping', () => {
+    it.each([undefined, null, 0])('does not query when the id is %p', async (id) => {
+      const route = await service.getById(
+        id as number,
+        {
+          where: { paymentLinks: [{ id: In([1, 2, 3]) }] },
+        } as FindOneOptions<DepositRoute>,
+      );
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    // Without this the guard could be weakened to `!id && options` and stay green, since the falsy
+    // cases above all pass options. Same asymmetry already closed for getByLabel.
+    it('does not query for a falsy id even with no options', async () => {
+      const route = await service.getById(undefined);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when an id is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getById(42);
+
+      // relations pinned too: createInvoice reads route.user.id off the result.
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 42 },
+        relations: { user: { userData: true } },
+      });
+    });
+  });
+
+  describe('get / getLatest scoping', () => {
+    // Same degenerate shape as the guarded lookups: the ownership predicate is a nested relation
+    // object, so a falsy userId drops it and the query stops being scoped to the caller.
+    it.each([undefined, null, 0])('get does not query when the userId is %p', async (userId) => {
+      await expect(service.get(userId as number, 42)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('get does not query when the id is missing', async () => {
+      await expect(service.get(7, undefined)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('get still queries when both are supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue({ id: 42 } as DepositRoute);
+
+      await service.get(7, 42);
+
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 42, user: { id: 7 } } }),
+      );
+    });
+
+    // create() attaches a new payment link to whatever this returns, so an unscoped result would be
+    // written to rather than only read.
+    it.each([undefined, null, 0])('getLatest does not query when the userId is %p', async (userId) => {
+      const route = await service.getLatest(userId as number);
+
+      expect(route).toBeUndefined();
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('getLatest still queries when a userId is supplied', async () => {
+      jest.spyOn(depositRouteRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getLatest(7);
+
+      // order pinned: create() attaches a new payment link to whatever comes back, so returning the
+      // oldest route rather than the newest is a real behaviour change.
+      expect(depositRouteRepo.findOne).toHaveBeenCalledWith({
+        where: { user: { id: 7 } },
+        relations: { user: { userData: true } },
+        order: { created: 'DESC' },
+      });
+    });
+  });
+
+  describe('getPaymentLinksFromRoute scoping', () => {
+    // The reachable shape: an id filter with no route to scope it to. Without the guard the surviving
+    // where is the id filter alone, returning links that belong to other routes entirely.
+    it('does not query when no route is supplied', async () => {
+      await expect(service.getPaymentLinksFromRoute(undefined, undefined, [1, 2, 3])).rejects.toThrow(
+        'Payment route not found',
+      );
+
+      expect(depositRouteRepo.findOne).not.toHaveBeenCalled();
     });
   });
 });

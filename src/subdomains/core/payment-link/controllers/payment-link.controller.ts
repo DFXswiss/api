@@ -352,7 +352,7 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkPayment> {
-    return this.paymentLinkPaymentService.updatePayment(+id, dto);
+    return this.paymentLinkPaymentService.updatePayment(this.parseIdParam(id), dto);
   }
 
   @Put(':id')
@@ -363,7 +363,7 @@ export class PaymentLinkController {
     @Param('id') id: string,
     @Body() dto: UpdatePaymentLinkInternalDto,
   ): Promise<PaymentLink> {
-    return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
+    return this.paymentLinkService.updatePaymentLinkAdmin(this.parseIdParam(id), dto);
   }
 
   @Put(':id/pos')
@@ -371,7 +371,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
-    return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
+    return this.paymentLinkService.createPosLinkAdmin(this.parseIdParam(id), scoped && scoped === 'true');
   }
 
   @Delete(':id')
@@ -379,7 +379,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async deletePaymentLink(@Param('id') id: string): Promise<void> {
-    return this.paymentLinkService.deletePaymentLink(+id);
+    return this.paymentLinkService.deletePaymentLink(this.parseIdParam(id));
   }
 
   @Get('stickers')
@@ -440,6 +440,19 @@ export class PaymentLinkController {
   }
 
   // --- HELPER METHODS --- //
+
+  /**
+   * `:id` is a required path param on the admin routes, so a malformed value is a 400 rather than a
+   * Postgres 'invalid input syntax for type integer' 500 further down: plain `+id` yields NaN for a
+   * non-numeric segment and lets 'Infinity'/'1e+21' through as numbers, all of which the driver
+   * serialises straight into an integer comparison.
+   */
+  private parseIdParam(id: string): number {
+    const parsed = Util.toDbId(id);
+    if (!parsed) throw new BadRequestException('id must be a positive integer');
+
+    return parsed;
+  }
 
   private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
     if (key) {

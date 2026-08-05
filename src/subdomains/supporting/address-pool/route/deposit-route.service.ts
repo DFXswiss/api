@@ -12,6 +12,11 @@ export class DepositRouteService {
   constructor(private readonly depositRouteRepo: DepositRouteRepository) {}
 
   async get(userId: number, id: number): Promise<DepositRoute> {
+    // The ownership predicate is a nested relation object, so a falsy userId drops it and the lookup
+    // degenerates to `id` alone — returning the route whoever owns it, with the `!route` check below
+    // giving false assurance because a row was in fact found.
+    if (!userId || !id) throw new NotFoundException('Route not found');
+
     const route = await this.depositRouteRepo.findOne({
       where: { id, user: { id: userId } },
       relations: { user: { userData: true } },
@@ -20,12 +25,22 @@ export class DepositRouteService {
     return route;
   }
 
-  async getById(id: number, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
+  async getById(id: number, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute | undefined> {
+    // Same reasoning as getByLabel below: an undefined id is dropped from the where, leaving any
+    // caller-supplied options.where as the only surviving condition. Both current callers pass a
+    // validated id, so this is a guard against the next one rather than a live defect.
+    if (!id) return undefined;
+
     const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
     return this.depositRouteRepo.findOne(merge(defaultOptions, options));
   }
 
   async getLatest(userId: number): Promise<DepositRoute | undefined> {
+    // The user relation is the only condition here, so a falsy userId empties the where entirely and
+    // this returns the newest route on the platform. PaymentLinkService.create attaches a new link to
+    // whatever comes back, so an unscoped result would be written to, not merely read.
+    if (!userId) return undefined;
+
     return this.depositRouteRepo.findOne({
       where: { user: { id: userId } },
       relations: { user: { userData: true } },
@@ -33,7 +48,20 @@ export class DepositRouteService {
     });
   }
 
-  async getByLabel(userId: number, label: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
+  async getByLabel(
+    userId: number,
+    label: string,
+    options?: FindOneOptions<DepositRoute>,
+  ): Promise<DepositRoute | undefined> {
+    // Without a label there is nothing left to scope on. TypeORM drops relation objects whose
+    // properties are all undefined, so `{ route: { label: undefined }, user: { id: undefined } }`
+    // disappears entirely and a caller-supplied `options.where` — e.g. the paymentLinks id filter in
+    // getPaymentLinksFromRoute — becomes the only surviving condition, matching across every route
+    // rather than one. Both callers that can reach this with no label are unauthenticated.
+    // Returned rather than thrown because every caller already turns a missing route into its own
+    // 404/400; throwing here would change those responses.
+    if (!label) return undefined;
+
     const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
       relations: { user: { userData: true } },
@@ -72,6 +100,11 @@ export class DepositRouteService {
   }
 
   async getPaymentRoutesForPublicName(publicName: string): Promise<DepositRoute[]> {
+    // Without a public name the nested userData object is all-undefined and TypeORM drops it, leaving
+    // only `active` and the blockchain filter — which matches every merchant's Lightning route rather
+    // than one. GET /v1/paymentLink/locations reaches this with no guard and returns their addresses.
+    if (!publicName) return [];
+
     return this.depositRouteRepo.find({
       where: {
         active: true,

@@ -116,6 +116,12 @@ export class AccountMergeService {
   }
 
   async executeMerge(code: string): Promise<AccountMerge> {
+    // Without a code there is nothing to look up. TypeORM drops undefined where values, so the query
+    // would degenerate to an unconditioned findOne and return an arbitrary merge request — and the
+    // `!request` check below would not fire, because a row genuinely was found. GET /auth/mail/confirm
+    // passes this straight from the query string and is reachable without authentication.
+    if (!code) throw new NotFoundException('Account merge information not found');
+
     const request = await this.accountMergeRepo.findOne({ where: { code }, relations: { master: true, slave: true } });
     if (!request) throw new NotFoundException('Account merge information not found');
 

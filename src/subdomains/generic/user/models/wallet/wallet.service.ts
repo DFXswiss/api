@@ -25,6 +25,11 @@ export class WalletService {
   }
 
   async getByAddress(address: string): Promise<Wallet | undefined> {
+    // An undefined address is dropped from the where, leaving an unconditioned lookup that returns an
+    // arbitrary wallet and caches it under the key "undefined". GET /auth/challenge reaches this with
+    // no guard, and its own `!wallet` rejection would never fire.
+    if (!address) return undefined;
+
     return this.repo.findOneCachedBy(address, { address });
   }
 

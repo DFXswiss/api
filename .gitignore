@@ -57,3 +57,7 @@ test-results/
 
 # Generated email previews
 scripts/email-previews/
+
+# Handbook isolated deps + generated static site
+_handbook-deps/
+docs/handbook/build/
