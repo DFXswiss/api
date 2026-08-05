@@ -121,7 +121,7 @@ export class CustodyService {
     const interestByAssetName = new Map<string, { interest: number; asset: Asset }>();
     if (savingBalance && savingPrincipal > CustodyService.BALANCE_DUST) {
       try {
-        // dueDate is a parameter on calculateAccruedInterest for deterministic tests; runtime uses now.
+        // The live balance accrues to now; the statement PDF passes its statement date instead.
         const interest = await this.calculateAccruedInterest(custodyUserIds, savingBalance.asset, new Date());
         // Keyed by asset.name, not asset.id: the mapper groups custody balances by asset.name (one
         // position can span multiple chains under the same symbol — see Util.groupByAccessor
@@ -450,7 +450,8 @@ export class CustodyService {
 
   /**
    * Accrued simple interest for an interest-bearing custody position.
-   * dueDate is a parameter (not new Date() inside) so the method is deterministically testable.
+   * dueDate is a caller choice: the live balance accrues to now, the statement PDF to its
+   * statement date (which also keeps the method deterministically testable).
    * Order type is intentionally not filtered — any completed order that moves the asset counts.
    * Value date is order.completedAt, an immutable timestamp set exactly once when an order
    * becomes Completed — see CustodyOrder.applyCompletedAt(), the single source of truth used
