@@ -6,18 +6,16 @@ import { OrganizationService } from '../organization.service';
 
 describe('OrganizationService', () => {
   let service: OrganizationService;
-  let organizationRepo: jest.Mocked<Partial<OrganizationRepository>>;
-  let userDataRepo: jest.Mocked<Partial<UserDataRepository>>;
+  let organizationRepo: OrganizationRepository;
+  let userDataRepo: UserDataRepository;
 
   beforeEach(() => {
-    organizationRepo = { findOneBy: jest.fn(), create: jest.fn((dto) => dto), save: jest.fn() };
-    userDataRepo = { findBy: jest.fn().mockResolvedValue([]), update: jest.fn() };
+    organizationRepo = createMock<OrganizationRepository>();
+    userDataRepo = createMock<UserDataRepository>();
 
-    service = new OrganizationService(
-      organizationRepo as unknown as OrganizationRepository,
-      createMock<CountryService>(),
-      userDataRepo as unknown as UserDataRepository,
-    );
+    jest.spyOn(userDataRepo, 'findBy').mockResolvedValue([]);
+
+    service = new OrganizationService(organizationRepo, createMock<CountryService>(), userDataRepo);
   });
 
   describe('syncOrganization', () => {
@@ -25,7 +23,9 @@ describe('OrganizationService', () => {
     // persists a nameless organisation — one per affected user, once per cron run, forever, since
     // the row keeps being re-selected while its organization stays null.
     it('skips an entity with no organization name rather than creating one', async () => {
-      userDataRepo.findBy.mockResolvedValue([{ id: 1, organizationName: null, organizationZip: '8000' }] as never);
+      jest
+        .spyOn(userDataRepo, 'findBy')
+        .mockResolvedValue([{ id: 1, organizationName: null, organizationZip: '8000' }] as never);
 
       await service.syncOrganization();
 
@@ -35,8 +35,10 @@ describe('OrganizationService', () => {
     });
 
     it('still processes an entity that has a name', async () => {
-      userDataRepo.findBy.mockResolvedValue([{ id: 1, organizationName: 'Acme', organizationZip: '8000' }] as never);
-      organizationRepo.findOneBy.mockResolvedValue({ id: 9 } as never);
+      jest
+        .spyOn(userDataRepo, 'findBy')
+        .mockResolvedValue([{ id: 1, organizationName: 'Acme', organizationZip: '8000' }] as never);
+      jest.spyOn(organizationRepo, 'findOneBy').mockResolvedValue({ id: 9 } as never);
 
       await service.syncOrganization();
 
@@ -56,7 +58,7 @@ describe('OrganizationService', () => {
     });
 
     it('still queries when both are supplied', async () => {
-      organizationRepo.findOneBy.mockResolvedValue(undefined);
+      jest.spyOn(organizationRepo, 'findOneBy').mockResolvedValue(undefined);
 
       await service.getOrganizationByName('Acme', '8000');
 
@@ -67,7 +69,7 @@ describe('OrganizationService', () => {
     // for that name is the deduplication the sync cron depends on. Requiring zip made it create a
     // duplicate organisation per colleague instead.
     it.each([undefined, null, ''])('still queries with a name when the zip is %p', async (zip) => {
-      organizationRepo.findOneBy.mockResolvedValue(undefined);
+      jest.spyOn(organizationRepo, 'findOneBy').mockResolvedValue(undefined);
 
       await service.getOrganizationByName('Acme', zip as string);
 

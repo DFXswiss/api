@@ -75,6 +75,17 @@ export class BuyFiatPreparationService {
     if (!txHash || !toScorechainBlockchain(blockchain)) return ScorechainOutcome.PASS;
 
     try {
+      // See the buy-crypto gate: a deposit of an account whose Scorechain findings compliance reviewed
+      // and released (`scorechainCheckDate`, time-limited) is not screened again, otherwise every further
+      // deposit from the same permanently tainted source repeats the identical manual review. This gate
+      // only ever screens deposits. Inside the try for the same reason as there.
+      if (entity.userData?.hasValidScorechainReview) {
+        this.logger.info(
+          `Skipping Scorechain screening for buy-fiat ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
+        );
+        return ScorechainOutcome.PASS;
+      }
+
       const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
 
       // Persist a compliance report for every fresh (non-cached) screening tied to a customer.

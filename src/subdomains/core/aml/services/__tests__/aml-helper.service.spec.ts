@@ -100,6 +100,19 @@ describe('AmlHelperService - Scorechain gate', () => {
     expect(result.comment).toContain('ScorechainUnavailable');
   });
 
+  // Regression: a PASS must clear the error comment rather than leave the previous one on the row.
+  // A stale `ScorechainHighRisk` on a passing transaction made `AmlService.postProcessing` record a
+  // compliance review that never happened — reachable whenever the screening is switched off and the
+  // automatic recompute therefore yields PASS.
+  it('clears the error comment when the recompute yields a PASS', () => {
+    jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([]);
+
+    const result = getAmlResult(ScorechainOutcome.PASS);
+
+    expect(result.amlCheck).toBe(CheckStatus.PASS);
+    expect(result.comment).toBe('');
+  });
+
   describe('getAmlErrors Scorechain branch (real call)', () => {
     beforeAll(async () => {
       await Test.createTestingModule({ providers: [TestUtil.provideConfig()] }).compile();

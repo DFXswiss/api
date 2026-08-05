@@ -652,11 +652,25 @@ export class AmlHelperService {
     const comment = Array.from(new Set(amlErrors)).join(';');
 
     // Pass
+    //
+    // `comment` is returned explicitly, even though it is empty here: it is the list of the CURRENT AML
+    // errors, and a passing transaction has none. Omitting the field would leave the previous error text
+    // on the row, because the callers merge this result with `Object.assign` — a stale `ScorechainHighRisk`
+    // would then make `AmlService.postProcessing` record a compliance review that never happened (an
+    // automatic recompute yields PASS whenever the screening is switched off).
+    //
+    // What survives this: the screening row of a hit is persisted independently of the comment, and a
+    // cached hit reuses the row of the screening that found it. The compliance PDF on top is best effort
+    // only — it is attempted for a fresh screening with a userData, and a failure there is logged rather
+    // than raised. `transaction_aml_check` is NOT a reliable trail here either: it only writes when
+    // `amlCheck`/`amlReason` actually change, which they do not while the transaction is inside the
+    // ten-minute grace period below.
     if (amlErrors.length === 0)
       return {
         bankData,
         amlCheck: CheckStatus.PASS,
         amlReason: AmlReason.NA,
+        comment,
         amlResponsible: 'API',
         priceDefinitionAllowedDate: new Date(),
       };
