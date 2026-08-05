@@ -97,20 +97,16 @@ export class LegacyFileExampleDto {
 }
 
 /**
- * Where the date of the written rows came from, and what range they cover.
+ * How many of the written rows carry the date of their document, and what range those cover.
  *
- * Reported because the catalog row stands in for the document: a run that dated everything by the
- * store (`fromListing`) or by nothing (`fromDefault`) produces rows that all look equally recent,
- * which is visible here and nowhere else.
+ * Reported because the catalog row stands in for the document: a run that could date nothing
+ * produces rows that all look equally recent, which is visible here and nowhere else.
  */
 export class LegacyFileDateSourceDto {
   @ApiProperty({ description: 'Rows dated by the epoch segment of their storage path' })
   fromPath: number;
 
-  @ApiProperty({ description: 'Rows dated by the date the store reports for the object' })
-  fromListing: number;
-
-  @ApiProperty({ description: 'Rows left to the column default, i.e. stamped with the run' })
+  @ApiProperty({ description: 'Rows whose path carries no date, left to the column default' })
   fromDefault: number;
 
   @ApiPropertyOptional({ description: 'Oldest date written' })

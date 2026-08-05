@@ -18,6 +18,8 @@ const EPOCH_MILLIS_PATTERN = /^\d{13}$/;
 // Spider predates DFX, so nothing stored under it can be older than this; anything below is a segment
 // that merely looks like a timestamp.
 const EARLIEST_DOCUMENT_DATE = new Date('2015-01-01T00:00:00.000Z');
+// `spider/<owner>/…` — neither segment is part of the document's path within the account.
+const SCOPE_AND_OWNER_SEGMENTS = 2;
 const IDENT_FOLDERS = ['online-identification', 'video_identification'];
 
 // Everything else stored next to the documents is a machine artifact of the Spider run (raw provider
@@ -45,6 +47,34 @@ interface LegacyFilePath {
   segments: string[];
   name: string;
   extension: string;
+}
+
+/**
+ * The date of a legacy KYC document, read from its storage key — or nothing, where the key does not
+ * carry one.
+ *
+ * The single source of truth for that derivation, exported because two places need the SAME answer:
+ * the backfill, which writes it into the catalog row, and the compliance dossier, which has to tell
+ * a row whose date is the document's from a row whose date is merely the day it was catalogued. The
+ * catalog cannot express that difference — `kyc_file.created` is never null — so the consumer
+ * re-derives it from the key, and both must derive it identically.
+ *
+ * Only the folder segments are read, and only those after the scope and the owner: a file name may
+ * contain any number, and an owner segment that looks like a timestamp is not one. A value outside
+ * the plausible window is discarded rather than corrected — an unknown date has to stay unknown,
+ * because every consumer of a wrong one reads it as fact.
+ */
+export function legacyDocumentDate(key: string): Date | undefined {
+  const folders = key.split('/').slice(SCOPE_AND_OWNER_SEGMENTS, -1);
+
+  for (const segment of folders) {
+    if (!EPOCH_MILLIS_PATTERN.test(segment)) continue;
+
+    const date = new Date(+segment);
+    if (date >= EARLIEST_DOCUMENT_DATE && date <= new Date()) return date;
+  }
+
+  return undefined;
 }
 
 export class KycLegacyFileMapper {
@@ -94,7 +124,7 @@ export class KycLegacyFileMapper {
       }
 
       const { type, subType } = this.toFileType(path);
-      entries.push({ userDataId, name: path.name, type, subType, path: path.key, date: this.pathDate(path) });
+      entries.push({ userDataId, name: path.name, type, subType, path: path.key, date: legacyDocumentDate(path.key) });
       paths.push(path);
     }
 
@@ -124,28 +154,6 @@ export class KycLegacyFileMapper {
       name,
       extension: extensionIndex > 0 ? name.substring(extensionIndex + 1).toLowerCase() : '',
     };
-  }
-
-  /**
-   * The document's own date, where the path carries it.
-   *
-   * This is the only date that describes the DOCUMENT. What the store reports for the object is the
-   * date of the object, which after a migration between backends is the date of that migration — the
-   * same day for every blob, and therefore useless for telling a 2019 document from a 2023 one.
-   *
-   * Only the folder segments are read, never the file name: a name may contain any number. A value
-   * outside the plausible window is discarded rather than corrected, so an undated row is the outcome
-   * of a segment that cannot be trusted, not a guess.
-   */
-  private static pathDate(path: LegacyFilePath): Date | undefined {
-    for (const segment of path.segments.slice(0, -1)) {
-      if (!EPOCH_MILLIS_PATTERN.test(segment)) continue;
-
-      const date = new Date(+segment);
-      if (date >= EARLIEST_DOCUMENT_DATE && date <= new Date()) return date;
-    }
-
-    return undefined;
   }
 
   private static toFileType(path: LegacyFilePath): { type: FileType; subType?: FileSubType } {

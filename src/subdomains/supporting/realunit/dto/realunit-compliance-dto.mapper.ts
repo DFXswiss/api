@@ -4,6 +4,7 @@ import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { legacyDocumentDate } from 'src/subdomains/generic/kyc/dto/mapper/kyc-legacy-file.mapper';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -131,36 +132,46 @@ export class RealUnitComplianceDtoMapper {
           ? {
               status: identStep?.status,
               type: identStep?.type,
-              date: identStep?.created ?? identFile?.created,
-              fileUid: identFile?.uid,
-              fileName: identFile?.name,
+              date: identStep?.created ?? identFile?.date,
+              fileUid: identFile?.file.uid,
+              fileName: identFile?.file.name,
             }
           : undefined,
       nameCheck: nameCheckFile
-        ? { date: nameCheckFile.created, fileUid: nameCheckFile.uid, fileName: nameCheckFile.name }
+        ? { date: nameCheckFile.date, fileUid: nameCheckFile.file.uid, fileName: nameCheckFile.file.name }
         : undefined,
     };
   }
 
   /**
-   * The file that stands for a check, newest first — but never a legacy row ahead of a current one.
+   * The file that stands for a check, with the date that check carries — or nothing.
    *
-   * A row carrying `path` was catalogued from the Spider-era storage by the legacy backfill, and its
-   * date is the best one that could be established for a document written years ago: from the storage
-   * path where it carries the run's timestamp, otherwise from the store, which after the migration
-   * between storage backends reports the day of that migration for every object alike. Compared on
-   * `created` alone, such a row can therefore outrank the Dilisense or Sumsub document that actually
-   * describes the account today, and the dossier would name a Spider document as the current check.
+   * Two rules, and both exist because a row carrying `path` was catalogued from the Spider-era
+   * storage by the legacy backfill rather than written when its document was produced.
    *
-   * Ranked behind rather than filtered out: a legacy row is real evidence when it is the only one
-   * there is, and dropping it would leave the field empty — which the dashboard renders as a missing
-   * check, i.e. as a compliance gap that does not exist (see RealUnitChecksDto).
+   * **A current file always wins.** `kyc_file.created` on a legacy row is the date of the document
+   * only where its key carried a timestamp; otherwise it is the day the backfill ran. Compared on
+   * that column alone, such a row outranks the Dilisense or Sumsub document that actually describes
+   * the account today, and the dossier would name a Spider document as the current check.
+   *
+   * **An undatable legacy row is no check at all.** `check/gen_<n>/…` — the whole of the legacy name
+   * checks — carries no timestamp anywhere, so the true date of that screening is not recoverable.
+   * Reporting the row's `created` would tell a compliance officer that an account last screened in
+   * 2021 was screened this month, which is worse than telling them nothing: the empty field renders
+   * as an overdue check, which is exactly what it is. The document itself stays in the file list and
+   * stays downloadable — this decides the date, not the evidence.
+   *
+   * A legacy row whose key DOES carry a timestamp is a check like any other and reports that date.
    */
-  private static latestFileOfType(files: KycFile[], type: FileType): KycFile | undefined {
-    const ofType = files.filter((f) => f.type === type);
-    const current = ofType.filter((f) => f.path == null);
+  private static latestFileOfType(files: KycFile[], type: FileType): { file: KycFile; date: Date } | undefined {
+    const dated = files
+      .filter((f) => f.type === type)
+      .map((f) => ({ file: f, date: f.path == null ? f.created : legacyDocumentDate(f.path) }))
+      .filter((f): f is { file: KycFile; date: Date } => f.date != null);
 
-    return Util.maxObj(current.length ? current : ofType, 'created');
+    const current = dated.filter((f) => f.file.path == null);
+
+    return Util.maxObj(current.length ? current : dated, 'date');
   }
 
   // --- KYC FILES --- //

@@ -17,22 +17,6 @@ export interface BlobContent extends BlobMetaData {
 }
 
 /**
- * A key and the date the store holds for it, as the listing itself reports them.
- *
- * `created` follows the vocabulary of `BlobMetaData`: on Azure it is the creation time, on S3 the
- * last-modified time, because S3 has no creation time at all — the same equivalence `toMetaData`
- * already makes there.
- *
- * It dates the OBJECT, not the document: a store that received the object through a copy — a
- * migration between backends, say — reports the copy, and every object of such a migration then
- * carries the same date. A caller that needs the document's own date has to get it elsewhere.
- */
-export interface KeyDate {
-  key: string;
-  created?: Date;
-}
-
-/**
  * Provider-agnostic blob storage abstraction.
  *
  * The method surface is signature-compatible with the previous AzureStorageService,
@@ -49,14 +33,6 @@ export abstract class StorageService {
   abstract listBlobs(prefix?: string): Promise<Blob[]>;
   /** Keys only, no per-object metadata fetch — cheap for large buckets (e.g. reconciliation diffing). */
   abstract listKeys(prefix?: string): Promise<string[]>;
-  /**
-   * Keys with the date the listing already carries — same number of requests as `listKeys`.
-   *
-   * Separate from `listBlobs`, which answers with full metadata and, on a store whose listing does
-   * not carry it, pays one request per object for the rest. Over a prefix holding hundreds of
-   * thousands of objects that is not a heavier call but a different order of magnitude.
-   */
-  abstract listKeyDates(prefix?: string): Promise<KeyDate[]>;
   abstract getBlob(name: string): Promise<BlobContent>;
   abstract uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string>;
   /** Copies every object under `sourcePrefix` to `targetPrefix` and returns the TARGET keys of every object copied. */

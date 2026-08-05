@@ -82,50 +82,6 @@ describe('S3StorageService', () => {
     });
   });
 
-  describe('listKeyDates', () => {
-    // One request per page, not per object: `listBlobs` pays a HEAD per object on S3, which over the
-    // legacy KYC prefix would be hundreds of thousands of requests.
-    it('takes the modification date from the listing and follows the pages', async () => {
-      const first = new Date('2026-07-13T10:00:00.000Z');
-      const second = new Date('2026-07-13T11:00:00.000Z');
-      s3Mock
-        .on(ListObjectsV2Command)
-        .resolvesOnce({
-          Contents: [{ Key: 'spider/1/a.pdf', LastModified: first }],
-          IsTruncated: true,
-          NextContinuationToken: 'tok-1',
-        })
-        .resolvesOnce({ Contents: [{ Key: 'spider/1/b.pdf', LastModified: second }], IsTruncated: false });
-
-      const keys = await new S3StorageService(CONTAINER).listKeyDates('spider/');
-
-      expect(keys).toEqual([
-        { key: 'spider/1/a.pdf', created: first },
-        { key: 'spider/1/b.pdf', created: second },
-      ]);
-      expect(s3Mock.commandCalls(HeadObjectCommand)).toHaveLength(0);
-      expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(2);
-      expect(s3Mock.commandCalls(ListObjectsV2Command)[1].args[0].input).toMatchObject({
-        Prefix: 'spider/',
-        ContinuationToken: 'tok-1',
-      });
-    });
-
-    it('skips an entry without a key and reports no date where the listing has none', async () => {
-      s3Mock.on(ListObjectsV2Command).resolves({ Contents: [{ Key: undefined }, { Key: 'k' }], IsTruncated: false });
-
-      const keys = await new S3StorageService(CONTAINER).listKeyDates();
-
-      expect(keys).toEqual([{ key: 'k', created: undefined }]);
-    });
-
-    it('returns nothing for an empty listing', async () => {
-      s3Mock.on(ListObjectsV2Command).resolves({ IsTruncated: false });
-
-      await expect(new S3StorageService(CONTAINER).listKeyDates('none/')).resolves.toEqual([]);
-    });
-  });
-
   describe('listBlobs', () => {
     it('paginates ListObjectsV2 and heads each key', async () => {
       s3Mock

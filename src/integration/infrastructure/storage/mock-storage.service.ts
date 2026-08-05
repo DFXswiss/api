@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Blob, BlobContent, KeyDate, StorageService } from './storage.service';
+import { Blob, BlobContent, StorageService } from './storage.service';
 
 // In-memory storage for local development (LOC).
 const mockStorage = new Map<string, { data: Buffer; type: string; metadata?: Record<string, string> }>();
@@ -53,10 +53,6 @@ export class MockStorageService extends StorageService {
     return [...mockStorage.keys()]
       .filter((key) => key.startsWith(keyPrefix))
       .map((key) => key.replace(`${this.container}/`, ''));
-  }
-
-  async listKeyDates(prefix?: string): Promise<KeyDate[]> {
-    return this.listKeys(prefix).then((keys) => keys.map((key) => ({ key, created: new Date() })));
   }
 
   async getBlob(name: string): Promise<BlobContent> {

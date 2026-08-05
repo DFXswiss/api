@@ -1,7 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { KeyDate } from 'src/integration/infrastructure/storage/storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -114,7 +113,7 @@ export class KycLegacyFileService {
     await this.settingService.set(LEGACY_FILE_SYNC_COMPLETED_KEY, new Date().toISOString());
 
     const skipped = result.skipped.map(({ reason, count }) => `${reason}: ${count}`).join(', ');
-    const { fromPath, fromListing, fromDefault, oldest, newest } = result.dated;
+    const { fromPath, fromDefault, oldest, newest } = result.dated;
     this.logger.info(
       `Legacy KYC file backfill complete in ${Util.round(Util.secondsDiff(startedAt), 1)} s: ${
         result.inserted
@@ -123,24 +122,17 @@ export class KycLegacyFileService {
       })`,
     );
 
-    // Separate line, and not an afterthought on the one above: a run that dated every row by the store
-    // or by nothing produces a catalog that all looks equally recent, and the span is what shows it.
+    // Separate line, and not an afterthought on the one above: a run that could date nothing produces
+    // a catalog that all looks equally recent, and these two numbers are what show it.
     this.logger.info(
-      `Legacy KYC file backfill dates: ${fromPath} from path, ${fromListing} from listing, ${fromDefault} left to the column default, spanning ${
+      `Legacy KYC file backfill dates: ${fromPath} from the path, ${fromDefault} undated (left to the column default), spanning ${
         oldest?.toISOString() ?? 'n/a'
       } to ${newest?.toISOString() ?? 'n/a'}`,
     );
   }
 
   async syncLegacyFiles(dryRun: boolean, userDataId?: number): Promise<LegacyFileSyncDto> {
-    const keyDates = await this.listKeyDates(userDataId);
-    const keys = keyDates.map((k) => k.key);
-    // The date the STORE holds for a blob. Second choice behind the date in the path: after the move
-    // between storage backends every object carries the day of that move, so this dates the object
-    // rather than the document. Kept anyway, because it is still older than the run for any store
-    // that was not migrated, and the alternative for those rows is no date at all.
-    const blobDates = new Map(keyDates.filter((k) => k.created).map((k) => [k.key, k.created]));
-
+    const keys = await this.listKeys(userDataId);
     const { keysByOwner, invalidKeys } = this.groupByOwner(keys);
 
     const ownerIds = Array.from(keysByOwner.keys());
@@ -149,7 +141,7 @@ export class KycLegacyFileService {
     const typeCounts = new Map<string, number>();
     const skipCounts = new Map<LegacyFileSkipReason, number>();
     const examples: LegacyFileEntry[] = [];
-    const dated: LegacyFileDateSourceDto = { fromPath: 0, fromListing: 0, fromDefault: 0 };
+    const dated: LegacyFileDateSourceDto = { fromPath: 0, fromDefault: 0 };
     let inserted = 0;
     let wouldInsert = 0;
 
@@ -188,7 +180,7 @@ export class KycLegacyFileService {
           this.count(typeCounts, `${entry.type}/${entry.subType ?? ''}`, 1);
           if (examples.length < MAX_EXAMPLES) examples.push(entry);
 
-          this.resolveDate(entry, blobDates, dates, dated);
+          this.resolveDate(entry, dates, dated);
         }
 
         wouldInsert += newEntries.length;
@@ -233,30 +225,26 @@ export class KycLegacyFileService {
   // --- HELPER METHODS --- //
 
   /**
-   * The date one catalog row is written with, and where it came from.
+   * The date one catalog row is written with — the path's, or none.
    *
-   * The path first: it is the only source that dates the DOCUMENT. The store's date second, which
-   * after a migration between backends is the date of that migration for every object alike. Nothing
-   * third, leaving the column default — the row is then stamped with the run, which is what every
-   * row of this backfill would carry without any of this.
+   * There is deliberately no second source. What the store reports is the date of the OBJECT, and
+   * since the move between storage backends that is the day of the move for every object alike:
+   * newer than every document it describes. Writing it would not fill a gap but invent recency, and
+   * a date that says "recent" about a document from 2019 is worse than no date at all — it is read
+   * as fact by everything downstream. A row whose path carries no timestamp therefore keeps the
+   * column default and is recognisable as undated by re-deriving the date from its key, which is
+   * what `legacyDocumentDate` exists for.
    */
-  private resolveDate(
-    entry: LegacyFileEntry,
-    blobDates: Map<string, Date>,
-    dates: Map<string, Date>,
-    dated: LegacyFileDateSourceDto,
-  ): void {
-    const date = entry.date ?? blobDates.get(entry.path);
+  private resolveDate(entry: LegacyFileEntry, dates: Map<string, Date>, dated: LegacyFileDateSourceDto): void {
+    if (!entry.date) {
+      dated.fromDefault++;
+      return;
+    }
 
-    if (entry.date) dated.fromPath++;
-    else if (date) dated.fromListing++;
-    else dated.fromDefault++;
-
-    if (!date) return;
-
-    dates.set(entry.path, date);
-    dated.oldest = dated.oldest && dated.oldest < date ? dated.oldest : date;
-    dated.newest = dated.newest && dated.newest > date ? dated.newest : date;
+    dated.fromPath++;
+    dates.set(entry.path, entry.date);
+    dated.oldest = dated.oldest && dated.oldest < entry.date ? dated.oldest : entry.date;
+    dated.newest = dated.newest && dated.newest > entry.date ? dated.newest : entry.date;
   }
 
   // Presence, not a value: the setting carries the completion timestamp. Read on every tick rather
@@ -276,12 +264,12 @@ export class KycLegacyFileService {
     this.logger.info(`Legacy KYC file backfill already completed (${LEGACY_FILE_SYNC_COMPLETED_KEY}), skipping`);
   }
 
-  private async listKeyDates(userDataId?: number): Promise<KeyDate[]> {
-    if (!userDataId) return this.kycDocumentService.listKeyDatesByPrefix(SPIDER_PREFIX);
+  private async listKeys(userDataId?: number): Promise<string[]> {
+    if (!userDataId) return this.kycDocumentService.listKeysByPrefix(SPIDER_PREFIX);
 
     const keys = await Promise.all([
-      this.kycDocumentService.listKeyDatesByPrefix(`${SPIDER_PREFIX}${userDataId}/`),
-      this.kycDocumentService.listKeyDatesByPrefix(`${SPIDER_PREFIX}${userDataId}${ORGANIZATION_SUFFIX}/`),
+      this.kycDocumentService.listKeysByPrefix(`${SPIDER_PREFIX}${userDataId}/`),
+      this.kycDocumentService.listKeysByPrefix(`${SPIDER_PREFIX}${userDataId}${ORGANIZATION_SUFFIX}/`),
     ]);
 
     return keys.flat();
@@ -359,11 +347,11 @@ export class KycLegacyFileService {
         valid: true,
         uid: Util.createUid(Config.prefixes.kycFileUidPrefix),
         userData: { id: e.userDataId },
-        // The document's date, so the row dates the document rather than the backfill - see
-        // `resolveDate` for where it comes from. TypeORM keeps an explicitly set `@CreateDateColumn`
-        // on insert (only the Mongo driver overwrites it), and `legacy-file-created.projection.spec.ts`
-        // holds that against a real database. Left unset where no date could be established: the
-        // column default then stamps the run, which is what every row would carry without any of this.
+        // The document's date, where its key carries one, so the row dates the document rather than
+        // the backfill - see `resolveDate`. TypeORM keeps an explicitly set `@CreateDateColumn` on
+        // insert (only the Mongo driver overwrites it), and `legacy-file-created.projection.spec.ts`
+        // holds that against a real database. Left unset otherwise: the column default then stamps the
+        // run, and no consumer may read such a row as a date - see `legacyDocumentDate`.
         created: dates.get(e.path),
       }),
     );
