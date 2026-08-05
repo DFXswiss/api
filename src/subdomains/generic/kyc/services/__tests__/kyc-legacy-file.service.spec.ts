@@ -1,6 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as ConfigModule from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EntityMetadata } from 'typeorm';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FileSubType, FileType } from '../../dto/kyc-file.dto';
@@ -8,12 +10,13 @@ import { LegacyFileSkipReason } from '../../dto/kyc-legacy-file.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycFileRepository } from '../../repositories/kyc-file.repository';
 import { KycDocumentService } from '../integration/kyc-document.service';
-import { KycLegacyFileService } from '../kyc-legacy-file.service';
+import { KycLegacyFileService, LEGACY_FILE_SYNC_COMPLETED_KEY } from '../kyc-legacy-file.service';
 
 describe('KycLegacyFileService', () => {
   let service: KycLegacyFileService;
   let kycDocumentService: KycDocumentService;
   let kycFileRepo: KycFileRepository;
+  let settingService: SettingService;
   let userDataService: UserDataService;
 
   const userDataId = 1234;
@@ -47,12 +50,14 @@ describe('KycLegacyFileService', () => {
         indices: [{ isUnique: true, columns: [{ propertyName: 'path' }], name: pathIndexName }],
       } as unknown as EntityMetadata,
     });
+    settingService = createMock<SettingService>();
     userDataService = createMock<UserDataService>();
 
     (kycDocumentService.listKeysByPrefix as jest.Mock).mockResolvedValue(keys);
     (kycFileRepo.find as jest.Mock).mockResolvedValue([]);
     (kycFileRepo.create as jest.Mock).mockImplementation((dto) => dto as KycFile);
     (kycFileRepo.save as jest.Mock).mockImplementation((files) => Promise.resolve(files));
+    (settingService.get as jest.Mock).mockResolvedValue(undefined);
     (userDataService.getExistingUserDataIds as jest.Mock).mockResolvedValue([userDataId]);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -60,6 +65,7 @@ describe('KycLegacyFileService', () => {
         KycLegacyFileService,
         { provide: KycDocumentService, useValue: kycDocumentService },
         { provide: KycFileRepository, useValue: kycFileRepo },
+        { provide: SettingService, useValue: settingService },
         { provide: UserDataService, useValue: userDataService },
       ],
     }).compile();
@@ -164,6 +170,57 @@ describe('KycLegacyFileService', () => {
       (kycFileRepo.save as jest.Mock).mockRejectedValue(uniqueViolation('UQ_kyc_file_uid'));
 
       await expect(service.syncLegacyFiles(false)).rejects.toThrow('duplicate key value');
+    });
+  });
+
+  describe('one-off backfill', () => {
+    function skipLines(info: jest.SpyInstance): string[] {
+      return info.mock.calls.map(([message]) => message as string).filter((m) => m.includes('already completed'));
+    }
+
+    it('writes the catalog and records the completion timestamp', async () => {
+      await service.runBackfill();
+
+      expect(kycDocumentService.listKeysByPrefix).toHaveBeenCalledWith('spider/');
+      expect(kycFileRepo.save).toHaveBeenCalled();
+
+      const [key, value] = (settingService.set as jest.Mock).mock.calls[0];
+      expect(key).toBe(LEGACY_FILE_SYNC_COMPLETED_KEY);
+      expect(Number.isNaN(new Date(value as string).getTime())).toBe(false);
+    });
+
+    it('does no work at all once the flag is set', async () => {
+      (settingService.get as jest.Mock).mockResolvedValue(new Date().toISOString());
+
+      await service.runBackfill();
+
+      expect(kycDocumentService.listKeysByPrefix).not.toHaveBeenCalled();
+      expect(kycFileRepo.find).not.toHaveBeenCalled();
+      expect(kycFileRepo.save).not.toHaveBeenCalled();
+      expect(settingService.set).not.toHaveBeenCalled();
+    });
+
+    it('reports the skip once rather than on every tick', async () => {
+      (settingService.get as jest.Mock).mockResolvedValue(new Date().toISOString());
+      const info = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
+
+      await service.runBackfill();
+      await service.runBackfill();
+      await service.runBackfill();
+
+      expect(skipLines(info)).toHaveLength(1);
+
+      info.mockRestore();
+    });
+
+    // The flag is what stops the next tick, so setting it on a run that did not finish would leave
+    // the catalog half written with nothing to complete it.
+    it('leaves the flag unset when the sync fails', async () => {
+      (kycFileRepo.save as jest.Mock).mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(service.runBackfill()).rejects.toThrow('storage unavailable');
+
+      expect(settingService.set).not.toHaveBeenCalled();
     });
   });
 });
