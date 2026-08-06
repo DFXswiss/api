@@ -34,6 +34,7 @@ import { PricingDexService } from '../integration/pricing-dex.service';
 import { PricingEbel2xService } from '../integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from '../integration/pricing-frankencoin.service';
 import { PricingJuiceService } from '../integration/pricing-juice.service';
+import { PricingDenarioService } from '../integration/pricing-denario.service';
 import { PricingRealUnitService } from '../integration/pricing-realunit.service';
 import { PricingService, PriceCurrency, PriceValidity } from '../pricing.service';
 
@@ -109,6 +110,7 @@ describe('pricing outage integration (CoinGecko client mock only)', () => {
       createMock<PricingJuiceService>(),
       createMock<PricingEbel2xService>(),
       createMock<PricingRealUnitService>(),
+      createMock<PricingDenarioService>(),
       createMock<PricingConstantService>(),
     );
     // PriceCurrency.CHF lookup used by calculateBlockchainFeeInChf

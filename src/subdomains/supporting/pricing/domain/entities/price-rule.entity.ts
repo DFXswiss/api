@@ -23,6 +23,7 @@ export enum PriceSource {
   JUICE = 'Juice',
   EBEL2X = 'Ebel2X',
   REALUNIT = 'RealUnit',
+  DENARIO = 'Denario',
   CONSTANT = 'Constant',
 }
 

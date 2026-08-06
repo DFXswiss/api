@@ -31,6 +31,7 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 import { PricingJuiceService } from './integration/pricing-juice.service';
+import { PricingDenarioService } from './integration/pricing-denario.service';
 import { PricingRealUnitService } from './integration/pricing-realunit.service';
 
 export enum PriceCurrency {
@@ -75,6 +76,7 @@ export class PricingService implements OnModuleInit {
     readonly juiceService: PricingJuiceService,
     readonly ebel2xService: PricingEbel2xService,
     readonly realunitService: PricingRealUnitService,
+    readonly denarioService: PricingDenarioService,
     readonly constantService: PricingConstantService,
   ) {
     this.providerMap = {
@@ -93,6 +95,7 @@ export class PricingService implements OnModuleInit {
       [PriceSource.JUICE]: juiceService,
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.REALUNIT]: realunitService,
+      [PriceSource.DENARIO]: denarioService,
       [PriceSource.CONSTANT]: constantService,
     };
   }

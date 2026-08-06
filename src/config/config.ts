@@ -724,6 +724,11 @@ export class Configuration {
     apiKey: process.env.FIXER_API_KEY,
   };
 
+  denario = {
+    baseUrl: process.env.DENARIO_PRICE_URL,
+    apiKey: process.env.DENARIO_PRICE_API_KEY,
+  };
+
   mail: MailOptions = {
     options: {
       transport: {

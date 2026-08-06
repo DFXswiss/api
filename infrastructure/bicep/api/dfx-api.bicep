@@ -256,6 +256,10 @@ param fixerUrl string
 @secure()
 param fixerApiKey string
 
+param denarioPriceUrl string
+@secure()
+param denarioPriceApiKey string
+
 param sepaToolsUser string
 @secure()
 param sepaToolsPassword string
@@ -1196,6 +1200,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FIXER_API_KEY'
           value: fixerApiKey
+        }
+        {
+          name: 'DENARIO_PRICE_URL'
+          value: denarioPriceUrl
+        }
+        {
+          name: 'DENARIO_PRICE_API_KEY'
+          value: denarioPriceApiKey
         }
         {
           name: 'SEPA_TOOLS_USER'

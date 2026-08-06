@@ -22,6 +22,7 @@ import { PricingDexService } from './services/integration/pricing-dex.service';
 import { PricingJuiceService } from './services/integration/pricing-juice.service';
 import { PricingEbel2xService } from './services/integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
+import { PricingDenarioService } from './services/integration/pricing-denario.service';
 import { PricingRealUnitService } from './services/integration/pricing-realunit.service';
 import { PricingService } from './services/pricing.service';
 
@@ -51,6 +52,7 @@ import { PricingService } from './services/pricing.service';
     PricingJuiceService,
     PricingEbel2xService,
     PricingRealUnitService,
+    PricingDenarioService,
     PricingConstantService,
   ],
   exports: [PricingService, AssetPricesService, CoinGeckoService],

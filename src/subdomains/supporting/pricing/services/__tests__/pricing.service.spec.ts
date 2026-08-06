@@ -25,6 +25,7 @@ import { PricingDexService } from '../integration/pricing-dex.service';
 import { PricingEbel2xService } from '../integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from '../integration/pricing-frankencoin.service';
 import { PricingJuiceService } from '../integration/pricing-juice.service';
+import { PricingDenarioService } from '../integration/pricing-denario.service';
 import { PricingRealUnitService } from '../integration/pricing-realunit.service';
 import { PricingService, PriceValidity } from '../pricing.service';
 
@@ -87,6 +88,7 @@ describe('PricingService', () => {
       createMock<PricingJuiceService>(),
       createMock<PricingEbel2xService>(),
       createMock<PricingRealUnitService>(),
+      createMock<PricingDenarioService>(),
       createMock<PricingConstantService>(),
     );
   });
