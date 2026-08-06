@@ -215,8 +215,9 @@ describe('ScryptWebSocketConnection', () => {
     attempt0.remoteClose(1006, 'auth fail');
     await flushPromises();
 
-    // connectWebSocket's ws.on('error') logs via logger.error before rejecting
-    expect(loggerError).toHaveBeenCalledWith('Scrypt WebSocket error:', authError);
+    // connectWebSocket's ws.on('error') rejects silently — scheduleReconnect's catch below is the
+    // sole logger for this attempt; a duplicate raw ERROR line here was removed.
+    expect(loggerError).not.toHaveBeenCalledWith('Scrypt WebSocket error:', authError);
     expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/), expect.any(Error));
     expect(scheduleSpy).toHaveBeenCalledWith(1, loopEpoch);
 

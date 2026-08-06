@@ -564,8 +564,10 @@ export class ScryptWebSocketConnection {
       });
 
       ws.on('error', (error) => {
+        // Every caller of connect() already logs this rejection with better context: sendSubscription
+        // ("Failed to subscribe to X") and scheduleReconnect (warn per attempt, error every 10th). Logging
+        // it here too duplicated the same error at unthrottled ERROR on every single failed attempt.
         clearTimeout(handshakeTimeout);
-        this.logger.error('Scrypt WebSocket error:', error);
         reject(error);
       });
 
