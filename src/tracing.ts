@@ -10,7 +10,9 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor, ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
-import Pyroscope from '@pyroscope/nodejs';
+// Type-only: erased at compile time, so importing this module does not pull the profiler in.
+// The value is loaded inside startProfiling() — see the require there for why.
+import type PyroscopeSdk from '@pyroscope/nodejs';
 
 // OpenTelemetry tracing and continuous CPU profiling for dfx-api.
 //
@@ -176,6 +178,20 @@ export function startProfiling(): boolean {
     // message that says nothing about where it came from.
     const environment = process.env.ENVIRONMENT;
     if (!environment) throw new Error('ENVIRONMENT is not set — profiles could not be told apart per environment');
+
+    // Loaded here, not imported at module scope: @pyroscope/nodejs reaches a pure-ESM p-limit
+    // through its own CJS build, which Jest cannot parse under this repo's transform settings
+    // (node_modules is not transformed and there is no transformIgnorePatterns override). A
+    // top-level import therefore breaks every suite that reaches this module transitively —
+    // src/runtime-metrics.ts imports isTelemetryEnabled() from here, so its spec failed outright.
+    //
+    // Deferring the load past the two guards above is also what the rest of this function already
+    // promises: with no server address configured, nothing about the profiler is loaded at all,
+    // and LOC, tests and the CI runners never touch its native binding. Where profiling IS on,
+    // startProfiling() runs at module scope below, so the module is loaded at boot exactly as an
+    // import would have loaded it.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Pyroscope: typeof PyroscopeSdk = require('@pyroscope/nodejs').default;
 
     Pyroscope.init({
       // Becomes the service_name label Pyroscope indexes by, and derived from the same helper as
