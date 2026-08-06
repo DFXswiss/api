@@ -6,7 +6,6 @@ import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-managem
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
-import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
@@ -40,7 +39,6 @@ import { RefRewardService } from './reward/services/ref-reward.service';
   providers: [
     RefRepository,
     RefRewardRepository,
-    TransactionRepository,
     RefService,
     RefRewardService,
     RefRewardNotificationService,

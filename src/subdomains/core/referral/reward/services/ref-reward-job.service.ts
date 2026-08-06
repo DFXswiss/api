@@ -30,7 +30,7 @@ export class RefRewardJobService {
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
-  async createRefBonusRewards() {
+  async createRefBonusRewards(): Promise<void> {
     await this.refRewardService.createRefBonusRewards();
   }
 }

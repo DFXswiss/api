@@ -15,7 +15,7 @@ Every scheduled job this service runs: **143 `@DfxCron` declarations** across 98
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-120 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+121 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-118 of the 142 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+119 of the 143 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.

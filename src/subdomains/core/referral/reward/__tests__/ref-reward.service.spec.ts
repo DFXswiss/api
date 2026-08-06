@@ -6,34 +6,12 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 import { RefRewardService } from '../services/ref-reward.service';
-
-function mockQueryBuilder(candidates: any[]) {
-  const qb: any = {
-    leftJoinAndSelect: jest.fn().mockReturnThis(),
-    leftJoin: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn((arg: any) => {
-      if (typeof arg?.whereFactory === 'function') {
-        arg.whereFactory(qb.innerWhereBuilder);
-      }
-      return qb;
-    }),
-    getMany: jest.fn().mockResolvedValue(candidates),
-    innerWhereBuilder: {
-      where: jest.fn().mockReturnThis(),
-      orWhere: jest.fn().mockReturnThis(),
-    },
-  };
-  return qb;
-}
 
 function mockRawQueryBuilder(rawResult: any) {
   const qb: any = {
@@ -61,7 +39,6 @@ describe('RefRewardService', () => {
   let assetService: AssetService;
   let transactionService: TransactionService;
   let settingService: SettingService;
-  let transactionRepo: TransactionRepository;
 
   beforeEach(async () => {
     rewardRepo = createMock<RefRewardRepository>();
@@ -70,7 +47,6 @@ describe('RefRewardService', () => {
     assetService = createMock<AssetService>();
     transactionService = createMock<TransactionService>();
     settingService = createMock<SettingService>();
-    transactionRepo = createMock<TransactionRepository>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -81,7 +57,6 @@ describe('RefRewardService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: TransactionService, useValue: transactionService },
         { provide: SettingService, useValue: settingService },
-        { provide: TransactionRepository, useValue: transactionRepo },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -152,23 +127,6 @@ describe('RefRewardService', () => {
       jest.spyOn(rewardRepo, 'save').mockResolvedValue({} as any);
     }
 
-    it('builds the candidate filter from the agreement', async () => {
-      mockAgreementsSetup();
-      const qb = mockQueryBuilder([]);
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(qb);
-
-      await service.createRefBonusRewards();
-
-      expect(qb.innerWhereBuilder.where).toHaveBeenCalledWith(
-        'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
-        { usedRef: agreement.usedRef, completeStatus: BuyCryptoStatus.COMPLETE },
-      );
-      expect(qb.innerWhereBuilder.orWhere).toHaveBeenCalledWith(
-        'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
-        { usedRef: agreement.usedRef, isComplete: true },
-      );
-    });
-
     it('does nothing when no agreements are configured', async () => {
       jest
         .spyOn(settingService, 'getObj')
@@ -178,7 +136,7 @@ describe('RefRewardService', () => {
 
       await service.createRefBonusRewards();
 
-      expect(transactionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
       expect(rewardRepo.save).not.toHaveBeenCalled();
     });
 
@@ -192,14 +150,12 @@ describe('RefRewardService', () => {
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyCrypto: { absoluteFeeAmount: 6200, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: 6200, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -225,14 +181,12 @@ describe('RefRewardService', () => {
         }
         return { convert: (amount: number) => amount * 0.9 } as any;
       });
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyCrypto: { absoluteFeeAmount: 800, inputReferenceAsset: 'CHF' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: 800, inputReferenceAsset: 'CHF' },
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -258,18 +212,16 @@ describe('RefRewardService', () => {
         }
         return { convert: (amount: number) => amount * 0.9 } as any;
       });
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 200,
-            buyCrypto: { absoluteFeeAmount: 800, inputReferenceAsset: 'CHF' },
-          },
-          {
-            id: 201,
-            buyCrypto: { absoluteFeeAmount: 6200, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 200,
+          buyCrypto: { absoluteFeeAmount: 800, inputReferenceAsset: 'CHF' },
+        },
+        {
+          id: 201,
+          buyCrypto: { absoluteFeeAmount: 6200, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -302,17 +254,15 @@ describe('RefRewardService', () => {
         }
         return { convert: (amount: number) => amount * 0.9 } as any;
       });
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyFiat: {
-              absoluteFeeAmount: 5,
-              cryptoInput: { asset: feeAsset },
-            },
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyFiat: {
+            absoluteFeeAmount: 5,
+            cryptoInput: { asset: feeAsset },
           },
-        ]),
-      );
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -334,17 +284,15 @@ describe('RefRewardService', () => {
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyFiat: {
-              absoluteFeeAmount: 5,
-              cryptoInput: undefined,
-            },
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyFiat: {
+            absoluteFeeAmount: 5,
+            cryptoInput: undefined,
           },
-        ]),
-      );
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -361,7 +309,7 @@ describe('RefRewardService', () => {
 
       await service.createRefBonusRewards();
 
-      expect(transactionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
       expect(rewardRepo.save).not.toHaveBeenCalled();
     });
 
@@ -371,19 +319,17 @@ describe('RefRewardService', () => {
 
       await service.createRefBonusRewards();
 
-      expect(transactionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
       expect(rewardRepo.save).not.toHaveBeenCalled();
     });
 
     it('skips a candidate that carries a fee on neither buyCrypto nor buyFiat', async () => {
       mockAgreementsSetup();
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+        },
+      ] as any);
 
       await service.createRefBonusRewards();
 
@@ -392,14 +338,12 @@ describe('RefRewardService', () => {
 
     it('skips a candidate whose computed amount is exactly zero', async () => {
       mockAgreementsSetup();
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyCrypto: { absoluteFeeAmount: 0, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: 0, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
 
       await service.createRefBonusRewards();
 
@@ -408,14 +352,12 @@ describe('RefRewardService', () => {
 
     it('skips a candidate whose computed amount is negative', async () => {
       mockAgreementsSetup();
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyCrypto: { absoluteFeeAmount: -100, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: -100, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
 
       await service.createRefBonusRewards();
 
@@ -424,14 +366,12 @@ describe('RefRewardService', () => {
 
     it('skips a candidate whose computed amount is not finite', async () => {
       mockAgreementsSetup();
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            buyCrypto: { absoluteFeeAmount: Infinity, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: Infinity, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
 
       await service.createRefBonusRewards();
 
@@ -447,15 +387,13 @@ describe('RefRewardService', () => {
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            // feeShare 0.5 -> amountInEur 1500 > 1000
-            buyCrypto: { absoluteFeeAmount: 3000, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          // feeShare 0.5 -> amountInEur 1500 > 1000
+          buyCrypto: { absoluteFeeAmount: 3000, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -477,15 +415,13 @@ describe('RefRewardService', () => {
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
-      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(
-        mockQueryBuilder([
-          {
-            id: 100,
-            // feeShare 0.5 -> amountInEur 500 <= 1000
-            buyCrypto: { absoluteFeeAmount: 1000, inputReferenceAsset: 'EUR' },
-          },
-        ]),
-      );
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          // feeShare 0.5 -> amountInEur 500 <= 1000
+          buyCrypto: { absoluteFeeAmount: 1000, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
       jest.spyOn(rewardRepo, 'create').mockImplementation((e) => e as any);
       jest.spyOn(transactionService, 'create').mockResolvedValue({} as any);
       jest.spyOn(userService, 'updateRefVolume').mockResolvedValue(undefined as any);
@@ -496,6 +432,45 @@ describe('RefRewardService', () => {
       expect(rewardRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: RewardStatus.PREPARED, amountInEur: 500 }),
       );
+    });
+
+    it('accumulates the referral credit across multiple candidates in one run', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: 100, inputReferenceAsset: 'EUR' },
+        },
+        {
+          id: 101,
+          buyCrypto: { absoluteFeeAmount: 40, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
+
+      await service.createRefBonusRewards();
+
+      // updateRefVolume writes absolute totals, not deltas; a non-accumulated call would overwrite
+      // the first candidate's bonus with the second candidate's bonus instead of adding to it.
+      expect(rewardRepo.save).toHaveBeenCalledTimes(2);
+      expect(userService.updateRefVolume).toHaveBeenCalledTimes(2);
+      expect(userService.updateRefVolume).toHaveBeenLastCalledWith(user.ref, 70, 70);
+    });
+
+    it('does not update the referral credit when saving the reward fails', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
+        {
+          id: 100,
+          buyCrypto: { absoluteFeeAmount: 100, inputReferenceAsset: 'EUR' },
+        },
+      ] as any);
+      jest.spyOn(rewardRepo, 'save').mockRejectedValue(new Error('save failed'));
+
+      // A credit increase without a persisted reward would be granted again on the next run, since
+      // the candidate keeps being selected until a reward is actually stored for it.
+      await service.createRefBonusRewards();
+
+      expect(userService.updateRefVolume).not.toHaveBeenCalled();
     });
   });
 

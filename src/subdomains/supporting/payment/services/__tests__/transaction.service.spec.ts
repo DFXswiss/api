@@ -407,3 +407,100 @@ describe('TransactionService (relation load strategy)', () => {
     expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relationLoadStrategy: undefined }));
   });
 });
+
+describe('getRefBonusCandidates', () => {
+  let service: TransactionService;
+  let repo: TransactionRepository;
+
+  function createRefBonusCandidatesQueryBuilder(result: Transaction[]) {
+    const innerQb = {
+      where: jest.fn().mockReturnThis(),
+      orWhere: jest.fn().mockReturnThis(),
+    };
+
+    const outerQb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((condition: unknown) => {
+        if (
+          condition &&
+          typeof condition === 'object' &&
+          'whereFactory' in condition &&
+          typeof (condition as { whereFactory: unknown }).whereFactory === 'function'
+        ) {
+          (condition as { whereFactory: (qb: typeof innerQb) => void }).whereFactory(innerQb);
+        }
+        return outerQb;
+      }),
+      getMany: jest.fn().mockResolvedValue(result),
+    };
+
+    return { outerQb, innerQb };
+  }
+
+  beforeEach(async () => {
+    repo = createMock<TransactionRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        TransactionService,
+        { provide: TransactionRepository, useValue: repo },
+        { provide: UserDataService, useValue: createMock<UserDataService>() },
+        { provide: BankDataService, useValue: createMock<BankDataService>() },
+        { provide: SpecialExternalAccountService, useValue: createMock<SpecialExternalAccountService>() },
+        { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
+        { provide: TransactionAmlCheckService, useValue: createMock<TransactionAmlCheckService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<TransactionService>(TransactionService);
+  });
+
+  it("builds the filter condition with the agreement's values", async () => {
+    const { outerQb, innerQb } = createRefBonusCandidatesQueryBuilder([]);
+    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+
+    await service.getRefBonusCandidates('AAA-000', 100);
+
+    expect(innerQb.where).toHaveBeenCalledWith(
+      'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
+      { usedRef: 'AAA-000', completeStatus: BuyCryptoStatus.COMPLETE },
+    );
+    expect(innerQb.orWhere).toHaveBeenCalledWith(
+      'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
+      { usedRef: 'AAA-000', isComplete: true },
+    );
+  });
+
+  it('applies the lower transaction id bound', async () => {
+    const { outerQb } = createRefBonusCandidatesQueryBuilder([]);
+    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+
+    await service.getRefBonusCandidates('AAA-000', 100);
+
+    expect(outerQb.where).toHaveBeenCalledWith('transaction.id > :minTransactionId', { minTransactionId: 100 });
+  });
+
+  it('excludes transactions that already have a ref reward', async () => {
+    const { outerQb } = createRefBonusCandidatesQueryBuilder([]);
+    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+
+    await service.getRefBonusCandidates('AAA-000', 100);
+
+    expect(outerQb.andWhere).toHaveBeenCalledWith('refReward.id IS NULL');
+  });
+
+  it('returns the query result unchanged', async () => {
+    const result = [
+      Object.assign(new Transaction(), { id: 201 }),
+      Object.assign(new Transaction(), { id: 202 }),
+    ];
+    const { outerQb } = createRefBonusCandidatesQueryBuilder(result);
+    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+
+    await expect(service.getRefBonusCandidates('AAA-000', 100)).resolves.toBe(result);
+  });
+});
