@@ -678,6 +678,47 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(await getRole(userId)).toBe('User');
   });
 
+  // targetCount is re-checked after clearance so a change between the precondition and the UPDATE
+  // still fails closed. Without a race, targetCount stays 1 and this half of the postcondition is
+  // vacuum-true: removing `Number(postconditionRows.at(0)?.targetCount) !== 1 || ` leaves every
+  // other test green. This test installs a BEFORE UPDATE trigger that, on the clearance UPDATE,
+  // inserts a second user_data plus a user row with a different casing of the same address so the
+  // postcondition sees targetCount = 2 (blankCount stays 0 via NEW."verifiedName").
+  // Function + trigger are created under SCHEMA (search_path); afterEach's DROP SCHEMA … CASCADE
+  // removes them with the rest of the fixture — no leftover across tests.
+  it('up() throws when a second user_data appears behind the address during clearance (targetCount postcondition)', async () => {
+    const { userId } = await insertUser(TARGET_ADDRESS, 'User', null);
+
+    await queryRunner.query(`
+      CREATE FUNCTION force_extra_target_user_data() RETURNS trigger AS $fn$
+      DECLARE
+        new_ud_id integer;
+      BEGIN
+        INSERT INTO "user_data" ("verifiedName") VALUES (NEW."verifiedName")
+        RETURNING "id" INTO new_ud_id;
+        INSERT INTO "user" ("address", "role", "userDataId")
+        VALUES (lower('${TARGET_ADDRESS}'), 'User', new_ud_id);
+        RETURN NEW;
+      END;
+      $fn$ LANGUAGE plpgsql
+    `);
+    await queryRunner.query(`
+      CREATE TRIGGER force_extra_target_user_data_trigger
+      BEFORE UPDATE ON "user_data"
+      FOR EACH ROW
+      EXECUTE FUNCTION force_extra_target_user_data()
+    `);
+
+    const migration = new GrantSupportRoleOnDev();
+
+    await expect(migration.up(queryRunner)).rejects.toThrow(
+      'DEV staff-name backfill postcondition failed: Support account did not reach a single non-blank verifiedName',
+    );
+
+    // Role grant is after the postcondition; a targetCount failure must not elevate.
+    expect(await getRole(userId)).toBe('User');
+  });
+
   it('down() after up() restores the role but leaves verifiedName set', async () => {
     const { userId, userDataId } = await insertUser(TARGET_ADDRESS, 'User', null);
     const migration = new GrantSupportRoleOnDev();
