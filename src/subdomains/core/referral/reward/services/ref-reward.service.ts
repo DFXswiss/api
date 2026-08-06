@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -76,6 +76,10 @@ export class RefRewardService {
   ) {}
 
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
+    // Missing setting is intentionally treated as disabled (fail-closed).
+    const isEnabled = await this.settingService.getObj<boolean>('manualRefRewardEnabled', false);
+    if (!isEnabled) throw new ForbiddenException('Manual ref reward creation is disabled');
+
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 

@@ -1,4 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -67,6 +68,22 @@ describe('RefRewardService', () => {
 
       expect(result).toEqual({ amountEur: 0, amountChf: 0 });
       expect(getPrice).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createManualRefReward', () => {
+    it('throws ForbiddenException when manual ref reward is disabled', async () => {
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(false);
+
+      await expect(service.createManualRefReward({ user: { id: 1 } } as any)).rejects.toThrow(ForbiddenException);
+      expect(userService.getUser).not.toHaveBeenCalled();
+    });
+
+    it('does not throw ForbiddenException when manual ref reward is enabled', async () => {
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(true);
+      jest.spyOn(userService, 'getUser').mockResolvedValue(undefined);
+
+      await expect(service.createManualRefReward({ user: { id: 1 } } as any)).rejects.not.toThrow(ForbiddenException);
     });
   });
 });
