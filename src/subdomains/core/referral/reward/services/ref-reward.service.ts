@@ -77,8 +77,9 @@ export class RefRewardService {
 
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
     // Missing setting is intentionally treated as disabled (fail-closed).
+    // Strict === true so a truthy non-boolean (e.g. the string "false") cannot open the gate.
     const isEnabled = await this.settingService.getObj<boolean>('manualRefRewardEnabled', false);
-    if (!isEnabled) throw new ForbiddenException('Manual ref reward creation is disabled');
+    if (isEnabled !== true) throw new ForbiddenException('Manual ref reward creation is disabled');
 
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');

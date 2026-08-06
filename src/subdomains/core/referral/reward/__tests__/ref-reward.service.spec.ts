@@ -76,6 +76,14 @@ describe('RefRewardService', () => {
       jest.spyOn(settingService, 'getObj').mockResolvedValue(false);
 
       await expect(service.createManualRefReward({ user: { id: 1 } } as any)).rejects.toThrow(ForbiddenException);
+      expect(settingService.getObj).toHaveBeenCalledWith('manualRefRewardEnabled', false);
+      expect(userService.getUser).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the setting holds a truthy non-boolean value', async () => {
+      jest.spyOn(settingService, 'getObj').mockResolvedValue('false');
+
+      await expect(service.createManualRefReward({ user: { id: 1 } } as any)).rejects.toThrow(ForbiddenException);
       expect(userService.getUser).not.toHaveBeenCalled();
     });
 
