@@ -102,6 +102,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     const queryRunner = {
       query: jest
         .fn()
+        .mockResolvedValueOnce([{ targetCount: 1 }])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ targetCount: 1, blankCount: 0 }])
         .mockResolvedValueOnce([]),
@@ -110,9 +111,15 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     await migration.up(queryRunner as unknown as QueryRunner);
 
     const calls = queryRunner.query.mock.calls as [string, unknown[]?][];
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
 
-    const [clearanceSql, clearanceParams] = calls[0];
+    const [preconditionSql, preconditionParams] = calls[0];
+    expect(preconditionSql).toContain('AS "targetCount"');
+    expect(preconditionSql).not.toContain('AS "blankCount"');
+    expect(preconditionSql).toContain('LOWER("address") = LOWER($1::varchar)');
+    expect(preconditionParams?.[0]).toBe(TARGET_ADDRESS);
+
+    const [clearanceSql, clearanceParams] = calls[1];
     expect(clearanceParams?.[0]).toBe(TEST_NAME);
     expect(clearanceParams?.[2]).toBe(TARGET_ADDRESS);
     expect(clearanceSql).toContain('INSERT INTO "log"');
@@ -130,7 +137,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
       "'action', CASE WHEN \"needsBackfill\" THEN 'backfilled' ELSE 'keptExistingName' END",
     );
 
-    const [postconditionSql, postconditionParams] = calls[1];
+    const [postconditionSql, postconditionParams] = calls[2];
     expect(postconditionSql).toContain('AS "targetCount"');
     expect(postconditionSql).toContain('AS "blankCount"');
     expect(postconditionSql).toContain('LOWER("address") = LOWER($2::varchar)');
@@ -138,8 +145,8 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     expect(postconditionParams?.[0]).toBe(clearanceParams?.[1]);
     expect(postconditionParams?.[1]).toBe(TARGET_ADDRESS);
 
-    const [roleSql, roleParams] = calls[2];
-    expect(calls[2]).toHaveLength(2);
+    const [roleSql, roleParams] = calls[3];
+    expect(calls[3]).toHaveLength(2);
     expect(roleParams?.[0]).toBe(TARGET_ADDRESS);
     const normalized = normalizeSql(roleSql);
     expect(roleSql).toContain(`SET "role" = 'Support'`);
@@ -436,8 +443,10 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(userIds).toContain(String(lowerCaseId));
   });
 
-  // Proves the current plan does not cast non-JSON log rows. Does not prove the OFFSET 0
-  // fence is required under every plan.
+  // Shows that log rows in a different (system, subsystem) do not disturb up()/down(). Does not show
+  // that the ANY/UNNEST form in down() is safe against non-JSON: without an early match it casts every
+  // up-audit row, so a non-JSON message in this migration's own channel (system = 'User',
+  // subsystem = 'GrantSupportRoleOnDev', category = 'up') would make down() throw. No coverage for that.
   it('up() and down() succeed when unrelated log rows hold non-JSON messages', async () => {
     const { userId: targetId } = await insertUser(TARGET_ADDRESS, 'User');
     await queryRunner.query(
@@ -499,9 +508,11 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(entries[0].userDataId).toBe(targetUserDataId);
   });
 
-  // Two different accounts behind address casings: targetCount > 1 must fail closed. Clearance writes
-  // run before the postcondition; wrap in a transaction so the assert reads the production outcome
-  // (migrationsTransactionMode 'all' discards the partial repair on throw). Role grant never runs.
+  // Two different accounts behind address casings: targetCount > 1 must fail closed before any write.
+  // Read INSIDE the transaction — the precondition abort leaves both verifiedName null and no
+  // StaffVerifiedNameBackfill audit row, and it is exactly this unwritten state that the surrounding
+  // 'all'-mode transaction would discard on PRD. After the rollback the same assertions would hold
+  // vacuously (Postgres ROLLBACK, not the migration). Role grant never runs either.
   it('up() throws when two different user_data sit behind address case-variants', async () => {
     const { userId: mixedCaseId, userDataId: mixedCaseUserDataId } = await insertUser(TARGET_ADDRESS, 'User', null);
     const { userId: lowerCaseId, userDataId: lowerCaseUserDataId } = await insertUser(
@@ -513,16 +524,21 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
     await queryRunner.startTransaction();
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill did not reach the required state for the Support account',
+      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
     );
-    // Role grant is after the postcondition — never runs, even inside the open transaction.
-    expect(await getRole(mixedCaseId)).toBe('User');
-    expect(await getRole(lowerCaseId)).toBe('User');
-    await queryRunner.rollbackTransaction();
 
-    // After rollback the clearance writes are gone — same as a failed DEV boot migration batch.
+    // Precondition fired before clearance — nothing written, visible only inside the open transaction.
     expect(await getVerifiedName(mixedCaseUserDataId)).toBeNull();
     expect(await getVerifiedName(lowerCaseUserDataId)).toBeNull();
+    expect(await getRole(mixedCaseId)).toBe('User');
+    expect(await getRole(lowerCaseId)).toBe('User');
+    const clearanceLogs = (await queryRunner.query(
+      `SELECT count(*)::int AS "count" FROM "log"
+       WHERE "system" = 'User' AND "subsystem" = 'StaffVerifiedNameBackfill'`,
+    )) as { count: number }[];
+    expect(clearanceLogs[0].count).toBe(0);
+
+    await queryRunner.rollbackTransaction();
   });
 
   // `BlankChars` is defined as every character `String.prototype.trim()` strips, so derive that set from
@@ -597,7 +613,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(logs).toHaveLength(0);
   });
 
-  // Dangling userDataId is production-impossible (NOT NULL + FK) but keeps the postcondition's
+  // Dangling userDataId is production-impossible (NOT NULL + FK) but keeps the precondition's
   // targetCount = 0 path covered when a user row exists without a matching user_data.
   it('up() throws when a user row has no matching user_data behind the address', async () => {
     await queryRunner.query(`INSERT INTO "user" ("address", "role", "userDataId") VALUES ($1, 'User', 99999)`, [
@@ -606,7 +622,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill did not reach the required state for the Support account',
+      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
     );
 
     const role = (await queryRunner.query(`SELECT "role" FROM "user" WHERE "address" = $1`, [TARGET_ADDRESS])) as {
@@ -619,7 +635,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill did not reach the required state for the Support account',
+      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
     );
 
     const users = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "user"`)) as { count: number }[];
@@ -655,7 +671,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill did not reach the required state for the Support account',
+      'DEV staff-name backfill postcondition failed: Support account did not reach a single non-blank verifiedName',
     );
 
     // Role grant is after the postcondition; a blankCount failure must not elevate.
