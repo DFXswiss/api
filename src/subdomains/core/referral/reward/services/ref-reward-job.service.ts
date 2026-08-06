@@ -28,4 +28,9 @@ export class RefRewardJobService {
     await this.refRewardOutService.payoutNewTransactions();
     await this.refRewardNotificationService.sendNotificationMails();
   }
+
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
+  async createRefBonusRewards() {
+    await this.refRewardService.createRefBonusRewards();
+  }
 }

@@ -2,18 +2,22 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { RefBonusAgreementDto } from 'src/shared/models/setting/dto/ref-bonus-agreement.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import {
   PriceCurrency,
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, Not } from 'typeorm';
+import { Between, Brackets, In, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
@@ -65,6 +69,8 @@ const PayoutLimits: { [k in Blockchain]: number } = {
 
 @Injectable()
 export class RefRewardService {
+  private readonly logger = new DfxLogger(RefRewardService);
+
   constructor(
     private readonly rewardRepo: RefRewardRepository,
     private readonly userService: UserService,
@@ -72,6 +78,7 @@ export class RefRewardService {
     private readonly assetService: AssetService,
     private readonly transactionService: TransactionService,
     private readonly settingService: SettingService,
+    private readonly transactionRepo: TransactionRepository,
   ) {}
 
   async createPendingRefRewards(): Promise<void> {
@@ -127,6 +134,130 @@ export class RefRewardService {
         });
 
         await this.rewardRepo.save(entity);
+      }
+    }
+  }
+
+  async createRefBonusRewards(): Promise<void> {
+    // A missing or empty configuration means "no ref bonus agreements are active" - this cron
+    // deliberately does nothing until an operator populates the setting.
+    const agreements = await this.settingService.getObj<RefBonusAgreementDto[]>('refBonusAgreements', []);
+    if (!agreements.length) return;
+
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
+
+    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
+    for (const agreement of agreements) {
+      const user = await this.userService.getUser(agreement.userId, { userData: true });
+      const asset = await this.assetService.getAssetById(agreement.outputAssetId);
+      if (!user || !asset) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: user or output asset not found`);
+        continue;
+      }
+
+      const candidates = await this.transactionRepo
+        .createQueryBuilder('transaction')
+        .leftJoinAndSelect('transaction.buyCrypto', 'buyCrypto')
+        .leftJoinAndSelect('transaction.buyFiat', 'buyFiat')
+        .leftJoinAndSelect('buyFiat.cryptoInput', 'cryptoInput')
+        .leftJoinAndSelect('cryptoInput.asset', 'cryptoInputAsset')
+        .leftJoin('transaction.targetRefReward', 'refReward')
+        .where('transaction.id > :minTransactionId', { minTransactionId: agreement.minTransactionId })
+        .andWhere(
+          new Brackets((qb) =>
+            qb
+              .where(
+                'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
+                { usedRef: agreement.usedRef, completeStatus: BuyCryptoStatus.COMPLETE },
+              )
+              .orWhere(
+                'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
+                { usedRef: agreement.usedRef, isComplete: true },
+              ),
+          ),
+        )
+        .andWhere('refReward.id IS NULL')
+        .getMany();
+
+      for (const candidate of candidates) {
+        try {
+          let feeInEur: number;
+
+          if (candidate.buyCrypto?.absoluteFeeAmount) {
+            // Buy side: absoluteFeeAmount is denominated in inputReferenceAsset (fiat, e.g. EUR/CHF).
+            const fee = candidate.buyCrypto.absoluteFeeAmount;
+            const feeCurrency = candidate.buyCrypto.inputReferenceAsset;
+
+            if (feeCurrency === PriceCurrency.EUR) {
+              feeInEur = fee;
+            } else {
+              const price = await this.pricingService.getPrice(
+                feeCurrency as PriceCurrency,
+                PriceCurrency.EUR,
+                PriceValidity.VALID_ONLY,
+              );
+              feeInEur = price.convert(fee, 8);
+            }
+          } else if (candidate.buyFiat?.absoluteFeeAmount) {
+            // Sell side: absoluteFeeAmount is denominated in the sold crypto asset (inputAsset).
+            const fee = candidate.buyFiat.absoluteFeeAmount;
+            const feeAsset = candidate.buyFiat.cryptoInput?.asset;
+            if (!feeAsset) {
+              this.logger.error(
+                `Skipping ref bonus reward for transaction ${candidate.id}: missing cryptoInput asset for sell-side fee`,
+              );
+              continue;
+            }
+
+            const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+            feeInEur = price.convert(fee, 8);
+          } else {
+            this.logger.error(
+              `Skipping ref bonus reward for transaction ${candidate.id}: neither buyCrypto nor buyFiat carries a fee`,
+            );
+            continue;
+          }
+
+          const amountInEur = feeInEur * agreement.feeShare;
+          if (!Number.isFinite(amountInEur) || amountInEur <= 0) {
+            this.logger.error(
+              `Skipping ref bonus reward for transaction ${candidate.id}: invalid amount ${amountInEur}`,
+            );
+            continue;
+          }
+
+          const entity = this.rewardRepo.create({
+            user,
+            targetAddress: user.address,
+            outputAsset: asset,
+            sourceTransaction: candidate,
+            status: amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+            targetBlockchain: asset.blockchain,
+            amountInChf: eurChfPrice.convert(amountInEur, 8),
+            amountInEur,
+          });
+
+          entity.transaction = await this.transactionService.create({
+            sourceType: TransactionSourceType.MANUAL_REF,
+            user,
+            userData: user.userData,
+          });
+
+          await this.userService.updateRefVolume(
+            user.ref,
+            user.refVolume + amountInEur / user.refFeePercent,
+            user.refCredit + amountInEur,
+          );
+
+          await this.rewardRepo.save(entity);
+        } catch (e) {
+          this.logger.error(`Failed to create ref bonus reward for transaction ${candidate.id}:`, e);
+        }
       }
     }
   }
