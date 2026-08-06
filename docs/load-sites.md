@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **at most 1158 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
+Every place in the code that reads from the database: **at most 1160 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -444,6 +444,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts:173` | `UserDataNotificationService.blackSquadInvitation` |
 | 99 | 0 | query-builder (no select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:148` | `UserDataService.getUserDataByUser` |
 | 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:320` | `UserDataService.getUserDataByKey` |
+| 98 | 2 | query-builder (no select) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:439` | `TransactionService.getRefBonusCandidates` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user-data/user-data.service.ts:1071` | `UserDataService.customIdentMethod` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:275` | `UserService.getRefDtoV2` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:283` | `UserService.updateRef` |
