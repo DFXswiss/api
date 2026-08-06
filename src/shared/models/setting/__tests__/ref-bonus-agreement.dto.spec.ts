@@ -78,6 +78,40 @@ describe('RefBonusAgreementDto', () => {
     expect(errorsWrongType.find((e) => e.property === 'feeShare')).toBeDefined();
   });
 
+  // The payout is a share of a fee that was actually collected, so anything outside (0, 1] would
+  // pay out more than the fee itself or nothing at all.
+  it.each([2, 1.0001, 0, -0.5])('should reject a feeShare of %p as outside (0, 1]', async (feeShare) => {
+    const instance = plainToInstance(RefBonusAgreementDto, { ...validPlain, feeShare });
+
+    const errors = await validate(instance);
+
+    expect(errors.find((e) => e.property === 'feeShare')).toBeDefined();
+  });
+
+  it('should accept a feeShare of exactly 1', async () => {
+    const instance = plainToInstance(RefBonusAgreementDto, { ...validPlain, feeShare: 1 });
+
+    const errors = await validate(instance);
+
+    expect(errors.find((e) => e.property === 'feeShare')).toBeUndefined();
+  });
+
+  it.each([-1, 1.5])('should reject a minTransactionId of %p', async (minTransactionId) => {
+    const instance = plainToInstance(RefBonusAgreementDto, { ...validPlain, minTransactionId });
+
+    const errors = await validate(instance);
+
+    expect(errors.find((e) => e.property === 'minTransactionId')).toBeDefined();
+  });
+
+  it.each(['userId', 'outputAssetId'])('should reject a non-positive %s', async (field) => {
+    const instance = plainToInstance(RefBonusAgreementDto, { ...validPlain, [field]: 0 });
+
+    const errors = await validate(instance);
+
+    expect(errors.find((e) => e.property === field)).toBeDefined();
+  });
+
   it('should reject when minTransactionId is missing or has wrong type', async () => {
     const without = plainToInstance(RefBonusAgreementDto, { ...validPlain, minTransactionId: undefined });
     const wrongType = plainToInstance(RefBonusAgreementDto, {
