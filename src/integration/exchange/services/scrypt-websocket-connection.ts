@@ -564,9 +564,12 @@ export class ScryptWebSocketConnection {
       });
 
       ws.on('error', (error) => {
-        // Every caller of connect() already logs this rejection with better context: sendSubscription
-        // ("Failed to subscribe to X") and scheduleReconnect (warn per attempt, error every 10th). Logging
-        // it here too duplicated the same error at unthrottled ERROR on every single failed attempt.
+        // The two in-file callers of connect() already log this rejection with better context:
+        // subscribe()'s catch on sendSubscription ("Failed to subscribe to X") and scheduleReconnect
+        // (warn per attempt, error every 10th). Business callers reached via notify()/requestWithId()
+        // (withdrawFunds, placeOrder, sendDepositRequest, ...) classify and log it themselves further
+        // up the stack. Logging it here too duplicated the same error at unthrottled ERROR on every
+        // single failed attempt, on top of whichever of those already covers it.
         clearTimeout(handshakeTimeout);
         reject(error);
       });

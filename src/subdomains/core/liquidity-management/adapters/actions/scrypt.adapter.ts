@@ -385,11 +385,15 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       let unsettled = 0;
 
       for (const reference of references) {
-        const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
+        let lookupError: Error | undefined;
+        const info = await this.scryptService.getOrderStatus(reference).catch((e) => {
+          lookupError = e;
+          return undefined;
+        });
 
         if (info === undefined) {
           this.logger.warn(
-            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is unreachable; keeping the order quarantined`,
+            `Order ${order.id}: unsupported command ${order.action.command} — reference ${reference} is unreachable; keeping the order quarantined${lookupError ? ` (${lookupError.message})` : ''}`,
           );
           return null;
         }
@@ -609,12 +613,18 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     for (const reference of claimed) {
       // `null` means the venue does not show it, `undefined` that it could not be asked. Neither is a reply,
       // and only a reply can establish that a claimed reference created nothing.
-      const info = await this.scryptService.getOrderStatus(reference).catch(() => undefined);
+      let lookupError: Error | undefined;
+      const info = await this.scryptService.getOrderStatus(reference).catch((e) => {
+        lookupError = e;
+        return undefined;
+      });
 
       if (info == null) {
         this.logger.warn(
           `Order ${order.id} claimed ${reference}, but the venue ${
-            info === null ? 'does not show it' : 'could not be asked about it'
+            info === null
+              ? 'does not show it'
+              : `could not be asked about it${lookupError ? ` (${lookupError.message})` : ''}`
           } — holding back every write against ${order.correlationId}`,
         );
 
@@ -699,11 +709,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       .map((result) => result.value!);
 
     // Log failures
-    const failures = orderResults.filter((result) => result.status === 'rejected');
+    const failures = orderResults.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
     if (failures.length > 0) {
+      const firstReason = failures[0].reason instanceof Error ? failures[0].reason.message : failures[0].reason;
       this.logger.warn(
-        `Order ${order.id}: Failed to fetch ${failures.length} of ${correlationIds.length} orders. ` +
-          `Proceeding with ${orders.length} successful fetches.`,
+        `Order ${order.id}: Failed to fetch ${failures.length} of ${correlationIds.length} orders ` +
+          `(first failure: ${firstReason}). Proceeding with ${orders.length} successful fetches.`,
       );
     }
 
