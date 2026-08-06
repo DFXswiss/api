@@ -13,11 +13,10 @@
 // paymentEnabled, refEnabled.
 //
 // prd is a deliberate no-op: production keeps the tokens non-tradable (and unpriced) until a later
-// deliberate enablement. Sell on prd must not go live until the pricing layer handles Ask/Bid
-// direction (see the limitation documented in PricingDenarioService).
+// deliberate enablement.
 //
-// Sell on non-prd deliberately uses the inverted Ask (one price_rule → Price.invert()). That is
-// acceptable on dev/CI where no real money moves; resolve before sellable is true on prd.
+// Both directions are priced off the Denario ask by decision; see the note in PricingDenarioService
+// for what that means on the sell side.
 
 /**
  * @typedef {import('typeorm').MigrationInterface} MigrationInterface

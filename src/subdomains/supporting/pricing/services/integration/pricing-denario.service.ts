@@ -60,14 +60,12 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     // keep working during an outage. Flagged invalid so the rule update does not store it as fresh
     // and VALID_ONLY consumers still skip it.
     //
-    // Known limitation, to be resolved before sellable is enabled on prd: priceAsk is the customer
-    // buy quote, so buys are priced
-    // correctly. Sells are not: a price_rule holds exactly one price, asset.priceRuleId points at
-    // exactly one rule, and the sell path derives from Price.invert() of that same Ask — not Bid.
-    // Denario's spread is large (gold ~5.9 %, silver ~15.8 % observed 2026-08-06). Buying back at
-    // the inverted Ask would lose money per token for DFX. Before sellable is true on prd, the
-    // pricing layer needs direction-aware rule resolution (two rules per asset) or a fee that
-    // covers the spread. Do not build that here — it is shared code for all assets.
+    // Deliberate decision (DFX, 2026-08-06): both directions are priced off priceAsk. A price_rule
+    // holds exactly one price and asset.priceRuleId points at exactly one rule, so the sell path
+    // derives from Price.invert() of the same Ask rather than from priceBid. Denario quotes a wide
+    // two-sided market — gold 4511.00359 against 4259.41142 USD and silver 56.75893 against
+    // 49.01426 CHF on 2026-08-06 — so a sell settles above Denario's own buy-back level and the
+    // difference has to be carried by the fee configuration rather than by the rate.
     const fallback = await this.getLastKnownPrice(token, currency);
     if (fallback == null) throw new Error(`No price available for ${from} -> ${to}`);
 
