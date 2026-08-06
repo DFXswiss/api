@@ -1,14 +1,19 @@
-// Link Polygon/DGC and Polygon/DSC to Denario price rules in every environment (including prd).
+// Link Polygon/DGC and Polygon/DSC to Denario price rules outside prd only.
 //
 // Companion to AddDenarioAssetsOutsidePrd1786000000000 (inserts inert assets outside prd) and
 // EnableDenarioAssetsOutsidePrd1786200000000 (sets buyable/sellable outside prd only).
 //
-// This migration is intentionally separate from enablement so price rules can exist on prd while
-// the tokens remain non-tradable there. Buyable/sellable are not touched here.
+// This migration is intentionally separate from enablement so price rules and tradability can be
+// rolled back independently. Buyable/sellable are not touched here.
 //
-// In all environments:
+// Outside prd only:
 // 1. Insert one Denario price_rule per token (live partner premium via PricingDenarioService).
 // 2. Point asset.priceRuleId at those rules.
+//
+// prd is a deliberate no-op. AssetService.getPayInAssets filters on priceRule IS NOT NULL: assigning
+// a price rule on prod would admit DGC/DSC into pay-in registration (unpriced tokens today end as
+// terminal FAILED with a monitoring alert). Leaving them unpriced on prd keeps that safety filter.
+// A later prod activation needs its own deliberate migration.
 //
 // Price source is PriceSource.DENARIO ('Denario'). priceAsset is DGC/DSC, priceReference is USD;
 // referenceId is resolved dynamically via uniqueName = 'Ethereum/USDT' (seed id 123 is not stable).
@@ -241,8 +246,9 @@ module.exports = class LinkDenarioPriceRules1786100000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    // No ENVIRONMENT guard: price rules are linked in every environment including prd.
-    // Tradability stays false on prd until EnableDenarioAssetsOutsidePrd (or a later deliberate prd enable).
+    // prd deliberately keeps DGC/DSC unpriced so getPayInAssets continues to exclude them.
+    // Pricing is exclusively a dev/CI surface until a later deliberate prd migration.
+    if (process.env.ENVIRONMENT === 'prd') return;
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
@@ -329,6 +335,9 @@ module.exports = class LinkDenarioPriceRules1786100000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Mirror up(): the apply only ran outside prd, so the rollback is a no-op on prd.
+    if (process.env.ENVIRONMENT === 'prd') return;
+
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
     const applyAudit = await getActiveApplyAudit(queryRunner);

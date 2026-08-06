@@ -60,7 +60,8 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     // keep working during an outage. Flagged invalid so the rule update does not store it as fresh
     // and VALID_ONLY consumers still skip it.
     //
-    // TODO / warn before prd sellable: priceAsk is the customer buy quote, so buys are priced
+    // Known limitation, to be resolved before sellable is enabled on prd: priceAsk is the customer
+    // buy quote, so buys are priced
     // correctly. Sells are not: a price_rule holds exactly one price, asset.priceRuleId points at
     // exactly one rule, and the sell path derives from Price.invert() of that same Ask — not Bid.
     // Denario's spread is large (gold ~5.9 %, silver ~15.8 % observed 2026-08-06). Buying back at

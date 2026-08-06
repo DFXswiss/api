@@ -1,19 +1,20 @@
 // Make Polygon/DGC and Polygon/DSC buyable and sellable outside prd.
 //
-// Companion to LinkDenarioPriceRules1786100000000, which creates and links Denario price rules in
-// every environment (including prd). This migration only flips tradability flags and is intentionally
-// separate so price rules can stay while buyability is rolled back (or vice versa).
+// Companion to LinkDenarioPriceRules1786100000000, which creates and links Denario price rules
+// outside prd only (also a prd no-op — a price rule would admit the tokens into getPayInAssets).
+// This migration only flips tradability flags and is intentionally separate so price rules can
+// stay while buyability is rolled back (or vice versa).
 //
-// Outside prd only:
+// Outside prd only (LinkDenarioPriceRules must have run first because of the smaller timestamp):
 // 1. Require both assets to already carry a priceRuleId (set by LinkDenarioPriceRules).
 // 2. Set asset.buyable = true and asset.sellable = true (bank-transfer path).
 //
 // All other flags stay false: cardBuyable, cardSellable, instantBuyable, instantSellable,
 // paymentEnabled, refEnabled.
 //
-// prd is a deliberate no-op: production keeps the tokens non-tradable until a later deliberate
-// enablement. Sell on prd must not go live until the pricing layer handles Ask/Bid direction
-// (see PricingDenarioService TODO).
+// prd is a deliberate no-op: production keeps the tokens non-tradable (and unpriced) until a later
+// deliberate enablement. Sell on prd must not go live until the pricing layer handles Ask/Bid
+// direction (see the limitation documented in PricingDenarioService).
 //
 // Sell on non-prd deliberately uses the inverted Ask (one price_rule → Price.invert()). That is
 // acceptable on dev/CI where no real money moves; resolve before sellable is true on prd.

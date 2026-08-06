@@ -8,9 +8,12 @@ type Migration = {
 
 let LinkDenarioPriceRules: new () => Migration;
 
-// No ENVIRONMENT gate — runs on prd and non-prd alike. Force a value only so tests that override
-// ENVIRONMENT can restore cleanly.
+// This migration is non-prd-gated (ENVIRONMENT === 'prd' is a no-op); force a non-prd value so
+// up()/down() execute unless a test overrides ENVIRONMENT.
 const originalEnvironment = process.env.ENVIRONMENT;
+beforeEach(() => {
+  process.env.ENVIRONMENT = 'dev';
+});
 afterEach(() => {
   if (originalEnvironment === undefined) delete process.env.ENVIRONMENT;
   else process.env.ENVIRONMENT = originalEnvironment;
@@ -164,26 +167,48 @@ describe('LinkDenarioPriceRules migration (postgres semantics)', () => {
     expect(dsc.sellable).toBe(false);
   }
 
-  it.each(['dev', 'prd'] as const)(
-    'creates Denario rules, links both assets, writes audit (ENVIRONMENT=%s)',
-    async (env) => {
-      process.env.ENVIRONMENT = env;
+  it('outside prd: creates Denario rules, links both assets, writes audit', async () => {
+    await new LinkDenarioPriceRules().up(queryRunner);
 
-      await new LinkDenarioPriceRules().up(queryRunner);
+    await assertLinked();
 
-      await assertLinked();
+    const audit = await getAuditEvents();
+    expect(audit).toHaveLength(1);
+    expect(audit.at(0)).toMatchObject({
+      system: 'Migration',
+      subsystem: 'LinkDenarioPriceRules1786100000000',
+      action: 'applyLinkDenarioPriceRules',
+    });
+    expect((audit.at(0)?.assets as unknown[]).length).toBe(2);
+    expect((audit.at(0)?.createdPriceRules as unknown[]).length).toBe(2);
+  });
 
-      const audit = await getAuditEvents();
-      expect(audit).toHaveLength(1);
-      expect(audit.at(0)).toMatchObject({
-        system: 'Migration',
-        subsystem: 'LinkDenarioPriceRules1786100000000',
-        action: 'applyLinkDenarioPriceRules',
-      });
-      expect((audit.at(0)?.assets as unknown[]).length).toBe(2);
-      expect((audit.at(0)?.createdPriceRules as unknown[]).length).toBe(2);
-    },
-  );
+  it('is a no-op on prd: no rules, no link, no audit', async () => {
+    process.env.ENVIRONMENT = 'prd';
+
+    await new LinkDenarioPriceRules().up(queryRunner);
+
+    expect(await getPriceRules()).toEqual([]);
+    expect(await getAuditEvents()).toEqual([]);
+    expect((await getAsset('Polygon/DGC')).priceRuleId).toBeNull();
+    expect((await getAsset('Polygon/DSC')).priceRuleId).toBeNull();
+  });
+
+  it('down() is a no-op on prd', async () => {
+    // Apply outside prd, then flip ENVIRONMENT so down() must refuse to touch the rows.
+    const migration = new LinkDenarioPriceRules();
+    await migration.up(queryRunner);
+    expect(await getPriceRules()).toHaveLength(2);
+
+    process.env.ENVIRONMENT = 'prd';
+    await migration.down(queryRunner);
+
+    expect(await getPriceRules()).toHaveLength(2);
+    expect((await getAsset('Polygon/DGC')).priceRuleId).not.toBeNull();
+    expect((await getAsset('Polygon/DSC')).priceRuleId).not.toBeNull();
+    // Only the apply event — no rollback audit on prd.
+    expect(await getAuditEvents()).toHaveLength(1);
+  });
 
   it('is idempotent — a second up() does not duplicate rules or audit events', async () => {
     await new LinkDenarioPriceRules().up(queryRunner);
