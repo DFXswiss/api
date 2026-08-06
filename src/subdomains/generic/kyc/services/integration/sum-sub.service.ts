@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException, ServiceUnavailableException }
 import { Method, ResponseType } from 'axios';
 import * as crypto from 'crypto';
 import { Request } from 'express';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -16,6 +16,7 @@ import {
   SumSubDocumentMetaData,
   SumsubResult,
   SumSubVideoData,
+  SumSubWebhookResult,
 } from '../../dto/sum-sub.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
@@ -80,6 +81,18 @@ export class SumsubService {
     const calculatedDigest = crypto.createHmac(algo, Config.kyc.webhookKey).update(rawBody).digest('hex');
 
     return calculatedDigest === req.headers['x-payload-digest'];
+  }
+
+  /**
+   * Production must never act on a Sandbox webhook. Sumsub serves Sandbox and Production from the
+   * same host (api.sumsub.com) and separates them only by the app-token/secret pair, so the sole
+   * barrier between the two is a per-environment KYC_WEBHOOK_KEY. If that key were ever identical
+   * on dev and prd, a Sandbox test ident would complete a real production KycStep and mark a
+   * customer verified. Only an explicit `sandboxMode: true` is rejected — a missing or false flag
+   * must never block a webhook, otherwise a dropped field would stall production ident entirely.
+   */
+  static isSandboxWebhookOnProd(webhook: SumSubWebhookResult): boolean {
+    return webhook.sandboxMode === true && Config.environment === Environment.PRD;
   }
 
   static identUrl(kycStep: KycStep): string {
