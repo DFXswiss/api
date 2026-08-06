@@ -74,6 +74,11 @@ describe('TradingRuleService.getCurrentTradingOrders (statement shape)', () => {
     expect(sql).not.toMatch(/GROUP BY|MAX\s*\(/);
     // LEFT JOIN LATERAL would emit a null id for a rule with no orders and carry it into In(...)
     expect(sql).not.toContain('LEFT JOIN LATERAL');
+    // the correlation and the projected column are what make the row the *right* one rather than
+    // merely a row: without them the statement still parses, still returns one id per rule, and
+    // still satisfies every assertion above while naming the wrong orders
+    expect(sql).toContain('WHERE "order"."tradingRuleId" = rule."id"');
+    expect(sql).toContain('SELECT latest."id" AS "tradingOrderId"');
   });
 
   it('loads exactly the ids the statement returned', async () => {
