@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { Column, DataSource, Entity, FindOperator, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, DataSource, Entity, FindOperator, In, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { TradingRuleService } from '../trading-rule.service';
 import { TradingService } from '../trading.service';
 
@@ -30,6 +30,60 @@ class TradingOrderTable {
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
 const SCHEMA = 'trading_rule_latest_orders_spec';
+
+/**
+ * Runs everywhere, with no database. The semantics below need PostgreSQL and skip without it, so
+ * this half exists to keep something unconditional: it pins the statement's shape, and above all
+ * that there is exactly ONE of them.
+ *
+ * That count is the load-bearing assertion. LogJobService writes the FinanceLog from this result,
+ * so every rule's latest order has to come from a single READ-COMMITTED snapshot; a per-rule loop
+ * would read correctly in isolation and still be wrong here, mixing rows from different points in
+ * time. No amount of result-shape checking catches that — only the statement count does.
+ */
+describe('TradingRuleService.getCurrentTradingOrders (statement shape)', () => {
+  function serviceWith(rows: { tradingOrderId: number }[]) {
+    const query = jest.fn().mockResolvedValue(rows);
+    const findBy = jest.fn().mockResolvedValue([]);
+    const service = new TradingRuleService(createMock<TradingService>());
+    (service as any).orderRepo = { manager: { query }, findBy };
+
+    return { service, query, findBy };
+  }
+
+  it('issues exactly one statement, so every rule is read under one snapshot', async () => {
+    const { service, query } = serviceWith([{ tradingOrderId: 30 }]);
+
+    await service.getCurrentTradingOrders();
+
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('drives the read from the rules and takes the newest order of each', async () => {
+    const { service, query } = serviceWith([]);
+
+    await service.getCurrentTradingOrders();
+
+    const sql = (query.mock.calls[0][0] as string).replace(/\s+/g, ' ');
+
+    expect(sql).toContain('FROM "trading_rule" rule');
+    expect(sql).toContain('CROSS JOIN LATERAL');
+    expect(sql).toContain('ORDER BY "order"."id" DESC');
+    expect(sql).toContain('LIMIT 1');
+    // a revert to the aggregate this replaced would read the whole index again
+    expect(sql).not.toMatch(/GROUP BY|MAX\s*\(/);
+    // LEFT JOIN LATERAL would emit a null id for a rule with no orders and carry it into In(...)
+    expect(sql).not.toContain('LEFT JOIN LATERAL');
+  });
+
+  it('loads exactly the ids the statement returned', async () => {
+    const { service, findBy } = serviceWith([{ tradingOrderId: 30 }, { tradingOrderId: 40 }]);
+
+    await service.getCurrentTradingOrders();
+
+    expect(findBy).toHaveBeenCalledWith({ id: In([30, 40]) });
+  });
+});
 
 /**
  * This ran against pg-mem until getCurrentTradingOrders moved to a LATERAL, which pg-mem cannot
