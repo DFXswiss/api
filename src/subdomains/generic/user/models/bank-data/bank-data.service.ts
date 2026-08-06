@@ -186,7 +186,9 @@ export class BankDataService {
     return this.createVerifyBankData(userData, dto);
   }
 
-  async replaceBankDataWithNewType(oldBankData: BankData, newDto: CreateBankDataDto): Promise<BankData> {
+  // Undefined when nothing was written — either the row already exists, or createBankDataInternal
+  // suppressed it. Both callers (buy-crypto, buy-fiat) ignore the value.
+  async replaceBankDataWithNewType(oldBankData: BankData, newDto: CreateBankDataDto): Promise<BankData | undefined> {
     if (await this.bankDataRepo.existsBy({ iban: newDto.iban, type: newDto.type })) return;
 
     if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
@@ -208,17 +210,8 @@ export class BankDataService {
   }
 
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
-    // Callers here derive the IBAN from bankTx.senderAccount or sell.iban, so a DFX-owned account can
-    // arrive without any caller having asked for it. Such a row would make getUserDataForBankTx
-    // attribute every transfer sent from that account to this user, so skip it — but do not throw:
-    // in createFromBankTx this runs before the buyCrypto is created, and assignTransactions only logs
-    // and retries, so a throw would wedge a real customer payment indefinitely.
-    if (await this.bankService.areKnownBankIbans(dto.iban)) {
-      await this.reportSuppressedDfxIbanBankData(userData, dto);
-      return userData;
-    }
-
     const bankData = await this.createBankDataInternal(userData, dto);
+    if (!bankData) return userData;
 
     if (!DisabledProcess(Process.BANK_DATA_VERIFICATION) && bankData.status === ReviewStatus.INTERNAL_REVIEW)
       await this.verifyBankData(bankData);
@@ -230,7 +223,21 @@ export class BankDataService {
     return userData;
   }
 
-  async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
+  // Returns undefined when the row was suppressed. This is the shared chokepoint for every bankData
+  // creation that is not caller-supplied — createVerifyBankData and replaceBankDataWithNewType both
+  // land here — so the DFX-IBAN check belongs here rather than one level up, where the replace path
+  // would walk around it.
+  async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData | undefined> {
+    // These callers derive the IBAN from bankTx.senderAccount or sell.iban, so a DFX-owned account can
+    // arrive without any caller having asked for it. Such a row would make getUserDataForBankTx
+    // attribute every transfer sent from that account to this user, so skip it — but do not throw: in
+    // createFromBankTx this runs before the buyCrypto is created, and assignTransactions only logs and
+    // retries, so a throw would wedge a real customer payment indefinitely.
+    if (await this.bankService.areKnownBankIbans(dto.iban)) {
+      await this.reportSuppressedDfxIbanBankData(userData, dto);
+      return undefined;
+    }
+
     if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
 
     const existingUserBankData = await this.bankDataRepo.findOneBy({ type: BankDataType.USER, iban: dto.iban });
@@ -419,6 +426,12 @@ export class BankDataService {
             where: { userData: { id: userDataId }, iban: entity.iban },
             relations: { userData: true },
           })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER })));
+
+    // The lookup above is satisfied by `entity` itself (ownership is asserted at the top), so the
+    // createBankDataInternal fallback does not fire today. Guard the result anyway: spreading an
+    // undefined into updateBankDataInternal would drop the id and insert a stray row instead of
+    // updating one, and that failure would be silent.
+    if (!bankData) throw new BadRequestException('Bank account cannot be updated');
 
     return this.updateBankDataInternal(bankData, dto);
   }

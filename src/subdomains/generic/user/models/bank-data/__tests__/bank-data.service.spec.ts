@@ -178,5 +178,18 @@ describe('BankDataService DFX-IBAN guard', () => {
       expect(bankDataRepo.create).toHaveBeenCalled();
       expect(notificationService.sendMail).not.toHaveBeenCalled();
     });
+
+    // buy-crypto picks replaceBankDataWithNewType over createVerifyBankData whenever a row for that
+    // IBAN already exists with a different type, and it reaches createBankDataInternal on its own.
+    // Guarding one level up would have left this path open.
+    it('also suppresses on the replaceBankDataWithNewType path', async () => {
+      bankDataRepo.existsBy.mockResolvedValue(false);
+      const old = { id: 9, approved: false, userData: userData() } as unknown as BankData;
+
+      await expect(service.replaceBankDataWithNewType(old, createDto)).resolves.toBeUndefined();
+
+      expect(bankDataRepo.create).not.toHaveBeenCalled();
+      expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
+    });
   });
 });
