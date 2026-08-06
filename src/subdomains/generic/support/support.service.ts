@@ -10,8 +10,8 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { ScorechainScreeningDtoMapper } from 'src/integration/scorechain/dto/scorechain-screening-dto.mapper';
 import {
   ScorechainScreeningDto,
@@ -110,10 +110,10 @@ import {
   KycStepSupportInfo,
   NotificationSupportInfo,
   OnboardingStatus,
-  PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
+  PendingTransactionInfo,
   RecallSupportInfo,
   RecommendationEntry,
   RecommendationGraph,
@@ -726,6 +726,14 @@ export class SupportService {
       amountInChf: tx.amountInChf,
       amountInEur: tx.buyCrypto?.amountInEur ?? tx.buyFiat?.amountInEur,
       amlCheck: tx.buyCrypto?.amlCheck ?? tx.buyFiat?.amlCheck ?? tx.amlCheck,
+      chargebackAllowedDate:
+        tx.bankTxReturn?.chargebackAllowedDate ??
+        tx.buyCrypto?.chargebackAllowedDate ??
+        tx.buyFiat?.chargebackAllowedDate,
+      chargebackAllowedDateUser:
+        tx.bankTxReturn?.chargebackAllowedDateUser ??
+        tx.buyCrypto?.chargebackAllowedDateUser ??
+        tx.buyFiat?.chargebackAllowedDateUser,
       chargebackDate:
         tx.buyCrypto?.chargebackDate ??
         tx.buyFiat?.chargebackDate ??

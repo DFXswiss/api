@@ -169,6 +169,8 @@ export class TransactionSupportInfo {
   amountInChf?: number;
   amountInEur?: number;
   amlCheck?: string;
+  chargebackAllowedDate?: Date;
+  chargebackAllowedDateUser?: Date;
   chargebackDate?: Date;
   amlReason?: string;
   isCompleted: boolean;
