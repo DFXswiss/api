@@ -7,9 +7,13 @@ import { KycService } from '../../services/kyc.service';
 import { TfaService } from '../../services/tfa.service';
 import { KycController } from '../kyc.controller';
 
+// GetConfig() must NOT be called from inside the factory: config.ts and process.service.ts import
+// each other, so at factory time `Configuration` is not initialized yet and the call throws
+// "Cannot access 'Configuration' before initialization". Spreading `actual` keeps the real
+// GetConfig export available for anything that calls it later, during module evaluation.
 jest.mock('src/config/config', () => {
   const actual = jest.requireActual('src/config/config');
-  return { ...actual, Config: { ...actual.GetConfig(), environment: undefined } };
+  return { ...actual, Config: { environment: undefined } };
 });
 
 describe('KycController.sumsubWebhook', () => {
