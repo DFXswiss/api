@@ -9,7 +9,7 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
 | `find` family | 1007 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 144 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `createQueryBuilder` | 146 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 7 | not applied | whatever the statement lists |
 
 Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 4 raw `INSERT`. Each of the 7 raw reads that remain names its columns.
@@ -19,9 +19,9 @@ Among the query builders, the field list is what decides whether anything is act
 | | Sites |
 | --- | ---: |
 | `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **18** |
-| `.select('alias.column')` — names columns one by one | **90** |
+| `.select('alias.column')` — names columns one by one | **91** |
 | `.select('alias')` — selects the root alias, **loads every column** | 17 |
-| no `select` at all — loads every column | 15 |
+| no `select` at all — loads every column | 16 |
 | `getCount()` or `getExists()` — the select list is discarded, **no row is materialised** | 3 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
@@ -29,7 +29,7 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 796 of 1158 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 798 of 1160 sites.
 
 - **341 are exact**: the `relations` tree is written at the call site.
 - **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
