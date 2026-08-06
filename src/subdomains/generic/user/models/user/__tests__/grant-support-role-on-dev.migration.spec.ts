@@ -113,11 +113,11 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     const calls = queryRunner.query.mock.calls as [string, unknown[]?][];
     expect(calls).toHaveLength(4);
 
-    const [preconditionSql, preconditionParams] = calls[0];
-    expect(preconditionSql).toContain('AS "targetCount"');
-    expect(preconditionSql).not.toContain('AS "blankCount"');
-    expect(preconditionSql).toContain('LOWER("address") = LOWER($1::varchar)');
-    expect(preconditionParams?.[0]).toBe(TARGET_ADDRESS);
+    const [preWriteTargetCountSql, preWriteTargetCountParams] = calls[0];
+    expect(preWriteTargetCountSql).toContain('AS "targetCount"');
+    expect(preWriteTargetCountSql).not.toContain('AS "blankCount"');
+    expect(preWriteTargetCountSql).toContain('LOWER("address") = LOWER($1::varchar)');
+    expect(preWriteTargetCountParams?.[0]).toBe(TARGET_ADDRESS);
 
     const [clearanceSql, clearanceParams] = calls[1];
     expect(clearanceParams?.[0]).toBe(TEST_NAME);
@@ -137,13 +137,13 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
       "'action', CASE WHEN \"needsBackfill\" THEN 'backfilled' ELSE 'keptExistingName' END",
     );
 
-    const [postconditionSql, postconditionParams] = calls[2];
-    expect(postconditionSql).toContain('AS "targetCount"');
-    expect(postconditionSql).toContain('AS "blankCount"');
-    expect(postconditionSql).toContain('LOWER("address") = LOWER($2::varchar)');
-    expect(postconditionSql).not.toContain('"verifiedName" = $');
-    expect(postconditionParams?.[0]).toBe(clearanceParams?.[1]);
-    expect(postconditionParams?.[1]).toBe(TARGET_ADDRESS);
+    const [clearanceCheckSql, clearanceCheckParams] = calls[2];
+    expect(clearanceCheckSql).toContain('AS "targetCount"');
+    expect(clearanceCheckSql).toContain('AS "blankCount"');
+    expect(clearanceCheckSql).toContain('LOWER("address") = LOWER($2::varchar)');
+    expect(clearanceCheckSql).not.toContain('"verifiedName" = $');
+    expect(clearanceCheckParams?.[0]).toBe(clearanceParams?.[1]);
+    expect(clearanceCheckParams?.[1]).toBe(TARGET_ADDRESS);
 
     const [roleSql, roleParams] = calls[3];
     expect(calls[3]).toHaveLength(2);
@@ -524,7 +524,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
     await queryRunner.startTransaction();
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
+      'DEV staff-name backfill: Support account resolves to 2 user_data instead of exactly one before the clearance write',
     );
 
     // Pre-write targetCount check fired before clearance — nothing written, visible only inside the open transaction.
@@ -622,7 +622,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
+      'DEV staff-name backfill: Support account resolves to 0 user_data instead of exactly one before the clearance write',
     );
 
     const role = (await queryRunner.query(`SELECT "role" FROM "user" WHERE "address" = $1`, [TARGET_ADDRESS])) as {
@@ -635,7 +635,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
+      'DEV staff-name backfill: Support account resolves to 0 user_data instead of exactly one before the clearance write',
     );
 
     const users = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "user"`)) as { count: number }[];
@@ -671,7 +671,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
+      'DEV staff-name backfill: Support account verifiedName is still blank on 1 user_data row(s) after the clearance write',
     );
 
     // Role grant is after the clearance checks; a blankCount failure must not elevate.
@@ -712,10 +712,48 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account does not resolve to exactly one user_data after the clearance write',
+      'DEV staff-name backfill: Support account resolves to 2 user_data instead of exactly one after the clearance write',
     );
 
     // Role grant is after the clearance checks; a targetCount failure must not elevate.
+    expect(await getRole(userId)).toBe('User');
+  });
+
+  // Pins the order of the two post-write clearance checks: targetCount is evaluated before blankCount.
+  // Same race-trigger shape as the targetCount-only test, but the second user_data is left blank so
+  // both halves fire (targetCount = 2, blankCount = 1). The count message is the actionable cause;
+  // without this test, swapping the two if-blocks (messages kept on their own conditions) still
+  // passes every other case and only misleads operators.
+  it('up() reports targetCount before blankCount when both post-write checks fail', async () => {
+    const { userId } = await insertUser(TARGET_ADDRESS, 'User', null);
+
+    await queryRunner.query(`
+      CREATE FUNCTION force_extra_blank_target_user_data() RETURNS trigger AS $fn$
+      DECLARE
+        new_ud_id integer;
+      BEGIN
+        INSERT INTO "user_data" ("verifiedName") VALUES (NULL)
+        RETURNING "id" INTO new_ud_id;
+        INSERT INTO "user" ("address", "role", "userDataId")
+        VALUES (lower('${TARGET_ADDRESS}'), 'User', new_ud_id);
+        RETURN NEW;
+      END;
+      $fn$ LANGUAGE plpgsql
+    `);
+    await queryRunner.query(`
+      CREATE TRIGGER force_extra_blank_target_user_data_trigger
+      BEFORE UPDATE ON "user_data"
+      FOR EACH ROW
+      EXECUTE FUNCTION force_extra_blank_target_user_data()
+    `);
+
+    const migration = new GrantSupportRoleOnDev();
+
+    await expect(migration.up(queryRunner)).rejects.toThrow(
+      'DEV staff-name backfill: Support account resolves to 2 user_data instead of exactly one after the clearance write',
+    );
+
+    // Role grant is after the clearance checks; either failure must not elevate.
     expect(await getRole(userId)).toBe('User');
   });
 

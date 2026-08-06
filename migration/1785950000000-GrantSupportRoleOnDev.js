@@ -51,9 +51,10 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    if (Number(targetCountRows.at(0)?.targetCount) !== 1) {
+    const preWriteTargetCount = Number(targetCountRows.at(0)?.targetCount);
+    if (preWriteTargetCount !== 1) {
       throw new Error(
-        'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
+        `DEV staff-name backfill: Support account resolves to ${preWriteTargetCount} user_data instead of exactly one before the clearance write`,
       );
     }
 
@@ -109,15 +110,18 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(BLANK_CHARS, SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    if (Number(clearanceCheckRows.at(0)?.targetCount) !== 1) {
+    const postWriteTargetCount = Number(clearanceCheckRows.at(0)?.targetCount);
+    const postWriteBlankCount = Number(clearanceCheckRows.at(0)?.blankCount);
+
+    if (postWriteTargetCount !== 1) {
       throw new Error(
-        'DEV staff-name backfill: Support account does not resolve to exactly one user_data after the clearance write',
+        `DEV staff-name backfill: Support account resolves to ${postWriteTargetCount} user_data instead of exactly one after the clearance write`,
       );
     }
 
-    if (Number(clearanceCheckRows.at(0)?.blankCount) !== 0) {
+    if (postWriteBlankCount !== 0) {
       throw new Error(
-        'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
+        `DEV staff-name backfill: Support account verifiedName is still blank on ${postWriteBlankCount} user_data row(s) after the clearance write`,
       );
     }
 
