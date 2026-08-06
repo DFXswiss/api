@@ -249,6 +249,20 @@ describe('ScryptWebSocketConnection', () => {
     ]);
   });
 
+  it('logs a transport error on an already-open socket, where reject() is a no-op and nobody else observes it', async () => {
+    const firstWs = await firstConnectWithStream();
+
+    const transportError = new Error('read ECONNRESET');
+    firstWs.fail(transportError);
+    await flushPromises();
+
+    // The connect() promise settled long ago via 'open' — reject() here reaches no caller, and the
+    // 'close' handler that follows only carries a code/reason, not this error's message. This is the
+    // one case where the raw handler is the sole diagnostic record, so (unlike the CONNECTING-phase
+    // case above) it must log it itself.
+    expect(loggerError).toHaveBeenCalledWith('Scrypt WebSocket error:', transportError);
+  });
+
   it('resubscribes when an implicit reconnect is driven by a business call (ensureConnected)', async () => {
     const resubscribeSpy = jest.spyOn(connection as any, 'resubscribeToStreams');
     const firstWs = await firstConnectWithStream(ScryptMessageType.BALANCE_TRANSACTION);

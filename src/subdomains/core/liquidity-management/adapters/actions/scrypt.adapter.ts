@@ -620,12 +620,12 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       });
 
       if (info == null) {
+        const venueAnswer =
+          info === null
+            ? 'does not show it'
+            : `could not be asked about it${lookupError ? ` (${lookupError.message})` : ''}`;
         this.logger.warn(
-          `Order ${order.id} claimed ${reference}, but the venue ${
-            info === null
-              ? 'does not show it'
-              : `could not be asked about it${lookupError ? ` (${lookupError.message})` : ''}`
-          } — holding back every write against ${order.correlationId}`,
+          `Order ${order.id} claimed ${reference}, but the venue ${venueAnswer} — holding back every write against ${order.correlationId}`,
         );
 
         return false;
