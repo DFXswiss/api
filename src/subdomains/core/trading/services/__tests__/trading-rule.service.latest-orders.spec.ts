@@ -1,12 +1,11 @@
 import { createMock } from '@golevelup/ts-jest';
-import { DataType, newDb } from 'pg-mem';
 import { Column, DataSource, Entity, FindOperator, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { TradingRuleService } from '../trading-rule.service';
 import { TradingService } from '../trading.service';
 
 // the real TradingOrder / TradingRule entities cannot be registered standalone (relations pull
 // in the whole entity graph), so these tables mirror only the columns getCurrentTradingOrders
-// actually touches — under the real table names
+// actually touches — under the real table names, because the query names them literally
 @Entity({ name: 'trading_rule' })
 class TradingRuleTable {
   @PrimaryColumn()
@@ -21,36 +20,50 @@ class TradingOrderTable {
   @Column({ type: 'int' })
   tradingRuleId: number;
 
-  // Relation path for `.innerJoin('tradingOrder.tradingRule', ...)`; createForeignKeyConstraints
-  // is false so the intentionally orphaned fixture row (tradingRuleId with no matching rule) stays insertable.
+  // createForeignKeyConstraints is false so the intentionally orphaned fixture row (a
+  // tradingRuleId with no matching rule) stays insertable.
   @ManyToOne(() => TradingRuleTable, { nullable: false, createForeignKeyConstraints: false })
   @JoinColumn({ name: 'tradingRuleId' })
   tradingRule: TradingRuleTable;
 }
 
-// runs getCurrentTradingOrders against a Postgres-semantics engine (pg-mem) to verify the
-// aggregation semantics, because a mocked query builder never executes SQL and a wrong shape
-// (e.g. MAX swapped for MIN, or the INNER JOIN removed) would otherwise go unnoticed
-describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () => {
+const PG_URL = process.env.MIGRATION_TEST_PG;
+const describeDb = PG_URL ? describe : describe.skip;
+const SCHEMA = 'trading_rule_latest_orders_spec';
+
+/**
+ * This ran against pg-mem until getCurrentTradingOrders moved to a LATERAL, which pg-mem cannot
+ * execute — it does not resolve the subquery's reference to the outer row, failing with
+ * `column "rule.id" does not exist`. That limitation is exactly what the previous implementation
+ * comment cited as the reason not to write the faster query, so lifting it is part of this change
+ * rather than incidental to it.
+ *
+ * The cost is that these assertions now need a database and skip without MIGRATION_TEST_PG, where
+ * before they ran everywhere. They do run in CI, which is also the only place the plan assertion at
+ * the bottom means anything.
+ */
+describeDb('TradingRuleService.getCurrentTradingOrders (real Postgres)', () => {
   let dataSource: DataSource;
   let service: TradingRuleService;
 
   beforeAll(async () => {
-    const db = newDb();
-    // TypeORM runs SELECT version() / current_database() on connect; pg-mem does not ship them
-    db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
-    db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
-
-    dataSource = (await db.adapters.createTypeormDataSource({
+    dataSource = new DataSource({
       type: 'postgres',
+      url: PG_URL,
       entities: [TradingRuleTable, TradingOrderTable],
-      synchronize: true,
-    })) as DataSource;
+      schema: SCHEMA,
+    });
     await dataSource.initialize();
+    await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+    await dataSource.query(`CREATE SCHEMA "${SCHEMA}"`);
+    await dataSource.synchronize();
   });
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
+    if (dataSource?.isInitialized) {
+      await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+      await dataSource.destroy();
+    }
   });
 
   beforeEach(async () => {
@@ -67,10 +80,10 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
     const ruleRepo = dataSource.getRepository(TradingRuleTable);
     const orderRepo = dataSource.getRepository(TradingOrderTable);
 
-    // rule 1: several orders → expect max id 30
+    // rule 1: several orders → expect latest id 30
     // rule 2: exactly one order → expect id 40
     // rule 3: no orders → must not appear
-    // orphan order 99: tradingRuleId matches no rule → must not appear (INNER JOIN exclusion)
+    // orphan order 99: tradingRuleId matches no rule → must not appear
     await ruleRepo.save([{ id: 1 }, { id: 2 }, { id: 3 }]);
     await orderRepo.save([
       { id: 10, tradingRuleId: 1 },
@@ -87,7 +100,7 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
     const result = await service.getCurrentTradingOrders();
     const resultIds = result.map((order) => order.id).sort((a, b) => a - b);
 
-    // concrete ids per rule (fails if MAX is swapped for MIN or any wrong pick)
+    // concrete ids per rule (fails if the ORDER BY direction flips, or on any wrong pick)
     expect(resultIds).toEqual([30, 40]);
     expect(result).toHaveLength(2);
     expect(result.some((order) => order.id === 10 || order.id === 20)).toBe(false);
@@ -95,6 +108,16 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
   });
 
   it('returns an empty array when trading_rule is empty', async () => {
+    const result = await service.getCurrentTradingOrders();
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns an empty array when rules exist but none has an order', async () => {
+    await dataSource.getRepository(TradingRuleTable).save([{ id: 1 }, { id: 2 }]);
+
+    // a rule without orders contributes no row: CROSS JOIN LATERAL drops it, where a LEFT JOIN
+    // LATERAL would have produced a null id and carried it into In(...)
     const result = await service.getCurrentTradingOrders();
 
     expect(result).toEqual([]);
@@ -143,5 +166,38 @@ describe('TradingRuleService.getCurrentTradingOrders (postgres semantics)', () =
     } finally {
       findBySpy.mockRestore();
     }
+  });
+
+  /**
+   * The reason for the rewrite, asserted rather than described. With many orders over few rules the
+   * aggregate had to read the whole ("tradingRuleId", "id") index; the LATERAL descends it once per
+   * rule and stops at the first row. If a future change reverts to an aggregate, this fails while
+   * every assertion above still passes.
+   */
+  it('drives the read from the rules rather than aggregating the orders', async () => {
+    const ruleRepo = dataSource.getRepository(TradingRuleTable);
+    const orderRepo = dataSource.getRepository(TradingOrderTable);
+
+    await ruleRepo.save(Array.from({ length: 5 }, (_, i) => ({ id: i + 1 })));
+    await orderRepo.save(Array.from({ length: 4000 }, (_, i) => ({ id: i + 1, tradingRuleId: (i % 5) + 1 })));
+    await dataSource.query(`ANALYZE "${SCHEMA}"."trading_order"`);
+    await dataSource.query(`ANALYZE "${SCHEMA}"."trading_rule"`);
+
+    const plan: { 'QUERY PLAN': string }[] = await dataSource.query(`
+      EXPLAIN
+      SELECT latest."id" AS "tradingOrderId"
+      FROM "trading_rule" rule
+      CROSS JOIN LATERAL (
+        SELECT "order"."id"
+        FROM "trading_order" "order"
+        WHERE "order"."tradingRuleId" = rule."id"
+        ORDER BY "order"."id" DESC
+        LIMIT 1
+      ) latest
+    `);
+    const text = plan.map((row) => row['QUERY PLAN']).join('\n');
+
+    expect(text).toMatch(/Nested Loop/);
+    expect(text).not.toMatch(/Aggregate/);
   });
 });
