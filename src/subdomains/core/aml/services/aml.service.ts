@@ -81,10 +81,21 @@ export class AmlService {
       // the finding with the customer. That release IS the review, so record it on the account: the next
       // deposit from the same permanently tainted source would otherwise run into the identical manual
       // review again (see UserData.hasValidScorechainReview for how long it counts).
-      if (entity.comment?.includes(AmlError.SCORECHAIN_HIGH_RISK))
+      if (entity.comment?.includes(AmlError.SCORECHAIN_HIGH_RISK)) {
         entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
           scorechainCheckDate: new Date(),
         });
+
+        // For a payout (fiat-funded buy) the hit was on the target address, so the release also covers
+        // exactly that address: register it so the next payout to it skips the identical manual review
+        // (see SpecialExternalAccountService for the validity window). Scoped to the one reviewed
+        // address on purpose — a payout to a different high-risk address must still be caught.
+        if (entity instanceof BuyCrypto && !entity.cryptoInput && entity.targetAddress)
+          await this.specialExternalBankAccountService.registerScorechainExemptAddress(
+            entity.targetAddress,
+            `released tx ${entity.id} of account ${entity.userData.id}`,
+          );
+      }
 
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
       if (entity.bankTx && entity instanceof BuyCrypto && !entity.userData.hasBankTx)
