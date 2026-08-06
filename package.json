@@ -72,6 +72,7 @@
     "@opentelemetry/sdk-metrics": "2.7.1",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@pyroscope/nodejs": "^0.6.2",
     "@railgun-community/engine": "^9.4.0",
     "@scure/bip32": "^1.6.2",
     "@scure/bip39": "^1.5.4",
