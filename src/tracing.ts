@@ -178,9 +178,13 @@ export function startProfiling(): boolean {
     if (!environment) throw new Error('ENVIRONMENT is not set — profiles could not be told apart per environment');
 
     Pyroscope.init({
-      // Becomes the service_name label Pyroscope indexes by; matches the OTel
-      // serviceName above so both signals name the same service.
-      appName: 'dfx-api',
+      // Becomes the service_name label Pyroscope indexes by, and derived from the same helper as
+      // the OTel serviceName above so a trace and a profile of the same process carry the same
+      // name. It has to be the role-aware name, not a constant: the HTTP container and the worker
+      // run the same image and both set PYROSCOPE_SERVER_ADDRESS, so a constant would merge two
+      // very differently-shaped workloads into one flame graph — and telling them apart is the
+      // question profiling was added to answer.
+      appName: tracingServiceName(),
       serverAddress: process.env.PYROSCOPE_SERVER_ADDRESS,
       tags: { env: environment },
       // Without collectCpuTime the wall profiler reports elapsed time, which

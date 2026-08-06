@@ -132,6 +132,7 @@ describe('tracingServiceName', () => {
 describe('startProfiling', () => {
   const originalAddress = process.env.PYROSCOPE_SERVER_ADDRESS;
   const originalEnvironment = process.env.ENVIRONMENT;
+  const originalCronRole = process.env.CRON_ROLE;
 
   function loadTracing(): { startProfiling: () => boolean } {
     let loaded: { startProfiling: () => boolean };
@@ -159,6 +160,9 @@ describe('startProfiling', () => {
 
     if (originalEnvironment === undefined) delete process.env.ENVIRONMENT;
     else process.env.ENVIRONMENT = originalEnvironment;
+
+    if (originalCronRole === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = originalCronRole;
   });
 
   it('is disabled (returns false) without PYROSCOPE_SERVER_ADDRESS', () => {
@@ -173,6 +177,7 @@ describe('startProfiling', () => {
   it('starts the wall profiler with the environment tag and CPU time enabled', () => {
     process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
     process.env.ENVIRONMENT = 'prd';
+    delete process.env.CRON_ROLE;
 
     const tracing = loadTracing();
 
@@ -186,6 +191,18 @@ describe('startProfiling', () => {
     // starting a second sampler would double the profiling cost.
     expect(tracing.startProfiling()).toBe(true);
     expect(mockStartWallProfiling).toHaveBeenCalledTimes(1);
+  });
+
+  it('profiles the worker under its own app name', () => {
+    // The two roles run the same image and both configure a server address, so a constant appName
+    // would file both sets of samples under one service and merge the flame graphs.
+    process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
+    process.env.ENVIRONMENT = 'prd';
+    process.env.CRON_ROLE = 'worker';
+
+    loadTracing();
+
+    expect(mockPyroscopeInit).toHaveBeenCalledWith(expect.objectContaining({ appName: 'dfx-api-worker' }));
   });
 
   it('reports the failure and keeps running when ENVIRONMENT is missing', () => {
