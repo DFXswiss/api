@@ -333,6 +333,28 @@ describe('RefRewardService', () => {
       expect(rewardRepo.save).not.toHaveBeenCalled();
     });
 
+    // An EVM address can serve many chains, but the regular payout path resolves every one of them
+    // to Ethereum. A reward tagged with another EVM chain would be invisible to its pending guard.
+    it('skips agreement when the output asset is on a different EVM chain than the address resolves to', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(assetService, 'getAssetById').mockResolvedValue({ id: 2, blockchain: 'Arbitrum' } as any);
+
+      await service.createRefBonusRewards();
+
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
+      expect(rewardRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('skips agreement when the recipient address is not a supported blockchain address', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ ...user, address: 'not-an-address' } as any);
+
+      await service.createRefBonusRewards();
+
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
+      expect(rewardRepo.save).not.toHaveBeenCalled();
+    });
+
     it('skips agreement when the recipient has no referral code', async () => {
       mockAgreementsSetup();
       jest.spyOn(userService, 'getUser').mockResolvedValue({ ...user, ref: undefined } as any);

@@ -157,17 +157,24 @@ export class RefRewardService {
         continue;
       }
 
-      // The payout asset has to live on a chain the recipient address can serve, same requirement as
-      // in createPendingRefRewards. A mismatch would not only fail the payout: the pending guard
-      // there searches by the address-derived chain and would miss this reward, so the same credit
-      // could be paid out a second time through the regular path. getBlockchainsBasedOn is used
-      // rather than getDefaultBlockchainBasedOn because the latter throws on an unrecognised
-      // address, and this runs outside the per-candidate catch — one bad agreement must not take
-      // the whole run down.
-      const addressBlockchains = CryptoService.getBlockchainsBasedOn(user.address);
-      if (!addressBlockchains.includes(asset.blockchain)) {
+      // The payout asset has to sit on the very chain createPendingRefRewards derives from the
+      // address, not merely on one the address could serve. That path groups by
+      // getDefaultBlockchainBasedOn — which resolves every EVM address to Ethereum — and its
+      // pending guard queries targetBlockchain by that same value. A reward tagged with any other
+      // EVM chain would be invisible to it, and it would grant a second one for the same credit.
+      // The call throws on an unrecognised address and runs outside the per-candidate catch, so it
+      // is guarded here: one unusable agreement must not take the whole run down.
+      let targetBlockchain: Blockchain;
+      try {
+        targetBlockchain = CryptoService.getDefaultBlockchainBasedOn(user.address);
+      } catch (e) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: unsupported address`, e);
+        continue;
+      }
+
+      if (asset.blockchain !== targetBlockchain) {
         this.logger.error(
-          `Skipping ref bonus agreement for ref ${agreement.usedRef}: output asset is on ${asset.blockchain}, which the recipient address cannot serve`,
+          `Skipping ref bonus agreement for ref ${agreement.usedRef}: output asset is on ${asset.blockchain}, recipient address resolves to ${targetBlockchain}`,
         );
         continue;
       }
