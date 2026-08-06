@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -15,7 +15,6 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
-import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -74,58 +73,6 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
     private readonly settingService: SettingService,
   ) {}
-
-  async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
-    // Missing setting is intentionally treated as disabled (fail-closed).
-    // Strict === true so a truthy non-boolean (e.g. the string "false") cannot open the gate.
-    const isEnabled = await this.settingService.getObj<boolean>('manualRefRewardEnabled', false);
-    if (isEnabled !== true) throw new ForbiddenException('Manual ref reward creation is disabled');
-
-    const user = await this.userService.getUser(dto.user.id, { userData: true });
-    if (!user) throw new NotFoundException('User not found');
-
-    const asset = await this.assetService.getAssetById(dto.asset.id);
-    if (!asset) throw new NotFoundException('Asset not found');
-
-    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
-    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
-    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
-      throw new BadRequestException('Source transaction already used');
-
-    const eurChfPrice = await this.pricingService.getPrice(
-      PriceCurrency.EUR,
-      PriceCurrency.CHF,
-      PriceValidity.VALID_ONLY,
-    );
-
-    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
-
-    const entity = this.rewardRepo.create({
-      user,
-      targetAddress: user.address,
-      outputAsset: asset,
-      sourceTransaction,
-      status: dto.amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
-      targetBlockchain: asset.blockchain,
-      amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
-      amountInEur: dto.amountInEur,
-    });
-
-    entity.transaction = await this.transactionService.create({
-      sourceType: TransactionSourceType.MANUAL_REF,
-      user,
-      userData: user.userData,
-    });
-
-    // update user ref balance
-    await this.userService.updateRefVolume(
-      user.ref,
-      user.refVolume + dto.amountInEur / user.refFeePercent,
-      user.refCredit + dto.amountInEur,
-    );
-
-    await this.rewardRepo.save(entity);
-  }
 
   async createPendingRefRewards(): Promise<void> {
     const openCreditUser = await this.userService.getOpenRefCreditUser();

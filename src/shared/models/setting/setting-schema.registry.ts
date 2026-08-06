@@ -37,9 +37,6 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // Compliance
   complianceClerks: 'string[]',
-
-  // Ref Rewards
-  manualRefRewardEnabled: 'boolean',
 };
 
 export function isArraySchema(schema: SettingSchema): schema is ArraySchema {
