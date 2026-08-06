@@ -17,7 +17,12 @@ export class CountryService {
   }
 
   async getCountryWithSymbol(symbol: string): Promise<Country> {
-    return symbol?.length === 2
+    // An empty symbol would reach the cache as an empty key, which AsyncCache rejects outright.
+    // geoip-lite2 yields one for IPv6 ranges it holds a record for but no country, and every
+    // caller already treats a missing country as "unknown", so answer that instead of throwing.
+    if (!symbol) return undefined;
+
+    return symbol.length === 2
       ? this.countryRepo.findOneCachedBy(symbol, { symbol: Equal(symbol) })
       : this.countryRepo.findOneCachedBy(symbol, { symbol3: Equal(symbol) });
   }
