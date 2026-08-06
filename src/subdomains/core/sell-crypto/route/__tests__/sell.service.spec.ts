@@ -13,6 +13,8 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { olkyEUR } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -34,6 +36,7 @@ describe('SellService', () => {
   let transactionHelper: TransactionHelper;
   let routeService: RouteService;
   let bankDataService: BankDataService;
+  let bankService: jest.Mocked<BankService>;
   let cryptoService: CryptoService;
   let transactionRequestService: TransactionRequestService;
   let blockchainRegistryService: BlockchainRegistryService;
@@ -52,6 +55,8 @@ describe('SellService', () => {
     transactionHelper = createMock<TransactionHelper>();
     routeService = createMock<RouteService>();
     bankDataService = createMock<BankDataService>();
+    bankService = createMock<BankService>();
+    bankService.areKnownBankIbans.mockResolvedValue(false);
     cryptoService = createMock<CryptoService>();
     transactionRequestService = createMock<TransactionRequestService>();
     blockchainRegistryService = createMock<BlockchainRegistryService>();
@@ -73,6 +78,7 @@ describe('SellService', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: RouteService, useValue: routeService },
         { provide: BankDataService, useValue: bankDataService },
+        { provide: BankService, useValue: bankService },
         { provide: CryptoService, useValue: cryptoService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BlockchainRegistryService, useValue: blockchainRegistryService },
@@ -202,6 +208,41 @@ describe('SellService', () => {
       expect(routeService.createRoute).toHaveBeenCalledTimes(1);
       expect(routeService.createRoute).toHaveBeenCalledWith(expect.anything(), manager);
       expect(sellRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // CreateSellDto carries @IsDfxIban, but UpdateSellDto is only { active } and never revalidates the
+  // stored IBAN. Routes predating that guard therefore stay reactivatable by their owner over
+  // PUT /sell/:id (USER role), and buy-fiat then mints a BANK_OUT bankData from sell.iban - a
+  // DFX-owned IBAN reaching a customer profile with no admin involved.
+  describe('updateSell reactivation', () => {
+    const route = (iban: string) => ({ id: 3, iban, active: false, user: { id: 1 } }) as any;
+
+    it('refuses to reactivate a route whose IBAN belongs to DFX', async () => {
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(route(olkyEUR.iban));
+      bankService.areKnownBankIbans.mockResolvedValue(true);
+
+      await expect(service.updateSell(1, 3, { active: true })).rejects.toThrow('DFX IBAN not allowed');
+      expect(sellRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('still allows deactivating such a route', async () => {
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(route(olkyEUR.iban));
+      bankService.areKnownBankIbans.mockResolvedValue(true);
+
+      await service.updateSell(1, 3, { active: false });
+
+      expect(sellRepo.save).toHaveBeenCalled();
+      // no point asking the bank service when nothing is being switched on
+      expect(bankService.areKnownBankIbans).not.toHaveBeenCalled();
+    });
+
+    it('reactivates a normal customer route unchanged', async () => {
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(route('DE89370400440532013000'));
+
+      await service.updateSell(1, 3, { active: true });
+
+      expect(sellRepo.save).toHaveBeenCalled();
     });
   });
 });

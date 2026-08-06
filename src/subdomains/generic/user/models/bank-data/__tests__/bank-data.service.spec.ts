@@ -10,6 +10,8 @@ import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { olkyEUR } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { AccountMergeService } from '../../account-merge/account-merge.service';
 import { UserData } from '../../user-data/user-data.entity';
@@ -31,6 +33,8 @@ describe('BankDataService DFX-IBAN guard', () => {
   let bankService: jest.Mocked<BankService>;
   let countryService: jest.Mocked<CountryService>;
   let specialAccountService: jest.Mocked<SpecialExternalAccountService>;
+  let notificationService: jest.Mocked<NotificationService>;
+  let kycAdminService: jest.Mocked<KycAdminService>;
 
   const dfxIban = olkyEUR.iban;
   const customerIban = 'DE89370400440532013000';
@@ -42,6 +46,10 @@ describe('BankDataService DFX-IBAN guard', () => {
     bankService = createMock<BankService>();
     countryService = createMock<CountryService>();
     specialAccountService = createMock<SpecialExternalAccountService>();
+    notificationService = createMock<NotificationService>();
+    kycAdminService = createMock<KycAdminService>();
+    kycAdminService.getKycSteps.mockResolvedValue([]);
+    bankDataRepo.save.mockImplementation(async (b) => b as any);
 
     specialAccountService.getMultiAccountIbans.mockResolvedValue([]);
     bankService.areKnownBankIbans.mockResolvedValue(false);
@@ -64,7 +72,8 @@ describe('BankDataService DFX-IBAN guard', () => {
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: createMock<BankAccountService>() },
         { provide: BankService, useValue: bankService },
-        { provide: KycAdminService, useValue: createMock<KycAdminService>() },
+        { provide: NotificationService, useValue: notificationService },
+        { provide: KycAdminService, useValue: kycAdminService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -115,5 +124,59 @@ describe('BankDataService DFX-IBAN guard', () => {
     await service.updateUserBankData(entity.id, 42, {});
 
     expect(bankDataRepo.create).not.toHaveBeenCalled();
+  });
+
+  // createVerifyBankData is fed by bankTx.senderAccount and sell.iban, so a DFX IBAN can arrive
+  // without any caller asking for it. Throwing is not an option there: in createFromBankTx this runs
+  // before the buyCrypto is created and assignTransactions only logs and retries, so the customer's
+  // payment would never complete. Suppress the row instead — and report it, because verifyBankData is
+  // the only place that derives verifiedName from a transfer and nothing backfills it.
+  describe('createVerifyBankData on a DFX-owned IBAN', () => {
+    const createDto = { iban: dfxIban, type: BankDataType.BANK_IN, name: 'Some Sender' };
+
+    beforeEach(() => bankService.areKnownBankIbans.mockResolvedValue(true));
+
+    it('does not create the bankData', async () => {
+      await service.createVerifyBankData(userData(), createDto);
+
+      expect(bankDataRepo.create).not.toHaveBeenCalled();
+      expect(bankDataRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not throw, so the calling payment flow continues', async () => {
+      const user = userData();
+
+      await expect(service.createVerifyBankData(user, createDto)).resolves.toBe(user);
+    });
+
+    it('reports it for monitoring, naming the user and the IBAN', async () => {
+      await service.createVerifyBankData(createMock<UserData>({ id: 4711, status: undefined }), createDto);
+
+      expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
+      const mail = notificationService.sendMail.mock.calls[0][0] as any;
+      expect(mail.type).toBe(MailType.ERROR_MONITORING);
+      expect(mail.context).toBe(MailContext.BANK_DATA);
+      expect(mail.input.errors[0]).toContain('4711');
+      expect(mail.input.errors[0]).toContain(dfxIban);
+    });
+
+    it('swallows a failing notification rather than breaking the payment flow', async () => {
+      notificationService.sendMail.mockRejectedValue(new Error('smtp down'));
+
+      await expect(service.createVerifyBankData(userData(), createDto)).resolves.toBeDefined();
+      expect(bankDataRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('still creates the bankData for a normal customer IBAN', async () => {
+      bankService.areKnownBankIbans.mockResolvedValue(false);
+
+      // createMock deep-mocks bankDatas, whose push() the create path calls for real
+      const user = createMock<UserData>({ status: undefined, bankDatas: [] });
+
+      await service.createVerifyBankData(user, { ...createDto, iban: customerIban });
+
+      expect(bankDataRepo.create).toHaveBeenCalled();
+      expect(notificationService.sendMail).not.toHaveBeenCalled();
+    });
   });
 });

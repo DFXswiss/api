@@ -56,6 +56,7 @@ export enum MailContext {
   LEDGER_RECONCILIATION = 'LedgerReconciliation',
   LEDGER_SUSPENSE = 'LedgerSuspense',
   LEDGER_TRANSIT_OVERDUE = 'LedgerTransitOverdue',
+  BANK_DATA = 'BankData',
   LEDGER_EQUITY_PARITY = 'LedgerEquityParity',
 }
 
@@ -117,5 +118,6 @@ export const MailContextTypeMapper: {
   [MailContext.LEDGER_RECONCILIATION]: null,
   [MailContext.LEDGER_SUSPENSE]: null,
   [MailContext.LEDGER_TRANSIT_OVERDUE]: null,
+  [MailContext.BANK_DATA]: null,
   [MailContext.LEDGER_EQUITY_PARITY]: null,
 };

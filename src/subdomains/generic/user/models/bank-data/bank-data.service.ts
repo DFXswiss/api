@@ -20,6 +20,8 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { EntityManager, FindOptionsRelations, FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
@@ -43,6 +45,7 @@ export class BankDataService {
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
     private readonly bankService: BankService,
+    private readonly notificationService: NotificationService,
     // circular dependency across the User/Kyc domains; make it explicit so resolution is import-order-independent
     @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
@@ -205,6 +208,16 @@ export class BankDataService {
   }
 
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
+    // Callers here derive the IBAN from bankTx.senderAccount or sell.iban, so a DFX-owned account can
+    // arrive without any caller having asked for it. Such a row would make getUserDataForBankTx
+    // attribute every transfer sent from that account to this user, so skip it — but do not throw:
+    // in createFromBankTx this runs before the buyCrypto is created, and assignTransactions only logs
+    // and retries, so a throw would wedge a real customer payment indefinitely.
+    if (await this.bankService.areKnownBankIbans(dto.iban)) {
+      await this.reportSuppressedDfxIbanBankData(userData, dto);
+      return userData;
+    }
+
     const bankData = await this.createBankDataInternal(userData, dto);
 
     if (!DisabledProcess(Process.BANK_DATA_VERIFICATION) && bankData.status === ReviewStatus.INTERNAL_REVIEW)
@@ -488,6 +501,34 @@ export class BankDataService {
     this.newUserBankDataSubject.next(bankData);
 
     return this.bankDataRepo.saveWithUniqueDefault(bankData);
+  }
+
+  // Suppressing the row is silent for the customer but not free: verifyBankData is the only place in
+  // the codebase that derives userData.verifiedName from a bank transfer, and nothing backfills it
+  // later, so the account can stall on bankData verification with no visible cause. Raise it where
+  // someone will see it, and say what the fix is: a shared sender IBAN belongs in
+  // special_external_account as a MULTI_ACCOUNT_IBAN, after which getSenderAccount yields
+  // `iban;payerName` and the collision stops occurring at the source.
+  private async reportSuppressedDfxIbanBankData(userData: UserData, dto: CreateBankDataDto): Promise<void> {
+    const message = `Suppressed ${dto.type ?? 'bankData'} for userData ${userData.id}: IBAN ${
+      dto.iban
+    } belongs to DFX. No bankData was created and verifiedName was not derived from it. If this IBAN is a shared sender (e.g. a pooled bank account), register it as a MULTI_ACCOUNT_IBAN; if it is a genuine internal transfer, no action is needed.`;
+
+    this.logger.warn(message);
+
+    try {
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.BANK_DATA,
+        input: { subject: 'DFX IBAN suppressed as user bankData', errors: [message] },
+        options: { suppressRecurring: true },
+        correlationId: `DfxIbanBankData&${userData.id}&${dto.iban}`,
+      });
+    } catch (e) {
+      // the suppression itself already happened and is logged above; a failing mail must not
+      // propagate into the payment flow this guard exists to keep running
+      this.logger.error(`Failed to report suppressed DFX-IBAN bankData for userData ${userData.id}:`, e);
+    }
   }
 
   private async isValidIbanCountry(iban: string, kycType = KycType.DFX): Promise<boolean> {

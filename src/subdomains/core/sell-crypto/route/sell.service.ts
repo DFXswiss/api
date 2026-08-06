@@ -24,6 +24,7 @@ import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -65,6 +66,7 @@ export class SellService {
     private readonly transactionUtilService: TransactionUtilService,
     private readonly routeService: RouteService,
     private readonly bankDataService: BankDataService,
+    private readonly bankService: BankService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
@@ -218,6 +220,14 @@ export class SellService {
       relations: { user: true },
     });
     if (!sell) throw new NotFoundException('Sell route not found');
+
+    // @IsDfxIban guards CreateSellDto, but UpdateSellDto carries only `active` and never revalidates the
+    // stored IBAN, so a route created before that guard existed can be switched back on. buy-fiat then
+    // mints a BANK_OUT bankData from sell.iban, which is how a DFX-owned IBAN lands on a customer
+    // profile without an admin. Throwing is safe here: this is a direct user action with a clear error,
+    // unlike the bankTx paths where a throw would wedge a payment.
+    if (dto.active && (await this.bankService.areKnownBankIbans(sell.iban)))
+      throw new BadRequestException('DFX IBAN not allowed');
 
     return this.sellRepo.save({ ...sell, ...dto });
   }
