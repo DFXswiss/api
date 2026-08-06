@@ -46,24 +46,37 @@ describeDb('TradingRuleService.getCurrentTradingOrders (real Postgres)', () => {
   let dataSource: DataSource;
   let service: TradingRuleService;
 
+  // The isolation schema is reached through search_path, not TypeORM's `schema` option. That option
+  // qualifies entity queries only, while getCurrentTradingOrders reads through raw SQL with
+  // unqualified table names — as the other raw reads in this codebase do — so the two halves would
+  // resolve to different schemas and the raw one would look in `public`. Pointing search_path at
+  // the test schema keeps both resolving the same way, which is also how production behaves, where
+  // nothing configures a schema and everything lands in `public`.
+  const connect = async (options: Record<string, unknown> = {}) => {
+    const source = new DataSource({ type: 'postgres', url: PG_URL, ...options } as any);
+    await source.initialize();
+    return source;
+  };
+
   beforeAll(async () => {
-    dataSource = new DataSource({
-      type: 'postgres',
-      url: PG_URL,
+    const bootstrap = await connect();
+    await bootstrap.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+    await bootstrap.query(`CREATE SCHEMA "${SCHEMA}"`);
+    await bootstrap.destroy();
+
+    dataSource = await connect({
       entities: [TradingRuleTable, TradingOrderTable],
-      schema: SCHEMA,
+      extra: { options: `-c search_path=${SCHEMA}` },
     });
-    await dataSource.initialize();
-    await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
-    await dataSource.query(`CREATE SCHEMA "${SCHEMA}"`);
     await dataSource.synchronize();
   });
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) {
-      await dataSource.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
-      await dataSource.destroy();
-    }
+    if (dataSource?.isInitialized) await dataSource.destroy();
+
+    const cleanup = await connect();
+    await cleanup.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+    await cleanup.destroy();
   });
 
   beforeEach(async () => {
@@ -180,8 +193,8 @@ describeDb('TradingRuleService.getCurrentTradingOrders (real Postgres)', () => {
 
     await ruleRepo.save(Array.from({ length: 5 }, (_, i) => ({ id: i + 1 })));
     await orderRepo.save(Array.from({ length: 4000 }, (_, i) => ({ id: i + 1, tradingRuleId: (i % 5) + 1 })));
-    await dataSource.query(`ANALYZE "${SCHEMA}"."trading_order"`);
-    await dataSource.query(`ANALYZE "${SCHEMA}"."trading_rule"`);
+    await dataSource.query(`ANALYZE "trading_order"`);
+    await dataSource.query(`ANALYZE "trading_rule"`);
 
     const plan: { 'QUERY PLAN': string }[] = await dataSource.query(`
       EXPLAIN
