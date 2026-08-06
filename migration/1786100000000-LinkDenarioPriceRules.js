@@ -260,7 +260,9 @@ module.exports = class LinkDenarioPriceRules1786100000000 {
 
     // Validate every target before any insert so a missing second asset cannot leave a half-applied state
     // (production migrations are transactional; tests and recovery tooling may not be).
-    /** @type {{ target: (typeof TARGET_ASSETS)[number], asset: { id: number, priceRuleId: number | null } }[]} */
+    // Written out instead of an indexed access type: the migration psql guard treats any
+    // bracket-quoted identifier as MSSQL syntax, including one inside a JSDoc annotation.
+    /** @type {{ target: { uniqueName: string, priceAsset: string, priceSource: string }, asset: { id: number, priceRuleId: number | null } }[]} */
     const prepared = [];
     for (const target of TARGET_ASSETS) {
       const asset = await loadTargetAsset(queryRunner, target.uniqueName);
