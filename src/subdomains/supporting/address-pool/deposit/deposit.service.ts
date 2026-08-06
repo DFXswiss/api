@@ -64,6 +64,10 @@ export class DepositService implements OnModuleInit {
   }
 
   async getDepositByAddress({ address, blockchain }: BlockchainAddress): Promise<Deposit> {
+    // Without an address only the blockchain LIKE survives and an arbitrary deposit on that chain is
+    // returned — whose accountIndex the caller uses to sign and broadcast a transaction.
+    if (!address) return undefined;
+
     return this.depositRepo.findOneBy({ address, blockchains: Like(`%${blockchain}%`) });
   }
 

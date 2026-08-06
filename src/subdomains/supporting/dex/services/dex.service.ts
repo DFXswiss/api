@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -159,6 +159,10 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<LiquidityTransactionResult> {
+    // Both arrive as raw query strings; absent, the where empties and the newest order in the table
+    // is returned instead, which the `!order` check below cannot catch.
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     // Cancelled purchase attempts remain persisted for the audit trail, so the newest row is authoritative.
     const order = await this.liquidityOrderRepo.findOne({
       where: { context, correlationId },
@@ -180,6 +184,8 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isReady: boolean; purchaseTxId: string; targetAmount: number; targetAsset: string }> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.liquidityOrderRepo.findOne({
       where: { context, correlationId },
       order: { id: 'DESC' },
@@ -197,6 +203,8 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.liquidityOrderRepo.findOne({
       where: { context, correlationId },
       order: { id: 'DESC' },
@@ -209,6 +217,10 @@ export class DexService {
   }
 
   async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+    // Both arrive as raw query strings on the admin endpoint. Absent, the where keeps only the two
+    // booleans and the loop would complete every ready order in the table.
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const incompleteOrders = await this.liquidityOrderRepo.find({
       where: { context, correlationId, isComplete: false, isReady: true },
     });
@@ -220,6 +232,8 @@ export class DexService {
   }
 
   async cancelOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const orders = await this.liquidityOrderRepo.find({
       where: { context, correlationId },
     });
@@ -231,6 +245,8 @@ export class DexService {
   }
 
   async hasOrder(context: LiquidityOrderContext, correlationId: string): Promise<boolean> {
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     return this.liquidityOrderRepo
       .findOne({ where: { context, correlationId }, loadEagerRelations: false })
       .then((o) => o != null);

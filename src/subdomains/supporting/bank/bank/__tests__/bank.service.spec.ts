@@ -385,6 +385,25 @@ describe('BankService', () => {
     const result = await service.getBank(createBankSelectorInput('GBP', undefined, FiatPaymentMethod.INSTANT));
     expect(result).toBe(eurInstantBank);
   });
+
+  describe('getBankByIban scoping', () => {
+    // accountIban is nullable and parsed from the SEPA payload. Absent, the only condition is dropped
+    // and an arbitrary Bank is returned, which then drives the chargeback fee.
+    it.each([undefined, null, ''])('does not query when the iban is %p', async (iban) => {
+      const bank = await service.getBankByIban(iban as string);
+
+      expect(bank).toBeUndefined();
+      expect(bankRepo.findOneCachedBy).not.toHaveBeenCalled();
+    });
+
+    it('still queries when an iban is supplied', async () => {
+      jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(undefined);
+
+      await service.getBankByIban('CH123');
+
+      expect(bankRepo.findOneCachedBy).toHaveBeenCalledWith('iban:CH123', { iban: 'CH123' });
+    });
+  });
 });
 
 describe('Bank Frick country routing', () => {

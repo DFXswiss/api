@@ -66,6 +66,10 @@ export class PayoutService {
     payoutAsset: Asset;
     payoutAmountBaseUnits: string | null;
   }> {
+    // Both arrive as raw query strings on the admin endpoint; absent, an arbitrary payout order is
+    // returned and reported as this one's completion state.
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.payoutOrderRepo.findOneBy({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
     const payoutFee = order && order.payoutFee;

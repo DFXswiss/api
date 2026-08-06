@@ -1827,4 +1827,23 @@ describe('BuyService', () => {
       expect(buyRepo.save).not.toHaveBeenCalled();
     });
   });
+
+  describe('getByBankUsage scoping', () => {
+    // bankUsage arrives verbatim from an external payment payload and is nullable. Absent, the only
+    // condition is dropped and an arbitrary Buy route belonging to an unrelated customer is returned.
+    it.each([undefined, null, ''])('does not query when the bank usage is %p', async (bankUsage) => {
+      const buy = await service.getByBankUsage(bankUsage as string);
+
+      expect(buy).toBeUndefined();
+      expect(buyRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('still queries when a bank usage is supplied', async () => {
+      jest.spyOn(buyRepo, 'findOne').mockResolvedValue(undefined);
+
+      await service.getByBankUsage('ABC-123');
+
+      expect(buyRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { bankUsage: 'ABC-123' } }));
+    });
+  });
 });

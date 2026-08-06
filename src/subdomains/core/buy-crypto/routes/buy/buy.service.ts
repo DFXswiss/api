@@ -235,6 +235,10 @@ export class BuyService {
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {
+    // bankUsage arrives verbatim from an external payment payload; absent, the lookup returns an
+    // arbitrary Buy route belonging to an unrelated customer.
+    if (!bankUsage) return undefined;
+
     return this.buyRepo.findOne({ where: { bankUsage }, relations: { user: { userData: true, wallet: true } } });
   }
 
