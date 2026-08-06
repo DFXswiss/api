@@ -1,10 +1,5 @@
 import { RefBonusAgreementDto } from '../dto/ref-bonus-agreement.dto';
-import {
-  ArraySchema,
-  isArraySchema,
-  isPrimitiveSchema,
-  SettingSchemaRegistry,
-} from '../setting-schema.registry';
+import { ArraySchema, isArraySchema, isPrimitiveSchema, SettingSchemaRegistry } from '../setting-schema.registry';
 
 describe('SettingSchemaRegistry', () => {
   describe('isArraySchema', () => {

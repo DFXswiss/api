@@ -6,6 +6,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -19,8 +20,17 @@ function mockQueryBuilder(candidates: any[]) {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
+    andWhere: jest.fn((arg: any) => {
+      if (typeof arg?.whereFactory === 'function') {
+        arg.whereFactory(qb.innerWhereBuilder);
+      }
+      return qb;
+    }),
     getMany: jest.fn().mockResolvedValue(candidates),
+    innerWhereBuilder: {
+      where: jest.fn().mockReturnThis(),
+      orWhere: jest.fn().mockReturnThis(),
+    },
   };
   return qb;
 }
@@ -142,10 +152,29 @@ describe('RefRewardService', () => {
       jest.spyOn(rewardRepo, 'save').mockResolvedValue({} as any);
     }
 
-    it('does nothing when no agreements are configured', async () => {
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? [] : defaultValue,
+    it('builds the candidate filter from the agreement', async () => {
+      mockAgreementsSetup();
+      const qb = mockQueryBuilder([]);
+      jest.spyOn(transactionRepo, 'createQueryBuilder').mockReturnValue(qb);
+
+      await service.createRefBonusRewards();
+
+      expect(qb.innerWhereBuilder.where).toHaveBeenCalledWith(
+        'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
+        { usedRef: agreement.usedRef, completeStatus: BuyCryptoStatus.COMPLETE },
       );
+      expect(qb.innerWhereBuilder.orWhere).toHaveBeenCalledWith(
+        'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
+        { usedRef: agreement.usedRef, isComplete: true },
+      );
+    });
+
+    it('does nothing when no agreements are configured', async () => {
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? [] : defaultValue,
+        );
 
       await service.createRefBonusRewards();
 
@@ -155,9 +184,11 @@ describe('RefRewardService', () => {
 
     it('saves amountInEur as the configured share of an EUR fee', async () => {
       const agreements = [agreement];
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? agreements : defaultValue,
-      );
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? agreements : defaultValue,
+        );
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
@@ -181,9 +212,11 @@ describe('RefRewardService', () => {
 
     it('converts a non-EUR fee before applying the fee share', async () => {
       const agreements = [agreement];
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? agreements : defaultValue,
-      );
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? agreements : defaultValue,
+        );
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockImplementation(async (from: any) => {
@@ -212,9 +245,11 @@ describe('RefRewardService', () => {
 
     it('continues processing remaining candidates when one price lookup fails', async () => {
       const agreements = [agreement];
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? agreements : defaultValue,
-      );
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? agreements : defaultValue,
+        );
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockImplementation(async (from: any) => {
@@ -254,9 +289,11 @@ describe('RefRewardService', () => {
     it('converts a sell-side crypto fee via the cryptoInput asset before applying the fee share', async () => {
       const agreements = [agreement];
       const feeAsset = { id: 3, name: 'BTC' } as any;
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? agreements : defaultValue,
-      );
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? agreements : defaultValue,
+        );
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockImplementation(async (from: any) => {
@@ -289,9 +326,11 @@ describe('RefRewardService', () => {
 
     it('skips a sell-side candidate when cryptoInput asset is missing', async () => {
       const agreements = [agreement];
-      jest.spyOn(settingService, 'getObj').mockImplementation(async (key: string, defaultValue?: any) =>
-        key === 'refBonusAgreements' ? agreements : defaultValue,
-      );
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockImplementation(async (key: string, defaultValue?: any) =>
+          key === 'refBonusAgreements' ? agreements : defaultValue,
+        );
       jest.spyOn(userService, 'getUser').mockResolvedValue(user);
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(asset);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: (amount: number) => amount * 0.9 } as any);
@@ -856,9 +895,7 @@ describe('RefRewardService', () => {
     }
 
     it('returns recipients without a from-filter', async () => {
-      const qb = mockRecipientsQueryBuilder([
-        { userDataId: 10, count: '2', amountCount: '2', totalChf: '300' },
-      ]);
+      const qb = mockRecipientsQueryBuilder([{ userDataId: 10, count: '2', amountCount: '2', totalChf: '300' }]);
 
       const result = await service.getRewardRecipients();
 
@@ -868,9 +905,7 @@ describe('RefRewardService', () => {
 
     it('applies the from-filter when a date is given', async () => {
       const from = new Date('2026-01-01T00:00:00.000Z');
-      const qb = mockRecipientsQueryBuilder([
-        { userDataId: 10, count: '1', amountCount: '1', totalChf: '100' },
-      ]);
+      const qb = mockRecipientsQueryBuilder([{ userDataId: 10, count: '1', amountCount: '1', totalChf: '100' }]);
 
       await service.getRewardRecipients(from);
 
