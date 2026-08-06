@@ -8,8 +8,12 @@ jest.mock('src/config/config', () => {
 });
 
 describe('SumsubService.isSandboxWebhookOnProd', () => {
-  const webhook = (sandboxMode?: boolean): SumSubWebhookResult =>
-    ({ applicantId: 'a1', externalUserId: 'dfx-api-prd-sumsubauto-1-0-abc', sandboxMode, createdAt: new Date() });
+  const webhook = (sandboxMode?: boolean): SumSubWebhookResult => ({
+    applicantId: 'a1',
+    externalUserId: 'dfx-api-prd-sumsubauto-1-0-abc',
+    sandboxMode,
+    createdAt: new Date(),
+  });
 
   afterEach(() => {
     (Config as { environment?: Environment }).environment = undefined;
