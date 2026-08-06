@@ -40,24 +40,24 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
     const verifiedName = process.env.STAFF_VERIFIED_NAME_DEV_SUPPORT?.trim();
     if (!verifiedName) throw new Error('STAFF_VERIFIED_NAME_DEV_SUPPORT is required for the DEV staff-name backfill');
 
-    // Precondition (before any write): exactly one user_data behind LOWER(address). Multiple address
-    // casings of the same account still yield 1; two different accounts behind the same address yield
-    // > 1 and must fail closed before clearance stamps verifiedName on either. docs/staff-kyc-clearance.md
-    // requires exactly one cleared row — counting first keeps a multi-account collision from ever writing.
-    const preconditionRows = await queryRunner.query(
+    // Before any write: exactly one user_data behind LOWER(address). Multiple address casings of the
+    // same account still yield 1; two different accounts behind the same address yield > 1 and must
+    // fail closed before clearance stamps verifiedName on either. docs/staff-kyc-clearance.md requires
+    // exactly one cleared row — counting first keeps a multi-account collision from ever writing.
+    const targetCountRows = await queryRunner.query(
       `SELECT count(*)::int AS "targetCount"
        FROM "user_data" ud
        WHERE ud."id" IN (SELECT "userDataId" FROM "user" WHERE LOWER("address") = LOWER($1::varchar))`,
       Array.of(SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    if (Number(preconditionRows.at(0)?.targetCount) !== 1) {
+    if (Number(targetCountRows.at(0)?.targetCount) !== 1) {
       throw new Error(
-        'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
+        'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
       );
     }
 
-    // `needsBackfill` is the exact negation of the blankCount postcondition below (blankness including NULL).
+    // `needsBackfill` is the exact negation of the blankCount check below (blankness including NULL).
     // `noteworthy` audits repairs and deliberate keep-existing-name decisions; a re-run after a
     // successful backfill is a true no-op (no audit row). Array.of avoids looking like MSSQL bracket
     // quoting to the repository's migration syntax guard.
@@ -95,10 +95,11 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(verifiedName, BLANK_CHARS, SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    // Postcondition: clearance predicate (not equality with the supplied name). blankCount must be 0;
-    // targetCount is re-checked so a concurrent change between the precondition and the UPDATE still
-    // fails closed with a message that operators can tell from the precondition failure above.
-    const postconditionRows = await queryRunner.query(
+    // After clearance: re-check targetCount and blankCount in one query. blankCount must be 0
+    // (clearance predicate, not equality with the supplied name). targetCount is re-checked so a
+    // concurrent change between the pre-write count and the UPDATE still fails closed — each half
+    // throws its own message so operators can tell which check failed.
+    const clearanceCheckRows = await queryRunner.query(
       `SELECT
          (SELECT count(*)::int FROM "user_data" ud
           WHERE ud."id" IN (SELECT "userDataId" FROM "user" WHERE LOWER("address") = LOWER($2::varchar))) AS "targetCount",
@@ -108,9 +109,15 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(BLANK_CHARS, SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    if (Number(postconditionRows.at(0)?.targetCount) !== 1 || Number(postconditionRows.at(0)?.blankCount) !== 0) {
+    if (Number(clearanceCheckRows.at(0)?.targetCount) !== 1) {
       throw new Error(
-        'DEV staff-name backfill postcondition failed: Support account did not reach a single non-blank verifiedName',
+        'DEV staff-name backfill: Support account does not resolve to exactly one user_data after the clearance write',
+      );
+    }
+
+    if (Number(clearanceCheckRows.at(0)?.blankCount) !== 0) {
+      throw new Error(
+        'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
       );
     }
 

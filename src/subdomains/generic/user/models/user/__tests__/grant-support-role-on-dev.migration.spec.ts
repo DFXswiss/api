@@ -509,7 +509,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
   });
 
   // Two different accounts behind address casings: targetCount > 1 must fail closed before any write.
-  // Read INSIDE the transaction — the precondition abort leaves both verifiedName null and no
+  // Read INSIDE the transaction — the pre-write abort leaves both verifiedName null and no
   // StaffVerifiedNameBackfill audit row, and it is exactly this unwritten state that the surrounding
   // 'all'-mode transaction would discard on PRD. After the rollback the same assertions would hold
   // vacuously (Postgres ROLLBACK, not the migration). Role grant never runs either.
@@ -524,10 +524,10 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
     await queryRunner.startTransaction();
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
+      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
     );
 
-    // Precondition fired before clearance — nothing written, visible only inside the open transaction.
+    // Pre-write targetCount check fired before clearance — nothing written, visible only inside the open transaction.
     expect(await getVerifiedName(mixedCaseUserDataId)).toBeNull();
     expect(await getVerifiedName(lowerCaseUserDataId)).toBeNull();
     expect(await getRole(mixedCaseId)).toBe('User');
@@ -544,7 +544,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
   // `BlankChars` is defined as every character `String.prototype.trim()` strips, so derive that set from
   // the runtime instead of restating it, and assert the migration's duplicated copy repairs a name built
   // from all of them at once. A copy that lost a code point — the drift the migration's own comment warns
-  // about — would leave such a name unrepaired and still report success, because the postcondition
+  // about — would leave such a name unrepaired and still report success, because the blankCount check
   // shares the drifted constant and reads the residual character as non-blank. The migration cannot
   // self-detect this; that is why the test asserts the repaired state rather than a rejection.
   it('up() repairs a name built from every character trim() strips, pinning the duplicated BlankChars', async () => {
@@ -613,7 +613,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(logs).toHaveLength(0);
   });
 
-  // Dangling userDataId is production-impossible (NOT NULL + FK) but keeps the precondition's
+  // Dangling userDataId is production-impossible (NOT NULL + FK) but keeps the pre-write
   // targetCount = 0 path covered when a user row exists without a matching user_data.
   it('up() throws when a user row has no matching user_data behind the address', async () => {
     await queryRunner.query(`INSERT INTO "user" ("address", "role", "userDataId") VALUES ($1, 'User', 99999)`, [
@@ -622,7 +622,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
+      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
     );
 
     const role = (await queryRunner.query(`SELECT "role" FROM "user" WHERE "address" = $1`, [TARGET_ADDRESS])) as {
@@ -635,7 +635,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill precondition failed: Support account must resolve to exactly one user_data',
+      'DEV staff-name backfill: Support account must resolve to exactly one user_data before the clearance write',
     );
 
     const users = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "user"`)) as { count: number }[];
@@ -645,12 +645,12 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
   });
 
   // blankCount is always 0 after a normal UPDATE: every targeted row is either repaired or was
-  // never blank. The postcondition still guards against DB-side reversion (trigger, concurrent
+  // never blank. The blankCount check still guards against DB-side reversion (trigger, concurrent
   // writer, default). This test installs a BEFORE UPDATE trigger that re-blanks verifiedName so
   // the otherwise vacuum-true half of the assertion can fire.
   // Function + trigger are created under SCHEMA (search_path); afterEach's DROP SCHEMA … CASCADE
   // removes them with the rest of the fixture — no leftover across tests.
-  it('up() throws when verifiedName stays blank after the backfill (blankCount postcondition)', async () => {
+  it('up() throws when verifiedName stays blank after the backfill (blankCount after clearance)', async () => {
     const { userId } = await insertUser(TARGET_ADDRESS, 'User', null);
 
     await queryRunner.query(`
@@ -671,22 +671,22 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill postcondition failed: Support account did not reach a single non-blank verifiedName',
+      'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
     );
 
-    // Role grant is after the postcondition; a blankCount failure must not elevate.
+    // Role grant is after the clearance checks; a blankCount failure must not elevate.
     expect(await getRole(userId)).toBe('User');
   });
 
-  // targetCount is re-checked after clearance so a change between the precondition and the UPDATE
-  // still fails closed. Without a race, targetCount stays 1 and this half of the postcondition is
-  // vacuum-true: removing `Number(postconditionRows.at(0)?.targetCount) !== 1 || ` leaves every
-  // other test green. This test installs a BEFORE UPDATE trigger that, on the clearance UPDATE,
-  // inserts a second user_data plus a user row with a different casing of the same address so the
-  // postcondition sees targetCount = 2 (blankCount stays 0 via NEW."verifiedName").
+  // targetCount is re-checked after clearance so a change between the pre-write count and the UPDATE
+  // still fails closed. Without a race, targetCount stays 1 and this half is vacuum-true: removing
+  // the post-write targetCount check leaves every other test green. This test installs a BEFORE
+  // UPDATE trigger that, on the clearance UPDATE, inserts a second user_data plus a user row with a
+  // different casing of the same address so the post-write check sees targetCount = 2 (blankCount
+  // stays 0 via NEW."verifiedName").
   // Function + trigger are created under SCHEMA (search_path); afterEach's DROP SCHEMA … CASCADE
   // removes them with the rest of the fixture — no leftover across tests.
-  it('up() throws when a second user_data appears behind the address during clearance (targetCount postcondition)', async () => {
+  it('up() throws when a second user_data appears behind the address during clearance (targetCount after clearance)', async () => {
     const { userId } = await insertUser(TARGET_ADDRESS, 'User', null);
 
     await queryRunner.query(`
@@ -712,10 +712,10 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill postcondition failed: Support account did not reach a single non-blank verifiedName',
+      'DEV staff-name backfill: Support account does not resolve to exactly one user_data after the clearance write',
     );
 
-    // Role grant is after the postcondition; a targetCount failure must not elevate.
+    // Role grant is after the clearance checks; a targetCount failure must not elevate.
     expect(await getRole(userId)).toBe('User');
   });
 
