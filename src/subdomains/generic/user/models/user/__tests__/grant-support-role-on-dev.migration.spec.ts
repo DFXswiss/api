@@ -143,6 +143,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     expect(roleParams?.[0]).toBe(TARGET_ADDRESS);
     const normalized = normalizeSql(roleSql);
     expect(roleSql).toContain(`SET "role" = 'Support'`);
+    expect(roleSql).toContain('WITH "affected" AS (');
     // AND-conjunction pinned as one fragment so OR-mutants fail (not three separate toContain).
     expect(normalized).toContain(
       normalizeSql(
@@ -176,6 +177,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     const normalized = normalizeSql(sql);
 
     expect(sql).toContain(`SET "role" = 'User'`);
+    expect(sql).toContain('WITH "affected" AS (');
     // AND-conjunction pinned as one fragment so OR-mutants fail (not three separate toContain).
     expect(normalized).toContain(
       normalizeSql(

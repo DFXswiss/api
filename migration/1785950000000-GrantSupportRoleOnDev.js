@@ -97,12 +97,12 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
 
     await queryRunner.query(
       `
-            WITH updated AS (
+            WITH "affected" AS (
                 UPDATE "user"
                 SET "role" = 'Support'
                 WHERE LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'User'
-                RETURNING id
+                RETURNING "id"
             )
             INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")
             SELECT
@@ -114,12 +114,12 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                     'migration', 'GrantSupportRoleOnDev1785950000000',
                     'direction', 'up',
                     'affectedCount', count(*),
-                    'userIds', string_agg(id::text, ','),
+                    'userIds', string_agg("id"::text, ','),
                     'fromRole', 'User',
                     'toRole', 'Support'
                 )::text,
                 'up'
-            FROM updated
+            FROM "affected"
         `,
       Array.of(SUPPORT_ACCOUNT_ADDRESS),
     );
@@ -142,7 +142,7 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
 
     await queryRunner.query(
       `
-            WITH updated AS (
+            WITH "affected" AS (
                 UPDATE "user"
                 SET "role" = 'User'
                 WHERE LOWER("address") = LOWER($1::varchar)
@@ -157,7 +157,7 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                       ) "audited"
                       WHERE ("audited"."message"::jsonb ->> 'affectedCount')::int > 0
                   )
-                RETURNING id
+                RETURNING "id"
             )
             INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")
             SELECT
@@ -169,12 +169,12 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                     'migration', 'GrantSupportRoleOnDev1785950000000',
                     'direction', 'down',
                     'affectedCount', count(*),
-                    'userIds', string_agg(id::text, ','),
+                    'userIds', string_agg("id"::text, ','),
                     'fromRole', 'Support',
                     'toRole', 'User'
                 )::text,
                 'down'
-            FROM updated
+            FROM "affected"
         `,
       Array.of(SUPPORT_ACCOUNT_ADDRESS),
     );
