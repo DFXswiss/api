@@ -671,7 +671,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'DEV staff-name backfill: Support account verifiedName is still blank on 1 user_data row(s) after the clearance write',
+      'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
     );
 
     // Role grant is after the clearance checks; a blankCount failure must not elevate.
@@ -713,6 +713,49 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
       'DEV staff-name backfill: Support account resolves to 2 user_data instead of exactly one after the clearance write',
+    );
+
+    // Role grant is after the clearance checks; a targetCount failure must not elevate.
+    expect(await getRole(userId)).toBe('User');
+  });
+
+  // Sibling of the targetCount=2 race above: the same BEFORE UPDATE shape, but two extra user_data
+  // rows (with distinct address casings — user.address is case-sensitive unique) so the post-write
+  // message names 3. Without a second observed value, a hardcoded "2" in the migration stays green.
+  // Function + trigger under SCHEMA; afterEach's DROP SCHEMA … CASCADE removes them.
+  it('up() throws naming 3 when two extra user_data appear during clearance (targetCount after clearance)', async () => {
+    const { userId } = await insertUser(TARGET_ADDRESS, 'User', null);
+
+    await queryRunner.query(`
+      CREATE FUNCTION force_two_extra_target_user_data() RETURNS trigger AS $fn$
+      DECLARE
+        new_ud_id integer;
+      BEGIN
+        INSERT INTO "user_data" ("verifiedName") VALUES (NEW."verifiedName")
+        RETURNING "id" INTO new_ud_id;
+        INSERT INTO "user" ("address", "role", "userDataId")
+        VALUES (lower('${TARGET_ADDRESS}'), 'User', new_ud_id);
+
+        INSERT INTO "user_data" ("verifiedName") VALUES (NEW."verifiedName")
+        RETURNING "id" INTO new_ud_id;
+        INSERT INTO "user" ("address", "role", "userDataId")
+        VALUES (upper('${TARGET_ADDRESS}'), 'User', new_ud_id);
+
+        RETURN NEW;
+      END;
+      $fn$ LANGUAGE plpgsql
+    `);
+    await queryRunner.query(`
+      CREATE TRIGGER force_two_extra_target_user_data_trigger
+      BEFORE UPDATE ON "user_data"
+      FOR EACH ROW
+      EXECUTE FUNCTION force_two_extra_target_user_data()
+    `);
+
+    const migration = new GrantSupportRoleOnDev();
+
+    await expect(migration.up(queryRunner)).rejects.toThrow(
+      'DEV staff-name backfill: Support account resolves to 3 user_data instead of exactly one after the clearance write',
     );
 
     // Role grant is after the clearance checks; a targetCount failure must not elevate.

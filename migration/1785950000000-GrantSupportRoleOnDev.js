@@ -119,9 +119,11 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       );
     }
 
+    // No count here: this branch is only reachable when postWriteTargetCount === 1, so
+    // blankCount is always exactly one blank user_data row (never a varying N).
     if (postWriteBlankCount !== 0) {
       throw new Error(
-        `DEV staff-name backfill: Support account verifiedName is still blank on ${postWriteBlankCount} user_data row(s) after the clearance write`,
+        'DEV staff-name backfill: Support account verifiedName is still blank after the clearance write',
       );
     }
 
