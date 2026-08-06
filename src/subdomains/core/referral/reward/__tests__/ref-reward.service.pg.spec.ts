@@ -3,7 +3,6 @@ import { DataType, newDb } from 'pg-mem';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
@@ -106,7 +105,6 @@ describe('RefRewardService.getRewardRecipients (postgres semantics)', () => {
       createMock<AssetService>(),
       createMock<TransactionService>(),
       createMock<SettingService>(),
-      createMock<TransactionRepository>(),
     );
   });
 

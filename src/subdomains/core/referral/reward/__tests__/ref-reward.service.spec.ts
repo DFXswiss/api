@@ -436,6 +436,11 @@ describe('RefRewardService', () => {
 
     it('accumulates the referral credit across multiple candidates in one run', async () => {
       mockAgreementsSetup();
+      // The service mutates `user.refVolume`/`user.refCredit` in place across candidates, and this
+      // `user` fixture is shared by every test in this describe block. Reset it explicitly so this
+      // assertion is not sensitive to leftover mutations from tests that ran earlier.
+      user.refVolume = 0;
+      user.refCredit = 0;
       jest.spyOn(transactionService, 'getRefBonusCandidates').mockResolvedValue([
         {
           id: 100,

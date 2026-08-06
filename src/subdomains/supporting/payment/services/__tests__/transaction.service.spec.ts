@@ -494,10 +494,7 @@ describe('getRefBonusCandidates', () => {
   });
 
   it('returns the query result unchanged', async () => {
-    const result = [
-      Object.assign(new Transaction(), { id: 201 }),
-      Object.assign(new Transaction(), { id: 202 }),
-    ];
+    const result = [Object.assign(new Transaction(), { id: 201 }), Object.assign(new Transaction(), { id: 202 })];
     const { outerQb } = createRefBonusCandidatesQueryBuilder(result);
     jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
 
