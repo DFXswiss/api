@@ -185,18 +185,21 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
                   AND "role" = 'Support'`,
       ),
     );
-    // Single contiguous fragment pins the OFFSET 0 optimizer-fence; reverting the cast
-    // into the same WHERE as the filters fails this assertion.
+    // Single contiguous fragment pins id membership against up() audit userIds, the OFFSET 0
+    // optimizer-fence, and the affectedCount > 0 filter; dropping any piece fails this assertion.
     expect(normalized).toContain(
       normalizeSql(
-        `SELECT 1 FROM (
+        `"id"::text = ANY (
+                      SELECT UNNEST(string_to_array("audited"."message"::jsonb ->> 'userIds', ','))
+                      FROM (
                           SELECT "message" FROM "log"
                           WHERE "system" = 'User'
                             AND "subsystem" = 'GrantSupportRoleOnDev'
                             AND "category" = 'up'
                           OFFSET 0
                       ) "audited"
-                      WHERE ("audited"."message"::jsonb ->> 'affectedCount')::int > 0`,
+                      WHERE ("audited"."message"::jsonb ->> 'affectedCount')::int > 0
+                  )`,
       ),
     );
     // Column list pinned as one fragment so dropping only "created" or only "updated" fails.
@@ -288,11 +291,16 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
       verifiedName,
     ]);
     const userDataId = udRows[0].id as number;
+    const userId = await insertUserOnUserData(address, role, userDataId);
+    return { userId, userDataId };
+  }
+
+  async function insertUserOnUserData(address: string, role: string, userDataId: number): Promise<number> {
     const rows = await queryRunner.query(
       `INSERT INTO "user" ("address", "role", "userDataId") VALUES ($1, $2, $3) RETURNING "id"`,
       [address, role, userDataId],
     );
-    return { userId: rows[0].id as number, userDataId };
+    return rows[0].id as number;
   }
 
   async function getRole(id: number): Promise<string> {
@@ -407,10 +415,11 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(await getRole(targetId)).toBe('Support');
   });
 
-  it('up() promotes every case-variant of the target address and audits all of them', async () => {
-    // Unique on "address" is case-sensitive; LOWER() in up() can match multiple rows.
-    const { userId: mixedCaseId } = await insertUser(TARGET_ADDRESS, 'User');
-    const { userId: lowerCaseId } = await insertUser(TARGET_ADDRESS.toLowerCase(), 'User');
+  it('up() promotes every case-variant of the target address on the same user_data and audits all of them', async () => {
+    // Unique on "address" is case-sensitive; LOWER() in up() can match multiple user rows.
+    // Both variants share one user_data so targetCount stays 1 (exactly-one clearance assertion).
+    const { userId: mixedCaseId, userDataId } = await insertUser(TARGET_ADDRESS, 'User');
+    const lowerCaseId = await insertUserOnUserData(TARGET_ADDRESS.toLowerCase(), 'User', userDataId);
     const migration = new GrantSupportRoleOnDev();
 
     await migration.up(queryRunner);
@@ -468,8 +477,67 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     ]);
   });
 
-  it.each([['\t'], ['\u00a0']])('up() repairs a blank-only verifiedName (%j)', async (blank) => {
-    const { userDataId } = await insertUser(TARGET_ADDRESS, 'User', blank);
+  // Foreign user_data must stay untouched: without `ud."id" = t."id"` the clearance UPDATE becomes a
+  // cross product and stamps verifiedName onto every user_data row in the database.
+  it('up() leaves foreign user_data verifiedName untouched and audits only the target userDataId', async () => {
+    const { userDataId: targetUserDataId } = await insertUser(TARGET_ADDRESS, 'User', null);
+    const { userDataId: foreignUserDataId } = await insertUser(OTHER_ADDRESS, 'User', null);
+    const migration = new GrantSupportRoleOnDev();
+
+    await migration.up(queryRunner);
+
+    expect(await getVerifiedName(targetUserDataId)).toBe(TEST_NAME);
+    expect(await getVerifiedName(foreignUserDataId)).toBeNull();
+
+    const logs = (await queryRunner.query(
+      `SELECT "message" FROM "log"
+       WHERE "system" = 'User' AND "subsystem" = 'StaffVerifiedNameBackfill'`,
+    )) as { message: string }[];
+    expect(logs).toHaveLength(1);
+    const entries = JSON.parse(logs[0].message) as { userDataId: number }[];
+    expect(entries).toHaveLength(1);
+    expect(entries[0].userDataId).toBe(targetUserDataId);
+  });
+
+  // Two different accounts behind address casings: targetCount > 1 must fail closed. Clearance writes
+  // run before the postcondition; wrap in a transaction so the assert reads the production outcome
+  // (migrationsTransactionMode 'all' discards the partial repair on throw). Role grant never runs.
+  it('up() throws when two different user_data sit behind address case-variants', async () => {
+    const { userId: mixedCaseId, userDataId: mixedCaseUserDataId } = await insertUser(TARGET_ADDRESS, 'User', null);
+    const { userId: lowerCaseId, userDataId: lowerCaseUserDataId } = await insertUser(
+      TARGET_ADDRESS.toLowerCase(),
+      'User',
+      null,
+    );
+    const migration = new GrantSupportRoleOnDev();
+
+    await queryRunner.startTransaction();
+    await expect(migration.up(queryRunner)).rejects.toThrow(
+      'DEV staff-name backfill did not reach the required state for the Support account',
+    );
+    // Role grant is after the postcondition — never runs, even inside the open transaction.
+    expect(await getRole(mixedCaseId)).toBe('User');
+    expect(await getRole(lowerCaseId)).toBe('User');
+    await queryRunner.rollbackTransaction();
+
+    // After rollback the clearance writes are gone — same as a failed DEV boot migration batch.
+    expect(await getVerifiedName(mixedCaseUserDataId)).toBeNull();
+    expect(await getVerifiedName(lowerCaseUserDataId)).toBeNull();
+  });
+
+  // `BlankChars` is defined as every character `String.prototype.trim()` strips, so derive that set from
+  // the runtime instead of restating it, and assert the migration's duplicated copy repairs a name built
+  // from all of them at once. A copy that lost a code point — the drift the migration's own comment warns
+  // about — would leave such a name unrepaired and still report success, because the postcondition
+  // shares the drifted constant and reads the residual character as non-blank. The migration cannot
+  // self-detect this; that is why the test asserts the repaired state rather than a rejection.
+  it('up() repairs a name built from every character trim() strips, pinning the duplicated BlankChars', async () => {
+    const blankChars = Array.from({ length: 0x10000 }, (_, code) => String.fromCharCode(code)).filter(
+      (char) => char.trim() === '',
+    );
+    expect(blankChars.length).toBeGreaterThan(20); // sanity: the derivation actually found them
+    const blankName = blankChars.join('');
+    const { userDataId } = await insertUser(TARGET_ADDRESS, 'User', blankName);
     const migration = new GrantSupportRoleOnDev();
 
     await migration.up(queryRunner);
@@ -484,7 +552,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(JSON.parse(logs[0].message)).toEqual([
       {
         userDataId,
-        previousVerifiedName: blank,
+        previousVerifiedName: blankName,
         nextVerifiedName: TEST_NAME,
         action: 'backfilled',
       },
@@ -529,7 +597,9 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     expect(logs).toHaveLength(0);
   });
 
-  it('up() throws when no user_data sits behind the address', async () => {
+  // Dangling userDataId is production-impossible (NOT NULL + FK) but keeps the postcondition's
+  // targetCount = 0 path covered when a user row exists without a matching user_data.
+  it('up() throws when a user row has no matching user_data behind the address', async () => {
     await queryRunner.query(`INSERT INTO "user" ("address", "role", "userDataId") VALUES ($1, 'User', 99999)`, [
       TARGET_ADDRESS,
     ]);
@@ -543,6 +613,19 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
       role: string;
     }[];
     expect(role[0].role).toBe('User');
+  });
+
+  it('up() throws when no user row sits behind the address', async () => {
+    const migration = new GrantSupportRoleOnDev();
+
+    await expect(migration.up(queryRunner)).rejects.toThrow(
+      'DEV staff-name backfill did not reach the required state for the Support account',
+    );
+
+    const users = (await queryRunner.query(`SELECT count(*)::int AS "count" FROM "user"`)) as { count: number }[];
+    expect(users[0].count).toBe(0);
+    const logs = await getLogs();
+    expect(logs).toHaveLength(0);
   });
 
   // blankCount is always 0 after a normal UPDATE: every targeted row is either repaired or was
@@ -590,6 +673,22 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     await migration.down(queryRunner);
     expect(await getRole(userId)).toBe('User');
     expect(await getVerifiedName(userDataId)).toBe(TEST_NAME);
+  });
+
+  // down() must demote only ids recorded in the up() audit — not every Support row that matches
+  // the address by LOWER(). A pre-existing Support case-variant on the same user_data stays Support.
+  it('down() leaves a pre-existing Support case-variant untouched after promoting a sibling User', async () => {
+    const { userId: alreadySupportId, userDataId } = await insertUser(TARGET_ADDRESS, 'Support');
+    const promotedId = await insertUserOnUserData(TARGET_ADDRESS.toLowerCase(), 'User', userDataId);
+    const migration = new GrantSupportRoleOnDev();
+
+    await migration.up(queryRunner);
+    expect(await getRole(alreadySupportId)).toBe('Support');
+    expect(await getRole(promotedId)).toBe('Support');
+
+    await migration.down(queryRunner);
+    expect(await getRole(alreadySupportId)).toBe('Support');
+    expect(await getRole(promotedId)).toBe('User');
   });
 
   it('is idempotent: a second up() changes nothing and appends no clearance audit', async () => {

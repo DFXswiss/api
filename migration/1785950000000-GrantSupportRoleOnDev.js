@@ -78,9 +78,10 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(verifiedName, BLANK_CHARS, SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    // Clearance predicate, not equality with the supplied name. LOWER() on address can match multiple
-    // rows (unique index on user.address is case-sensitive), so require at least one user_data and
-    // that none remain blank — not "exactly one".
+    // Clearance predicate, not equality with the supplied name. docs/staff-kyc-clearance.md requires
+    // the closing assertion to yield exactly one cleared row. targetCount counts distinct user_data
+    // behind LOWER(address): multiple address casings of the same account still yield 1, while two
+    // different accounts behind the same address yield > 1 and must fail closed. blankCount must be 0.
     const rows = await queryRunner.query(
       `SELECT
          (SELECT count(*)::int FROM "user_data" ud
@@ -91,7 +92,7 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       Array.of(BLANK_CHARS, SUPPORT_ACCOUNT_ADDRESS),
     );
 
-    if (Number(rows.at(0)?.targetCount) < 1 || Number(rows.at(0)?.blankCount) !== 0) {
+    if (Number(rows.at(0)?.targetCount) !== 1 || Number(rows.at(0)?.blankCount) !== 0) {
       throw new Error('DEV staff-name backfill did not reach the required state for the Support account');
     }
 
@@ -126,8 +127,9 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
   }
 
   /**
-   * Revert: restore User role for the same address, only if currently Support and only when
-   * up() actually promoted a row (audit log affectedCount > 0).
+   * Revert: restore User role for the same address, only if currently Support and only for ids
+   * recorded in an up() audit with affectedCount > 0 (membership on userIds — not every Support
+   * row that merely matches the address).
    * Update and audit log insert run in one statement so a failed audit aborts the role change
    * (fail-closed, CONTRIBUTING auditable mutations).
    *
@@ -147,8 +149,9 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                 SET "role" = 'User'
                 WHERE LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'Support'
-                  AND EXISTS (
-                      SELECT 1 FROM (
+                  AND "id"::text = ANY (
+                      SELECT UNNEST(string_to_array("audited"."message"::jsonb ->> 'userIds', ','))
+                      FROM (
                           SELECT "message" FROM "log"
                           WHERE "system" = 'User'
                             AND "subsystem" = 'GrantSupportRoleOnDev'
