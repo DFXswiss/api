@@ -26,7 +26,7 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
 
   /**
    * On DEV only: (1) ensure staff KYC clearance for the Support account (non-blank verifiedName on
-   * its user_data, via n_dev_support), then (2) grant Support role when the user currently has User.
+   * its user_data, via STAFF_VERIFIED_NAME_DEV_SUPPORT), then (2) grant Support role when the user currently has User.
    * Role update and audit log insert run in one statement so a failed audit aborts the role change
    * (fail-closed, CONTRIBUTING auditable mutations). Same for the verifiedName backfill.
    *
@@ -37,8 +37,8 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
     // address exists elsewhere is unchecked; never elevate roles outside DEV.
     if (process.env.ENVIRONMENT !== 'dev') return;
 
-    const verifiedName = process.env.n_dev_support?.trim();
-    if (!verifiedName) throw new Error('n_dev_support is required for the DEV staff-name backfill');
+    const verifiedName = process.env.STAFF_VERIFIED_NAME_DEV_SUPPORT?.trim();
+    if (!verifiedName) throw new Error('STAFF_VERIFIED_NAME_DEV_SUPPORT is required for the DEV staff-name backfill');
 
     // `needsBackfill` is the exact negation of the closing assertion below (blankness including NULL).
     // `noteworthy` audits repairs and deliberate keep-existing-name decisions; a re-run after a
@@ -95,16 +95,18 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
       throw new Error('DEV staff-name backfill did not reach the required state for the Support account');
     }
 
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
             WITH updated AS (
                 UPDATE "user"
                 SET "role" = 'Support'
-                WHERE LOWER("address") = LOWER('${SUPPORT_ACCOUNT_ADDRESS}')
+                WHERE LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'User'
                 RETURNING id
             )
-            INSERT INTO "log" ("system", "subsystem", "severity", "message", "category")
+            INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")
             SELECT
+                now(), now(),
                 'User',
                 'GrantSupportRoleOnDev',
                 'Info',
@@ -118,7 +120,9 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                 )::text,
                 'up'
             FROM updated
-        `);
+        `,
+      Array.of(SUPPORT_ACCOUNT_ADDRESS),
+    );
   }
 
   /**
@@ -136,11 +140,12 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
     // DEV-only: mirror the up() environment gate so down() never touches other envs.
     if (process.env.ENVIRONMENT !== 'dev') return;
 
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
             WITH updated AS (
                 UPDATE "user"
                 SET "role" = 'User'
-                WHERE LOWER("address") = LOWER('${SUPPORT_ACCOUNT_ADDRESS}')
+                WHERE LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'Support'
                   AND EXISTS (
                       SELECT 1 FROM (
@@ -154,8 +159,9 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                   )
                 RETURNING id
             )
-            INSERT INTO "log" ("system", "subsystem", "severity", "message", "category")
+            INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")
             SELECT
+                now(), now(),
                 'User',
                 'GrantSupportRoleOnDev',
                 'Info',
@@ -169,6 +175,8 @@ module.exports = class GrantSupportRoleOnDev1785950000000 {
                 )::text,
                 'down'
             FROM updated
-        `);
+        `,
+      Array.of(SUPPORT_ACCOUNT_ADDRESS),
+    );
   }
 };

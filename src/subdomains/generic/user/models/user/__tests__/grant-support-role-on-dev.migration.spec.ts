@@ -7,7 +7,7 @@ const SCHEMA = 'grant_support_role_on_dev_spec';
 
 const TARGET_ADDRESS = '0xA6a045551b210781D98725e9274af419f0602f72';
 const OTHER_ADDRESS = '0x1111111111111111111111111111111111111111';
-const STAFF_NAME_ENV = 'n_dev_support';
+const STAFF_NAME_ENV = 'STAFF_VERIFIED_NAME_DEV_SUPPORT';
 const TEST_NAME = 'Test Name';
 const OTHER_NAME = 'Other Name';
 
@@ -81,7 +81,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
   });
 
   it.each([[undefined], [''], ['   ']])(
-    'up() throws before any SQL when n_dev_support is %p on dev',
+    'up() throws before any SQL when STAFF_VERIFIED_NAME_DEV_SUPPORT is %p on dev',
     async (staffName) => {
       process.env.ENVIRONMENT = 'dev';
       setEnv(STAFF_NAME_ENV, staffName);
@@ -89,7 +89,7 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
       const queryRunner = { query: jest.fn(async (_sql: string) => []) };
 
       await expect(migration.up(queryRunner as unknown as QueryRunner)).rejects.toThrow(
-        'n_dev_support is required for the DEV staff-name backfill',
+        'STAFF_VERIFIED_NAME_DEV_SUPPORT is required for the DEV staff-name backfill',
       );
       expect(queryRunner.query.mock.calls).toHaveLength(0);
     },
@@ -138,18 +138,22 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     expect(postconditionParams?.[0]).toBe(clearanceParams?.[1]);
     expect(postconditionParams?.[1]).toBe(TARGET_ADDRESS);
 
-    const roleSql = calls[2][0];
-    expect(calls[2]).toHaveLength(1);
+    const [roleSql, roleParams] = calls[2];
+    expect(calls[2]).toHaveLength(2);
+    expect(roleParams?.[0]).toBe(TARGET_ADDRESS);
     const normalized = normalizeSql(roleSql);
     expect(roleSql).toContain(`SET "role" = 'Support'`);
     // AND-conjunction pinned as one fragment so OR-mutants fail (not three separate toContain).
     expect(normalized).toContain(
       normalizeSql(
-        `LOWER("address") = LOWER('${TARGET_ADDRESS}')
+        `LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'User'`,
       ),
     );
-    expect(roleSql).toContain(`INSERT INTO "log"`);
+    // Column list pinned as one fragment so dropping only "created" or only "updated" fails.
+    expect(roleSql).toContain(
+      `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")`,
+    );
     expect(roleSql).toContain(`'GrantSupportRoleOnDev'`);
     expect(roleSql).toContain(`'direction', 'up'`);
   });
@@ -164,17 +168,18 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
     const calls = queryRunner.query.mock.calls as [string, unknown[]?][];
     expect(calls).toHaveLength(1);
     for (const call of calls) {
-      expect(call).toHaveLength(1);
+      expect(call).toHaveLength(2);
     }
 
-    const sql = calls[0][0];
+    const [sql, params] = calls[0];
+    expect(params?.[0]).toBe(TARGET_ADDRESS);
     const normalized = normalizeSql(sql);
 
     expect(sql).toContain(`SET "role" = 'User'`);
     // AND-conjunction pinned as one fragment so OR-mutants fail (not three separate toContain).
     expect(normalized).toContain(
       normalizeSql(
-        `LOWER("address") = LOWER('${TARGET_ADDRESS}')
+        `LOWER("address") = LOWER($1::varchar)
                   AND "role" = 'Support'`,
       ),
     );
@@ -192,7 +197,10 @@ describe('GrantSupportRoleOnDev migration (SQL content)', () => {
                       WHERE ("audited"."message"::jsonb ->> 'affectedCount')::int > 0`,
       ),
     );
-    expect(sql).toContain(`INSERT INTO "log"`);
+    // Column list pinned as one fragment so dropping only "created" or only "updated" fails.
+    expect(sql).toContain(
+      `INSERT INTO "log" ("created", "updated", "system", "subsystem", "severity", "message", "category")`,
+    );
     expect(sql).toContain(`'direction', 'down'`);
   });
 });
@@ -268,7 +276,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
-  /** Default verifiedName matches n_dev_support so clearance is a true no-op (no audit row). */
+  /** Default verifiedName matches STAFF_VERIFIED_NAME_DEV_SUPPORT so clearance is a true no-op (no audit row). */
   async function insertUser(
     address: string,
     role: string,
@@ -333,7 +341,7 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
   });
 
   it('up() writes exactly one log row with correct affectedCount', async () => {
-    // verifiedName already matches n_dev_support → clearance is a true no-op (no audit row).
+    // verifiedName already matches STAFF_VERIFIED_NAME_DEV_SUPPORT → clearance is a true no-op (no audit row).
     const { userId: targetId } = await insertUser(TARGET_ADDRESS, 'User');
     const migration = new GrantSupportRoleOnDev();
 
@@ -504,13 +512,13 @@ describeDb('GrantSupportRoleOnDev migration (real Postgres)', () => {
     ]);
   });
 
-  it('up() throws and writes nothing when n_dev_support is missing on dev', async () => {
+  it('up() throws and writes nothing when STAFF_VERIFIED_NAME_DEV_SUPPORT is missing on dev', async () => {
     const { userId, userDataId } = await insertUser(TARGET_ADDRESS, 'User', null);
     setEnv(STAFF_NAME_ENV, undefined);
     const migration = new GrantSupportRoleOnDev();
 
     await expect(migration.up(queryRunner)).rejects.toThrow(
-      'n_dev_support is required for the DEV staff-name backfill',
+      'STAFF_VERIFIED_NAME_DEV_SUPPORT is required for the DEV staff-name backfill',
     );
 
     expect(await getRole(userId)).toBe('User');
