@@ -49,8 +49,4 @@ export class WalletRepository extends CachedRepository<Wallet> {
       .where('wallet.id = :walletId', { walletId })
       .getOne();
   }
-
-  async getByAddress(address: string): Promise<Wallet | null> {
-    return this.findOneBy({ address });
-  }
 }
