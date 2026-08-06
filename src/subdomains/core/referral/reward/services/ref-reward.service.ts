@@ -157,6 +157,28 @@ export class RefRewardService {
         continue;
       }
 
+      // The payout asset has to live on a chain the recipient address can serve, same requirement as
+      // in createPendingRefRewards. A mismatch would not only fail the payout: the pending guard
+      // there searches by the address-derived chain and would miss this reward, so the same credit
+      // could be paid out a second time through the regular path. getBlockchainsBasedOn is used
+      // rather than getDefaultBlockchainBasedOn because the latter throws on an unrecognised
+      // address, and this runs outside the per-candidate catch — one bad agreement must not take
+      // the whole run down.
+      const addressBlockchains = CryptoService.getBlockchainsBasedOn(user.address);
+      if (!addressBlockchains.includes(asset.blockchain)) {
+        this.logger.error(
+          `Skipping ref bonus agreement for ref ${agreement.usedRef}: output asset is on ${asset.blockchain}, which the recipient address cannot serve`,
+        );
+        continue;
+      }
+
+      // updateRefVolume is a no-op without a referral code, while the reward would still be paid
+      // out and later counted into paidRefCredit — leaving the open credit short by that amount.
+      if (!user.ref) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: recipient has no referral code`);
+        continue;
+      }
+
       const candidates = await this.transactionService.getRefBonusCandidates(
         agreement.usedRef,
         agreement.minTransactionId,
@@ -237,6 +259,11 @@ export class RefRewardService {
             user.refCredit + amountInEur,
           );
 
+          // Carried locally so the next candidate of this run adds to the raised total instead of
+          // recomputing from the stale snapshot. Two overlapping runs could still lose an update
+          // here, since updateRefVolume writes an absolute value and the cron lease is explicitly
+          // not a fence — that resolves itself: getManualRefVolume sums these rewards from the
+          // database, and every referred trade recomputes the total from that sum.
           user.refVolume += amountInEur / user.refFeePercent;
           user.refCredit += amountInEur;
         } catch (e) {

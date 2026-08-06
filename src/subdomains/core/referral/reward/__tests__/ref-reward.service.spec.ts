@@ -102,7 +102,7 @@ describe('RefRewardService', () => {
 
     const user = {
       id: 1,
-      address: 'addr-1',
+      address: '0x0000000000000000000000000000000000000001',
       ref: 'AAA-000',
       refVolume: 0,
       refCredit: 0,
@@ -316,6 +316,26 @@ describe('RefRewardService', () => {
     it('skips agreement when the referenced output asset is missing', async () => {
       mockAgreementsSetup();
       jest.spyOn(assetService, 'getAssetById').mockResolvedValue(undefined as any);
+
+      await service.createRefBonusRewards();
+
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
+      expect(rewardRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('skips agreement when the output asset is on a chain the address cannot serve', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(assetService, 'getAssetById').mockResolvedValue({ id: 2, blockchain: 'Bitcoin' } as any);
+
+      await service.createRefBonusRewards();
+
+      expect(transactionService.getRefBonusCandidates).not.toHaveBeenCalled();
+      expect(rewardRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('skips agreement when the recipient has no referral code', async () => {
+      mockAgreementsSetup();
+      jest.spyOn(userService, 'getUser').mockResolvedValue({ ...user, ref: undefined } as any);
 
       await service.createRefBonusRewards();
 
