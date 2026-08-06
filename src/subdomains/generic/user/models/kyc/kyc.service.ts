@@ -73,6 +73,11 @@ export class KycService {
       throw new ServiceUnavailableException(`Failed to transfer KYC data: ${e.message}`);
     }
 
+    // result is the unvalidated body of a third-party response. Without a kycId the lookup loses its
+    // only condition and returns an arbitrary user, whose account would then be merged with the
+    // caller's — and the `!externalUser` check below cannot catch it, because a row was found.
+    if (!result?.kycId) throw new NotFoundException('KYC user not found');
+
     const externalUser = await this.userRepo.findOne({
       where: { address: result.kycId },
       relations: { userData: true },

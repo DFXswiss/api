@@ -49,12 +49,6 @@ export class KycDocumentService {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
-  // Keys only, no per-object metadata fetch — the cheap listing for sweeps over a prefix that spans
-  // many users (e.g. the legacy Spider catalog), where only the blob key is needed.
-  async listKeysByPrefix(prefix: string): Promise<string[]> {
-    return this.storageService.listKeys(prefix);
-  }
-
   async listFilesByPrefixes(prefixes: string[]): Promise<KycFileBlob[]> {
     const files = await Promise.all(prefixes.map((p) => this.listFilesByPrefix(p)));
     return files.flat();

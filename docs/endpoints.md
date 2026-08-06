@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **538 decorated route entries** across 94 controller files, of which **537 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 300 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **537 decorated route entries** across 94 controller files, of which **536 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -23,7 +23,7 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 37 endpoints read only what they need and 410 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
+Today 36 endpoints read only what they need and 410 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
@@ -31,10 +31,10 @@ Today 37 endpoints read only what they need and 410 do not, so the column reads 
 | ----------- | --------: | ----: |
 | `whole rows` | 410 | 76 % |
 | `none` | 89 | 17 % |
-| `projected` | 37 | 7 % |
+| `projected` | 36 | 7 % |
 | `caller-defined` | 2 | 0 % |
 
-Of the 37 that read only what they need, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 7), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why 18 of them read `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. The nineteenth is `POST /gs/debug`, which stays `n/a` because its field list comes from the request and there is no fixed projection to test. The thirty-seventh is `POST /kyc/admin/legacy-file/sync`, which was written projecting from the start and is not covered by those tests either, hence `0/4`. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
+Of the 36 that read only what they need, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 7), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why 18 of them read `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. The nineteenth is `POST /gs/debug`, which stays `n/a` because its field list comes from the request and there is no fixed projection to test. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
 Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 73 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
@@ -294,7 +294,6 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/kyc/admin/blacklist/ip` | hidden | none | — | n/a |  | `KycAdminController.deleteIpToBlacklist` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | PUT | 1 |  | `/kyc/admin/blacklist/ip` | hidden | projected | 1 | 0/4 |  | `KycAdminController.addIpToBlacklist` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | POST | 1 |  | `/kyc/admin/ident/file/sync` | hidden | whole rows | 243 | not yet |  | `KycAdminController.syncIdentFiles` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
-| POST | 1 |  | `/kyc/admin/legacy-file/sync` | hidden | projected | 1 | 0/4 |  | `KycAdminController.syncLegacyFiles` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | POST | 1 |  | `/kyc/admin/log` | hidden | whole rows | 253 | not yet |  | `KycAdminController.createLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | PUT | 1 |  | `/kyc/admin/log/:id` | hidden | whole rows | 17 | not yet |  | `KycAdminController.updateLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |
 | PUT | 1 |  | `/kyc/admin/nameCheck/:id` | hidden | whole rows | 245 | not yet |  | `KycAdminController.updateNameCheckLog` | `subdomains/generic/kyc/controllers/kyc-admin.controller.ts` |

@@ -4,11 +4,11 @@ import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { legacyDocumentDate } from 'src/subdomains/generic/kyc/dto/mapper/kyc-legacy-file.mapper';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { legacyDocumentDate } from 'src/subdomains/generic/kyc/utils/legacy-document-date';
 import {
   BuySupportInfo,
   SellSupportInfo,
