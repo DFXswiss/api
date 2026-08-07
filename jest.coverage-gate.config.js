@@ -185,6 +185,7 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum.ts',
   'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto.ts',
   'src/subdomains/supporting/payment/dto/transaction.dto.ts',
+  'src/subdomains/supporting/payment/services/transaction.service.ts',
   'src/subdomains/supporting/payout/entities/payout-order.entity.ts',
   'src/subdomains/supporting/payout/exceptions/invalid-payout-amount.exception.ts',
   'src/subdomains/supporting/payout/exceptions/payout-broadcast.exception.ts',

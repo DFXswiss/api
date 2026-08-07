@@ -10,16 +10,154 @@ import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/tra
 import { BuyCryptoBatch } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput, PayInAction } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { EntityManager, IsNull } from 'typeorm';
-import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
-import { Transaction } from '../../entities/transaction.entity';
-import { TransactionRepository } from '../../repositories/transaction.repository';
-import { SpecialExternalAccountService } from '../special-external-account.service';
-import { TransactionService } from '../transaction.service';
+import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/update-transaction.dto';
+import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  Transaction,
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { Between, Brackets, EntityManager, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
+
+interface ServiceSetup {
+  service: TransactionService;
+  repo: TransactionRepository;
+  userDataService: UserDataService;
+  bankDataService: BankDataService;
+  specialExternalAccountService: SpecialExternalAccountService;
+  buyCryptoRepo: BuyCryptoRepository;
+  transactionAmlCheckService: TransactionAmlCheckService;
+}
+
+async function setupService(): Promise<ServiceSetup> {
+  const repo = createMock<TransactionRepository>();
+  const userDataService = createMock<UserDataService>();
+  const bankDataService = createMock<BankDataService>();
+  const specialExternalAccountService = createMock<SpecialExternalAccountService>();
+  const buyCryptoRepo = createMock<BuyCryptoRepository>();
+  const transactionAmlCheckService = createMock<TransactionAmlCheckService>();
+
+  const module: TestingModule = await Test.createTestingModule({
+    imports: [TestSharedModule],
+    providers: [
+      TransactionService,
+      { provide: TransactionRepository, useValue: repo },
+      { provide: UserDataService, useValue: userDataService },
+      { provide: BankDataService, useValue: bankDataService },
+      { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
+      { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
+      { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
+      TestUtil.provideConfig(),
+    ],
+  }).compile();
+
+  return {
+    service: module.get<TransactionService>(TransactionService),
+    repo,
+    userDataService,
+    bankDataService,
+    specialExternalAccountService,
+    buyCryptoRepo,
+    transactionAmlCheckService,
+  };
+}
+
+type QueryBuilderMock = Record<string, jest.Mock>;
+
+// `new Brackets(cb)` only stores the callback, so a mocked query builder has to invoke it itself —
+// otherwise the conditions built inside the brackets are never executed.
+function applyBrackets(condition: unknown, innerQb: QueryBuilderMock): void {
+  if (condition && typeof condition === 'object' && 'whereFactory' in condition) {
+    (condition as { whereFactory: (qb: QueryBuilderMock) => void }).whereFactory(innerQb);
+  }
+}
+
+const CHAINING_METHODS = ['select', 'addSelect', 'leftJoin', 'leftJoinAndSelect', 'orderBy', 'groupBy'];
+const CONDITION_METHODS = ['where', 'andWhere', 'orWhere'];
+
+// `terminals` maps the result-producing methods (getMany, getOne, getRawOne, getRawMany) to their value.
+function createQueryBuilderMock(terminals: Record<string, unknown>): {
+  qb: QueryBuilderMock;
+  innerQb: QueryBuilderMock;
+} {
+  const innerQb: QueryBuilderMock = Object.fromEntries(
+    CONDITION_METHODS.map((method) => [method, jest.fn(() => innerQb)]),
+  );
+
+  const qb: QueryBuilderMock = Object.fromEntries([
+    ...CHAINING_METHODS.map((method) => [method, jest.fn(() => qb)]),
+    ...CONDITION_METHODS.map((method) => [
+      method,
+      jest.fn((condition: unknown) => {
+        applyBrackets(condition, innerQb);
+        return qb;
+      }),
+    ]),
+    ...Object.entries(terminals).map(([method, value]) => [method, jest.fn().mockResolvedValue(value)]),
+  ]);
+
+  return { qb, innerQb };
+}
+
+// Joins are asserted as a set, not as a sequence: which relations are joined under which alias is
+// what the query depends on, while the order of independent siblings is not. The call count bounds
+// the set from above, so neither a missing join nor an extra one slips through — including one
+// added through the variant a method does not otherwise use.
+function expectJoins(
+  qb: QueryBuilderMock,
+  expected: { leftJoinAndSelect?: [string, string][]; leftJoin?: [string, string][] },
+): void {
+  for (const method of ['leftJoinAndSelect', 'leftJoin'] as const) {
+    const calls = expected[method] ?? [];
+    expect(qb[method]).toHaveBeenCalledTimes(calls.length);
+    if (calls.length) expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
+  }
+
+  expectParentBeforeChild(qb);
+}
+
+// The one ordering the query does require: a nested join reads an alias the parent join introduced,
+// so the parent can never come second. Siblings stay unordered. Both variants are merged by their
+// global invocation order, because a parent introduced by one is a valid source for the other's child.
+function expectParentBeforeChild(qb: QueryBuilderMock): void {
+  const joins = (['leftJoinAndSelect', 'leftJoin'] as const)
+    .flatMap((method) =>
+      qb[method].mock.calls.map((call, index) => ({
+        path: call[0] as string,
+        alias: call[1] as string,
+        invocation: qb[method].mock.invocationCallOrder[index],
+      })),
+    )
+    .sort((a, b) => a.invocation - b.invocation);
+
+  const aliasPosition = new Map(joins.map(({ alias }, index) => [alias, index]));
+
+  joins.forEach(({ path }, index) => {
+    const parent = aliasPosition.get(path.split('.')[0]);
+    if (parent !== undefined) expect(parent).toBeLessThan(index);
+  });
+}
+
+// The open end of a default period is `new Date()` taken inside the call, so it can only be pinned
+// to the window the call itself spanned.
+function expectWithinCallWindow(date: Date, before: number, after: number): void {
+  expect(date.getTime()).toBeGreaterThanOrEqual(before);
+  expect(date.getTime()).toBeLessThanOrEqual(after);
+}
 
 describe('TransactionService (admin door — amlCheck audit trail)', () => {
   let service: TransactionService;
@@ -32,26 +170,15 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
   let transactionAmlCheckService: TransactionAmlCheckService;
 
   beforeEach(async () => {
-    repo = createMock<TransactionRepository>();
-    userDataService = createMock<UserDataService>();
-    bankDataService = createMock<BankDataService>();
-    specialExternalAccountService = createMock<SpecialExternalAccountService>();
-    buyCryptoRepo = createMock<BuyCryptoRepository>();
-    transactionAmlCheckService = createMock<TransactionAmlCheckService>();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        TransactionService,
-        { provide: TransactionRepository, useValue: repo },
-        { provide: UserDataService, useValue: userDataService },
-        { provide: BankDataService, useValue: bankDataService },
-        { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
-        { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
-        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
-      ],
-    }).compile();
-
-    service = module.get<TransactionService>(TransactionService);
+    ({
+      service,
+      repo,
+      userDataService,
+      bankDataService,
+      specialExternalAccountService,
+      buyCryptoRepo,
+      transactionAmlCheckService,
+    } = await setupService());
   });
 
   it('should be defined', () => {
@@ -60,21 +187,65 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
   it('records a TX_ADMIN history row when the admin update changes amlCheck', async () => {
     const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: false });
+    // A distinct saved instance, so the assertion below pins the row to the SAVED transaction rather
+    // than to the entity that happened to be passed in.
+    const saved = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PASS, highRisk: false });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
-    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(repo, 'save').mockResolvedValue(saved);
 
     await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS }));
 
     expect(transactionAmlCheckService.create).toHaveBeenCalledTimes(1);
+    expect(transactionAmlCheckService.create).toHaveBeenCalledWith({
+      transaction: saved,
+      entityType: 'Transaction',
+      entityId: 99,
+      source: AmlSourceType.TX_ADMIN,
+      previousAmlCheck: CheckStatus.PENDING,
+      amlCheck: CheckStatus.PASS,
+      highRisk: false,
+    });
+  });
+
+  it('keeps an explicit highRisk reset out of the fallback to the previous flag', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: true });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    // `false` is a legitimate value, not an absent one: the fallback must be nullish, not truthy.
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS, highRisk: false }),
+    );
+
     expect(transactionAmlCheckService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entityType: 'Transaction',
-        entityId: 99,
-        source: AmlSourceType.TX_ADMIN,
-        previousAmlCheck: CheckStatus.PENDING,
-        amlCheck: CheckStatus.PASS,
-        highRisk: false,
-      }),
+      expect.objectContaining({ amlCheck: CheckStatus.PASS, highRisk: false }),
+    );
+  });
+
+  it('takes the highRisk flag from the dto when the admin sets it alongside the verdict', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: false });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.FAIL, highRisk: true }));
+
+    expect(transactionAmlCheckService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amlCheck: CheckStatus.FAIL, highRisk: true }),
+    );
+  });
+
+  it('carries the transaction highRisk flag into the history row when the verdict alone changes', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: true });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    // The dto leaves highRisk untouched, so the audit row has to fall back to the flag the
+    // transaction already carried — not to a hardcoded `false`.
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS }));
+
+    expect(transactionAmlCheckService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amlCheck: CheckStatus.PASS, highRisk: true }),
     );
   });
 
@@ -88,6 +259,16 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     // the DB keeps the prior verdict (save skips undefined). The gate keys on dto.amlCheck (the intent),
     // not the clobbered entity, so no phantom "verdict cleared" row is written.
     await service.update(99, Object.assign(new UpdateTransactionDto(), { assets: 'BTC-EUR' }));
+
+    expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
+  });
+
+  it('does NOT record a history row when the admin re-submits the verdict the transaction already has', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PASS, highRisk: false });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
   });
@@ -106,6 +287,126 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     await service.update(99, Object.assign(new UpdateTransactionDto(), { amlType: 'BuyFiat', highRisk: true }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an update for an unknown transaction', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await expect(service.update(99, new UpdateTransactionDto())).rejects.toThrow('Transaction not found');
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('resolves the account of a reassigned transaction and rejects an unknown one', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99 });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(null);
+
+    const dto = Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) });
+
+    await expect(service.update(99, dto)).rejects.toThrow(NotFoundException);
+    expect(userDataService.getUserData).toHaveBeenCalledWith(5);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('reassigns a transaction without a bank tx without touching bank data', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99 });
+    const userData = Object.assign(new UserData(), { id: 5 });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(userData);
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    expect(entity.userData).toBe(userData);
+    expect(bankDataService.getVerifiedBankDataWithIban).not.toHaveBeenCalled();
+    expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
+  });
+
+  it('creates verified bank data when the new account has none for the sender IBAN', async () => {
+    const bankTx = Object.assign(new BankTx(), { senderAccount: 'CH00', bic: 'BICBIC' });
+    jest.spyOn(bankTx, 'bankDataName').mockReturnValue('ACME AG');
+    const entity = Object.assign(new Transaction(), { id: 99, bankTx });
+    const userData = Object.assign(new UserData(), { id: 5 });
+    const multiAccounts = [];
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(userData);
+    jest.spyOn(bankDataService, 'getVerifiedBankDataWithIban').mockResolvedValue(null);
+    jest.spyOn(specialExternalAccountService, 'getMultiAccounts').mockResolvedValue(multiAccounts);
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    // The bank tx has to be loaded for this path to work at all — asserted here because every test
+    // below hands `entity.bankTx` in through the mocked findOne and would pass without the relation.
+    expect(repo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: { request: { supportIssues: true }, supportIssues: true, bankTx: true },
+      }),
+    );
+    expect(bankDataService.getVerifiedBankDataWithIban).toHaveBeenCalledWith('CH00', 5);
+    expect(bankTx.bankDataName).toHaveBeenCalledWith(multiAccounts);
+    expect(bankDataService.createVerifyBankData).toHaveBeenCalledWith(userData, {
+      name: 'ACME AG',
+      iban: 'CH00',
+      bic: 'BICBIC',
+      type: BankDataType.BANK_IN,
+    });
+  });
+
+  it('skips bank data creation when the new account already holds the sender IBAN', async () => {
+    const bankTx = Object.assign(new BankTx(), { senderAccount: 'CH00' });
+    const entity = Object.assign(new Transaction(), { id: 99, bankTx });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(Object.assign(new UserData(), { id: 5 }));
+    jest.spyOn(bankDataService, 'getVerifiedBankDataWithIban').mockResolvedValue(createMock());
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
+  });
+
+  it('skips the bank data lookup when the bank tx carries no sender account', async () => {
+    // The guard is on the IBAN, not on the bank tx: without it the lookup would run with `undefined`.
+    const entity = Object.assign(new Transaction(), { id: 99, bankTx: new BankTx() });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(Object.assign(new UserData(), { id: 5 }));
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    expect(bankDataService.getVerifiedBankDataWithIban).not.toHaveBeenCalled();
+    expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
+  });
+
+  it('skips bank data creation when the bank tx yields no name to verify', async () => {
+    const bankTx = Object.assign(new BankTx(), { senderAccount: 'CH00' });
+    jest.spyOn(bankTx, 'bankDataName').mockReturnValue(undefined);
+    const entity = Object.assign(new Transaction(), { id: 99, bankTx });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(Object.assign(new UserData(), { id: 5 }));
+    jest.spyOn(bankDataService, 'getVerifiedBankDataWithIban').mockResolvedValue(null);
+    jest.spyOn(specialExternalAccountService, 'getMultiAccounts').mockResolvedValue([]);
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
   });
 
   it('stops BuyCrypto with a partial conditional update instead of saving a stale snapshot', async () => {
@@ -129,6 +430,57 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await expect(service.stop(70)).rejects.toThrow(ConflictException);
     expect(buyCryptoRepo.save).not.toHaveBeenCalled();
+  });
+
+  // Exactly one row, not "at least one": a conditional update that hits several rows means the
+  // WHERE clause no longer identifies a single BuyCrypto, which is as wrong as hitting none.
+  it('rejects stop when the conditional update hits more than one row', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.MISSING_LIQUIDITY });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 2, raw: [], generatedMaps: [] });
+
+    await expect(service.stop(70)).rejects.toThrow(ConflictException);
+  });
+
+  it('rejects stop for an unknown transaction', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await expect(service.stop(70)).rejects.toThrow(NotFoundException);
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects stop for a completed transaction', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.COMPLETE });
+    const entity = Object.assign(new Transaction(), { id: 70, buyCrypto, outputDate: new Date() });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already completed');
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  // Completed AND not a BuyCrypto: the completion guard has to win, otherwise a finished transaction
+  // is reported as the wrong kind of transaction. Only the message tells the two guards apart.
+  it('reports a completed non-BuyCrypto transaction as completed, not as unstoppable', async () => {
+    const entity = Object.assign(new Transaction(), { id: 70, outputDate: new Date() });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already completed');
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects stop for a transaction that is not a BuyCrypto', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70 }));
+
+    await expect(service.stop(70)).rejects.toThrow('Only BuyCrypto transactions can be stopped');
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects stop for an already stopped transaction', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.STOPPED });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
+
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already stopped');
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
   function mockResumeManager(
@@ -187,6 +539,45 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     );
   });
 
+  it('resume() takes a write lock on the BuyCrypto and on both refund-bearing relations', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      checkoutTx: Object.assign(new CheckoutTx(), { id: 3, status: CheckoutPaymentStatus.PAID }),
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await service.resume(99);
+
+    // The locks are the race safety of resume(): without them a refund committing in parallel could
+    // overtake the decision. Assert the lock mode and the locked row, not just that a read happened.
+    expect(manager.findOne).toHaveBeenNthCalledWith(1, BuyCrypto, {
+      where: { id: 7 },
+      select: { id: true },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(2, BuyCrypto, {
+      where: { id: 7 },
+      relations: { batch: true, checkoutTx: true, cryptoInput: true },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(3, CheckoutTx, {
+      where: { id: 3 },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(4, CryptoInput, {
+      where: { id: 4 },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.update).toHaveBeenCalled();
+  });
+
   it('resume() rejects a transaction that is not stopped', async () => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
@@ -232,6 +623,16 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 
+  it('resume() rejects when the BuyCrypto disappeared between the transaction read and the lock', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.STOPPED });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(null);
+
+    await expect(service.resume(99)).rejects.toThrow(NotFoundException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
   it('resume() rejects a stopped transaction that is already assigned to a batch', async () => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
@@ -262,18 +663,27 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 
-  it('resume() rejects a stopped transaction with a chargeback in progress', async () => {
+  // Every field of the refund guard on its own: the condition is a seven-way OR, so a disjunct that
+  // no test sets in isolation can be deleted without any test noticing.
+  it.each([
+    ['a chargeback the support desk allowed', { chargebackAllowedDate: new Date() }],
+    ['a chargeback the user requested', { chargebackAllowedDateUser: new Date() }],
+    ['a chargeback that already went out', { chargebackDate: new Date() }],
+    ['a chargeback with a crypto payout', { chargebackCryptoTxId: '0xabc' }],
+  ])('resume() rejects a stopped transaction with %s', async (_, refundState) => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
       status: BuyCryptoStatus.STOPPED,
       amlCheck: CheckStatus.PASS,
-      chargebackAllowedDateUser: new Date(),
+      ...refundState,
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     const manager = mockResumeManager(buyCrypto);
 
-    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    await expect(service.resume(99)).rejects.toThrow(
+      'Transactions with a refund or forward in progress cannot be resumed',
+    );
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -304,6 +714,25 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a stopped transaction whose crypto input is being forwarded', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4, action: PayInAction.FORWARD }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    // A forward in progress blocks the resume just like a return does — a separate guard, and the
+    // return case does not exercise it.
+    await expect(service.resume(99)).rejects.toThrow(
+      'Transactions with a refund or forward in progress cannot be resumed',
+    );
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -349,6 +778,26 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 
+  it('resume() drops relations that vanished under the lock instead of resuming on a stale copy', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      checkoutTx: Object.assign(new CheckoutTx(), { id: 3, status: CheckoutPaymentStatus.PAID }),
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+    manager.findOne.mockImplementation(async (entityClass: unknown) => (entityClass === BuyCrypto ? buyCrypto : null));
+
+    await service.resume(99);
+
+    expect(buyCrypto.checkoutTx).toBeUndefined();
+    expect(buyCrypto.cryptoInput).toBeUndefined();
+    expect(manager.update).toHaveBeenCalled();
+  });
+
   it('resume() rejects when a concurrent change invalidates the stopped state', async () => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
@@ -361,6 +810,180 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await expect(service.resume(99)).rejects.toThrow(ConflictException);
   });
+
+  // Which guard wins when several are violated at once decides the message the support desk reads,
+  // so the order is pinned here the same way it is for stop().
+  it('resume() reports a transaction that is neither stopped nor passed as not stopped', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.COMPLETE,
+      amlCheck: CheckStatus.FAIL,
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Transaction is not stopped');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a stopped, failed transaction with a chargeback as failing the AML check', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.FAIL,
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions with passed AML check can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched, AML-failed transaction as failing the AML check', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.FAIL,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions with passed AML check can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched, unstopped transaction as not stopped', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.COMPLETE,
+      amlCheck: CheckStatus.PASS,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Transaction is not stopped');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched transaction with a chargeback as batched', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions without batch and payout can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects when the conditional update hits more than one row', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    mockResumeManager(buyCrypto, { affected: 2, raw: [], generatedMaps: [] });
+
+    await expect(service.resume(99)).rejects.toThrow(ConflictException);
+  });
+});
+
+describe('TransactionService (create / updateInternal)', () => {
+  let service: TransactionService;
+  let repo: TransactionRepository;
+
+  beforeEach(async () => {
+    ({ service, repo } = await setupService());
+  });
+
+  it('assigns a prefixed uid to a new transaction', async () => {
+    const entity = new Transaction();
+    const dto = { sourceType: TransactionSourceType.BANK_TX, type: TransactionTypeInternal.BUY_CRYPTO };
+    jest.spyOn(repo, 'create').mockReturnValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    const result = await service.create(dto);
+
+    expect(repo.create).toHaveBeenCalledWith(dto);
+    expect(result).toBe(entity);
+    expect(entity.uid).toMatch(/^T[A-Za-z0-9]{16}$/);
+  });
+
+  it('derives externalId, mail reset and support issues from an internal update', async () => {
+    const ownIssue = Object.assign(new SupportIssue(), { id: 1 });
+    const requestIssue = Object.assign(new SupportIssue(), { id: 2 });
+    const request = Object.assign(new TransactionRequest(), {
+      id: 3,
+      externalTransactionId: 'ext-1',
+      supportIssues: [requestIssue],
+    });
+    const entity = Object.assign(new Transaction(), {
+      id: 1,
+      supportIssues: [ownIssue],
+      mailSendDate: new Date(),
+    });
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    await service.updateInternal(entity, { request, resetMailSendDate: true });
+
+    expect(entity.externalId).toBe('ext-1');
+    expect(entity.mailSendDate).toBeNull();
+    expect(entity.supportIssues).toEqual([ownIssue, requestIssue]);
+    expect(repo.save).toHaveBeenCalledWith(entity);
+  });
+
+  it('clears the externalId of an internal update without a request and keeps the mail send date', async () => {
+    const mailSendDate = new Date();
+    const entity = Object.assign(new Transaction(), { id: 1, externalId: 'ext-1', mailSendDate });
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    await service.updateInternal(entity, { type: TransactionTypeInternal.BUY_FIAT });
+
+    expect(entity.type).toBe(TransactionTypeInternal.BUY_FIAT);
+    expect(entity.externalId).toBeUndefined();
+    expect(entity.mailSendDate).toBe(mailSendDate);
+  });
+
+  it('takes over the request support issues of a transaction that has none of its own', async () => {
+    const requestIssue = Object.assign(new SupportIssue(), { id: 2 });
+    const request = Object.assign(new TransactionRequest(), { id: 3, supportIssues: undefined });
+    const entity = Object.assign(new Transaction(), { id: 1, supportIssues: undefined });
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    await service.updateInternal(entity, { request });
+    expect(entity.supportIssues).toEqual([]);
+
+    entity.supportIssues = undefined;
+    request.supportIssues = [requestIssue];
+    await service.updateInternal(entity, { request });
+    expect(entity.supportIssues).toEqual([requestIssue]);
+  });
+
+  it('writes through the given entity manager instead of the repository', async () => {
+    const entity = Object.assign(new Transaction(), { id: 1 });
+    const manager = createMock<EntityManager>();
+    jest.spyOn(manager, 'save').mockImplementation(async (_: unknown, e: unknown) => e);
+
+    await service.updateInternal(entity, {}, manager);
+
+    expect(manager.save).toHaveBeenCalledWith(Transaction, entity);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
 });
 
 describe('TransactionService (relation load strategy)', () => {
@@ -368,23 +991,7 @@ describe('TransactionService (relation load strategy)', () => {
   let repo: TransactionRepository;
 
   beforeEach(async () => {
-    repo = createMock<TransactionRepository>();
-
-    const module: TestingModule = await Test.createTestingModule({
-      imports: [TestSharedModule],
-      providers: [
-        TransactionService,
-        { provide: TransactionRepository, useValue: repo },
-        { provide: UserDataService, useValue: createMock<UserDataService>() },
-        { provide: BankDataService, useValue: createMock<BankDataService>() },
-        { provide: SpecialExternalAccountService, useValue: createMock<SpecialExternalAccountService>() },
-        { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
-        { provide: TransactionAmlCheckService, useValue: createMock<TransactionAmlCheckService>() },
-        TestUtil.provideConfig(),
-      ],
-    }).compile();
-
-    service = module.get<TransactionService>(TransactionService);
+    ({ service, repo } = await setupService());
   });
 
   // The statement path relies on this being forwarded: resolved as a join, its relation tree selects
@@ -406,98 +1013,599 @@ describe('TransactionService (relation load strategy)', () => {
 
     expect(repo.findOne).toHaveBeenCalledWith(expect.objectContaining({ relationLoadStrategy: undefined }));
   });
+
+  it('loads no relations when the caller names none', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionById(1);
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 1 }, relations: {}, relationLoadStrategy: undefined });
+
+    await service.getTransactionByUid('T0123456789ABCDEF');
+    expect(repo.findOne).toHaveBeenLastCalledWith({
+      where: { uid: 'T0123456789ABCDEF' },
+      relations: {},
+      relationLoadStrategy: undefined,
+    });
+  });
 });
 
-describe('getRefBonusCandidates', () => {
+describe('TransactionService (lookups)', () => {
   let service: TransactionService;
   let repo: TransactionRepository;
 
-  function createRefBonusCandidatesQueryBuilder(result: Transaction[]) {
-    const innerQb = {
-      where: jest.fn().mockReturnThis(),
-      orWhere: jest.fn().mockReturnThis(),
-    };
+  beforeEach(async () => {
+    ({ service, repo } = await setupService());
+  });
 
-    const outerQb = {
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      leftJoin: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockImplementation((condition: unknown) => {
-        if (
-          condition &&
-          typeof condition === 'object' &&
-          'whereFactory' in condition &&
-          typeof (condition as { whereFactory: unknown }).whereFactory === 'function'
-        ) {
-          (condition as { whereFactory: (qb: typeof innerQb) => void }).whereFactory(innerQb);
-        }
-        return outerQb;
+  it('skips the query for an empty id list', async () => {
+    await expect(service.getTransactionsByIds([])).resolves.toEqual([]);
+    expect(repo.find).not.toHaveBeenCalled();
+  });
+
+  it('looks transactions up by id list', async () => {
+    const transactions = [Object.assign(new Transaction(), { id: 1 })];
+    jest.spyOn(repo, 'find').mockResolvedValue(transactions);
+
+    await expect(service.getTransactionsByIds([1, 2])).resolves.toBe(transactions);
+    expect(repo.find).toHaveBeenCalledWith({ where: { id: In([1, 2]) } });
+  });
+
+  it('looks a transaction up by request id', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionByRequestId(5, { user: true });
+
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { request: { id: 5 } }, relations: { user: true } });
+  });
+
+  it('looks a transaction up by request uid', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionByRequestUid('R0123456789ABCDEF', { user: true });
+
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: { request: { uid: 'R0123456789ABCDEF' } },
+      relations: { user: true },
+    });
+  });
+
+  it('scopes an external id lookup to the account', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionByExternalId('ext-1', 5, { user: true });
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: { externalId: 'ext-1', user: { userData: { id: 5 } } },
+      relations: { user: true },
+    });
+
+    await service.getTransactionByExternalId('ext-1', 5);
+    expect(repo.findOne).toHaveBeenLastCalledWith({
+      where: { externalId: 'ext-1', user: { userData: { id: 5 } } },
+      relations: {},
+    });
+  });
+
+  it('looks a transaction up by checkout payment id', async () => {
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+
+    await service.getTransactionByCkoId('pay_1', { user: true });
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: { checkoutTx: { paymentId: 'pay_1' } },
+      relations: { user: true },
+    });
+
+    await service.getTransactionByCkoId('pay_1');
+    expect(repo.findOne).toHaveBeenLastCalledWith({ where: { checkoutTx: { paymentId: 'pay_1' } }, relations: {} });
+  });
+
+  it('finds transactions created before the filter date that still lack a uid', async () => {
+    const filterDate = new Date('2024-01-01');
+    jest.spyOn(repo, 'findBy').mockResolvedValue([]);
+
+    await service.getTransactionsWithoutUid(filterDate);
+
+    expect(repo.findBy).toHaveBeenCalledWith({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
+  });
+
+  it('narrows the account history to the given assets in SQL', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getTransactionsByUserDataId(5, ['BTC', 'ETH']);
+
+    expect(repo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          { userData: { id: 5 }, buyCrypto: { inputAsset: In(['BTC', 'ETH']) } },
+          { userData: { id: 5 }, buyCrypto: { outputAsset: { name: In(['BTC', 'ETH']) } } },
+          { userData: { id: 5 }, buyFiat: { inputAsset: In(['BTC', 'ETH']) } },
+          { userData: { id: 5 }, buyFiat: { outputAsset: { name: In(['BTC', 'ETH']) } } },
+        ],
+        take: 100,
       }),
-      getMany: jest.fn().mockResolvedValue(result),
-    };
+    );
+  });
 
-    return { outerQb, innerQb };
-  }
+  it('returns the whole account history when no assets are given', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getTransactionsByUserDataId(5);
+
+    // Asserted in full rather than with objectContaining: the relation tree, the eager-loading opt-out
+    // and the sort order are what the account history depends on, and a dropped relation or a flipped
+    // order would otherwise pass unnoticed.
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 5 } },
+      relations: {
+        buyCrypto: {
+          cryptoInput: true,
+          checkoutTx: true,
+          outputAsset: true,
+          bankData: true,
+          batch: true,
+          chargebackBankTx: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },
+        bankTxReturn: true,
+        bankTxRepeat: true,
+      },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+      take: 100,
+    });
+  });
+
+  it('defaults the account period to everything up to now', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    const before = Date.now();
+    await service.getTransactionsForAccount(5);
+    const after = Date.now();
+
+    const { where, take, skip } = (repo.find as jest.Mock).mock.calls[0][0];
+    expect(where.userData).toEqual({ id: 5 });
+    expect(where.type).toEqual(Not(IsNull()));
+    expect(where.created.value[0]).toEqual(new Date(0));
+    expectWithinCallWindow(where.created.value[1], before, after);
+    expect(take).toBeUndefined();
+    expect(skip).toBeUndefined();
+  });
+
+  it('applies the account period, limit and offset when given', async () => {
+    const from = new Date('2024-01-01');
+    const to = new Date('2024-02-01');
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getTransactionsForAccount(5, from, to, 10, 20);
+
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 5 }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
+        bankTx: { transaction: true },
+        bankTxReturn: true,
+      },
+      order: { created: 'DESC' },
+      take: 10,
+      skip: 20,
+    });
+  });
+
+  it('queries the user transactions in batches and stops at the limit', async () => {
+    const transactions = Array.from({ length: 100 }, (_, i) => Object.assign(new Transaction(), { id: i }));
+    jest.spyOn(repo, 'find').mockResolvedValue(transactions);
+    const from = new Date('2024-01-01');
+    const to = new Date('2024-02-01');
+
+    const result = await service.getTransactionsForUsers(
+      Array.from({ length: 250 }, (_, i) => i),
+      from,
+      to,
+      100,
+      20,
+    );
+
+    expect(result).toHaveLength(100);
+    expect(repo.find).toHaveBeenCalledTimes(1);
+    expect(repo.find).toHaveBeenCalledWith({
+      where: {
+        user: { id: In(Array.from({ length: 100 }, (_, i) => i)) },
+        type: Not(IsNull()),
+        created: Between(from, to),
+      },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
+      },
+      order: { created: 'DESC' },
+      take: 100,
+      skip: 20,
+    });
+  });
+
+  it('walks the user list in batches of 100 and narrows the limit left for the next one', async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, i) => Object.assign(new Transaction(), { id: i }));
+    const secondBatch = [Object.assign(new Transaction(), { id: 100 })];
+    jest.spyOn(repo, 'find').mockResolvedValueOnce(firstBatch).mockResolvedValueOnce(secondBatch);
+    const userIds = Array.from({ length: 150 }, (_, i) => i);
+
+    const result = await service.getTransactionsForUsers(userIds, undefined, undefined, 150);
+
+    expect(repo.find).toHaveBeenCalledTimes(2);
+    const [[firstQuery], [secondQuery]] = (repo.find as jest.Mock).mock.calls;
+    expect(firstQuery.where.user).toEqual({ id: In(userIds.slice(0, 100)) });
+    expect(firstQuery.take).toBe(150);
+    expect(secondQuery.where.user).toEqual({ id: In(userIds.slice(100)) });
+    expect(secondQuery.take).toBe(50);
+    expect(result).toEqual([...firstBatch, ...secondBatch]);
+  });
+
+  it('defaults the user period and leaves the batch size unbounded without a limit', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    const before = Date.now();
+    await service.getTransactionsForUsers([1, 2]);
+    const after = Date.now();
+
+    const { where, take } = (repo.find as jest.Mock).mock.calls[0][0];
+    expect(where.user).toEqual({ id: In([1, 2]) });
+    expect(where.created.value[0]).toEqual(new Date(0));
+    expectWithinCallWindow(where.created.value[1], before, after);
+    expect(take).toBeUndefined();
+  });
+
+  it('reads all transactions of an account through the given entity manager', async () => {
+    const managerRepo = createMock<TransactionRepository>();
+    const manager = createMock<EntityManager>();
+    jest.spyOn(manager, 'getRepository').mockReturnValue(managerRepo);
+    jest.spyOn(managerRepo, 'find').mockResolvedValue([]);
+
+    await service.getAllTransactionsForUserData(5, { user: true }, manager);
+
+    expect(manager.getRepository).toHaveBeenCalledWith(Transaction);
+    expect(managerRepo.find).toHaveBeenCalledWith({ where: { userData: { id: 5 } }, relations: { user: true } });
+    expect(repo.find).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the repository when no entity manager is given', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getAllTransactionsForUserData(5);
+
+    expect(repo.find).toHaveBeenCalledWith({ where: { userData: { id: 5 } }, relations: {} });
+  });
+
+  it('records the output date on completion', async () => {
+    const outputDate = new Date('2024-01-01');
+
+    await service.completeTransaction(5, outputDate);
+
+    expect(repo.update).toHaveBeenCalledWith(5, { outputDate });
+  });
+
+  it('pages the asset transactions with the default window', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getByAssetId(9);
+
+    expect(repo.find).toHaveBeenCalledWith({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: 9 } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: 9 } },
+      ],
+      order: { created: 'DESC' },
+      take: 50,
+      skip: 0,
+      relations: { request: true, user: true, userData: true },
+    });
+  });
+
+  it('pages the asset transactions with the given window', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
+
+    await service.getByAssetId(9, 10, 20);
+
+    expect(repo.find).toHaveBeenCalledWith(expect.objectContaining({ take: 10, skip: 20 }));
+  });
+});
+
+describe('TransactionService (query builders)', () => {
+  let service: TransactionService;
+  let repo: TransactionRepository;
 
   beforeEach(async () => {
-    repo = createMock<TransactionRepository>();
-
-    const module: TestingModule = await Test.createTestingModule({
-      imports: [TestSharedModule],
-      providers: [
-        TransactionService,
-        { provide: TransactionRepository, useValue: repo },
-        { provide: UserDataService, useValue: createMock<UserDataService>() },
-        { provide: BankDataService, useValue: createMock<BankDataService>() },
-        { provide: SpecialExternalAccountService, useValue: createMock<SpecialExternalAccountService>() },
-        { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
-        { provide: TransactionAmlCheckService, useValue: createMock<TransactionAmlCheckService>() },
-        TestUtil.provideConfig(),
-      ],
-    }).compile();
-
-    service = module.get<TransactionService>(TransactionService);
+    ({ service, repo } = await setupService());
   });
 
-  it("builds the filter condition with the agreement's values", async () => {
-    const { outerQb, innerQb } = createRefBonusCandidatesQueryBuilder([]);
-    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+  describe('getTransactionList', () => {
+    it('returns the typed transactions unfiltered when no period is given', async () => {
+      const transactions = [Object.assign(new Transaction(), { id: 1 })];
+      const { qb } = createQueryBuilderMock({ getMany: transactions });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
 
-    await service.getRefBonusCandidates('AAA-000', 100);
+      await expect(service.getTransactionList()).resolves.toBe(transactions);
 
-    expect(innerQb.where).toHaveBeenCalledWith(
-      'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
-      { usedRef: 'AAA-000', completeStatus: BuyCryptoStatus.COMPLETE },
-    );
-    expect(innerQb.orWhere).toHaveBeenCalledWith(
-      'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
-      { usedRef: 'AAA-000', isComplete: true },
-    );
+      expect(qb.where).toHaveBeenCalledWith('transaction.type IS NOT NULL');
+      expect(qb.andWhere).not.toHaveBeenCalled();
+      expect(qb.orderBy).toHaveBeenCalledWith('transaction.id', 'DESC');
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
+      // A wrong relation path or alias breaks the query at runtime but leaves a mocked builder
+      // perfectly happy, so the joins are asserted too.
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.userData', 'userData'],
+          ['userData.country', 'country'],
+          ['userData.verifiedCountry', 'verifiedCountry'],
+        ],
+      });
+    });
+
+    it('filters on a closed creation period', async () => {
+      const dateFrom = new Date('2024-01-01');
+      const dateTo = new Date('2024-02-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getTransactionList(dateFrom, dateTo);
+
+      expect(innerQb.where).toHaveBeenCalledWith('transaction.created BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      });
+      expect(innerQb.andWhere).not.toHaveBeenCalled();
+      // The bracket block must be appended, not assigned: `.where()` here would discard the
+      // `transaction.type IS NOT NULL` condition set before it.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
+    });
+
+    it('filters on an open creation period', async () => {
+      const dateFrom = new Date('2024-01-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getTransactionList(dateFrom);
+      expect(innerQb.where).toHaveBeenCalledWith('transaction.created >= :dateFrom', { dateFrom });
+
+      const dateTo = new Date('2024-02-01');
+      await service.getTransactionList(undefined, dateTo);
+      expect(innerQb.where).toHaveBeenLastCalledWith('transaction.created <= :dateTo', { dateTo });
+    });
+
+    it('adds the output period to a creation period filter', async () => {
+      const dateFrom = new Date('2024-01-01');
+      const outputFrom = new Date('2024-03-01');
+      const outputTo = new Date('2024-04-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getTransactionList(dateFrom, undefined, outputFrom, outputTo);
+
+      expect(innerQb.andWhere).toHaveBeenCalledWith('transaction.outputDate BETWEEN :outputFrom AND :outputTo', {
+        outputFrom,
+        outputTo,
+      });
+    });
+
+    it('adds the output period to an open-ended creation period', async () => {
+      const dateTo = new Date('2024-02-01');
+      const outputFrom = new Date('2024-03-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      // `dateTo` alone still counts as a creation period, so the output filter has to be appended.
+      // Assigned instead, it would drop the creation bound that was just set.
+      await service.getTransactionList(undefined, dateTo, outputFrom);
+
+      expect(innerQb.where).toHaveBeenCalledWith('transaction.created <= :dateTo', { dateTo });
+      expect(innerQb.andWhere).toHaveBeenCalledWith('transaction.outputDate >= :outputFrom', {
+        outputFrom,
+        outputTo: undefined,
+      });
+      expect(innerQb.where).toHaveBeenCalledTimes(1);
+    });
+
+    it('filters on the output period alone', async () => {
+      const outputFrom = new Date('2024-03-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getTransactionList(undefined, undefined, outputFrom);
+      expect(innerQb.where).toHaveBeenCalledWith('transaction.outputDate >= :outputFrom', {
+        outputFrom,
+        outputTo: undefined,
+      });
+      expect(innerQb.andWhere).not.toHaveBeenCalled();
+
+      const outputTo = new Date('2024-04-01');
+      await service.getTransactionList(undefined, undefined, undefined, outputTo);
+      expect(innerQb.where).toHaveBeenLastCalledWith('transaction.outputDate <= :outputTo', {
+        outputFrom: undefined,
+        outputTo,
+      });
+    });
   });
 
-  it('applies the lower transaction id bound', async () => {
-    const { outerQb } = createRefBonusCandidatesQueryBuilder([]);
-    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+  describe('getManualRefVolume', () => {
+    it('sums the manual ref volume and credit of a ref code', async () => {
+      const { qb } = createQueryBuilderMock({ getRawOne: { volume: 500, credit: 25 } });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
 
-    await service.getRefBonusCandidates('AAA-000', 100);
+      await expect(service.getManualRefVolume('AAA-000')).resolves.toEqual({ volume: 500, credit: 25 });
 
-    expect(outerQb.where).toHaveBeenCalledWith('transaction.id > :minTransactionId', { minTransactionId: 100 });
+      // The aggregate expressions carry the whole arithmetic: the volume is the reward divided by the
+      // ref fee percentage. The mock returns a fixed row, so only these assertions catch a wrong formula.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
+      expect(qb.select).toHaveBeenCalledWith('SUM(refReward.amountInEur / user.refFeePercent)', 'volume');
+      expect(qb.addSelect).toHaveBeenCalledWith('SUM(refReward.amountInEur)', 'credit');
+      expectJoins(qb, {
+        leftJoin: [
+          ['transaction.user', 'user'],
+          ['transaction.refReward', 'refReward'],
+        ],
+      });
+      expect(qb.where).toHaveBeenCalledWith('transaction.sourceType = :sourceType', {
+        sourceType: TransactionSourceType.MANUAL_REF,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('user.ref = :ref', { ref: 'AAA-000' });
+    });
+
+    it('reports zero for a ref code without manual transactions', async () => {
+      const { qb } = createQueryBuilderMock({ getRawOne: { volume: null, credit: null } });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await expect(service.getManualRefVolume('AAA-000')).resolves.toEqual({ volume: 0, credit: 0 });
+    });
   });
 
-  it('excludes transactions that already have a ref reward', async () => {
-    const { outerQb } = createRefBonusCandidatesQueryBuilder([]);
-    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+  describe('getAuditPeriodVolumes', () => {
+    it('groups the period volume by account', async () => {
+      const volumes = [{ userDataId: 5, totalVolume: 1000 }];
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-02-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getRawMany: volumes });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
 
-    await service.getRefBonusCandidates('AAA-000', 100);
+      await expect(service.getAuditPeriodVolumes(startDate, endDate)).resolves.toBe(volumes);
 
-    expect(outerQb.andWhere).toHaveBeenCalledWith('refReward.id IS NULL');
+      // The two base filters decide which rows reach the aggregate at all — inverting either one
+      // would silently produce an empty or wrong audit report.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('tx');
+      expect(qb.select).toHaveBeenCalledTimes(1);
+      expect(qb.select).toHaveBeenCalledWith('tx.userDataId', 'userDataId');
+      expect(qb.addSelect).toHaveBeenCalledWith('SUM(tx.amountInChf)', 'totalVolume');
+      expect(qb.where).toHaveBeenCalledWith('tx.userDataId IS NOT NULL');
+      expect(qb.andWhere).toHaveBeenCalledWith('tx.amountInChf IS NOT NULL');
+      expect(qb.andWhere).toHaveBeenCalledWith('tx.created BETWEEN :startDate AND :endDate', { startDate, endDate });
+      expect(innerQb.where).toHaveBeenCalledWith('buyCrypto.outputDate BETWEEN :startDate AND :endDate');
+      expect(innerQb.orWhere).toHaveBeenCalledWith('buyFiat.outputDate BETWEEN :startDate AND :endDate');
+      expect(innerQb.orWhere).toHaveBeenCalledWith('refReward.outputDate BETWEEN :startDate AND :endDate');
+      expect(qb.groupBy).toHaveBeenCalledWith('tx.userDataId');
+      // Appended, not assigned — `.where()` here would discard all three base filters above.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
+      expectJoins(qb, {
+        leftJoin: [
+          ['tx.buyCrypto', 'buyCrypto'],
+          ['tx.buyFiat', 'buyFiat'],
+          ['tx.refReward', 'refReward'],
+        ],
+      });
+    });
   });
 
-  it('returns the query result unchanged', async () => {
-    const result = [Object.assign(new Transaction(), { id: 201 }), Object.assign(new Transaction(), { id: 202 })];
-    const { outerQb } = createRefBonusCandidatesQueryBuilder(result);
-    jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(outerQb as any);
+  describe('getTransactionByKey', () => {
+    it('qualifies an unqualified key with the transaction alias', async () => {
+      const transaction = Object.assign(new Transaction(), { id: 1 });
+      const { qb } = createQueryBuilderMock({ getOne: transaction });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
 
-    await expect(service.getRefBonusCandidates('AAA-000', 100)).resolves.toBe(result);
+      await expect(service.getTransactionByKey('uid', 'T0123456789ABCDEF')).resolves.toBe(transaction);
+
+      expect(qb.where).toHaveBeenCalledWith('transaction.uid = :param', { param: 'T0123456789ABCDEF' });
+      // This is the support lookup: the account tree it selects is the whole point of the method.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.userData', 'userData'],
+          ['userData.users', 'users'],
+          ['userData.kycSteps', 'kycSteps'],
+          ['userData.country', 'country'],
+          ['userData.nationality', 'nationality'],
+          ['userData.organizationCountry', 'organizationCountry'],
+          ['userData.verifiedCountry', 'verifiedCountry'],
+          ['userData.language', 'language'],
+        ],
+      });
+    });
+
+    it('keeps a key that already names its alias', async () => {
+      const { qb } = createQueryBuilderMock({ getOne: null });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getTransactionByKey('userData.id', 5);
+
+      expect(qb.where).toHaveBeenCalledWith('userData.id = :param', { param: 5 });
+    });
+  });
+
+  describe('getRefBonusCandidates', () => {
+    it("builds the filter condition with the agreement's values", async () => {
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getRefBonusCandidates('AAA-000', 100);
+
+      expect(innerQb.where).toHaveBeenCalledWith(
+        'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
+        { usedRef: 'AAA-000', completeStatus: BuyCryptoStatus.COMPLETE },
+      );
+      expect(innerQb.orWhere).toHaveBeenCalledWith(
+        'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
+        { usedRef: 'AAA-000', isComplete: true },
+      );
+    });
+
+    it('applies the lower transaction id bound', async () => {
+      const { qb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getRefBonusCandidates('AAA-000', 100);
+
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
+      expect(qb.where).toHaveBeenCalledWith('transaction.id > :minTransactionId', { minTransactionId: 100 });
+      // Appended, not assigned — `.where()` here would discard the id bound set above.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
+      // The ref reward is joined without select: it is only the anti-join target of the filter above.
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.buyCrypto', 'buyCrypto'],
+          ['transaction.buyFiat', 'buyFiat'],
+          ['buyFiat.cryptoInput', 'cryptoInput'],
+          ['cryptoInput.asset', 'cryptoInputAsset'],
+        ],
+        leftJoin: [['transaction.targetRefReward', 'refReward']],
+      });
+    });
+
+    it('excludes transactions that already have a ref reward', async () => {
+      const { qb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await service.getRefBonusCandidates('AAA-000', 100);
+
+      expect(qb.andWhere).toHaveBeenCalledWith('refReward.id IS NULL');
+    });
+
+    it('returns the query result unchanged', async () => {
+      const result = [Object.assign(new Transaction(), { id: 201 }), Object.assign(new Transaction(), { id: 202 })];
+      const { qb } = createQueryBuilderMock({ getMany: result });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      await expect(service.getRefBonusCandidates('AAA-000', 100)).resolves.toBe(result);
+    });
   });
 });
