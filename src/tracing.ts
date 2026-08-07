@@ -14,14 +14,18 @@ import { BatchSpanProcessor, ReadableSpan, SpanProcessor } from '@opentelemetry/
 // The value is loaded inside startProfiling() — see the require there for why.
 import type PyroscopeSdk from '@pyroscope/nodejs';
 
-// OpenTelemetry tracing and continuous CPU profiling for dfx-api.
+// OpenTelemetry tracing, metrics and continuous CPU profiling for dfx-api.
 //
 // This module is imported first in main.ts so the SDK starts before any
 // instrumented library (http, pg/TypeORM, …) is loaded — otherwise the
 // auto-instrumentation cannot patch them. It replaces the previous App
 // Insights setup; the exporter target is supplied exclusively through
 // OTEL_EXPORTER_OTLP_ENDPOINT (no hardcoded collector address). When the
-// variable is unset, tracing is disabled and the app boots unchanged.
+// variable is unset, tracing and metrics are disabled and the app boots
+// unchanged.
+//
+// Metrics export every 15000 ms to match the central Prometheus scrape_interval;
+// a shorter interval would only produce points that nobody scrapes.
 //
 // Profiling follows the same rule with its own variable
 // (PYROSCOPE_SERVER_ADDRESS) and answers a different question: tracing measures

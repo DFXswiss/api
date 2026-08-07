@@ -23,6 +23,7 @@ jest.mock('@pyroscope/nodejs', () => ({
 }));
 
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base';
 import { ClientErrorSpanProcessor, isClientError, startProfiling, startTracing, tracingServiceName } from '../tracing';
 
@@ -85,6 +86,7 @@ describe('startTracing', () => {
 
   afterEach(() => {
     mockStart.mockClear();
+    (PeriodicExportingMetricReader as unknown as jest.Mock).mockClear();
     if (original === undefined) delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
     else process.env.OTEL_EXPORTER_OTLP_ENDPOINT = original;
   });
@@ -94,11 +96,61 @@ describe('startTracing', () => {
     expect(startTracing()).toBeUndefined();
   });
 
+  it('returns undefined and does not build a metric reader without OTEL_EXPORTER_OTLP_ENDPOINT', () => {
+    delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+    (PeriodicExportingMetricReader as unknown as jest.Mock).mockClear();
+
+    expect(startTracing()).toBeUndefined();
+    expect(PeriodicExportingMetricReader).not.toHaveBeenCalled();
+  });
+
   it('starts the SDK when an endpoint is configured', () => {
     process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://localhost:4318';
     const sdk = startTracing();
     expect(sdk).toBeDefined();
     expect(mockStart).toHaveBeenCalledTimes(1);
+  });
+
+  // The interval is deliberately NOT pinned in code: an explicit reader takes precedence over the
+  // SDK's own env handling, so passing a hardcoded value would silently disable
+  // OTEL_METRIC_EXPORT_INTERVAL. Absent the variable the key must therefore be absent too, rather
+  // than present with a default — those are different things to the SDK.
+  it('constructs the metric reader once and leaves the interval to the SDK when unset', async () => {
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://localhost:4318';
+    delete process.env.OTEL_METRIC_EXPORT_INTERVAL;
+    (PeriodicExportingMetricReader as unknown as jest.Mock).mockClear();
+
+    // Re-import in isolation so the module-level sdk cache is empty and the
+    // module-level startTracing() runs with the endpoint set.
+    let isolatedStart: typeof startTracing;
+    await jest.isolateModulesAsync(async () => {
+      isolatedStart = (await import('../tracing')).startTracing;
+    });
+
+    expect(PeriodicExportingMetricReader).toHaveBeenCalledTimes(1);
+    expect(PeriodicExportingMetricReader).toHaveBeenCalledWith(
+      expect.not.objectContaining({ exportIntervalMillis: expect.anything() }),
+    );
+
+    // Calling again must not construct a second reader (singleton).
+    isolatedStart!();
+    expect(PeriodicExportingMetricReader).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes OTEL_METRIC_EXPORT_INTERVAL through to the reader when set', async () => {
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://localhost:4318';
+    process.env.OTEL_METRIC_EXPORT_INTERVAL = '30000';
+    (PeriodicExportingMetricReader as unknown as jest.Mock).mockClear();
+
+    await jest.isolateModulesAsync(async () => {
+      await import('../tracing');
+    });
+
+    expect(PeriodicExportingMetricReader).toHaveBeenCalledWith(
+      expect.objectContaining({ exportIntervalMillis: 30000 }),
+    );
+
+    delete process.env.OTEL_METRIC_EXPORT_INTERVAL;
   });
 });
 

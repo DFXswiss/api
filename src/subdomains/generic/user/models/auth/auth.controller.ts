@@ -1,6 +1,26 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Headers,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
@@ -13,10 +33,18 @@ import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { Start2faDto } from 'src/subdomains/generic/kyc/dto/input/start-2fa.dto';
 import { Verify2faDto } from 'src/subdomains/generic/kyc/dto/input/verify-2fa.dto';
 import { Setup2faDto } from 'src/subdomains/generic/kyc/dto/output/setup-2fa.dto';
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
+import { JobDtoMapper } from 'src/subdomains/supporting/job/dto/job-dto.mapper';
+import { JobDto } from 'src/subdomains/supporting/job/dto/job.dto';
+import { Job } from 'src/subdomains/supporting/job/entities/job.entity';
+import { JobGroup, JobStatus } from 'src/subdomains/supporting/job/enums';
+import { JobDispatcherService } from 'src/subdomains/supporting/job/services/job-dispatcher.service';
+import { JobService } from 'src/subdomains/supporting/job/services/job.service';
+import { AccountMergeJobOutput } from '../account-merge/account-merge-job.handler';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserData } from '../user-data/user-data.entity';
@@ -33,6 +61,13 @@ import { RedirectResponseDto } from './dto/redirect-response.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 import { VerifySignMessageDto } from './dto/verify-sign-message.dto';
 
+// A confirmation link is a one-time ticket, not a standing credential: once the merge is complete,
+// its result (and the fresh access token that comes with it) may only be collected within this
+// window. A polling client re-hits this endpoint every few seconds and gives up after at most ten
+// minutes; fifteen minutes covers that fully. Past the window the link behaves exactly as it did
+// before this asynchronous path existed — already completed, nothing more to hand out.
+const MERGE_RESULT_WINDOW_MINUTES = 15;
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -43,6 +78,8 @@ export class AuthController {
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
     private readonly tfaService: TfaService,
+    private readonly jobService: JobService,
+    private readonly jobDispatcher: JobDispatcherService,
   ) {}
 
   @Post()
@@ -129,21 +166,84 @@ export class AuthController {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: MergeResponseDto })
+  @ApiAcceptedResponse({ type: JobDto })
   async executeMerge(
     @GetJwt() jwt: JwtPayload | undefined,
     @Query('code') code: string,
     @RealIP() ip: string,
-  ): Promise<MergeResponseDto> {
-    const { master } = await this.mergeService.executeMerge(code);
+    @Headers('traceparent') traceparent: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<MergeResponseDto | JobDto> {
+    // 404/400 are a contract with existing clients and must come back synchronously, before any
+    // job is enqueued.
+    const request = await this.mergeService.validateForExecution(code);
+    const master = this.mergeService.getMaster(request);
 
-    const accessToken = jwt
-      ? await this.createAccessTokenAfterMerge(master, jwt.address, ip, jwt.tfaRequired)
-      : undefined;
+    // The request id is the idempotency key: the same confirmation link never enqueues twice, and
+    // a polling client always hits the same job.
+    const idempotencyKey = `merge:${request.id}`;
+    const existingJob = await this.jobService.findByIdempotencyKey(JobGroup.ACCOUNT_MERGE, idempotencyKey);
+    if (existingJob) {
+      if (
+        existingJob.status === JobStatus.COMPLETE &&
+        Util.minutesDiff(existingJob.finishedAt) > MERGE_RESULT_WINDOW_MINUTES
+      ) {
+        throw new ConflictException('Merge request is already completed');
+      }
 
-    return {
-      kycHash: master.kycHash,
-      accessToken,
-    };
+      return this.waitForJobResult(existingJob, master, jwt, ip, res);
+    }
+
+    // Completed before this job mechanism existed: no job row was ever written, so there is no
+    // result to return — a genuine conflict for that legacy case.
+    if (request.isCompleted) {
+      throw new ConflictException('Merge request is already completed');
+    }
+
+    const job = await this.jobService.enqueue(
+      JobGroup.ACCOUNT_MERGE,
+      idempotencyKey,
+      { code },
+      { userData: master, traceparent },
+    );
+    this.jobDispatcher.kick(JobGroup.ACCOUNT_MERGE);
+
+    return this.waitForJobResult(job, master, jwt, ip, res);
+  }
+
+  private async waitForJobResult(
+    job: Job,
+    master: UserData,
+    jwt: JwtPayload | undefined,
+    ip: string,
+    res: Response,
+  ): Promise<MergeResponseDto | JobDto> {
+    // Bounded well under the second that is the response-time target: most merges still get
+    // today's synchronous-looking answer, only the long tail turns into a ticket.
+    const pollDeadline = Date.now() + 900;
+    let current = job;
+    while (!current.isFinished && Date.now() < pollDeadline) {
+      await Util.delay(100);
+      const found = await this.jobService.getByUid(job.uid);
+      if (!found) throw new Error(`Job ${job.uid} not found during poll`);
+      current = found;
+    }
+
+    if (current.status === JobStatus.COMPLETE) {
+      const output = current.outputData as AccountMergeJobOutput;
+      const accessToken = jwt
+        ? await this.createAccessTokenAfterMerge(master, jwt.address, ip, jwt.tfaRequired)
+        : undefined;
+
+      res.status(HttpStatus.OK);
+      return { kycHash: output.kycHash, accessToken };
+    }
+
+    // Still running, or ended FAILED/DEAD_LETTER: the status code marks that the job was
+    // accepted, the DTO's own status field carries the outcome.
+    const config = await this.jobService.getConfig(JobGroup.ACCOUNT_MERGE);
+    res.status(HttpStatus.ACCEPTED);
+    return JobDtoMapper.mapJob(current, config);
   }
 
   private async createAccessTokenAfterMerge(
