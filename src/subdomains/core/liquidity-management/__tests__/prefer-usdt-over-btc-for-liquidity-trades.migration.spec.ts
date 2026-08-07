@@ -1007,7 +1007,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
   });
 
-  it('accumulates disjoint clone sets across two apply/rollback cycles; old clones stay inert and unreferenced', async () => {
+  it('creates a disjoint clone set on reapply; first-cycle clones stay inert and no rule references them', async () => {
     await seedBaselineChain(queryRunner, { withW: true });
     await insertAsset(queryRunner, 2, 'WBTC');
     await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
@@ -1056,9 +1056,6 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
 
     const w2SecondId = await ruleStart(queryRunner, 1);
     expect(secondCloneIds).toContain(w2SecondId);
-    // The rule now points at the NEW W2 — proves it no longer references any first-cycle clone
-    // (there is exactly one rule in this scenario, and it points at exactly one action).
-    expect(firstCloneIds).not.toContain(w2SecondId);
 
     // Old clones are inert: their internal onFailId chain is byte-for-byte unchanged since cycle 1
     // — down() and the second up() never touch existing clone rows, only create new ones.

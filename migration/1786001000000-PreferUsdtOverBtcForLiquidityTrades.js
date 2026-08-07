@@ -78,7 +78,7 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       `SELECT "id", "message" FROM "log"
        WHERE "system" = 'Migration' AND "subsystem" = $1
        ORDER BY "id"`,
-      [AUDIT_MIGRATION],
+      Array.of(AUDIT_MIGRATION),
     );
 
     const applies = [];
@@ -196,11 +196,10 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
    * }}
    */
   validateEntries(entries) {
-    const ALLOWED_COLUMNS = {
-      'liquidity_management_action.onFailId': 'nullableInt',
-      'liquidity_management_rule.deficitStartActionId': 'nullableInt',
-      'liquidity_management_rule.status': 'string',
-    };
+    const ALLOWED_COLUMNS = new Map();
+    ALLOWED_COLUMNS.set('liquidity_management_action.onFailId', 'nullableInt');
+    ALLOWED_COLUMNS.set('liquidity_management_rule.deficitStartActionId', 'nullableInt');
+    ALLOWED_COLUMNS.set('liquidity_management_rule.status', 'string');
     /** @param {unknown} v @returns {boolean} */
     const isPositiveInt = (v) => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
     /** @param {unknown} v @returns {boolean} */
@@ -229,7 +228,7 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
           throw new Error(`Audit entry table/column must be strings for ${AUDIT_MIGRATION}`);
         }
         const key = `${entry.table}.${entry.column}`;
-        const type = ALLOWED_COLUMNS[key];
+        const type = ALLOWED_COLUMNS.get(key);
         if (!type) throw new Error(`Unknown audit entry table/column '${key}' for ${AUDIT_MIGRATION}`);
         if (!isPositiveInt(entry.id)) {
           throw new Error(`Invalid audit entry id '${entry.id}' for '${key}' in ${AUDIT_MIGRATION}`);
@@ -325,21 +324,25 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
      *   ws: Array<{ id: number, system: string, command: string, tag: string | null, params: string | null, onSuccessId: number | null, onFailId: number | null }>,
      *   wbtcDirectRuleIds: number[],
      *   nonWbtcDirectRuleIds: number[],
-     *   wbtcRuleIdsByW: Record<number, number[]>,
+     *   wbtcRuleIdsByW: Map<number, number[]>,
      * }>} */
     const plans = [];
 
     for (const [btcId, usdtId] of this.pairs) {
-      const [b] = await queryRunner.query(
-        `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
-         FROM "liquidity_management_action" WHERE "id" = $1`,
-        [btcId],
-      );
-      const [u] = await queryRunner.query(
-        `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
-         FROM "liquidity_management_action" WHERE "id" = $1`,
-        [usdtId],
-      );
+      const b = (
+        await queryRunner.query(
+          `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
+           FROM "liquidity_management_action" WHERE "id" = $1`,
+          Array.of(btcId),
+        )
+      ).at(0);
+      const u = (
+        await queryRunner.query(
+          `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
+           FROM "liquidity_management_action" WHERE "id" = $1`,
+          Array.of(usdtId),
+        )
+      ).at(0);
       // Missing rows: environment without LM seed data — silent skip (not an unexpected structure).
       if (!b || !u) continue;
 
@@ -372,14 +375,14 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       const ws = await queryRunner.query(
         `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
          FROM "liquidity_management_action" WHERE "onFailId" = $1`,
-        [btcId],
+        Array.of(btcId),
       );
 
       const wbtcDirectRows = await queryRunner.query(
         `SELECT r."id" FROM "liquidity_management_rule" r
          JOIN "asset" a ON a."id" = r."targetAssetId"
          WHERE r."deficitStartActionId" = $1 AND a."name" = 'WBTC'`,
-        [btcId],
+        Array.of(btcId),
       );
       const wbtcDirectRuleIds = wbtcDirectRows.map((row) => Number(row.id));
 
@@ -390,21 +393,21 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
          WHERE r."deficitStartActionId" = $1
            AND (r."targetAssetId" IS NULL
                 OR r."targetAssetId" NOT IN (SELECT "id" FROM "asset" WHERE "name" = 'WBTC'))`,
-        [btcId],
+        Array.of(btcId),
       );
       const nonWbtcDirectRuleIds = nonWbtcDirectRows.map((row) => Number(row.id));
 
-      /** @type {Record<number, number[]>} */
-      const wbtcRuleIdsByW = {};
+      /** @type {Map<number, number[]>} */
+      const wbtcRuleIdsByW = new Map();
       for (const w of ws) {
         const wId = Number(w.id);
         const wbtcAtW = await queryRunner.query(
           `SELECT r."id" FROM "liquidity_management_rule" r
            JOIN "asset" a ON a."id" = r."targetAssetId"
            WHERE r."deficitStartActionId" = $1 AND a."name" = 'WBTC'`,
-          [wId],
+          Array.of(wId),
         );
-        wbtcRuleIdsByW[wId] = wbtcAtW.map((row) => Number(row.id));
+        wbtcRuleIdsByW.set(wId, wbtcAtW.map((row) => Number(row.id)));
       }
 
       plans.push({
@@ -448,7 +451,7 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     for (const plan of plans) {
       const needsClone =
         plan.wbtcDirectRuleIds.length > 0 ||
-        plan.ws.some((w) => (plan.wbtcRuleIdsByW[w.id] ?? []).length > 0);
+        plan.ws.some((w) => (plan.wbtcRuleIdsByW.get(w.id) ?? []).length > 0);
       if (!needsClone) continue;
 
       // U2: clone of U with onFailId = T (set at INSERT — T is already known from step 1).
@@ -470,7 +473,7 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       }
 
       for (const w of plan.ws) {
-        const wbtcRuleIds = plan.wbtcRuleIdsByW[w.id] ?? [];
+        const wbtcRuleIds = plan.wbtcRuleIdsByW.get(w.id) ?? [];
         if (wbtcRuleIds.length === 0) continue;
 
         // W2: clone of W with onFailId = B2.
