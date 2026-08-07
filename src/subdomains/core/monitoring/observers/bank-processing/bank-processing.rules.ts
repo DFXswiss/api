@@ -281,7 +281,16 @@ export const BANK_PROCESSING_RULES: readonly BankProcessingRule[] = [
     tolerance: { type: 'fixed', minutes: 30 },
     // `created`, not `updated`: BuyCryptoPreparationService (doAmlCheck / refreshFee) writes the row roughly
     // once a minute for the whole lifetime of a transaction, so an age measured against `updated` never
-    // reaches the tolerance and a starving transaction is listed here but can never become overdue
+    // reaches the tolerance and a starving transaction is listed here but can never become overdue.
+    //
+    // What `created` measures is the age of the transaction, not the time it has spent blocked, and that
+    // difference is accepted knowingly. Measured on production, the median transaction is batched within a
+    // couple of minutes of its creation, so for it the two are the same figure; a transaction that waited
+    // hours before it reached batching is reported overdue the moment it blocks. For a rule whose failure
+    // mode was reporting nothing at all, reporting early is the safe direction, and the row it points at is
+    // genuinely blocked either way — the condition, not the clock, is what selects it. Measuring the time in
+    // the blocked state would take a timestamp of its own, i.e. a migration: `toleranceField` deliberately
+    // offers only the two timestamps every entity carries.
     toleranceField: 'created',
   },
   {
