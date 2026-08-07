@@ -177,6 +177,7 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/fiat-output/fiat-output-frick.service.ts',
   'src/subdomains/supporting/log/client-error.controller.ts',
   'src/subdomains/supporting/log/log.entity.ts',
+  'src/subdomains/supporting/notification/entities/notification.entity.ts',
   'src/subdomains/supporting/notification/enums/index.ts',
   'src/subdomains/supporting/payin/strategies/register/impl/base/polling.strategy.ts',
   'src/subdomains/supporting/payin/strategies/register/impl/base/register.strategy-registry.ts',
