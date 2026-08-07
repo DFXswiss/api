@@ -39,8 +39,8 @@
  * @typedef {import('typeorm').QueryRunner} QueryRunner
  */
 
-module.exports = class AddUnstoppableWalletApp1785400000000 {
-  name = 'AddUnstoppableWalletApp1785400000000';
+module.exports = class AddUnstoppableWalletApp1786100000000 {
+  name = 'AddUnstoppableWalletApp1786100000000';
 
   async up(queryRunner) {
     // Idempotent guard against UNIQUE(name): skip if Unstoppable Wallet already exists.

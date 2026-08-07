@@ -17,7 +17,7 @@ let AddUnstoppableWalletApp: new () => {
 describe('AddUnstoppableWalletApp migration (SQL content)', () => {
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AddUnstoppableWalletApp = require('../../../../../migration/1785400000000-AddUnstoppableWalletApp');
+    AddUnstoppableWalletApp = require('../../../../../migration/1786100000000-AddUnstoppableWalletApp');
   });
 
   it('inserts all eleven methods in order and omits hasActionDeepLink/recommended/semiCompatible/assets', async () => {
@@ -93,7 +93,7 @@ describeDb('AddUnstoppableWalletApp migration (real Postgres)', () => {
 
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AddUnstoppableWalletApp = require('../../../../../migration/1785400000000-AddUnstoppableWalletApp');
+    AddUnstoppableWalletApp = require('../../../../../migration/1786100000000-AddUnstoppableWalletApp');
     dataSource = new DataSource({ type: 'postgres', url: PG_URL });
     await dataSource.initialize();
   });
