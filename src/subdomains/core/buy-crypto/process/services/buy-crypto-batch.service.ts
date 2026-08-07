@@ -31,7 +31,9 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
-// deficit and amounts are in the target asset, required amounts are what the transactions of this order need
+// Deficits are in the target asset. Required and available amounts belong to THIS order, not to the batch the
+// liquidity was checked for: on the deferred path the order covers a part of that batch only, so the
+// whole-batch figures of the liquidity result would not add up with the deficit that is ordered.
 interface MissingLiquidityOrder {
   transactions: BuyCrypto[];
   targetAsset: Asset;
@@ -40,6 +42,8 @@ interface MissingLiquidityOrder {
   deficit: number;
   requiredTargetAmount: number;
   requiredReferenceAmount: number;
+  availableTargetAmount: number;
+  availableReferenceAmount: number;
   reason: string;
 }
 
@@ -447,6 +451,7 @@ export class BuyCryptoBatchService {
     try {
       const {
         target: { amount: targetAmount, availableAmount: availableTargetAmount },
+        reference: { availableAmount: availableReferenceAmount },
       } = liquidity;
 
       const { outputReferenceAmount, outputAsset, outputReferenceAsset, transactions } = batch;
@@ -455,6 +460,7 @@ export class BuyCryptoBatchService {
 
       if (!(await this.setMissingLiquidityStatus(transactions))) return;
 
+      // this order covers the whole batch, so the amounts of the liquidity result are the amounts of the order
       await this.orderMissingLiquidity(
         {
           transactions,
@@ -464,6 +470,8 @@ export class BuyCryptoBatchService {
           deficit: Util.round(targetAmount - availableTargetAmount, 8),
           requiredTargetAmount: targetAmount,
           requiredReferenceAmount: outputReferenceAmount,
+          availableTargetAmount,
+          availableReferenceAmount,
           reason: error.message,
         },
         liquidity,
@@ -498,6 +506,7 @@ export class BuyCryptoBatchService {
     try {
       const {
         target: { amount: requestedTargetAmount, availableAmount: availableTargetAmount },
+        reference: { availableAmount: availableReferenceAmount },
       } = liquidity;
 
       const { outputAsset, outputReferenceAsset } = batch;
@@ -525,16 +534,23 @@ export class BuyCryptoBatchService {
         requestedTargetAmount,
       );
       const keptTargetAmount = Util.round(requestedTargetAmount - deferredTargetAmount, 8);
-      const residualAmount = Math.max(Util.round(availableTargetAmount - keptTargetAmount, 8), 0);
+      const residualTargetAmount = Math.max(Util.round(availableTargetAmount - keptTargetAmount, 8), 0);
+
+      // the reference side is what the notification reports the deficit in, and it has to be the residual of
+      // this set as well - the whole-batch availability belongs to a demand this order does not carry
+      const keptReferenceAmount = Util.round(requestedReferenceAmount - deferredReferenceAmount, 8);
+      const residualReferenceAmount = Math.max(Util.round(availableReferenceAmount - keptReferenceAmount, 8), 0);
 
       const order: MissingLiquidityOrder = {
         transactions: deferredTransactions,
         targetAsset: outputAsset,
         referenceAsset: outputReferenceAsset,
-        minDeficit: Util.round(minTargetAmount - residualAmount, 8),
-        deficit: Util.round(deferredTargetAmount - residualAmount, 8),
+        minDeficit: Util.round(minTargetAmount - residualTargetAmount, 8),
+        deficit: Util.round(deferredTargetAmount - residualTargetAmount, 8),
         requiredTargetAmount: deferredTargetAmount,
         requiredReferenceAmount: deferredReferenceAmount,
+        availableTargetAmount: residualTargetAmount,
+        availableReferenceAmount: residualReferenceAmount,
         reason: `Not enough liquidity for all ${outputAsset.uniqueName} buy-crypto transactions, ${deferredTransactions.length} transaction(s) deferred.`,
       };
 
@@ -555,12 +571,16 @@ export class BuyCryptoBatchService {
       deficit,
       requiredTargetAmount,
       requiredReferenceAmount,
+      availableTargetAmount,
+      availableReferenceAmount,
       reason,
     } = order;
 
+    // only the purchasable amounts come from the liquidity result: they are a property of the venue and do not
+    // belong to any one order, while required and available amounts have to describe the order that is placed
     const {
-      target: { availableAmount: availableTargetAmount, maxPurchasableAmount: maxPurchasableTargetAmount },
-      reference: { availableAmount: availableReferenceAmount, maxPurchasableAmount: maxPurchasableReferenceAmount },
+      target: { maxPurchasableAmount: maxPurchasableTargetAmount },
+      reference: { maxPurchasableAmount: maxPurchasableReferenceAmount },
     } = liquidity;
 
     try {

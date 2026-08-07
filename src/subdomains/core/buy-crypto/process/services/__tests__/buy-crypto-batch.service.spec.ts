@@ -409,6 +409,27 @@ describe('BuyCryptoBatchService', () => {
       expect(savedBatchTransactionIds()).toEqual([11]);
     });
 
+    it('reports the amounts of the deferred order, not those of the whole batch, when the order fails', async () => {
+      setupPartialLiquidity();
+      jest.spyOn(liquidityManagementService, 'buyLiquidity').mockRejectedValue(new Error('Rule not found'));
+
+      await service.batchAndOptimizeTransactions();
+
+      const [, , , , messages] = (buyCryptoNotificationService.sendMissingLiquidityError as jest.Mock).mock
+        .calls[0] as [string, string, string, number[], string[]];
+      const [, targetLine, referenceLine] = messages;
+
+      // one order, one set of numbers: the deferred set needs 140, 2 are left after the kept sub-batch, so the
+      // ordered deficit is 138 on both sides. The whole-batch availability of 12 belongs to a demand this order
+      // does not carry, and would make the line read 140 - 12 next to an order placed for 138
+      const [, orderedMinAmount, orderedAmount] = (liquidityManagementService.buyLiquidity as jest.Mock).mock
+        .calls[0] as [number, number, number, boolean];
+      expect([orderedMinAmount, orderedAmount]).toEqual([38, 138]);
+
+      expect(targetLine).toMatch(/^Target: 138 .* \(required 140, available: 2, purchasable: 1000000\)$/);
+      expect(referenceLine).toMatch(/^Reference: 138 .* \(required 140, available: 2, purchasable: 1000000\)$/);
+    });
+
     it('sends no notification when the liquidity rule is already processing', async () => {
       setupPartialLiquidity();
       jest
