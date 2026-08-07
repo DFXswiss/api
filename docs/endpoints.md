@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **536 decorated route entries** across 94 controller files, of which **535 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 298 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **537 decorated route entries** across 94 controller files, of which **536 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -36,7 +36,7 @@ Today 36 endpoints read only what they need and 410 do not, so the column reads 
 
 Of the 36 that read only what they need, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 7), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why 18 of them read `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. The nineteenth is `POST /gs/debug`, which stays `n/a` because its field list comes from the request and there is no fixed projection to test. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
-Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 73 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
+Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 74 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
 ### How to read this column, and how not to
 
@@ -558,6 +558,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/support/note/:id` | hidden | whole rows | 9 | not yet |  | `SupportController.deleteNote` | `subdomains/generic/support/support.controller.ts` |
 | PUT | 1 |  | `/support/note/:id` | hidden | whole rows | 239 | not yet |  | `SupportController.updateNote` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/note/users` | hidden | projected | 5 | 0/4 |  | `SupportController.listNoteUsers` | `subdomains/generic/support/support.controller.ts` |
+| GET | 1 |  | `/support/pending-chargebacks` | hidden | whole rows | 889 | not yet |  | `SupportController.getPendingChargebacks` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews` | hidden | projected | 3 | 0/4 |  | `SupportController.getPendingReviews` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews/items` | hidden | whole rows | 261 | not yet |  | `SupportController.getPendingReviewItems` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-transactions` | hidden | whole rows | 669 | not yet |  | `SupportController.getPendingTransactions` | `subdomains/generic/support/support.controller.ts` |

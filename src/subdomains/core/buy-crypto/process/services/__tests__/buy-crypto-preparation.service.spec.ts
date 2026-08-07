@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
@@ -16,8 +17,10 @@ import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outc
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import {
   createCustomBankTx,
   createDefaultBankTx,
@@ -25,8 +28,10 @@ import {
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -49,6 +54,7 @@ describe('BuyCryptoPreparationService', () => {
   let fiatService: FiatService;
   let buyCryptoService: BuyCryptoService;
   let amlService: AmlService;
+  let specialExternalAccountService: SpecialExternalAccountService;
   let siftService: SiftService;
   let countryService: CountryService;
   let bankService: BankService;
@@ -69,6 +75,7 @@ describe('BuyCryptoPreparationService', () => {
     fiatService = createMock<FiatService>();
     buyCryptoService = createMock<BuyCryptoService>();
     amlService = createMock<AmlService>();
+    specialExternalAccountService = createMock<SpecialExternalAccountService>();
     siftService = createMock<SiftService>();
     countryService = createMock<CountryService>();
     bankService = createMock<BankService>();
@@ -92,6 +99,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: AmlService, useValue: amlService },
+        { provide: SpecialExternalAccountService, useValue: specialExternalAccountService },
         { provide: SiftService, useValue: siftService },
         { provide: CountryService, useValue: countryService },
         { provide: BankService, useValue: bankService },
@@ -288,6 +296,8 @@ describe('BuyCryptoPreparationService', () => {
       jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
       apiKeyBackup = Config.scorechain.apiKey;
       Config.scorechain.apiKey = 'test-key';
+      // no compliance exemption by default — the deep mock would otherwise resolve to a truthy mock
+      jest.spyOn(specialExternalAccountService, 'isScorechainExemptAddress').mockResolvedValue(false);
     });
 
     afterEach(() => {
@@ -307,6 +317,65 @@ describe('BuyCryptoPreparationService', () => {
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('skips the billable screening and passes for a compliance-exempted withdrawal address', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest.spyOn(specialExternalAccountService, 'isScorechainExemptAddress').mockResolvedValue(true);
+      jest
+        .spyOn(scorechainScreeningService, 'screenWithdrawalAddress')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), {}));
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(specialExternalAccountService.isScorechainExemptAddress).toHaveBeenCalledWith(
+        Blockchain.ETHEREUM,
+        '0xabc',
+      );
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    // Wired negative path: without a valid exemption the withdrawal screening must still run.
+    it('screens the withdrawal address when the address exemption does not apply', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest.spyOn(specialExternalAccountService, 'isScorechainExemptAddress').mockResolvedValue(false);
+      jest
+        .spyOn(scorechainScreeningService, 'screenWithdrawalAddress')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), {}));
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(specialExternalAccountService.isScorechainExemptAddress).toHaveBeenCalledWith(
+        Blockchain.ETHEREUM,
+        '0xabc',
+      );
+      expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
+    });
+
+    it('does NOT apply the address exemption to a deposit screening (swap)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: createCustomCryptoInput({
+          asset: createCustomAsset({ blockchain: Blockchain.BITCOIN }),
+          inTxId: 'txhash',
+        }),
+      });
+      jest.spyOn(specialExternalAccountService, 'isScorechainExemptAddress').mockResolvedValue(true);
+      jest
+        .spyOn(scorechainScreeningService, 'screenDepositTransaction')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), {}));
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(specialExternalAccountService.isScorechainExemptAddress).not.toHaveBeenCalled();
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
     });
 
     it('screens the deposit tx for a swap (crypto-in)', async () => {
@@ -509,6 +578,69 @@ describe('BuyCryptoPreparationService', () => {
       await call(entity);
 
       expect(scorechainDocumentService.createScreeningReport).not.toHaveBeenCalled();
+    });
+
+    // Persist the screening that produced a high-risk verdict so a later compliance release can bind
+    // its address exemption to exactly this reviewed screening.
+    it('stamps scorechainScreeningId on a high-risk withdrawal screening', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 9,
+        version: 5,
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest
+        .spyOn(scorechainScreeningService, 'screenWithdrawalAddress')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), { id: 55 }));
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(entity.id, { scorechainScreeningId: 55 });
+      expect(entity.scorechainScreeningId).toBe(55);
+      // Targeted update bumps @VersionColumn — in-memory version must advance so the version-guarded
+      // persistAmlDecision that runs right after does not hit 0 rows.
+      expect(entity.version).toBe(6);
+    });
+
+    it('does not stamp scorechainScreeningId when the screening is not high-risk', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 9,
+        version: 5,
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest
+        .spyOn(scorechainScreeningService, 'screenWithdrawalAddress')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), { id: 55 }));
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(false);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+      expect(entity.scorechainScreeningId).toBeUndefined();
+      expect(entity.version).toBe(5);
+    });
+
+    it('does not re-write scorechainScreeningId when it already matches the screening', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 9,
+        version: 5,
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+        scorechainScreeningId: 55,
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest
+        .spyOn(scorechainScreeningService, 'screenWithdrawalAddress')
+        .mockResolvedValue(Object.assign(new ScorechainScreening(), { id: 55 }));
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+      expect(entity.scorechainScreeningId).toBe(55);
+      expect(entity.version).toBe(5);
     });
   });
 
@@ -824,6 +956,36 @@ describe('BuyCryptoPreparationService', () => {
       for (const branch of where as object[]) {
         expect(branch).toMatchObject({ chargebackDate: IsNull(), chargebackBankTx: IsNull() });
       }
+    });
+
+    it('logs a warning and does not promote when bankTx creditor name mismatches', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 91,
+        bankTx: { id: 90 } as any,
+        chargebackIban: 'CH9300762011623852957',
+        chargebackCreditorData: JSON.stringify({ name: 'Someone Else' }),
+        chargebackAllowedDate: undefined,
+        chargebackAllowedDateUser: new Date('2026-08-01T12:00:00.000Z'),
+        chargebackAmount: 1,
+        isComplete: false,
+        transaction: createCustomTransaction({
+          userData: createCustomUserData({
+            verifiedName: 'Max Mustermann',
+            firstname: 'Max',
+            surname: 'Mustermann',
+          }),
+        }),
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]);
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.chargebackTx();
+
+      expect(buyCryptoService.refundBankTx).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('BuyCrypto 91 waiting for manual chargeback approval due to creditor name mismatch'),
+      );
+      expect(warn.mock.calls[0][0]).not.toMatch(/Max Mustermann|Someone Else/);
     });
   });
 

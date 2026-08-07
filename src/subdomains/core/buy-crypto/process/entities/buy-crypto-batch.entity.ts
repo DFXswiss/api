@@ -15,7 +15,12 @@ export enum BuyCryptoBatchStatus {
   COMPLETE = 'Complete',
 }
 
-type IsPurchaseRequired = boolean;
+export interface LiquidityOptimizationResult {
+  isPurchaseRequired: boolean;
+  // transactions dropped from the batch because the liquidity does not cover them — the caller has to act
+  // on them, they are no longer part of this batch
+  deferredTransactions: BuyCrypto[];
+}
 
 @Entity()
 export class BuyCryptoBatch extends IEntity {
@@ -53,27 +58,27 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   // amounts to be provided in reference asset
-  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): IsPurchaseRequired {
+  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): LiquidityOptimizationResult {
     if (this.isEnoughToSecureBatch(availableAmount)) {
       // no changes to batch required, no purchase required
-      return false;
+      return { isPurchaseRequired: false, deferredTransactions: [] };
     }
 
     if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
-      this.reBatchToMaxReferenceAmount(availableAmount);
+      const deferredTransactions = this.reBatchToMaxReferenceAmount(availableAmount);
 
       // no purchase required yet, proceeding with transactions for all available liquidity
-      return false;
+      return { isPurchaseRequired: false, deferredTransactions };
     }
 
     if (
       !this.isWholeBatchAmountPurchasable(maxPurchasableAmount, 0.05) &&
       this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount, 0.05)
     ) {
-      this.reBatchToMaxReferenceAmount(maxPurchasableAmount, 0.05);
+      const deferredTransactions = this.reBatchToMaxReferenceAmount(maxPurchasableAmount, 0.05);
 
       // purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount
-      return true;
+      return { isPurchaseRequired: true, deferredTransactions };
     }
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
@@ -82,7 +87,7 @@ export class BuyCryptoBatch extends IEntity {
       );
     }
 
-    return true;
+    return { isPurchaseRequired: true, deferredTransactions: [] };
   }
 
   optimizeByPayoutFeeEstimation(): BuyCrypto[] {
@@ -181,11 +186,12 @@ export class BuyCryptoBatch extends IEntity {
     return maxPurchasableAmount >= this.outputReferenceAmount * (1 + bufferCap);
   }
 
-  private reBatchToMaxReferenceAmount(liquidityLimit: number, bufferCap = 0): this {
+  // returns the transactions that did not fit into the liquidity limit and were therefore dropped from the batch
+  private reBatchToMaxReferenceAmount(liquidityLimit: number, bufferCap = 0): BuyCrypto[] {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
 
     const currentTransactions = this.sortForLimitedLiquidity();
-    const reBatchTransactions = [];
+    const reBatchTransactions: BuyCrypto[] = [];
     let requiredLiquidity = 0;
 
     for (const tx of currentTransactions) {
@@ -204,9 +210,15 @@ export class BuyCryptoBatch extends IEntity {
       );
     }
 
+    // the dropped transactions have to be handed back to the caller: dropping them from the batch alone leaves
+    // them without status, order or trace, so the next cycle re-reads them and every smaller transaction of the
+    // same asset overtakes them again
+    const keptTransactions = new Set(reBatchTransactions);
+    const deferredTransactions = currentTransactions.filter((tx) => !keptTransactions.has(tx));
+
     this.overwriteTransactions(reBatchTransactions);
 
-    return this;
+    return deferredTransactions;
   }
 
   private overwriteTransactions(overwriteTransaction: BuyCrypto[]): void {

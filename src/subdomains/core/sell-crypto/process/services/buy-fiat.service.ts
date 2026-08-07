@@ -36,7 +36,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -769,6 +769,25 @@ export class BuyFiatService implements OnModuleInit {
       loadEagerRelations: false,
       order: { created: 'ASC' },
       take: limit,
+    });
+  }
+
+  // Keep in sync with BuyFiat.getChargebackBlockReasons() fail-closed / pending set.
+  async getPendingChargebacks(): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: {
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackTxId: IsNull(),
+        isComplete: false,
+        outputAmount: IsNull(),
+      },
+      relations: {
+        transaction: { userData: true, user: true },
+        cryptoInput: true,
+      },
+      order: { chargebackAllowedDateUser: 'ASC' },
     });
   }
 

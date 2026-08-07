@@ -1,15 +1,28 @@
 import { Test } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
+import { createCustomBuyCryptoBatch } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto-batch.entity.mock';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
+import { createCustomCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
@@ -758,5 +771,213 @@ describe('BuyCrypto #complete(...) exact base-unit propagation (#4287 stage 4)',
 
     expect(entity.outputAmountBaseUnits).toBeNull();
     expect(entity.isComplete).toBe(true);
+  });
+});
+
+describe('BuyCrypto #getChargebackBlockReasons()', () => {
+  function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
+    return createCustomUserData({
+      kycStatus: KycStatus.COMPLETED,
+      status: UserDataStatus.ACTIVE,
+      riskStatus: RiskStatus.NA,
+      verifiedName: 'Max Mustermann',
+      firstname: 'Max',
+      surname: 'Mustermann',
+      ...overrides,
+    });
+  }
+
+  function pendingBankTxBuyCrypto(overrides: Partial<BuyCrypto> = {}): BuyCrypto {
+    return createCustomBuyCrypto({
+      chargebackAllowedDate: undefined,
+      chargebackDate: undefined,
+      isComplete: false,
+      chargebackBankTx: undefined,
+      chargebackCryptoTxId: undefined,
+      chargebackAmount: 100,
+      chargebackIban: 'CH9300762011623852957',
+      chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
+      bankTx: createCustomBankTx({ id: 1 }),
+      cryptoInput: undefined,
+      checkoutTx: undefined,
+      batch: undefined,
+      outputAmount: undefined,
+      amlCheck: CheckStatus.FAIL,
+      transaction: createCustomTransaction({
+        userData: releasedUserData(),
+        user: createCustomUser({ status: UserStatus.ACTIVE }),
+      }),
+      ...overrides,
+    });
+  }
+
+  it('returns empty array when all auto-promotion conditions are met', () => {
+    expect(pendingBankTxBuyCrypto().getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('returns MISSING_CHARGEBACK_AMOUNT when chargebackAmount is missing', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT]);
+  });
+
+  it('does not return MISSING_CHARGEBACK_AMOUNT when chargebackAmount is 0', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackAmount: 0 });
+    expect(entity.getChargebackBlockReasons()).not.toContain(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+  });
+
+  it('returns USER_NOT_RELEASED when userData is blocked', () => {
+    const entity = pendingBankTxBuyCrypto({
+      transaction: createCustomTransaction({
+        userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+        user: createCustomUser({ status: UserStatus.ACTIVE }),
+      }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+  });
+
+  it('returns USER_NOT_RELEASED when kycStatus is not releasable', () => {
+    const entity = pendingBankTxBuyCrypto({
+      transaction: createCustomTransaction({
+        userData: releasedUserData({ kycStatus: KycStatus.REJECTED }),
+        user: createCustomUser({ status: UserStatus.ACTIVE }),
+      }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+  });
+
+  it('returns USER_NOT_RELEASED when user status is not active', () => {
+    const entity = pendingBankTxBuyCrypto({
+      transaction: createCustomTransaction({
+        userData: releasedUserData(),
+        user: createCustomUser({ status: UserStatus.BLOCKED }),
+      }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+  });
+
+  it('returns MISSING_CHARGEBACK_TARGET when bankTx chargebackIban is missing', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackIban: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_TARGET]);
+  });
+
+  it('returns MISSING_CREDITOR_DATA when chargebackCreditorData is missing', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackCreditorData: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CREDITOR_DATA]);
+  });
+
+  it('returns NAME_MISMATCH when creditor name does not match customer names', () => {
+    const entity = pendingBankTxBuyCrypto({
+      chargebackCreditorData: JSON.stringify({ name: 'Someone Else' }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.NAME_MISMATCH]);
+  });
+
+  it('does not return NAME_MISMATCH when creditor data is already missing', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackCreditorData: undefined });
+    const reasons = entity.getChargebackBlockReasons();
+    expect(reasons).toContain(ChargebackBlockReason.MISSING_CREDITOR_DATA);
+    expect(reasons).not.toContain(ChargebackBlockReason.NAME_MISMATCH);
+  });
+
+  it('returns MISSING_CHARGEBACK_TARGET for cryptoInput without chargebackIban', () => {
+    const entity = pendingBankTxBuyCrypto({
+      bankTx: undefined,
+      cryptoInput: createCustomCryptoInput({ id: 1 }),
+      chargebackIban: undefined,
+      chargebackCreditorData: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_TARGET]);
+  });
+
+  it('returns multiple reasons when several conditions fail', () => {
+    const entity = pendingBankTxBuyCrypto({
+      chargebackAmount: undefined,
+      chargebackIban: undefined,
+      chargebackCreditorData: undefined,
+      transaction: createCustomTransaction({
+        userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+        user: createCustomUser({ status: UserStatus.ACTIVE }),
+      }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([
+      ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT,
+      ChargebackBlockReason.USER_NOT_RELEASED,
+      ChargebackBlockReason.MISSING_CHARGEBACK_TARGET,
+      ChargebackBlockReason.MISSING_CREDITOR_DATA,
+    ]);
+  });
+
+  it('fail-closed: returns empty array when chargebackAllowedDate is set even if other reasons apply', () => {
+    const entity = pendingBankTxBuyCrypto({
+      chargebackAllowedDate: new Date(),
+      chargebackAmount: undefined,
+      chargebackIban: undefined,
+      transaction: createCustomTransaction({
+        userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+        user: createCustomUser({ status: UserStatus.ACTIVE }),
+      }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when chargebackDate is set', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackDate: new Date(), chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when isComplete is true', () => {
+    const entity = pendingBankTxBuyCrypto({ isComplete: true, chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when chargebackBankTx is set', () => {
+    const entity = pendingBankTxBuyCrypto({
+      chargebackBankTx: createCustomBankTx({ id: 99 }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when chargebackOutput is set', () => {
+    const entity = pendingBankTxBuyCrypto({
+      chargebackOutput: createCustomFiatOutput({ id: 77 }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when chargebackCryptoTxId is set', () => {
+    const entity = pendingBankTxBuyCrypto({ chargebackCryptoTxId: 'tx-123', chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when batch is set', () => {
+    const entity = pendingBankTxBuyCrypto({
+      batch: createCustomBuyCryptoBatch({ transactions: [] }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when outputAmount is set', () => {
+    const entity = pendingBankTxBuyCrypto({ outputAmount: 0.2, chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when checkout refund already started on related row', () => {
+    const entity = pendingBankTxBuyCrypto({
+      checkoutTx: createCustomCheckoutTx({ status: CheckoutPaymentStatus.REFUND_PENDING }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when crypto return already started on related row', () => {
+    const entity = pendingBankTxBuyCrypto({
+      bankTx: undefined,
+      cryptoInput: createCustomCryptoInput({ id: 1, status: PayInStatus.TO_RETURN }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
   });
 });

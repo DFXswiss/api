@@ -32,6 +32,7 @@ import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/ba
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -60,6 +61,7 @@ export class BuyCryptoPreparationService {
     private readonly fiatService: FiatService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly amlService: AmlService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
     private readonly countryService: CountryService,
     private readonly bankService: BankService,
@@ -101,7 +103,7 @@ export class BuyCryptoPreparationService {
       //
       // DEPOSITS ONLY. The withdrawal screening asks a different question — may DFX pay INTO this
       // address — which a review of the customer's funding source does not answer; a payout to a listed
-      // address must never be waved through by it. Address-scoped payout exemptions belong to #4402.
+      // address must never be waved through by it. Payouts have their own, address-scoped exemption below.
       //
       // Deliberately NOT fail-closed on a missing userData: no account means no review, so the screening
       // runs. Inside the try on purpose: like every other userData access here, a failure must become
@@ -110,6 +112,16 @@ export class BuyCryptoPreparationService {
         this.logger.info(
           `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
         );
+        return ScorechainOutcome.PASS;
+      }
+
+      // A compliance-exempted target address (manually reviewed high-risk verdict, e.g. third-party
+      // address poisoning against a customer wallet) skips the billable withdrawal screening — the
+      // unchanged on-chain score would otherwise re-route every payout to the same address into the
+      // same manual review. Bound to the exact reviewed (blockchain, address) pair via
+      // SpecialExternalAccount type ScorechainExemptAddress.
+      if (!isDeposit && (await this.specialExternalAccountService.isScorechainExemptAddress(blockchain, objectId))) {
+        this.logger.verbose(`Scorechain screening skipped for buy-crypto ${entity.id}: target address is exempted`);
         return ScorechainOutcome.PASS;
       }
 
@@ -122,9 +134,22 @@ export class BuyCryptoPreparationService {
       if (screening.isNewlyScreened && entity.userData)
         await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
 
-      return this.scorechainScreeningService.isHighRisk(screening)
-        ? ScorechainOutcome.HIGH_RISK
-        : ScorechainOutcome.PASS;
+      const highRisk = this.scorechainScreeningService.isHighRisk(screening);
+
+      // Persist which screening produced a high-risk verdict, so the compliance release can later bind
+      // its address exemption to exactly this reviewed screening. Written as a targeted update: the AML
+      // decision itself is persisted through the version-guarded persistAmlDecision update, which does
+      // not carry this field. Guarded to avoid rewriting the same value on every cron pass.
+      if (highRisk && entity.scorechainScreeningId !== screening.id) {
+        await this.buyCryptoRepo.update(entity.id, { scorechainScreeningId: screening.id });
+        entity.scorechainScreeningId = screening.id;
+        // The targeted update also bumped the @VersionColumn — mirror it (same pattern as
+        // postProcessAmlVerdict), otherwise the version-guarded persistAmlDecision right after
+        // would see a stale version, hit 0 rows and silently drop this cycle's AML decision.
+        if (entity.version !== undefined) entity.version += 1;
+      }
+
+      return highRisk ? ScorechainOutcome.HIGH_RISK : ScorechainOutcome.PASS;
     } catch (e) {
       // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
       // throw out of the AML computation (which would silently stall settlement of every otherwise-
@@ -155,7 +180,9 @@ export class BuyCryptoPreparationService {
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
         // Retry a PASS whose post-processing did not complete (transient failure) so its compliance
-        // side-effects are not silently lost; postProcessing is idempotent, so re-running is safe.
+        // side-effects are not silently lost. A repeated release appends another Scorechain exemption
+        // event row — harmless (equivalent events), but postProcessing is no longer literally
+        // idempotent because of that append.
         { amlCheck: CheckStatus.PASS, amlPostProcessed: false, ...request },
       ],
       relations: {
@@ -771,6 +798,7 @@ export class BuyCryptoPreparationService {
     }
   }
 
+  // Keep in sync with BuyCrypto.getChargebackBlockReasons() promotion conditions.
   async chargebackTx(): Promise<void> {
     const baseRequest: FindOptionsWhere<BuyCrypto> = {
       chargebackAllowedDate: IsNull(),
@@ -812,15 +840,21 @@ export class BuyCryptoPreparationService {
 
         if (entity.bankTx) {
           if (
-            Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
-            Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
-            (!entity.userData.verifiedName && !entity.userData.completeName)
+            Util.matchesCreditorName(
+              entity.userData.verifiedName,
+              entity.userData.completeName,
+              entity.creditorData.name,
+            )
           )
             await this.buyCryptoService.refundBankTx(entity, {
               chargebackAllowedDate,
               chargebackAllowedDateUser,
               chargebackAllowedBy,
             });
+          else
+            this.logger.warn(
+              `BuyCrypto ${entity.id} waiting for manual chargeback approval due to creditor name mismatch`,
+            );
         } else if (entity.cryptoInput) {
           await this.buyCryptoService.refundCryptoInput(entity, {
             chargebackAllowedDate,
