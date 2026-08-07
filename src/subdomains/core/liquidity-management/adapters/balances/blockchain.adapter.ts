@@ -206,20 +206,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       const balance = asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase());
 
       const previousBalance = this.balanceCache.get(asset.id);
-      if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
-
-      // DEBUG: trace balance pipeline
-      if (previousBalance != null && balance !== previousBalance) {
-        this.logger.verbose(
-          `Balance change for ${asset.uniqueName} (${asset.id}): ${previousBalance} -> ${balance} (inMap: ${tokenToBalanceMap.has(asset.chainId?.toLowerCase())})`,
-        );
-      }
-
-      // DEBUG: always log BBTC balance for investigation
-      if (asset.id === 394) {
-        this.logger.verbose(
-          `BBTC balance trace: alchemy=${balance}, cache=${previousBalance}, inMap=${tokenToBalanceMap.has(asset.chainId?.toLowerCase())}`,
-        );
+      if (previousBalance) {
+        // An asset absent from the response is a gap in the upstream answer, not a balance of zero.
+        // The cache keeps its previous value in that case, so the two are reported apart: one says
+        // the funds are gone, the other says we no longer know what they are.
+        if (balance == null) {
+          this.logger.info(`No balance reported for ${asset.uniqueName}, keeping ${previousBalance}`);
+        } else if (balance === 0) {
+          this.logger.error(`Balance for ${asset.uniqueName} went to 0, was ${previousBalance}`);
+        }
       }
 
       if (balance != null) this.balanceCache.set(asset.id, balance);
