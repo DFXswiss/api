@@ -284,6 +284,11 @@ describe('AlignPartnerWalletAmlBaseline migration (SQL content)', () => {
 });
 
 describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
+  // These suites call up() on a bare query runner, so assertions see each statement's effect in
+  // isolation — including partial states after a postcondition throw. A real migration run wraps
+  // up() in one transaction (TypeORM default migrationsTransactionMode is "all"; config.ts sets
+  // no override), so a postcondition failure rolls back every change in production. The
+  // per-statement view here is deliberate: it exercises each leg's fail-close behaviour alone.
   const originalEnvironment = process.env.ENVIRONMENT;
   let dataSource: DataSource;
   let queryRunner: QueryRunner;
@@ -587,7 +592,9 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
       exceptAmlRules: null,
       wasUpdated: false,
     });
-    // id 25 matched the guard and was updated before the postcondition failed.
+    // id 25 matched the guard and was updated before the postcondition failed. Visible here only
+    // because this suite runs without the production transaction wrapper; a real migration run
+    // would roll that update back when the postcondition fails.
     expect(await readWalletById(25)).toEqual({
       id: 25,
       amlRules: TARGET_AML_RULES,
