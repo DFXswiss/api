@@ -967,6 +967,7 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
   it('fail-closed: returns empty array when checkout refund already started on related row', () => {
     const entity = pendingBankTxBuyCrypto({
       checkoutTx: createCustomCheckoutTx({ status: CheckoutPaymentStatus.REFUND_PENDING }),
+      chargebackAmount: undefined,
     });
     expect(entity.getChargebackBlockReasons()).toEqual([]);
   });
@@ -975,6 +976,7 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
     const entity = pendingBankTxBuyCrypto({
       bankTx: undefined,
       cryptoInput: createCustomCryptoInput({ id: 1, status: PayInStatus.TO_RETURN }),
+      chargebackAmount: undefined,
     });
     expect(entity.getChargebackBlockReasons()).toEqual([]);
   });
