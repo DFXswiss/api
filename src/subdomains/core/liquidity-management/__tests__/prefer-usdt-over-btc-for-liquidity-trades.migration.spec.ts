@@ -187,6 +187,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
     const queryRunner = {
       query: jest.fn(async (sql: string) => {
         const s = sql.toLowerCase();
+        if (s.includes('pg_advisory_xact_lock')) return [];
         if (s.includes('from "log"') && s.includes('subsystem')) {
           return [
             {
@@ -202,10 +203,11 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
     await migration.up(queryRunner as unknown as QueryRunner);
 
     const calls = queryRunner.query.mock.calls as [string, unknown[]?][];
-    // Only the active-apply lookup — no action reads, no inserts, no updates.
-    expect(calls).toHaveLength(1);
-    expect(calls[0][0]).toMatch(/FROM "log"/i);
-    expect(calls[0][1]).toEqual([AUDIT_SUBSYSTEM]);
+    // Advisory lock + active-apply lookup — no action reads, no inserts, no updates.
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toMatch(/pg_advisory_xact_lock\(1786001000000\)/);
+    expect(calls[1][0]).toMatch(/FROM "log"/i);
+    expect(calls[1][1]).toEqual([AUDIT_SUBSYSTEM]);
     expect(calls.some(([sql]) => /UPDATE|INSERT INTO "liquidity_management/i.test(sql))).toBe(false);
   });
 
@@ -444,6 +446,12 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     const db = newDb();
     db.public.registerFunction({ name: 'version', returns: DataType.text, implementation: () => 'PostgreSQL 15.0' });
     db.public.registerFunction({ name: 'current_database', returns: DataType.text, implementation: () => 'test' });
+    db.public.registerFunction({
+      name: 'pg_advisory_xact_lock',
+      args: [DataType.bigint],
+      returns: DataType.null,
+      implementation: () => null,
+    });
 
     dataSource = (await db.adapters.createTypeormDataSource({ type: 'postgres', entities: [] })) as DataSource;
     await dataSource.initialize();
@@ -592,6 +600,40 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(await auditMessages(queryRunner)).toHaveLength(0);
   });
 
+  it('silently skips a pair when the BTC or USDT action id is missing', async () => {
+    // Only BTC exists — USDT_ID missing → pair is not seed data, silent skip (no throw, no audit).
+    await insertAction(queryRunner, { id: T_ID, tag: 'T', onFailId: null });
+    await insertAction(queryRunner, { id: BTC_ID, tag: 'B', onFailId: T_ID });
+
+    await new PreferUsdtOverBtc().up(queryRunner);
+
+    expect(await actionOnFail(queryRunner, BTC_ID)).toBe(T_ID);
+    expect(await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [USDT_ID])).toEqual(
+      [],
+    );
+    expect(await auditMessages(queryRunner)).toHaveLength(0);
+  });
+
+  it('throws when action id exists but system/command is not Binance buy, and leaves rows unchanged', async () => {
+    await insertAction(queryRunner, { id: T_ID, tag: 'T', onFailId: null });
+    await insertAction(queryRunner, { id: USDT_ID, tag: 'U', onFailId: T_ID });
+    await insertAction(queryRunner, {
+      id: BTC_ID,
+      system: 'Kraken',
+      command: 'buy',
+      tag: 'B',
+      onFailId: USDT_ID,
+    });
+
+    await expect(new PreferUsdtOverBtc().up(queryRunner)).rejects.toThrow(
+      /Action 10: expected system='Binance' command='buy', found system='Kraken' command='buy'/,
+    );
+
+    expect(await actionOnFail(queryRunner, BTC_ID)).toBe(USDT_ID);
+    expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
+    expect(await auditMessages(queryRunner)).toHaveLength(0);
+  });
+
   it('throws when T is B or U itself and leaves rows unchanged', async () => {
     // U.onFailId = B → cycle
     await insertAction(queryRunner, { id: USDT_ID, tag: 'U', onFailId: BTC_ID });
@@ -657,6 +699,48 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
 
     const events = (await auditMessages(queryRunner)) as Array<{ action: string }>;
     expect(events.map((e) => e.action)).toEqual(['applyPreferUsdtOverBtc', 'rollbackPreferUsdtOverBtc']);
+  });
+
+  it('down() rejects tampered audit entries with forbidden table/column and leaves post-up state unchanged', async () => {
+    await seedBaselineChain(queryRunner, { withW: true });
+    await insertAsset(queryRunner, 1, 'ETH');
+    await insertRule(queryRunner, { id: 1, deficitStartActionId: BTC_ID, targetAssetId: 1 });
+
+    const migration = new PreferUsdtOverBtc();
+    await migration.up(queryRunner);
+
+    const afterUp = {
+      w: await actionOnFail(queryRunner, W_ID),
+      u: await actionOnFail(queryRunner, USDT_ID),
+      b: await actionOnFail(queryRunner, BTC_ID),
+      rule: await ruleStart(queryRunner, 1),
+    };
+    expect(afterUp.w).toBe(USDT_ID);
+    expect(afterUp.u).toBe(BTC_ID);
+    expect(afterUp.b).toBe(T_ID);
+    expect(afterUp.rule).toBe(USDT_ID);
+
+    // Tamper the apply audit message: inject a forbidden table/column into entries.
+    const rows = await queryRunner.query(
+      `SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`,
+      [AUDIT_SUBSYSTEM],
+    );
+    const apply =
+      typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
+    apply.entries.push({ table: 'user', column: 'password', id: 1, before: 'x', after: 'y' });
+    await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [
+      JSON.stringify(apply),
+      rows[0].id,
+    ]);
+
+    await expect(migration.down(queryRunner)).rejects.toThrow(/Unknown audit entry table\/column 'user\.password'/);
+
+    // Fail closed: chain/rules must still match the post-up state (no restore mutations ran).
+    expect(await actionOnFail(queryRunner, W_ID)).toBe(afterUp.w);
+    expect(await actionOnFail(queryRunner, USDT_ID)).toBe(afterUp.u);
+    expect(await actionOnFail(queryRunner, BTC_ID)).toBe(afterUp.b);
+    expect(await ruleStart(queryRunner, 1)).toBe(afterUp.rule);
+    expect(await auditMessages(queryRunner)).toHaveLength(1);
   });
 
   it('down() keeps a clone referenced by liquidity_management_order but rewinds rules', async () => {

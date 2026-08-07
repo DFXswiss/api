@@ -6,6 +6,9 @@
 const AUDIT_MIGRATION = 'PreferUsdtOverBtcForLiquidityTrades1786001000000';
 const APPLY_ACTION = 'applyPreferUsdtOverBtc';
 const ROLLBACK_ACTION = 'rollbackPreferUsdtOverBtc';
+// Transaction-scoped advisory lock key: this migration's timestamp. Unique across migrations by
+// naming convention (same pattern as LinkOndoPriceRule / AddSavingZchfAsset).
+const ADVISORY_LOCK_KEY = 1786001000000;
 
 /**
  * Prefer USDT over BTC for Binance liquidity-management deficit buy chains.
@@ -58,13 +61,19 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
   /**
    * Return the single apply event that has not yet been matched by a rollback event.
    * Audit rows live in the append-only "log" table; pairing is pure application logic via action
-   * and applyLogId in the JSON message payload. No advisory lock — this class of migration does
-   * not use pg_advisory_xact_lock in this repo.
+   * and applyLogId in the JSON message payload. Acquires pg_advisory_xact_lock first so concurrent
+   * up()/down() instances cannot both read "no active apply" and each create their own clone chain
+   * (same pattern as LinkOndoPriceRule.getActiveApplyAudit).
    *
    * @param {QueryRunner} queryRunner
    * @returns {Promise<({ id: number, entries: unknown[] } & Record<string, unknown>) | undefined>}
    */
   async getActiveApply(queryRunner) {
+    // Serialize concurrent up()/down() of this migration: without this, two migration runners
+    // starting at the same time could both read "no active apply" and each create their own
+    // clone chain. Same pattern as LinkOndoPriceRule.getActiveApplyAudit.
+    await queryRunner.query(`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY})`);
+
     const rows = await queryRunner.query(
       `SELECT "id", "message" FROM "log"
        WHERE "system" = 'Migration' AND "subsystem" = $1
@@ -171,7 +180,85 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
   }
 
   /**
+   * Validate every audit entry before down() mutates anything. `apply.entries` comes from the
+   * "log" table, which is not trusted internal state: BANKING_BOT can create log rows and ADMIN
+   * can edit an existing message (log.controller.ts, create-log.dto.ts accept arbitrary
+   * system/subsystem/message strings with no allowlist). A tampered entry must never let down()
+   * build an UPDATE against an attacker-chosen table/column. Only the three (table, column)
+   * combinations this migration ever writes are allowed; anything else — or a mistyped
+   * id/before/after/createdActionId — throws before any mutation runs (fail closed).
+   *
+   * @param {Array<Record<string, unknown>>} entries
+   */
+  validateEntries(entries) {
+    const ALLOWED_COLUMNS = {
+      'liquidity_management_action.onFailId': 'nullableInt',
+      'liquidity_management_rule.deficitStartActionId': 'nullableInt',
+      'liquidity_management_rule.status': 'string',
+    };
+    const isPositiveInt = (v) => Number.isSafeInteger(v) && v > 0;
+    const isNullableInt = (v) => v === null || Number.isSafeInteger(v);
+
+    for (const entry of entries) {
+      if (entry && typeof entry === 'object' && entry.column !== undefined) {
+        const key = `${entry.table}.${entry.column}`;
+        const type = ALLOWED_COLUMNS[key];
+        if (!type) throw new Error(`Unknown audit entry table/column '${key}' for ${AUDIT_MIGRATION}`);
+        if (!isPositiveInt(entry.id)) {
+          throw new Error(`Invalid audit entry id '${entry.id}' for '${key}' in ${AUDIT_MIGRATION}`);
+        }
+        const validValues =
+          type === 'string'
+            ? typeof entry.before === 'string' && typeof entry.after === 'string'
+            : isNullableInt(entry.before) && isNullableInt(entry.after);
+        if (!validValues) {
+          throw new Error(`Invalid before/after type for audit entry '${key}' (id ${entry.id}) in ${AUDIT_MIGRATION}`);
+        }
+        continue;
+      }
+      if (entry && typeof entry === 'object' && entry.createdActionId !== undefined) {
+        if (!isPositiveInt(entry.createdActionId)) {
+          throw new Error(`Invalid createdActionId '${entry.createdActionId}' in audit entry for ${AUDIT_MIGRATION}`);
+        }
+        continue;
+      }
+      throw new Error(`Unrecognized audit entry shape for ${AUDIT_MIGRATION}`);
+    }
+  }
+
+  /**
+   * Build the fully literal (hardcoded) restore UPDATE for one of the three allowed
+   * (table, column) combinations. Never interpolates entry.table/entry.column into SQL — the
+   * switch itself is the allowlist, so an unexpected combination cannot reach this point after
+   * validateEntries() has run.
+   *
+   * @param {Record<string, unknown>} entry
+   * @returns {{ sql: string, params: unknown[] }}
+   */
+  buildRestoreQuery(entry) {
+    switch (`${entry.table}.${entry.column}`) {
+      case 'liquidity_management_action.onFailId':
+        return {
+          sql: `UPDATE "liquidity_management_action" SET "onFailId" = $1
+                WHERE "id" = $2 AND ("onFailId" = $3 OR ("onFailId" IS NULL AND $3 IS NULL))`,
+          params: [entry.before, entry.id, entry.after],
+        };
+      case 'liquidity_management_rule.deficitStartActionId':
+        return {
+          sql: `UPDATE "liquidity_management_rule" SET "deficitStartActionId" = $1
+                WHERE "id" = $2 AND ("deficitStartActionId" = $3 OR ("deficitStartActionId" IS NULL AND $3 IS NULL))`,
+          params: [entry.before, entry.id, entry.after],
+        };
+      default:
+        // Unreachable after validateEntries(): 'status' entries are filtered out by the caller
+        // before this is called, and any other combination already threw during validation.
+        throw new Error(`No hardcoded restore query for '${entry.table}.${entry.column}' in ${AUDIT_MIGRATION}`);
+    }
+  }
+
+  /**
    * @param {QueryRunner} queryRunner
+   * @returns {Promise<void>}
    */
   async up(queryRunner) {
     // Step 0 — idempotency gate: an active (un-rolled-back) apply means this migration already ran.
@@ -197,18 +284,28 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     for (const [btcId, usdtId] of this.pairs) {
       const [b] = await queryRunner.query(
         `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
-         FROM "liquidity_management_action"
-         WHERE "id" = $1 AND "system" = 'Binance' AND "command" = 'buy'`,
+         FROM "liquidity_management_action" WHERE "id" = $1`,
         [btcId],
       );
       const [u] = await queryRunner.query(
         `SELECT "id", "system", "command", "tag", "params", "onSuccessId", "onFailId"
-         FROM "liquidity_management_action"
-         WHERE "id" = $1 AND "system" = 'Binance' AND "command" = 'buy'`,
+         FROM "liquidity_management_action" WHERE "id" = $1`,
         [usdtId],
       );
       // Missing rows: environment without LM seed data — silent skip (not an unexpected structure).
       if (!b || !u) continue;
+
+      // Row exists but is not the expected Binance buy action — loud failure, not a silent skip.
+      if (b.system !== 'Binance' || b.command !== 'buy') {
+        throw new Error(
+          `Action ${btcId}: expected system='Binance' command='buy', found system='${b.system}' command='${b.command}'`,
+        );
+      }
+      if (u.system !== 'Binance' || u.command !== 'buy') {
+        throw new Error(
+          `Action ${usdtId}: expected system='Binance' command='buy', found system='${u.system}' command='${u.command}'`,
+        );
+      }
 
       // Guard 1: expected structure is B --onFail--> U. Coerce: node-pg may return int as string.
       if (Number(b.onFailId) !== Number(u.id)) {
@@ -416,10 +513,14 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
 
   /**
    * @param {QueryRunner} queryRunner
+   * @returns {Promise<void>}
    */
   async down(queryRunner) {
     const apply = await this.getActiveApply(queryRunner);
     if (!apply) return;
+
+    // Fail closed on tampered audit entries before any mutation (log table is not trusted).
+    this.validateEntries(apply.entries);
 
     const deletedCloneIds = [];
     const keptCloneIds = [];
@@ -430,11 +531,8 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     // DeactivateTradingRules; reactivation is an operational decision).
     for (const entry of apply.entries) {
       if (!entry.column || entry.column === 'status') continue;
-      await queryRunner.query(
-        `UPDATE "${entry.table}" SET "${entry.column}" = $1
-         WHERE "id" = $2 AND ("${entry.column}" = $3 OR ("${entry.column}" IS NULL AND $3 IS NULL))`,
-        [entry.before, entry.id, entry.after],
-      );
+      const { sql, params } = this.buildRestoreQuery(entry);
+      await queryRunner.query(sql, params);
     }
 
     // Delete clones only when unreferenced. Self-FKs on onFailId/onSuccessId (and order/pipeline
