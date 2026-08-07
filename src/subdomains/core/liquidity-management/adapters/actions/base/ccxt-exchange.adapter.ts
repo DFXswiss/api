@@ -576,8 +576,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
   /**
    * Reduces a withdrawal request to the maximum the venue accepts in one withdrawal. MEXC rejects anything above
-   * it outright (`{"code":10255,"msg":"Withdrawal shall not be greater than the Max amount of:100"}`), and the
-   * coins bought for the rejected request are sold back at a loss by the redundancy rule.
+   * it outright (code 10255, "Withdrawal shall not be greater than the Max amount of:<amount>"), and the coins
+   * bought for the rejected request are sold back at a loss by the redundancy rule.
    *
    * The excess is neither lost nor a failure: it stays on the venue, the short delivery still completes the
    * order and the pipeline, and the next balance check re-detects the remaining deficit and delivers it in a
@@ -588,9 +588,12 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
    * the onFail buy action re-reads `max. requested` out of the error message to size its purchase, and buying
    * more than one withdrawal can move is what produced the rejected requests. The minimum, because a minimum
    * above the maximum can never be met by any balance and would leave the pipeline buying against a gate that
-   * stays shut.
+   * stays shut. Capping the minimum has one accepted edge: with a balance just under the cap, the onFail buy is
+   * sized from the gap between balance and capped minimum and can end up below the venue's minimum trade. The
+   * buy action carries `minTradeAmount` for exactly that, and the alternative — an order that fails whenever the
+   * need exceeds the cap — is the outage this method exists to remove.
    */
-  private async capToWithdrawalMaximum(
+  protected async capToWithdrawalMaximum(
     minAmount: number,
     maxAmount: number,
     token: string,
@@ -601,11 +604,22 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     // an unknown maximum is not a maximum of zero — send what was requested, exactly as before
     if (venueMaximum == null) return { minAmount, maxAmount };
 
-    // a maximum below the venue's own minimum leaves no acceptable amount, so no installment could ever land and
-    // the rule would retry forever: fail the order instead, which puts the venue limits in front of a human
+    // WHY no exception on a contradictory pair (published minimum above published maximum): the venue, not this
+    // code, decides whether an amount is acceptable. A terminal failure invented here out of numbers that are
+    // merely read would be a new outage on a base class shared by every ccxt venue, and it would fire on exactly
+    // the kind of parsing slip these numbers invite (they arrive as strings). Capping loses nothing — if no
+    // amount satisfies both limits, the venue rejects the request in its own words, which says more than a guess
+    // made here, and the warning below puts the contradiction in front of a human either way.
     if (venueMinimum > venueMaximum)
-      throw new OrderFailedException(
-        `${this.exchangeService.name}: withdrawal maximum ${venueMaximum} for ${token} is below the withdrawal minimum ${venueMinimum}`,
+      this.logger.warn(
+        `${this.exchangeService.name}: published withdrawal maximum ${venueMaximum} for ${token} is below the published minimum ${venueMinimum}, capping to the maximum and leaving the decision to the venue`,
+      );
+
+    // a capped request delivers less than the pipeline asked for, while the pipeline logs its own maxAmount on
+    // completion — this is the only place the short delivery becomes visible
+    if (maxAmount > venueMaximum)
+      this.logger.info(
+        `${this.exchangeService.name}: capping the ${token} withdrawal request of ${maxAmount} to the venue maximum ${venueMaximum}, the remainder follows in a later installment`,
       );
 
     return { minAmount: Math.min(minAmount, venueMaximum), maxAmount: Math.min(maxAmount, venueMaximum) };

@@ -12,15 +12,17 @@ import { LiquidityManagementOrder } from '../../../../entities/liquidity-managem
 import { LiquidityManagementPipeline } from '../../../../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../../../../entities/liquidity-management-rule.entity';
 import { LiquidityManagementSystem } from '../../../../enums';
-import { OrderFailedException } from '../../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../../exceptions/order-not-processable.exception';
 import { LiquidityManagementOrderRepository } from '../../../../repositories/liquidity-management-order.repository';
 import { CcxtExchangeAdapter, CcxtExchangeAdapterCommands } from '../ccxt-exchange.adapter';
 
-const DEST_ENV = 'TEST_MEXC_WITHDRAW_ADDR';
-const DEST_ADDRESS = '4Aabc';
-const WITHDRAW_KEY = 'mexcXmr';
+const DEST_ENV = 'TEST_EXCHANGE_WITHDRAW_ADDR';
+const DEST_ADDRESS = 'test-destination-address';
+const WITHDRAW_KEY = 'testWithdrawKey';
 const NETWORK = 'XMR';
+
+// neutral round numbers throughout: every assertion is about the capping arithmetic, never about an amount
+const venueLimits = { min: 0.5, max: 50 };
 
 /** The adapter is abstract only to force a venue to be named — every command is implemented on the base. */
 class TestCcxtExchangeAdapter extends CcxtExchangeAdapter {}
@@ -32,7 +34,7 @@ function createOrder(
   params: Record<string, unknown>,
 ): LiquidityManagementOrder {
   return Object.assign(new LiquidityManagementOrder(), {
-    id: 4711,
+    id: 1,
     minAmount,
     maxAmount,
     // `paramMap` is a getter over `params`, so a fixture sets the raw field
@@ -96,95 +98,125 @@ describe('CcxtExchangeAdapter', () => {
 
   describe('withdraw', () => {
     it('should cap the request at the published withdrawal maximum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(111.9);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      const order = createWithdrawOrder(60.5, 110.5);
+      const order = createWithdrawOrder(30, 80);
 
       await expect(adapter.executeOrder(order)).resolves.toBe('w-1');
       expect(exchangeService.getWithdrawalLimits).toHaveBeenCalledWith('XMR', NETWORK);
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 100, DEST_ADDRESS, 'key-1', NETWORK);
-      expect(order.inputAmount).toBe(100);
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 50, DEST_ADDRESS, 'key-1', NETWORK);
+      expect(order.inputAmount).toBe(50);
     });
 
     it('should send the full request when the venue publishes no maximum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(111.9);
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
 
-      await expect(adapter.executeOrder(createWithdrawOrder(60.5, 110.5))).resolves.toBe('w-1');
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 110.5, DEST_ADDRESS, 'key-1', NETWORK);
+      await expect(adapter.executeOrder(createWithdrawOrder(30, 80))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 80, DEST_ADDRESS, 'key-1', NETWORK);
     });
 
     it('should report the capped maximum so the follow-up purchase is sized to it', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(0.9);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(10);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      await expect(adapter.executeOrder(createWithdrawOrder(60.5, 110.5))).rejects.toThrow(
+      await expect(adapter.executeOrder(createWithdrawOrder(30, 80))).rejects.toThrow(
         new OrderNotProcessableException(
-          'MEXC: not enough balance for XMR (balance: 0.9, min. requested: 60.5, max. requested: 100)',
+          'MEXC: not enough balance for XMR (balance: 10, min. requested: 30, max. requested: 50)',
         ),
       );
       expect(exchangeService.withdrawFunds).not.toHaveBeenCalled();
     });
 
     it('should cap the minimum as well, so a need above the maximum still passes the balance check', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(100);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(50);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      await expect(adapter.executeOrder(createWithdrawOrder(110.5, 110.5))).resolves.toBe('w-1');
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 100, DEST_ADDRESS, 'key-1', NETWORK);
+      await expect(adapter.executeOrder(createWithdrawOrder(80, 80))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 50, DEST_ADDRESS, 'key-1', NETWORK);
     });
 
     it('should stay limited by the available balance', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(40);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(20);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      await expect(adapter.executeOrder(createWithdrawOrder(20, 110.5))).resolves.toBe('w-1');
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 40, DEST_ADDRESS, 'key-1', NETWORK);
+      await expect(adapter.executeOrder(createWithdrawOrder(10, 80))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 20, DEST_ADDRESS, 'key-1', NETWORK);
     });
 
-    it('should fail when the published maximum is below the published minimum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(111.9);
+    it('should log the capped request, the only place the short delivery becomes visible', async () => {
+      const info = jest.spyOn(adapter['logger'], 'info').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
+
+      await adapter.executeOrder(createWithdrawOrder(30, 80));
+
+      expect(info).toHaveBeenCalledWith(expect.stringContaining('capping the XMR withdrawal request of 80'));
+    });
+
+    it('should not log a cap when the request is below the published maximum', async () => {
+      const info = jest.spyOn(adapter['logger'], 'info').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
+
+      await adapter.executeOrder(createWithdrawOrder(10, 20));
+
+      expect(info).not.toHaveBeenCalled();
+    });
+
+    // a contradictory pair of published limits is the venue's problem, not a reason to kill the pipeline:
+    // the request is capped and sent, and the venue answers whether it accepts it
+    it('should warn and still send when the published maximum is below the published minimum', async () => {
+      const warn = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
       jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 5, max: 1 });
 
-      await expect(adapter.executeOrder(createWithdrawOrder(60.5, 110.5))).rejects.toThrow(OrderFailedException);
-      expect(exchangeService.withdrawFunds).not.toHaveBeenCalled();
+      await expect(adapter.executeOrder(createWithdrawOrder(0.5, 80))).resolves.toBe('w-1');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('below the published minimum'));
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 1, DEST_ADDRESS, 'key-1', NETWORK);
     });
   });
 
   describe('transfer', () => {
     it('should cap the request, target optimum included, at the published withdrawal maximum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(150);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      const order = createTransferOrder(10, 90, 30);
+      const order = createTransferOrder(10, 60, 20);
 
       await expect(adapter.executeOrder(order)).resolves.toBe('w-1');
       expect(exchangeService.getWithdrawalLimits).toHaveBeenCalledWith('XMR', NETWORK);
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 100, DEST_ADDRESS, 'key-1', NETWORK);
-      expect(order.inputAmount).toBe(100);
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 50, DEST_ADDRESS, 'key-1', NETWORK);
+      expect(order.inputAmount).toBe(50);
     });
 
     it('should send the full request when the venue publishes no maximum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(150);
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
 
-      await expect(adapter.executeOrder(createTransferOrder(10, 90, 30))).resolves.toBe('w-1');
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 120, DEST_ADDRESS, 'key-1', NETWORK);
+      await expect(adapter.executeOrder(createTransferOrder(10, 60, 20))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 80, DEST_ADDRESS, 'key-1', NETWORK);
     });
 
     it('should cap the minimum as well, so a need above the maximum still passes the balance check', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(100);
-      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 0.01, max: 100 });
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(50);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(venueLimits);
 
-      await expect(adapter.executeOrder(createTransferOrder(110.5, 110.5))).resolves.toBe('w-1');
-      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 100, DEST_ADDRESS, 'key-1', NETWORK);
+      await expect(adapter.executeOrder(createTransferOrder(80, 80))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 50, DEST_ADDRESS, 'key-1', NETWORK);
     });
 
-    it('should fail when the published maximum is below the published minimum', async () => {
-      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(150);
+    it('should warn and still send when the published maximum is below the published minimum', async () => {
+      const warn = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
       jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue({ min: 5, max: 1 });
 
-      await expect(adapter.executeOrder(createTransferOrder(10, 90, 30))).rejects.toThrow(OrderFailedException);
-      expect(exchangeService.withdrawFunds).not.toHaveBeenCalled();
+      await expect(adapter.executeOrder(createTransferOrder(0.5, 60, 20))).resolves.toBe('w-1');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('below the published minimum'));
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 1, DEST_ADDRESS, 'key-1', NETWORK);
     });
   });
 });
