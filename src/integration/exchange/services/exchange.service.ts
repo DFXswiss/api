@@ -237,6 +237,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     }
   }
 
+  /**
+   * A venue whose ccxt implementation needs other withdrawal parameters overrides {@link executeWithdrawal}, not
+   * this method: the cache handling below is what keeps a stale maximum from capping every retry of the next
+   * hour to the amount the venue has just rejected, and an override placed here would silently drop it.
+   */
   async withdrawFunds(
     token: string,
     amount: number,
@@ -244,7 +249,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     key: string,
     network?: string,
   ): Promise<WithdrawalResponse> {
-    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network })).catch((e) => {
+    return this.executeWithdrawal(token, amount, address, key, network).catch((e) => {
       // a rejection for exceeding the maximum proves the cached limits stale, and the rejection carries the new
       // number: kept, the cache would cap every retry of the next hour to the very amount just rejected
       if (this.isWithdrawalAboveMaximumError(e)) {
@@ -254,6 +259,17 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
       throw e;
     });
+  }
+
+  /** The venue call itself, and the only part of a withdrawal a venue may replace. */
+  protected async executeWithdrawal(
+    token: string,
+    amount: number,
+    address: string,
+    key: string,
+    network?: string,
+  ): Promise<WithdrawalResponse> {
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {

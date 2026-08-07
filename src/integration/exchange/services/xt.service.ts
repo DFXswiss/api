@@ -72,7 +72,9 @@ export class XtService extends ExchangeService {
     return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200, chain }));
   }
 
-  async withdrawFunds(
+  // XT addresses the network as `chain` and takes no withdrawal key; only the venue call is replaced, so a
+  // rejected withdrawal still drops the cached limits it was capped against
+  protected async executeWithdrawal(
     token: string,
     amount: number,
     address: string,
