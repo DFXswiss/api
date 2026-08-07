@@ -39,6 +39,8 @@ describe('AuthService', () => {
   const userServiceMock = mock<UserService>();
   const walletServiceMock = mock<WalletService>();
   const custodyProviderServiceMock = mock<CustodyProviderService>();
+  const refServiceMock = mock<RefService>();
+  const notificationServiceMock = mock<NotificationService>();
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -52,10 +54,10 @@ describe('AuthService', () => {
         { provide: CustodyProviderService, useValue: custodyProviderServiceMock },
         { provide: JwtService, useValue: jwtServiceMock },
         { provide: CryptoService, useValue: mock<CryptoService>() },
-        { provide: RefService, useValue: mock<RefService>() },
+        { provide: RefService, useValue: refServiceMock },
         { provide: FeeService, useValue: mock<FeeService>() },
         { provide: UserDataService, useValue: userDataServiceMock },
-        { provide: NotificationService, useValue: mock<NotificationService>() },
+        { provide: NotificationService, useValue: notificationServiceMock },
         { provide: IpLogService, useValue: ipLogServiceMock },
         { provide: SiftService, useValue: mock<SiftService>() },
         { provide: LanguageService, useValue: mock<LanguageService>() },
@@ -327,6 +329,46 @@ describe('AuthService', () => {
       it('does not mark a sign-up through a non-tenant wallet', async () => {
         await signUp('DFX Wallet');
         expect(userDataServiceMock.addServiceProvider).not.toHaveBeenCalled();
+      });
+
+      // refService.get is getAndRemove — it deletes the row it returns. The custody-provider and
+      // wallet lookups are batched ahead of the signature check because they are pure reads; this
+      // one has to stay behind it, or a request with a bad signature would consume a pending
+      // referral on its way out, and nothing downstream of the throw would ever notice.
+      it('does not consume the referral when the signature is rejected', async () => {
+        userServiceMock.getUserByAddress.mockResolvedValue(null);
+        custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(undefined);
+
+        await expect(service.signUp({ address: 'ADDR_BAD', signature: 'SIG' } as any, ip)).rejects.toThrow(
+          'Invalid signature',
+        );
+
+        expect(refServiceMock.get).not.toHaveBeenCalled();
+        expect(userServiceMock.createUser).not.toHaveBeenCalled();
+      });
+    });
+
+    // The login mail is sent without awaiting: sendMail swallows delivery failures internally, so
+    // the await could never surface one — it only put the SMTP handshake on the request path. The
+    // send is left pending here on purpose; if the await came back, this case would time out rather
+    // than fail on an assertion, which is still a failure and still points here.
+    describe('mail login', () => {
+      it('answers without waiting for the login mail to go out', async () => {
+        let releaseSend: () => void;
+        const pendingSend = new Promise<void>((resolve) => (releaseSend = resolve));
+        notificationServiceMock.sendMail.mockReturnValue(pendingSend);
+        userDataServiceMock.getUsersByMail.mockResolvedValue([account()]);
+        walletServiceMock.getByIdOrName.mockResolvedValue(undefined);
+        walletServiceMock.getDefault.mockResolvedValue(createCustomWallet({ name: 'DFX Wallet' }));
+
+        await expect(
+          service.signInByMail({ mail: 'test@test.com' } as any, 'https://login.test', ip),
+        ).resolves.toBeUndefined();
+
+        expect(notificationServiceMock.sendMail).toHaveBeenCalledTimes(1);
+
+        releaseSend();
+        await pendingSend;
       });
     });
 

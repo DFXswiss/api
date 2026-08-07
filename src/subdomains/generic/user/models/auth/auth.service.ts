@@ -150,7 +150,13 @@ export class AuthService {
 
     const primaryUser = userId && (await this.userService.getUser(userId));
 
-    const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
+    // Two independent, side-effect-free reads on one round trip instead of two. Both have to run
+    // before the signature is rewritten below: getWithMasterKey matches on the raw dto.signature.
+    const [custodyProvider, wallet] = await Promise.all([
+      this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined),
+      this.walletService.getByIdOrName(dto.walletId, dto.wallet),
+    ]);
+
     if (
       !custodyProvider &&
       !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain, true))
@@ -158,12 +164,15 @@ export class AuthService {
       throw new BadRequestException('Invalid signature');
     }
 
+    // Deliberately NOT part of the batch above, although it depends on nothing in it: refService.get
+    // is getAndRemove, so hoisting it past the signature check would let a request with an invalid
+    // signature consume and delete a pending referral on its way out — silently, because nothing
+    // downstream of the throw ever looks at it again.
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
-    const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
     let user: User;
     try {
       user = await this.userService.createUser(
@@ -331,34 +340,40 @@ export class AuthService {
       walletName: loginWallet?.name,
     });
 
-    // send notification
-    await this.notificationService.sendMail({
-      type: MailType.USER_V2,
-      context: MailContext.LOGIN,
-      input: {
-        userData,
-        wallet: loginWallet,
-        title: `${MailTranslationKey.LOGIN}.title`,
-        salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
-        texts: [
-          { key: MailKey.SPACE, params: { value: '1' } },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
-          },
-          {
-            key: `${MailTranslationKey.LOGIN}.message`,
-            params: {
-              url: loginUrl,
-              urlText: loginUrl,
-              expiration: `${Config.auth.mailLoginExpiresIn}`,
+    // Sent without awaiting. The login key is registered above, so the response never depended on
+    // the mail going out — and sendMail already swallows delivery failures internally (it records
+    // them on the notification row), so the await could not surface one to the caller either. What
+    // it did put on the request path was the SMTP handshake: a trace of this endpoint showed
+    // tls.connect alone at 6.05 s, and 24.3 % of these calls ran over 1 s.
+    void this.notificationService
+      .sendMail({
+        type: MailType.USER_V2,
+        context: MailContext.LOGIN,
+        input: {
+          userData,
+          wallet: loginWallet,
+          title: `${MailTranslationKey.LOGIN}.title`,
+          salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
+          texts: [
+            { key: MailKey.SPACE, params: { value: '1' } },
+            {
+              key: `${MailTranslationKey.GENERAL}.button`,
+              params: { url: loginUrl, button: 'true' },
             },
-          },
-          { key: MailKey.SPACE, params: { value: '2' } },
-          { key: MailKey.DFX_TEAM_CLOSING },
-        ],
-      },
-    });
+            {
+              key: `${MailTranslationKey.LOGIN}.message`,
+              params: {
+                url: loginUrl,
+                urlText: loginUrl,
+                expiration: `${Config.auth.mailLoginExpiresIn}`,
+              },
+            },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            { key: MailKey.DFX_TEAM_CLOSING },
+          ],
+        },
+      })
+      .catch((e) => this.logger.error(`Failed to send login mail for user data ${userData.id}:`, e));
   }
 
   async completeSignInByMail(code: string, ip: string): Promise<string> {
