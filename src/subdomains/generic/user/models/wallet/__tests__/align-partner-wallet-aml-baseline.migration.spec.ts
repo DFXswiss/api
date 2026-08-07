@@ -362,16 +362,18 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
   }
 
   async function insertIdWallets(
-    rulesById: Record<number, string> = {
+    rulesById: Record<number, string | { amlRules: string; exceptAmlRules: string | null }> = {
       24: REQUIRED_CURRENT_AML_RULES,
       25: REQUIRED_CURRENT_AML_RULES,
     },
   ): Promise<void> {
-    for (const [id, rules] of Object.entries(rulesById)) {
+    for (const [id, value] of Object.entries(rulesById)) {
+      const { amlRules, exceptAmlRules } =
+        typeof value === 'string' ? { amlRules: value, exceptAmlRules: null } : value;
       await queryRunner.query(
         `INSERT INTO "wallet" ("id", "name", "updated", "amlRules", "exceptAmlRules")
-         VALUES ($1, $2, TIMESTAMP '2000-01-01', $3, NULL)`,
-        [Number(id), `id-wallet-${id}`, rules],
+         VALUES ($1, $2, TIMESTAMP '2000-01-01', $3, $4)`,
+        [Number(id), `id-wallet-${id}`, amlRules, exceptAmlRules],
       );
     }
   }
@@ -517,6 +519,57 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
       exceptAmlRules: null,
       wasUpdated: true,
     });
+  });
+
+  it('lifts an id-matched wallet carrying RULE_14 plus a neutralising exceptAmlRules', async () => {
+    await insertUnrelatedWallets();
+    await insertBaselineNames();
+    await insertIdWallets({
+      24: { amlRules: REQUIRED_CURRENT_AML_RULES, exceptAmlRules: '13' },
+      25: REQUIRED_CURRENT_AML_RULES,
+    });
+    await insertOnchainlabs();
+
+    await new AlignPartnerWalletAmlBaseline().up(queryRunner);
+
+    expect(await readWalletById(24)).toEqual({
+      id: 24,
+      amlRules: TARGET_AML_RULES,
+      exceptAmlRules: null,
+      wasUpdated: true,
+    });
+    expect(await readWalletById(25)).toEqual({
+      id: 25,
+      amlRules: TARGET_AML_RULES,
+      exceptAmlRules: null,
+      wasUpdated: true,
+    });
+
+    // id 24 matches the baseline leg's id-branch condition
+    // ("id" = ANY($3::int[]) AND "amlRules" = $4::varchar), which does not look at exceptAmlRules
+    // at all — yet the single UPDATE's SET "exceptAmlRules" = NULL still clears it, because that
+    // SET clause applies uniformly to the whole "affected" set regardless of which OR-branch
+    // matched a given row; this proves that specific branch-independence against real Postgres
+    // (the id branch), matching the existing coverage for the name branch elsewhere in the file.
+    const logs = await readLogs();
+    const baselineAudit = logs[0] as {
+      walletId: number;
+      previousAmlRules: string;
+      nextAmlRules: string;
+      previousExceptAmlRules: string | null;
+      nextExceptAmlRules: string | null;
+    }[];
+    expect(baselineAudit).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          walletId: 24,
+          previousAmlRules: REQUIRED_CURRENT_AML_RULES,
+          nextAmlRules: TARGET_AML_RULES,
+          previousExceptAmlRules: '13',
+          nextExceptAmlRules: null,
+        }),
+      ]),
+    );
   });
 
   it('leaves an id-matched row with unexpected pre-state untouched and rejects on PRD', async () => {
@@ -732,6 +785,40 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
       { name: UNRELATED_CAKE_NAME, amlRules: UNRELATED_CAKE_RULES, exceptAmlRules: null },
       { name: UNRELATED_DFX_NAME, amlRules: UNRELATED_DFX_RULES, exceptAmlRules: null },
     ]);
+  });
+
+  it('rejects when a trigger suppresses only the except-clear audit', async () => {
+    await seedFullPrdFixture({
+      nameRules: TARGET_AML_RULES,
+      idRules: { 24: TARGET_AML_RULES, 25: TARGET_AML_RULES },
+      onchainlabsRules: '3',
+      onchainlabsExcept: '13',
+    });
+    await queryRunner.query(`
+      CREATE FUNCTION suppress_log_insert() RETURNS trigger AS $fn$
+      BEGIN
+        RETURN NULL;
+      END;
+      $fn$ LANGUAGE plpgsql
+    `);
+    await queryRunner.query(`
+      CREATE TRIGGER suppress_log_insert_trigger
+      BEFORE INSERT ON "log"
+      FOR EACH ROW
+      EXECUTE FUNCTION suppress_log_insert()
+    `);
+
+    await expect(new AlignPartnerWalletAmlBaseline().up(queryRunner)).rejects.toThrow(
+      'still have a non-empty exceptAmlRules',
+    );
+
+    expect(await readWalletByName(EXCEPT_CLEAR_WALLET_NAME)).toEqual({
+      name: EXCEPT_CLEAR_WALLET_NAME,
+      amlRules: '3',
+      exceptAmlRules: '13',
+      wasUpdated: false,
+    });
+    expect(await readLogs()).toHaveLength(0);
   });
 
   it('does not restore the previous rule set on rollback', async () => {
