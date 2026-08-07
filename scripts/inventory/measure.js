@@ -141,7 +141,11 @@ async function main() {
     }
     try {
       const qb = ds.createQueryBuilder(meta.target, 'root');
-      qb.setFindOptions({ relations: s.relations });
+      // `find*` expands eager relations; a query builder does not — the document says so in its
+      // own mechanism table. setFindOptions() expands them either way, so applying it to a
+      // builder site reported a width the query never has: the `PriceRule` sites came out at 53
+      // columns against the entity's 20, and `GET /pricing/price` at 53 against a published 33.
+      if (s.kind === 'find') qb.setFindOptions({ relations: s.relations });
       const sql = qb.getQuery();
       const sel = sql.slice(sql.indexOf('SELECT') + 6, sql.indexOf(' FROM '));
       const cols = sel.split(',').filter((x) => x.trim()).length;

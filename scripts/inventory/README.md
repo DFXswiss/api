@@ -21,9 +21,9 @@ A fresh run does reproduce the published *classification* exactly. Run against `
 Two things it does not reproduce:
 
 - the hand-written prose around the tables;
-- `Max cols` for seven of the 537 endpoints, each of them wider than published: `GET /support/transactionList` 98 against 20; `GET /pricing/price` and `GET /realunit/price` 53 against 33; `GET /realunit/account/:address`, `GET /realunit/price/history` and `PUT /exchange/:exchange/sync` 53 against 40; `GET /dashboard/financial/ref-recipients` 4 against 2.
+- `Max cols` for one of the 537 endpoints. `GET /dashboard/financial/ref-recipients` comes out at 4 against a published 2 — and the run is right: `getRewardRecipients` selects `userDataId`, `count`, `amountCount` and `totalChf`. The published figure predates the fix to counting columns named one at a time.
 
-  These are not drift. The same seven appear when the run is made against the publication commit itself, so they are a genuine remaining difference from whatever produced the published numbers, and which side is right has not been established per case. A wider figure here is the conservative direction — `Max cols` is a maximum over everything the endpoint can reach — but that is an argument, not a verification. The classification is unaffected: all seven keep their published `Data access` and `Tests`.
+  Six further endpoints differed until the measurement was corrected. `setFindOptions()` was applied to every site, which expands eager relations — something `find*` does and a query builder does not. The `PriceRule` sites measured 53 columns against the entity's 20, and `GET /pricing/price` 53 against a published 33. With the call restricted to `find` sites, all six match.
 
 Treat a fresh run as a data source, not as a replacement for the documents.
 
@@ -58,10 +58,9 @@ python3 apply_drift.py <pub_ref> <pub_path> <out_path>
 1. `sites.py` extracts every load site from `src/` and writes `sites.json`.
 2. `measure.js` measures SELECT column counts from TypeORM metadata in `dist/` and writes `sites-measured.json` and `meta-tables.json`. The latter contains per-table TypeORM metadata: column counts and entity names, one entry per table.
 3. `make_table.py` extracts every route from the controllers and writes `table.json`, the endpoint table containing verb, path, controller, handler, file, and internal status.
-4. `fix_handlers.py` re-derives handler names directly from the controllers and corrects `table.json` in place.
-5. `add_version_deprecated.py` adds `version` and `deprecated` to each row of `table.json`, using the full decorator block (`@Version`, `deprecated: true`).
-6. `endpoint_eff.py` joins the routes in `table.json` with the load sites they can reach and their over-fetch kinds, then writes `endpoint-eff.json`.
-7. `build_docs.py` renders `endpoints.md` and `load-sites.md` into the work directory.
+4. `add_version_deprecated.py` adds `version` and `deprecated` to each row of `table.json`, using the full decorator block (`@Version`, `deprecated: true`).
+5. `endpoint_eff.py` joins the routes in `table.json` with the load sites they can reach and their over-fetch kinds, then writes `endpoint-eff.json`.
+6. `build_docs.py` renders `endpoints.md` and `load-sites.md` into the work directory.
 
 Two shared modules carry the contracts the steps used to duplicate:
 
@@ -70,7 +69,7 @@ Two shared modules carry the contracts the steps used to duplicate:
 
 The site scan and the per-endpoint call-graph walk are two independent passes over the same code, and both have to answer "does this query builder narrow its columns". They answered it separately until the walk was found to recognise only a literal `.select([...])`: an endpoint projecting through the `PROJECTION.apply(...)` helper, naming its columns one at a time, or merely counting was reported as loading whole rows — which described all seventeen of the deliberately converted endpoints as unconverted. Both now call `classify.select_kind`.
 
-`table.json`, the endpoint table used in steps 3–6, and `meta-tables.json`, the TypeORM table metadata produced by `measure.js` in step 2, previously shared the name `table.json`. As a result, step 2 silently overwrote what was supposed to be the endpoint table before anything else could read it. They are now separate files.
+`table.json`, the endpoint table used in steps 3–5, and `meta-tables.json`, the TypeORM table metadata produced by `measure.js` in step 2, previously shared the name `table.json`. As a result, step 2 silently overwrote what was supposed to be the endpoint table before anything else could read it. They are now separate files.
 
 ### How to run
 
@@ -118,9 +117,10 @@ These scripts were developed outside this repository and checked in here for the
 
 Remaining properties worth knowing:
 
+- **A query builder is measured at its root entity, not at its actual chain.** `measure.js` builds a bare query for the target entity; it never replays the site's `.leftJoinAndSelect(...)`, `.innerJoin(...)` or `.where(...)`. A site that joins and selects a relation through the builder API is therefore measured narrower than the SELECT it really emits. `sites.py` catches the common shape by marking such a site `projected, full join`, so the mechanism column stays honest — but the column count does not include the joined entity.
 - **A query-builder chain is read for 1500 characters, and a longer one is truncated silently.** `CHAIN_WINDOW` bounds how far past `createQueryBuilder(` the chain is scanned. Every chain in the tree today resolves well inside it — the single one that exceeds it carries its `.select(...)` far earlier, so it classifies correctly. But a chain that put a `leftJoinAndSelect` past the boundary would be read as a plain field list, with nothing to signal the truncation. Widen the window or add a warning if such a chain ever appears.
 - **The load-site total is an upper bound, not a count.** The scan matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolves, the distinction is settled; where it does not, the group holds both — currently some 343 rows, of which a sample suggests around 240 are array operations. The rendered document says so, in the headline and under *Measurements*; `endpoints.md` is unaffected, because the per-endpoint walk applies `is_db_find` and drops array calls. Narrowing the scan itself would change the published figures and needs its own validation, so the honest caveat comes first.
 
 - The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are reported on stderr.
-- `fix_handlers.py` overlaps with `make_table.py` in handler detection. Both now go through `tsparse.py`, so they can no longer disagree, but whether the step can be dropped entirely has not been established without a differential run — so it stays in the pipeline.
+- `fix_handlers.py` used to re-derive the handler names after `make_table.py` had already read them, and the README kept it because a reading of the two files is not evidence. A differential run settled it: with and without the step, `table.json` comes out byte-identical, and the step reported zero corrections. It is gone.
 - The renderer does not exactly reproduce the prose of the published documents. See "Do not simply regenerate" above.
