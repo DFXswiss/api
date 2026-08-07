@@ -7,6 +7,7 @@ const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.abc';
 describe('ClientErrorService', () => {
   let service: ClientErrorService;
   let error: jest.SpyInstance;
+  let warn: jest.SpyInstance;
 
   function dto(values: Partial<CreateClientErrorDto> = {}): CreateClientErrorDto {
     return Object.assign(new CreateClientErrorDto(), { message: 'Loading chunk 42 failed', ...values });
@@ -19,16 +20,17 @@ describe('ClientErrorService', () => {
   beforeEach(() => {
     service = new ClientErrorService();
     error = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    warn = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
   });
 
   afterEach(() => jest.restoreAllMocks());
 
   it('logs the error at ERROR level', () => {
-    service.logError(dto({ type: 'ChunkLoadError' }));
+    service.logError(dto({ type: 'OtherError' }));
 
     expect(error).toHaveBeenCalledTimes(1);
     expect(loggedLine()).toContain('message="Loading chunk 42 failed"');
-    expect(loggedLine()).toContain('type="ChunkLoadError"');
+    expect(loggedLine()).toContain('type="OtherError"');
   });
 
   it('logs client, route, version and user agent', () => {
@@ -68,6 +70,49 @@ describe('ClientErrorService', () => {
     service.logError(dto());
 
     expect(loggedLine()).not.toContain('stack=');
+  });
+
+  // --- SEVERITY --- //
+  // 35 of 36 client error reports sampled over 6h live were anticipated frontend states, not bugs
+  // — matched on the exact message text, not the reported `type`: `type="HandledError"` is set by
+  // account-merge and mail-login for any error they catch, including a real backend outage.
+
+  it.each([
+    ['ChunkLoadError', { type: 'ChunkLoadError' }],
+    ['"Invalid link" (EN)', { message: 'Invalid link' }],
+    ['"Ungültiger Link" (DE)', { message: 'Ungültiger Link' }],
+    ['"Lien invalide" (FR)', { message: 'Lien invalide' }],
+    ['"Link non valido" (IT)', { message: 'Link non valido' }],
+    ['"Merge is already completed" (EN)', { message: 'Merge is already completed' }],
+    ['"Zusammenführung ist bereits abgeschlossen" (DE)', { message: 'Zusammenführung ist bereits abgeschlossen' }],
+    ['"La fusion est déjà terminée" (FR)', { message: 'La fusion est déjà terminée' }],
+    ['"La fusione è già completata" (IT)', { message: 'La fusione è già completata' }],
+    ['"Login link expired"', { message: 'Login link expired' }],
+  ])('downgrades %s to WARN', (_case, values) => {
+    service.logError(dto(values));
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  // Guards against someone later broadening the match to `type === 'HandledError'`: anything
+  // those two screens catch that isn't one of the whitelisted messages above must stay at ERROR.
+  it('keeps an unlisted HandledError message at ERROR', () => {
+    service.logError(dto({ type: 'HandledError', message: 'Backend unavailable' }));
+
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  // A real bug hiding in the same noisy bucket as the benign messages above (see the /buy
+  // insertBefore crash) — must not be swept up by a broader match.
+  it('keeps a DOM crash at ERROR', () => {
+    service.logError(
+      dto({ type: 'NotFoundError', message: "Failed to execute 'insertBefore' on 'Node': ...", route: '/buy' }),
+    );
+
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   // --- REDACTING --- //

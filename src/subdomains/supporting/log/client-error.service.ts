@@ -72,6 +72,28 @@ const EXOTIC_LINE_BREAKS = /[\u0085\u007f\u2028\u2029]/g;
 const LOG_BUDGET_PER_MINUTE = 120;
 const BUDGET_WINDOW = 60000;
 
+// Anticipated frontend states, not bugs — confirmed against the DFXswiss/services source rather
+// than the reported `type`: `type="HandledError"` is set by two screens (account-merge,
+// mail-login) for *any* error they catch, including a real backend outage, so it only narrows
+// down to "one of these two screens failed" and not to "this failure was expected". The message
+// text is the part that is actually anticipated.
+const WARN_TYPES = ['ChunkLoadError'];
+
+// `screens/error` translations of account-merge.screen.tsx's 400/409 branches, all locales.
+const WARN_MESSAGES = [
+  'Invalid link', // EN
+  'Ungültiger Link', // DE
+  'Lien invalide', // FR
+  'Link non valido', // IT
+  'Merge is already completed', // EN
+  'Zusammenführung ist bereits abgeschlossen', // DE
+  'La fusion est déjà terminée', // FR
+  'La fusione è già completata', // IT
+  // Thrown as a plain `Error` in auth.service.ts and forwarded as-is by mail-login.screen.tsx,
+  // never run through the frontend's `translate()` — English only, no locale variants.
+  'Login link expired',
+];
+
 @Injectable()
 export class ClientErrorService {
   private readonly logger = new DfxLogger(ClientErrorService);
@@ -103,7 +125,13 @@ export class ClientErrorService {
     ];
     if (stack) fields.push(`stack=${ClientErrorService.quote(stack)}`);
 
-    this.logger.error(`Client error: ${fields.join(' ')}`);
+    const line = `Client error: ${fields.join(' ')}`;
+
+    if (ClientErrorService.isAnticipated(type, message)) {
+      this.logger.warn(line);
+    } else {
+      this.logger.error(line);
+    }
   }
 
   // --- BUDGET --- //
@@ -129,6 +157,12 @@ export class ClientErrorService {
 
     this.windowCount++;
     return true;
+  }
+
+  // --- SEVERITY --- //
+
+  private static isAnticipated(type?: string, message?: string): boolean {
+    return (type != null && WARN_TYPES.includes(type)) || (message != null && WARN_MESSAGES.includes(message));
   }
 
   // --- SANITIZING --- //
