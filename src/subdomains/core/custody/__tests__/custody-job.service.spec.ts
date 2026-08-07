@@ -28,16 +28,17 @@ describe('CustodyJobService', () => {
   function buildService(adapter: Partial<DfxOrderStepAdapter>) {
     const stepRepo = createMock<CustodyOrderStepRepository>();
     const orderRepo = createMock<CustodyOrderRepository>();
+    const orderService = createMock<CustodyOrderService>();
 
     const service = new CustodyJobService(
       orderRepo,
       stepRepo,
       createMock<DfxOrderStepAdapter>(adapter),
       createMock<EquityOrderStepAdapter>(),
-      createMock<CustodyOrderService>(),
+      orderService,
     );
 
-    return { service, stepRepo, orderRepo };
+    return { service, stepRepo, orderRepo, orderService };
   }
 
   /** A step mid-flight, with the order relation `checkStep` loads. */
@@ -89,6 +90,22 @@ describe('CustodyJobService', () => {
       await service['checkStep']();
 
       expect(isComplete).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not carry the order on to its next step', async () => {
+      // A multi-step order (EQUITY_MINT is CHARGE_CUSTODY -> APPROVE_TOKEN -> MINT) must stop where
+      // it failed. `startNextStep` does not check order status, so the guarantee rests entirely on
+      // it being reachable only from `onStepComplete`, which a failed step never reaches. Pinned
+      // here rather than argued, because nothing in `startNextStep` itself would stop it.
+      const { service, stepRepo, orderService } = buildService({
+        isComplete: jest.fn().mockRejectedValue(new TransactionRevertedException('0x1')),
+      });
+      stepRepo.find.mockResolvedValue([runningStep(1)]);
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      await service['checkStep']();
+
+      expect(orderService.startNextStep).not.toHaveBeenCalled();
     });
   });
 
