@@ -898,9 +898,11 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
       AUDIT_SUBSYSTEM,
     ]);
     const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
-    const cloneEntry = apply.entries.find(
-      (e: { createdActionId?: number }) => e.createdActionId != null,
-    ) as { createdActionId: number; sourceActionId: number; role: string };
+    const cloneEntry = apply.entries.find((e: { createdActionId?: number }) => e.createdActionId != null) as {
+      createdActionId: number;
+      sourceActionId: number;
+      role: string;
+    };
     expect(cloneEntry).toBeDefined();
     const originalCloneId = cloneEntry.createdActionId;
     const sourceActionId = cloneEntry.sourceActionId;
@@ -908,9 +910,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [JSON.stringify(apply), rows[0].id]);
 
     await expect(migration.down(queryRunner)).rejects.toThrow(
-      new RegExp(
-        `createdActionId ${FOREIGN_ID} does not look like a clone of sourceActionId ${sourceActionId}`,
-      ),
+      new RegExp(`createdActionId ${FOREIGN_ID} does not look like a clone of sourceActionId ${sourceActionId}`),
     );
 
     // Foreign action must still exist (not deleted as a fake clone).
