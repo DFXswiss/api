@@ -1056,6 +1056,29 @@ describe('BuyService', () => {
       expect(bankInfo.iban).not.toBe(collectionBank.iban);
     });
 
+    it('returns the existing active Yapeal CHF vIBAN for a CHF bank transfer without issuing a Frick one', async () => {
+      // Bestandsschutz (B2) at the routing level: production code (resolveBankInfo) returns an
+      // existing receiving vIBAN directly once bank.receive holds and the address is complete - the
+      // issuance branch right below it is never reached, for either provider.
+      jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(yapealVirtualIban);
+      jest.spyOn(virtualIbanService, 'getAccountHolder').mockReturnValue(VibanAccountHolder.CUSTOMER);
+
+      const bankInfo = await service.getBankInfo(
+        { currency: 'CHF', paymentMethod: FiatPaymentMethod.BANK, userData },
+        buy,
+      );
+
+      expect(virtualIbanService.getActiveReceivingForUserAndCurrency).toHaveBeenCalledWith(userData, 'CHF');
+      expect(virtualIbanService.getOrCreateFrickForUser).not.toHaveBeenCalled();
+      expect(virtualIbanService.createForUser).not.toHaveBeenCalled();
+      expect(bankService.getBank).not.toHaveBeenCalled();
+      expect(bankInfo).toMatchObject({
+        bank: IbanBankName.YAPEAL,
+        iban: yapealVirtualIban.iban,
+        isPersonalIban: true,
+      });
+    });
+
     it('swallows a transient EUR personal IBAN issuance error before applying the transfer fallback', async () => {
       const transientError = new Error('transient issuance error');
       jest.spyOn(virtualIbanService, 'getActiveReceivingForUserAndCurrency').mockResolvedValue(null);
