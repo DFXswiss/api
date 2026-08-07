@@ -1,5 +1,7 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { ScorechainScreeningContext } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -12,6 +14,7 @@ import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { RecommendationService } from 'src/subdomains/generic/user/models/recommendation/recommendation.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -21,14 +24,13 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { RecommendationService } from 'src/subdomains/generic/user/models/recommendation/recommendation.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { AmlReason } from '../enums/aml-reason.enum';
 import { AmlError } from '../enums/aml-error.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 @Injectable()
@@ -36,7 +38,7 @@ export class AmlService {
   private readonly logger = new DfxLogger(AmlService);
 
   constructor(
-    private readonly specialExternalBankAccountService: SpecialExternalAccountService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
     private readonly nameCheckService: NameCheckService,
@@ -50,6 +52,7 @@ export class AmlService {
     private readonly kycService: KycService,
     private readonly kycLogService: KycLogService,
     private readonly recommendationService: RecommendationService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
 
   async postProcessing(
@@ -87,14 +90,12 @@ export class AmlService {
         });
 
         // For a payout (fiat-funded buy) the hit was on the target address, so the release also covers
-        // exactly that address: register it so the next payout to it skips the identical manual review
-        // (see SpecialExternalAccountService for the validity window). Scoped to the one reviewed
-        // address on purpose — a payout to a different high-risk address must still be caught.
-        if (entity instanceof BuyCrypto && !entity.cryptoInput && entity.targetAddress)
-          await this.specialExternalBankAccountService.registerScorechainExemptAddress(
-            entity.targetAddress,
-            `released tx ${entity.id} of account ${entity.userData.id}`,
-          );
+        // exactly that address on its chain: register it so the next payout to it skips the identical
+        // manual review (see SpecialExternalAccountService for the validity window). Bound to the
+        // screening recorded on the tx itself — a payout to a different high-risk address must still
+        // be caught.
+        if (entity instanceof BuyCrypto && !entity.cryptoInput && entity.targetAddress && entity.outputAsset)
+          await this.tryRegisterScorechainExemptAddress(entity);
       }
 
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
@@ -129,11 +130,57 @@ export class AmlService {
     }
   }
 
-  // Delegate for the AML orchestrators (see buy-crypto-preparation.service): a payout address whose
-  // Scorechain high-risk score was manually reviewed and cleared by compliance skips the recurring
-  // withdrawal screening. Managed via SpecialExternalAccount (type ScorechainExemptAddress).
-  async isScorechainExemptAddress(address: string): Promise<boolean> {
-    return this.specialExternalBankAccountService.isScorechainExemptAddress(address);
+  // Registers the reviewed payout address as exempt from the recurring Scorechain withdrawal gate —
+  // but only with persisted evidence bound to the screening recorded on this tx itself
+  // (`scorechainScreeningId`), not any historical screening of the address. The linked screening must
+  // be an authentic high-risk WITHDRAWAL of the current target address on its chain. An address that
+  // was swapped in with a same-request route change does not match the screened objectId and is not
+  // registered. The comment marker alone is free text and must never be sufficient.
+  //
+  // Never throws: a failed registration only costs one more manual review, while an error here would
+  // abort the release post-processing and retry it endlessly.
+  private async tryRegisterScorechainExemptAddress(entity: BuyCrypto): Promise<void> {
+    try {
+      if (!entity.scorechainScreeningId) {
+        this.logger.warn(
+          `Skipping Scorechain exempt address registration for buy-crypto ${entity.id}: no linked screening on the tx`,
+        );
+        return;
+      }
+
+      // Evidence check against exactly the screening that flagged THIS tx (linked by the withdrawal
+      // gate), not any historical screening of the address:
+      // - context/blockchain: the exemption must only ever cover the reviewed withdrawal on its chain
+      // - objectId equality: a target address swapped in with a same-request route change does not
+      //   match the screened address and is not registered
+      // - signatureValid + riskScore: isHighRisk is fail-closed for the GATE (an unverified response or
+      //   a missing score reads as high-risk there) — as EVIDENCE the risk must be authentic, so both
+      //   are required explicitly before consulting the threshold
+      const screening = await this.scorechainScreeningService.getById(entity.scorechainScreeningId);
+      if (
+        screening == null ||
+        screening.context !== ScorechainScreeningContext.WITHDRAWAL ||
+        screening.blockchain !== entity.outputAsset.blockchain ||
+        screening.objectId == null ||
+        !Util.equalsIgnoreCase(screening.objectId, entity.targetAddress) ||
+        !screening.signatureValid ||
+        screening.riskScore == null ||
+        !this.scorechainScreeningService.isHighRisk(screening)
+      ) {
+        this.logger.warn(
+          `Skipping Scorechain exempt address registration for buy-crypto ${entity.id}: linked screening ${entity.scorechainScreeningId} is no authentic high-risk withdrawal screening of the current target address`,
+        );
+        return;
+      }
+
+      await this.specialExternalAccountService.registerScorechainExemptAddress(
+        entity.outputAsset.blockchain,
+        entity.targetAddress,
+        `released tx ${entity.id} of account ${entity.userData.id} (screening ${screening.id})`,
+      );
+    } catch (e) {
+      this.logger.error(`Failed to register Scorechain exempt address for buy-crypto ${entity.id}:`, e);
+    }
   }
 
   async getAmlCheckInput(entity: BuyFiat | BuyCrypto): Promise<{
@@ -147,9 +194,9 @@ export class AmlService {
     ipLogCountries?: string[];
     multiAccountBankNames?: string[];
   }> {
-    const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-    const phoneCallList = await this.specialExternalBankAccountService.getPhoneCallList();
-    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
+    const blacklist = await this.specialExternalAccountService.getBlacklist();
+    const phoneCallList = await this.specialExternalAccountService.getPhoneCallList();
+    const multiAccountBankNames = await this.specialExternalAccountService.getMultiAccountNames();
 
     entity.userData.kycSteps = await this.kycService.getStepsByUserData(entity.userData.id);
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);

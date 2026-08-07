@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
@@ -20,6 +21,7 @@ import { SanctionService } from './services/sanction.service';
     forwardRef(() => KycModule),
     SharedModule,
     forwardRef(() => PayInModule),
+    ScorechainModule,
   ],
   controllers: [],
   providers: [AmlService, SanctionService, SanctionRepository],
