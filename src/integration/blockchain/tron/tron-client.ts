@@ -17,6 +17,7 @@ import {
 } from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
 import { TronUtil } from './tron.util';
+import { TransactionRevertedException } from 'src/integration/blockchain/shared/exceptions/transaction-reverted.exception';
 
 export class TronClient extends BlockchainClient {
   private readonly wallet: TronWallet;
@@ -88,7 +89,7 @@ export class TronClient extends BlockchainClient {
     if (currentConfirmations > confirmations) {
       if (Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) return true;
 
-      throw new Error(`Transaction ${txHash} has failed`);
+      throw new TransactionRevertedException(txHash);
     }
 
     return false;

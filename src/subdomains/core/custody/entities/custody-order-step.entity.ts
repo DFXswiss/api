@@ -37,4 +37,18 @@ export class CustodyOrderStep extends IEntity {
       status: CustodyOrderStepStatus.COMPLETED,
     });
   }
+
+  /**
+   * Terminal, and only for a failure the chain has already decided: a transaction that reverted.
+   *
+   * Not for a step whose state could not be READ — an RPC timeout says nothing about the
+   * transaction, and a step marked failed is never looked at again, so treating an unreadable step
+   * as a failed one would abandon a run that may well have succeeded. `CustodyJobService` makes
+   * that distinction; see the `TransactionRevertedException` branches there.
+   */
+  fail(): UpdateResult<CustodyOrderStep> {
+    return Util.updateEntity<CustodyOrderStep>(this, {
+      status: CustodyOrderStepStatus.FAILED,
+    });
+  }
 }
