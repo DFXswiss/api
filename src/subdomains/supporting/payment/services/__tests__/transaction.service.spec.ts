@@ -17,14 +17,21 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput, PayInAction } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { UpdateTransactionDto } from 'src/subdomains/supporting/payment/dto/update-transaction.dto';
+import {
+  TransactionRequest,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  Transaction,
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionRepository } from 'src/subdomains/supporting/payment/repositories/transaction.repository';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Between, EntityManager, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
-import { UpdateTransactionDto } from '../../dto/update-transaction.dto';
-import { TransactionRequest, TransactionRequestType } from '../../entities/transaction-request.entity';
-import { Transaction, TransactionSourceType, TransactionTypeInternal } from '../../entities/transaction.entity';
-import { TransactionRepository } from '../../repositories/transaction.repository';
-import { SpecialExternalAccountService } from '../special-external-account.service';
-import { TransactionService } from '../transaction.service';
 
 interface ServiceSetup {
   service: TransactionService;
