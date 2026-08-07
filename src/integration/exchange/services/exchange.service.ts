@@ -375,9 +375,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   /**
    * Every venue network entry spelled with the network string this repo stores. `networks` is keyed by ccxt's
-   * unified network code, but only where ccxt has a mapping for the venue — MEXC ships four of them, so for
-   * every other network the key, the `id` and the raw payload all carry the venue's own string, which is
-   * sometimes the short code ("XMR") and sometimes a long form embedding it ("Monero(XMR)").
+   * unified network code, but only where ccxt has a mapping for the venue, and those mappings never cover every
+   * network a venue lists. For an unmapped one the key, the `id` and the raw payload all carry the venue's own
+   * string, which is sometimes the short code ("XMR") and sometimes a long form embedding it ("Monero(XMR)").
    *
    * This compares spellings and does nothing beyond that: it does not establish that a matched entry *is* the
    * requested network. A venue naming an unrelated network with the same delimited code would be
