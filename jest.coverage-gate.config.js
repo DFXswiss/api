@@ -103,6 +103,7 @@ const PINNED_LOGIC = [
   'src/subdomains/core/aml/enums/scorechain-outcome.enum.ts',
   'src/subdomains/core/aml/services/transaction-aml-check.service.ts',
   'src/subdomains/core/buy-crypto/process/exceptions/abort-batch-creation.exception.ts',
+  'src/subdomains/core/buy-crypto/routes/buy/buy.controller.ts',
   'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto.ts',
   'src/subdomains/core/buy-crypto/routes/buy/dto/personal-iban-provider.enum.ts',
   'src/subdomains/core/custody/dto/output/custody-order-history.dto.ts',

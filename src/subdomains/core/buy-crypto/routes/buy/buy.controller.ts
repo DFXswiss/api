@@ -194,8 +194,8 @@ export class BuyController {
     let virtualIbanId = request.virtualIbanId;
     if (collectionAccount === 'true') {
       if (request.virtualIbanId == null)
-        throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_REQUIRES_PERSONAL_IBAN);
-      if (currency.name !== 'EUR')
+        throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_PERSONAL_IBAN_MISSING);
+      if (!Config.invoice.collectionAccountCurrencies.includes(currency.name))
         throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED);
       virtualIbanId = undefined;
     }

@@ -1304,6 +1304,13 @@ export class Configuration {
   invoice = {
     currencies: ['EUR', 'CHF'],
     defaultCurrency: 'CHF',
+    // Currencies for which the invoice may be issued against the shared collection account
+    // instead of the stored personal virtual IBAN. Narrower than `currencies` on purpose: the
+    // switch exists for the Frick personal IBAN, and that provider serves EUR only
+    // (FrickVibanProvider.currencies).
+    // Must stay a subset of `currencies`: a currency listed only here would pass this guard, pay for
+    // bank resolution, and then hit the invoice-currency check below it as a 500 instead of a 400.
+    collectionAccountCurrencies: ['EUR'],
   };
 
   bank = {
