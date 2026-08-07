@@ -1,4 +1,5 @@
 import { IsNotEmpty } from 'class-validator';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -56,14 +57,6 @@ export class PendingTransactionInfo {
   amlCheck?: CheckStatus;
   amlReason?: AmlReason;
   date: Date;
-}
-
-export enum ChargebackBlockReason {
-  NAME_MISMATCH = 'NameMismatch',
-  MISSING_CREDITOR_DATA = 'MissingCreditorData',
-  MISSING_CHARGEBACK_AMOUNT = 'MissingChargebackAmount',
-  MISSING_CHARGEBACK_TARGET = 'MissingChargebackTarget',
-  USER_NOT_RELEASED = 'UserNotReleased',
 }
 
 export class PendingChargebackInfo {

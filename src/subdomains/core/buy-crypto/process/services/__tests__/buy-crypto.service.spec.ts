@@ -1215,6 +1215,8 @@ describe('BuyCryptoService', () => {
           where: expect.objectContaining({
             chargebackBankTx: IsNull(),
             chargebackOutput: IsNull(),
+            batch: IsNull(),
+            outputAmount: IsNull(),
           }),
           relations: expect.objectContaining({
             chargebackBankTx: true,

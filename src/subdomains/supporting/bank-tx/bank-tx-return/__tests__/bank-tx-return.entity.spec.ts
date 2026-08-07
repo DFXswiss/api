@@ -1,13 +1,14 @@
-import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
-import { FiatOutput } from '../../../fiat-output/fiat-output.entity';
-import { BankTx } from '../../bank-tx/entities/bank-tx.entity';
-import { BankTxReturn } from '../bank-tx-return.entity';
 
 describe('BankTxReturn #getChargebackBlockReasons()', () => {
-  function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}) {
+  function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
     return createCustomUserData({
       kycStatus: KycStatus.COMPLETED,
       status: UserDataStatus.ACTIVE,

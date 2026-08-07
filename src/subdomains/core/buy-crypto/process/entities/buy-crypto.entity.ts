@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
@@ -15,7 +16,6 @@ import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-manageme
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
-import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -908,14 +908,16 @@ export class BuyCrypto extends IEntity {
       this.isComplete ||
       this.chargebackBankTx ||
       this.chargebackCryptoTxId ||
-      this.chargebackOutput
+      this.chargebackOutput ||
+      this.batch ||
+      (this.outputAmount !== null && this.outputAmount !== undefined)
     ) {
       return [];
     }
 
     const reasons: ChargebackBlockReason[] = [];
 
-    if (this.chargebackAmount == null) {
+    if (this.chargebackAmount === null || this.chargebackAmount === undefined) {
       reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
     }
 

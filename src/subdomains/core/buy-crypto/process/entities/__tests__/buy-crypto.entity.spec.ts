@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
@@ -7,8 +8,8 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
-import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
@@ -19,6 +20,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { createCustomBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 
@@ -770,7 +772,7 @@ describe('BuyCrypto #complete(...) exact base-unit propagation (#4287 stage 4)',
 });
 
 describe('BuyCrypto #getChargebackBlockReasons()', () => {
-  function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}) {
+  function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
     return createCustomUserData({
       kycStatus: KycStatus.COMPLETED,
       status: UserDataStatus.ACTIVE,
@@ -795,6 +797,8 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
       bankTx: createCustomBankTx({ id: 1 }),
       cryptoInput: undefined,
       checkoutTx: undefined,
+      batch: undefined,
+      outputAmount: undefined,
       transaction: createCustomTransaction({
         userData: releasedUserData(),
         user: createCustomUser({ status: UserStatus.ACTIVE }),
@@ -940,6 +944,19 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
 
   it('fail-closed: returns empty array when chargebackCryptoTxId is set', () => {
     const entity = pendingBankTxBuyCrypto({ chargebackCryptoTxId: 'tx-123', chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when batch is set', () => {
+    const entity = pendingBankTxBuyCrypto({
+      batch: createCustomBuyCryptoBatch({ transactions: [] }),
+      chargebackAmount: undefined,
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when outputAmount is set', () => {
+    const entity = pendingBankTxBuyCrypto({ outputAmount: 0.2, chargebackAmount: undefined });
     expect(entity.getChargebackBlockReasons()).toEqual([]);
   });
 });

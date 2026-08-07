@@ -23,6 +23,7 @@ import { createCustomTransaction } from 'src/subdomains/supporting/payment/__moc
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import { ChargebackBlockReason } from '../../../../shared/dto/chargeback-block-reason.enum';
 import { KycService } from '../../kyc/services/kyc.service';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
@@ -34,7 +35,7 @@ import { createCustomUser } from '../../user/models/user/__mocks__/user.entity.m
 import { User } from '../../user/models/user/user.entity';
 import { UserStatus } from '../../user/models/user/user.enum';
 import { UserService } from '../../user/models/user/user.service';
-import { ChargebackBlockReason, ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
+import { ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
 import { SupportService } from '../support.service';
 
 // --- entity builders --- //
@@ -135,7 +136,7 @@ describe('SupportService', () => {
   });
 
   describe('getPendingChargebacks', () => {
-    function releasedUserData(id: number, name = 'Max Mustermann') {
+    function releasedUserData(id: number, name = 'Max Mustermann'): UserData {
       return createCustomUserData({
         id,
         kycStatus: KycStatus.COMPLETED,
@@ -161,6 +162,8 @@ describe('SupportService', () => {
         isComplete: false,
         chargebackBankTx: undefined,
         chargebackCryptoTxId: undefined,
+        batch: undefined,
+        outputAmount: undefined,
         bankTx: { id: 1 } as any,
         chargebackIban: 'CH9300762011623852957',
         chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
@@ -186,6 +189,8 @@ describe('SupportService', () => {
         isComplete: false,
         chargebackBankTx: undefined,
         chargebackCryptoTxId: undefined,
+        batch: undefined,
+        outputAmount: undefined,
         bankTx: { id: 2 } as any,
         chargebackIban: 'CH9300762011623852957',
         chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),

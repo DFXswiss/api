@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -7,8 +8,8 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
-import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
@@ -217,7 +218,7 @@ describe('BuyFiat entity', () => {
   });
 
   describe('#getChargebackBlockReasons()', () => {
-    function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}) {
+    function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
       return createCustomUserData({
         kycStatus: KycStatus.COMPLETED,
         status: UserDataStatus.ACTIVE,
