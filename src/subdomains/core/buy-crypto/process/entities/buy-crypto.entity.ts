@@ -907,14 +907,15 @@ export class BuyCrypto extends IEntity {
       this.chargebackDate ||
       this.isComplete ||
       this.chargebackBankTx ||
-      this.chargebackCryptoTxId
+      this.chargebackCryptoTxId ||
+      this.chargebackOutput
     ) {
       return [];
     }
 
     const reasons: ChargebackBlockReason[] = [];
 
-    if (!this.chargebackAmount) {
+    if (this.chargebackAmount == null) {
       reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
     }
 

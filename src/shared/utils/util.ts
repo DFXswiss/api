@@ -204,8 +204,8 @@ export class Util {
     return testedNameArray.some((n) => referenceArray.includes(n));
   }
 
-  // true, wenn der Kontoinhaber zum verifizierten oder vollständigen Kundennamen passt, oder wenn
-  // der Kunde selbst keinen der beiden Namen hinterlegt hat (dann gibt es nichts zu vergleichen)
+  // true if the account holder matches the verified or complete customer name, or if the
+  // customer has neither name on file (nothing to compare against in that case)
   static matchesCreditorName(verifiedName: string, completeName: string, creditorName: string): boolean {
     return (
       this.includesSameName(verifiedName, creditorName) ||

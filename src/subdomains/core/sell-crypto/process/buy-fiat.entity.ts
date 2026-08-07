@@ -679,7 +679,7 @@ export class BuyFiat extends IEntity {
 
     const reasons: ChargebackBlockReason[] = [];
 
-    if (!this.chargebackAmount) {
+    if (this.chargebackAmount == null) {
       reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
     }
 

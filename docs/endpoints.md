@@ -558,7 +558,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/support/note/:id` | hidden | whole rows | 9 | not yet |  | `SupportController.deleteNote` | `subdomains/generic/support/support.controller.ts` |
 | PUT | 1 |  | `/support/note/:id` | hidden | whole rows | 239 | not yet |  | `SupportController.updateNote` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/note/users` | hidden | projected | 5 | 0/4 |  | `SupportController.listNoteUsers` | `subdomains/generic/support/support.controller.ts` |
-| GET | 1 |  | `/support/pending-chargebacks` | hidden | whole rows | 768 | not yet |  | `SupportController.getPendingChargebacks` | `subdomains/generic/support/support.controller.ts` |
+| GET | 1 |  | `/support/pending-chargebacks` | hidden | whole rows | 889 | not yet |  | `SupportController.getPendingChargebacks` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews` | hidden | projected | 3 | 0/4 |  | `SupportController.getPendingReviews` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews/items` | hidden | whole rows | 261 | not yet |  | `SupportController.getPendingReviewItems` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-transactions` | hidden | whole rows | 669 | not yet |  | `SupportController.getPendingTransactions` | `subdomains/generic/support/support.controller.ts` |

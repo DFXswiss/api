@@ -1620,12 +1620,15 @@ export class BuyCryptoService implements OnModuleInit {
         chargebackDate: IsNull(),
         isComplete: false,
         chargebackBankTx: IsNull(),
+        chargebackOutput: IsNull(),
       },
       relations: {
         transaction: { userData: true, user: true },
         bankTx: true,
         checkoutTx: true,
         cryptoInput: true,
+        chargebackBankTx: true,
+        chargebackOutput: true,
       },
       order: { chargebackAllowedDateUser: 'ASC' },
     });

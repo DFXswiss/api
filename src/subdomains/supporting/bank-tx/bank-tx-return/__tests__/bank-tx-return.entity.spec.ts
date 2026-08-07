@@ -49,6 +49,11 @@ describe('BankTxReturn #getChargebackBlockReasons()', () => {
     expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT]);
   });
 
+  it('does not return MISSING_CHARGEBACK_AMOUNT when chargebackAmount is 0', () => {
+    const entity = pendingBankTxReturn({ chargebackAmount: 0 });
+    expect(entity.getChargebackBlockReasons()).not.toContain(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+  });
+
   it('returns MISSING_CHARGEBACK_TARGET when chargebackIban is missing', () => {
     const entity = pendingBankTxReturn({ chargebackIban: undefined });
     expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_TARGET]);

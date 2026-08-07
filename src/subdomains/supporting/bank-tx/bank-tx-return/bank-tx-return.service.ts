@@ -218,6 +218,8 @@ export class BankTxReturnService {
         userData: true,
         bankTx: true,
         transaction: true,
+        chargebackBankTx: true,
+        chargebackOutput: true,
       },
       order: { chargebackAllowedDateUser: 'ASC' },
     });

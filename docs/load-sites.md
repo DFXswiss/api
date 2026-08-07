@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **at most 1160 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
+Every place in the code that reads from the database: **at most 1163 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -65,6 +65,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1003 | 36 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:534` | `BuyFiatPreparationService.addFiatOutputs` |
 | 903 | 30 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1549` | `BuyCryptoService.getAllUserTransactions` |
 | 891 | 37 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:340` | `BuyFiatPreparationService.fillPaymentLinkPayments` |
+| 889 | 26 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1616` | `BuyCryptoService.getPendingChargebacks` |
 | 881 | 32 | find | `BuyCryptoBatch` | `subdomains/core/buy-crypto/process/services/buy-crypto-out.service.ts:133` | `BuyCryptoOutService.fetchBatchesForPayout` |
 | 880 | 26 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:811` | `BuyCryptoPreparationService.chargebackFillUp` |
 | 844 | 26 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-webhook.service.ts:17` | `BuyCryptoWebhookService.triggerWebhookManual` |
@@ -98,6 +99,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 583 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-notification.service.ts:209` | `BuyFiatNotificationService.chargebackInitiated` |
 | 583 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:35` | `BuyFiatRegistrationService.syncReturnTxId` |
 | 567 | 17 | find | `BuyCrypto` | `subdomains/core/accounting/services/consumers/buy-crypto.consumer.ts:114` | `BuyCryptoConsumer.processForward` |
+| 561 | 16 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:209` | `BankTxReturnService.getPendingChargebacks` |
 | 558 | 24 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:159` | `PaymentQuoteService.getEarliestQuoteClaimingTx` |
 | 558 | 24 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:170` | `PaymentQuoteService.getConfirmingQuotes` |
 | 545 | 23 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:92` | `PaymentLinkRepository.getHistoryByStatus` |
@@ -108,6 +110,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 540 | 17 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:763` | `BuyFiatService.getByAmlReason` |
 | 538 | 21 | find | `CryptoInput` | `subdomains/core/accounting/services/consumers/crypto-input.consumer.ts:89` | `CryptoInputConsumer.processForward` |
 | 535 | 15 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1331` | `BuyCryptoService.getPendingTransactions` |
+| 518 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:777` | `BuyFiatService.getPendingChargebacks` |
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:615` | `BuyFiatPreparationService.chargebackTx` |
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:486` | `BuyFiatService.retriggerScorechain` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:65` | `PaymentLinkRepository.getAllPaymentLinks` |

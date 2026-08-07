@@ -8,7 +8,7 @@ import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-outpu
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { EntityManager, IsNull } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { BankTx } from '../../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from '../bank-tx-return.entity';
 import { BankTxReturnRepository } from '../bank-tx-return.repository';
@@ -337,6 +337,32 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         expect.stringContaining('BankTxReturn 42 waiting for manual chargeback approval due to creditor name mismatch'),
       );
       expect(warn.mock.calls[0][0]).not.toMatch(/Max Mustermann|Someone Else/);
+    });
+  });
+
+  // chargebackBankTx and chargebackOutput are non-eager: without relations in find() they are always
+  // undefined at runtime, so BankTxReturn.getChargebackBlockReasons() fail-closed would be a no-op.
+  describe('getPendingChargebacks', () => {
+    it('requests chargebackBankTx and chargebackOutput relations and excludes them from pending chargebacks', async () => {
+      const findSpy = jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([]);
+
+      await service.getPendingChargebacks();
+
+      expect(findSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            chargebackAllowedDateUser: Not(IsNull()),
+            chargebackAllowedDate: IsNull(),
+            chargebackDate: IsNull(),
+            chargebackOutput: IsNull(),
+            chargebackBankTx: IsNull(),
+          }),
+          relations: expect.objectContaining({
+            chargebackBankTx: true,
+            chargebackOutput: true,
+          }),
+        }),
+      );
     });
   });
 });

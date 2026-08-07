@@ -1204,6 +1204,27 @@ describe('BuyCryptoService', () => {
     });
   });
 
+  describe('getPendingChargebacks', () => {
+    it('requests chargebackBankTx and chargebackOutput relations and excludes them from pending chargebacks', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.getPendingChargebacks();
+
+      expect(findSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            chargebackBankTx: IsNull(),
+            chargebackOutput: IsNull(),
+          }),
+          relations: expect.objectContaining({
+            chargebackBankTx: true,
+            chargebackOutput: true,
+          }),
+        }),
+      );
+    });
+  });
+
   describe('createFromCryptoInput exact base-unit propagation (#4287 stage 4)', () => {
     it('propagates the linked crypto_input on-chain base units into inputAmountBaseUnits (exact beyond 8 dp)', async () => {
       jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));

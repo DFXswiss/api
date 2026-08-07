@@ -1192,6 +1192,7 @@ export class SupportService {
     let uid: string;
     let inputAsset: string | undefined;
     let creditorName: string | undefined;
+    let hasCreditorNameCheck: boolean;
 
     if (sourceType === 'BankTxReturn') {
       const btr = entity as BankTxReturn;
@@ -1199,18 +1200,21 @@ export class SupportService {
       uid = btr.transaction.uid;
       inputAsset = btr.inputAsset;
       creditorName = btr.creditorData?.name;
+      hasCreditorNameCheck = true;
     } else if (sourceType === 'BuyCrypto') {
       const bc = entity as BuyCrypto;
       txId = bc.transaction.id;
       uid = bc.transaction.uid;
       inputAsset = bc.inputAsset;
       creditorName = bc.bankTx ? bc.creditorData?.name : undefined;
+      hasCreditorNameCheck = !!bc.bankTx;
     } else {
       const bf = entity as BuyFiat;
       txId = bf.transaction.id;
       uid = bf.transaction.uid;
       inputAsset = bf.cryptoInput?.asset?.name;
       creditorName = undefined;
+      hasCreditorNameCheck = false;
     }
 
     return {
@@ -1227,9 +1231,9 @@ export class SupportService {
       blockReasons,
       requestedDate: entity.chargebackAllowedDateUser,
       date: entity.created,
-      verifiedName: ud.verifiedName,
-      completeName: ud.completeName,
-      creditorName,
+      verifiedName: hasCreditorNameCheck ? ud.verifiedName : undefined,
+      completeName: hasCreditorNameCheck ? ud.completeName : undefined,
+      creditorName: hasCreditorNameCheck ? creditorName : undefined,
       chargebackDate: entity.chargebackDate,
     };
   }
