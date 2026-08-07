@@ -34,11 +34,7 @@ import { createCustomUser } from '../../user/models/user/__mocks__/user.entity.m
 import { User } from '../../user/models/user/user.entity';
 import { UserStatus } from '../../user/models/user/user.enum';
 import { UserService } from '../../user/models/user/user.service';
-import {
-  ChargebackBlockReason,
-  ComplianceSearchType,
-  RecommendationGraphEdgeKind,
-} from '../dto/user-data-support.dto';
+import { ChargebackBlockReason, ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
 import { SupportService } from '../support.service';
 
 // --- entity builders --- //
@@ -239,10 +235,9 @@ describe('SupportService', () => {
         created: new Date('2026-06-01'),
       });
 
-      jest.spyOn(buyCryptoService, 'getPendingChargebacks').mockResolvedValue([
-        blockedBuyCrypto,
-        autoReleasableBuyCrypto,
-      ]);
+      jest
+        .spyOn(buyCryptoService, 'getPendingChargebacks')
+        .mockResolvedValue([blockedBuyCrypto, autoReleasableBuyCrypto]);
       jest.spyOn(buyFiatService, 'getPendingChargebacks').mockResolvedValue([blockedBuyFiat]);
       jest.spyOn(bankTxReturnService, 'getPendingChargebacks').mockResolvedValue([blockedBankTxReturn]);
 

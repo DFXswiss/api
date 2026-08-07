@@ -334,9 +334,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
       expect(refundSpy).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'BankTxReturn 42 waiting for manual chargeback approval due to creditor name mismatch',
-        ),
+        expect.stringContaining('BankTxReturn 42 waiting for manual chargeback approval due to creditor name mismatch'),
       );
       expect(warn.mock.calls[0][0]).not.toMatch(/Max Mustermann|Someone Else/);
     });

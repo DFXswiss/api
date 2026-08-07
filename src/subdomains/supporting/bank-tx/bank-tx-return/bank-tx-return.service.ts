@@ -98,11 +98,7 @@ export class BankTxReturnService {
     for (const entity of entities) {
       try {
         if (
-          Util.matchesCreditorName(
-            entity.userData.verifiedName,
-            entity.userData.completeName,
-            entity.creditorData.name,
-          )
+          Util.matchesCreditorName(entity.userData.verifiedName, entity.userData.completeName, entity.creditorData.name)
         )
           await this.refundBankTx(entity, {
             chargebackAllowedDate: new Date(),
