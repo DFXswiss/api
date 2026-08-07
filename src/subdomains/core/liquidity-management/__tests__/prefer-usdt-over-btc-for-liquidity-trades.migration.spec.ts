@@ -608,9 +608,9 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     await new PreferUsdtOverBtc().up(queryRunner);
 
     expect(await actionOnFail(queryRunner, BTC_ID)).toBe(T_ID);
-    expect(await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [USDT_ID])).toEqual(
-      [],
-    );
+    expect(
+      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [USDT_ID]),
+    ).toEqual([]);
     expect(await auditMessages(queryRunner)).toHaveLength(0);
   });
 
@@ -721,17 +721,12 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(afterUp.rule).toBe(USDT_ID);
 
     // Tamper the apply audit message: inject a forbidden table/column into entries.
-    const rows = await queryRunner.query(
-      `SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`,
-      [AUDIT_SUBSYSTEM],
-    );
-    const apply =
-      typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
-    apply.entries.push({ table: 'user', column: 'password', id: 1, before: 'x', after: 'y' });
-    await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [
-      JSON.stringify(apply),
-      rows[0].id,
+    const rows = await queryRunner.query(`SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
+      AUDIT_SUBSYSTEM,
     ]);
+    const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
+    apply.entries.push({ table: 'user', column: 'password', id: 1, before: 'x', after: 'y' });
+    await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [JSON.stringify(apply), rows[0].id]);
 
     await expect(migration.down(queryRunner)).rejects.toThrow(/Unknown audit entry table\/column 'user\.password'/);
 
