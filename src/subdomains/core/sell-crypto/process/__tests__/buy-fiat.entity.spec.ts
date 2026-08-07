@@ -18,6 +18,7 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { createCustomSell } from '../../route/__mocks__/sell.entity.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
@@ -217,6 +218,63 @@ describe('BuyFiat entity', () => {
     });
   });
 
+  describe('#cryptoReturnStarted', () => {
+    it('is false without a cryptoInput relation', () => {
+      expect(createCustomBuyFiat({ cryptoInput: undefined }).cryptoReturnStarted).toBe(false);
+    });
+
+    it('is false for an idle crypto input', () => {
+      expect(
+        createCustomBuyFiat({
+          cryptoInput: createCustomCryptoInput({
+            action: PayInAction.WAITING,
+            status: PayInStatus.ACKNOWLEDGED,
+            returnTxId: null,
+          }),
+        }).cryptoReturnStarted,
+      ).toBe(false);
+    });
+
+    it('is true when action is RETURN', () => {
+      expect(
+        createCustomBuyFiat({
+          cryptoInput: createCustomCryptoInput({
+            action: PayInAction.RETURN,
+            status: PayInStatus.ACKNOWLEDGED,
+            returnTxId: null,
+          }),
+        }).cryptoReturnStarted,
+      ).toBe(true);
+    });
+
+    it.each([PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED])(
+      'is true when status is %s',
+      (status) => {
+        expect(
+          createCustomBuyFiat({
+            cryptoInput: createCustomCryptoInput({
+              action: PayInAction.WAITING,
+              status,
+              returnTxId: null,
+            }),
+          }).cryptoReturnStarted,
+        ).toBe(true);
+      },
+    );
+
+    it('is true when returnTxId is set', () => {
+      expect(
+        createCustomBuyFiat({
+          cryptoInput: createCustomCryptoInput({
+            action: PayInAction.WAITING,
+            status: PayInStatus.ACKNOWLEDGED,
+            returnTxId: '0xreturn',
+          }),
+        }).cryptoReturnStarted,
+      ).toBe(true);
+    });
+  });
+
   describe('#getChargebackBlockReasons()', () => {
     function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
       return createCustomUserData({
@@ -241,6 +299,11 @@ describe('BuyFiat entity', () => {
         chargebackAsset: 'BTC',
         amlCheck: CheckStatus.FAIL,
         outputAmount: undefined,
+        cryptoInput: createCustomCryptoInput({
+          action: PayInAction.WAITING,
+          status: PayInStatus.ACKNOWLEDGED,
+          returnTxId: null,
+        }),
         transaction: createCustomTransaction({
           userData: releasedUserData(),
           user: createCustomUser({ status: UserStatus.ACTIVE }),
@@ -344,6 +407,19 @@ describe('BuyFiat entity', () => {
 
     it('fail-closed: returns empty array when outputAmount is set', () => {
       const entity = pendingBuyFiat({ outputAmount: 0.2, chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when crypto return already started even if other reasons apply', () => {
+      const entity = pendingBuyFiat({
+        cryptoInput: createCustomCryptoInput({ status: PayInStatus.TO_RETURN, returnTxId: null }),
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
       expect(entity.getChargebackBlockReasons()).toEqual([]);
     });
   });

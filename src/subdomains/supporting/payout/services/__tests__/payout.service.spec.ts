@@ -4,7 +4,7 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import * as processServiceModule from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
@@ -712,6 +712,34 @@ describe('PayoutService', () => {
       await service.doPayout(baseRequest);
 
       expect(createSpy).toHaveBeenCalledWith(baseRequest);
+      expect(saveSpy).toHaveBeenCalledWith(order);
+    });
+
+    it('saves via the provided manager repository when a manager is passed', async () => {
+      const order = createCustomPayoutOrder({ id: 103 });
+      jest.spyOn(payoutOrderFactory, 'createOrder').mockReturnValue(order);
+      const managerRepo = {
+        save: jest.fn().mockResolvedValue(order),
+      };
+      const manager = {
+        getRepository: jest.fn().mockReturnValue(managerRepo),
+      } as unknown as EntityManager;
+      const repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
+
+      await service.doPayout(baseRequest, manager);
+
+      expect(manager.getRepository).toHaveBeenCalledWith(PayoutOrder);
+      expect(managerRepo.save).toHaveBeenCalledWith(order);
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('saves via payoutOrderRepo when no manager is provided', async () => {
+      const order = createCustomPayoutOrder({ id: 104 });
+      jest.spyOn(payoutOrderFactory, 'createOrder').mockReturnValue(order);
+      const saveSpy = jest.spyOn(payoutOrderRepo, 'save').mockResolvedValue(order);
+
+      await service.doPayout(baseRequest);
+
       expect(saveSpy).toHaveBeenCalledWith(order);
     });
 

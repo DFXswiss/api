@@ -16,7 +16,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
@@ -663,22 +663,39 @@ export class BuyFiat extends IEntity {
     this.transaction.userData = userData;
   }
 
+  // Mirrors BuyCrypto.cryptoReturnStarted: a crypto return already under way on the related pay-in.
+  get cryptoReturnStarted(): boolean {
+    return (
+      this.cryptoInput != null &&
+      (this.cryptoInput.action === PayInAction.RETURN ||
+        (this.cryptoInput.status != null &&
+          [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(
+            this.cryptoInput.status,
+          )) ||
+        this.cryptoInput.returnTxId != null)
+    );
+  }
+
   /**
    * Block reasons preventing automatic chargeback promotion.
    * Keep in sync with BuyFiatPreparationService.chargebackTx() where / promotion conditions
    * and BuyFiatService.getPendingChargebacks() pending set.
+   * Also excludes cases where a crypto return has already started on the related pay-in.
    * Empty array = auto-job can release this case.
    */
   getChargebackBlockReasons(): ChargebackBlockReason[] {
     // Fail-closed first: already approved/executed/completed must never appear as waiting.
     // Redundant with BuyFiatService.getPendingChargebacks() where — a lost exclusion there
     // would show a finished refund as pending and risk double payout by Compliance.
+    // A return already under way is not pending manual approval and must never be re-approvable
+    // from the list (issue #4739 point 2).
     if (
       this.chargebackAllowedDate ||
       this.chargebackDate ||
       this.isComplete ||
       this.chargebackTxId ||
-      (this.outputAmount !== null && this.outputAmount !== undefined)
+      (this.outputAmount !== null && this.outputAmount !== undefined) ||
+      this.cryptoReturnStarted
     ) {
       return [];
     }

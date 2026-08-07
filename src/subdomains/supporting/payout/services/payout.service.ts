@@ -7,7 +7,7 @@ import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { RetryPayoutDto } from '../dto/retry-payout.dto';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
@@ -37,7 +37,7 @@ export class PayoutService {
     return this.payoutOrderRepo.find({ where: { created: MoreThan(from) }, relations });
   }
 
-  async doPayout(request: PayoutRequest): Promise<void> {
+  async doPayout(request: PayoutRequest, manager?: EntityManager): Promise<void> {
     try {
       if (DisabledProcess(Process.CRYPTO_PAYOUT)) throw new BadRequestException('Process disabled');
 
@@ -45,7 +45,10 @@ export class PayoutService {
 
       const order = this.payoutOrderFactory.createOrder(request);
 
-      await this.payoutOrderRepo.save(order);
+      // A caller running inside a transaction passes its manager so the order commits or rolls back
+      // with the caller's writes; the unique (context, correlationId) index stays the guard against
+      // concurrent duplicate triggers.
+      await (manager ? manager.getRepository(PayoutOrder).save(order) : this.payoutOrderRepo.save(order));
     } catch (e) {
       this.logger.error('Error during payout creation:', e);
 
