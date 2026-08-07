@@ -657,7 +657,7 @@ describe('CustodyService', () => {
         interestOrder({ completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 99500 }),
       ]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(result).toBeCloseTo(1726.94, 2);
     });
@@ -672,7 +672,7 @@ describe('CustodyService', () => {
         interestOrder({ id: 2, completedAt: completedAt2, inputAmount: amount2 }),
       ]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       const expected =
         amount1 * rate * Util.yearsDiff(completedAt1, dueDate) + amount2 * rate * Util.yearsDiff(completedAt2, dueDate);
@@ -689,7 +689,7 @@ describe('CustodyService', () => {
         interestOrder({ id: 2, completedAt: new Date('2026-04-01T00:00:00.000Z'), inputAmount: 50000 }),
       ]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(result).toBeCloseTo(2292.69, 2);
     });
@@ -704,7 +704,7 @@ describe('CustodyService', () => {
         interestOrder({ id: 2, completedAt: withdrawalCompletedAt, outputAmount: withdrawalAmount }),
       ]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       const depositYears = Util.yearsDiff(depositCompletedAt, dueDate);
       const withdrawalYears = Util.yearsDiff(withdrawalCompletedAt, dueDate);
@@ -719,7 +719,7 @@ describe('CustodyService', () => {
       const afterDueDate = new Date('2026-07-29T00:00:00.000Z');
       custodyOrderRepo.find.mockResolvedValue([interestOrder({ completedAt: afterDueDate, inputAmount: 99500 })]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(result).toBe(0);
     });
@@ -729,7 +729,7 @@ describe('CustodyService', () => {
         interestOrder({ completedAt: new Date('2026-01-28T00:00:00.000Z'), inputAmount: 1000 }),
       ]);
 
-      await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(custodyOrderRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -750,10 +750,10 @@ describe('CustodyService', () => {
       });
 
       custodyOrderRepo.find.mockResolvedValueOnce([validOrder]);
-      const withoutNull = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const withoutNull = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       custodyOrderRepo.find.mockResolvedValueOnce([validOrder, nullAmountOrder]);
-      const withNull = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const withNull = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(withNull).toBe(withoutNull);
       expect(withNull).not.toBeNaN();
@@ -771,7 +771,7 @@ describe('CustodyService', () => {
       });
       custodyOrderRepo.find.mockResolvedValue([orderWithoutCompletedAt]);
 
-      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/7/);
+      await expect(service.calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/7/);
     });
 
     it('throws when an order amount is not finite (Infinity)', async () => {
@@ -782,7 +782,7 @@ describe('CustodyService', () => {
       });
       custodyOrderRepo.find.mockResolvedValue([nonFiniteOrder]);
 
-      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/8/);
+      await expect(service.calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/8/);
     });
 
     it('throws when completedAt is an Invalid Date instead of silently yielding zero interest', async () => {
@@ -792,9 +792,7 @@ describe('CustodyService', () => {
       });
       custodyOrderRepo.find.mockResolvedValue([invalidDateOrder]);
 
-      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
-        /invalid completedAt/i,
-      );
+      await expect(service.calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/invalid completedAt/i);
     });
 
     it('clamps a negative total to 0 and logs an error instead of returning a negative value', async () => {
@@ -805,7 +803,7 @@ describe('CustodyService', () => {
         interestOrder({ id: 2, completedAt: new Date('2026-01-28T00:00:00.000Z'), outputAmount: 50000 }),
       ]);
 
-      const result = await (service as any).calculateAccruedInterest(userIds, asset, dueDate);
+      const result = await service.calculateAccruedInterest(userIds, asset, dueDate);
 
       expect(result).toBe(0);
       expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Negative accrued interest'));
@@ -816,9 +814,7 @@ describe('CustodyService', () => {
         interestOrder({ completedAt: new Date('1900-01-01T00:00:00.000Z'), inputAmount: Number.MAX_VALUE }),
       ]);
 
-      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
-        /non-finite tranche/i,
-      );
+      await expect(service.calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(/non-finite tranche/i);
     });
 
     it('throws when individually finite tranches sum to a non-finite total', async () => {
@@ -827,7 +823,7 @@ describe('CustodyService', () => {
         interestOrder({ id: 2, completedAt: new Date('2000-01-01T00:00:00.000Z'), inputAmount: Number.MAX_VALUE }),
       ]);
 
-      await expect((service as any).calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
+      await expect(service.calculateAccruedInterest(userIds, asset, dueDate)).rejects.toThrow(
         /non-finite accrued interest total/i,
       );
     });

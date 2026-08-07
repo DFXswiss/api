@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BalanceEntry, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
@@ -13,6 +14,7 @@ import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricin
 import { In } from 'typeorm';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
+import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyPdfService {
@@ -22,9 +24,16 @@ export class CustodyPdfService {
     private readonly assetPricesService: AssetPricesService,
     private readonly coinGeckoService: CoinGeckoService,
     private readonly i18n: I18nService,
+    private readonly custodyService: CustodyService,
   ) {}
 
   async generateCustodyPdf(accountId: number, dto: GetCustodyPdfDto): Promise<string> {
+    // Same guard as BalancePdfService.getBalanceData: without it, a future date would not only miss
+    // prices but now also project interest past today into a formal statement.
+    if (dto.date > new Date()) {
+      throw new BadRequestException('Date must be in the past');
+    }
+
     const account = await this.userDataService.getUserData(accountId, { language: true, users: true });
     if (!account) throw new NotFoundException('User not found');
 
@@ -55,6 +64,19 @@ export class CustodyPdfService {
       } else {
         balanceMap.set(cb.asset.id, { asset: cb.asset, balance: cb.balance });
       }
+    }
+
+    // Fold the saving position's accrued interest into its balance, as of the statement date, before
+    // pricing below — that is what values it with the same historical price as the rest of the position.
+    // No try/catch here: unlike the live balance endpoint, a formal statement must fail loud rather than
+    // silently report a balance without the interest that belongs in it.
+    const savingEntry = [...balanceMap.values()].find((e) => e.asset.uniqueName === Config.custody.savingAsset);
+    if (savingEntry && savingEntry.balance > CustodyService.BALANCE_DUST) {
+      savingEntry.balance += await this.custodyService.calculateAccruedInterest(
+        custodyUserIds,
+        savingEntry.asset,
+        date,
+      );
     }
 
     // Get historical prices for each asset
