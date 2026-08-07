@@ -12,8 +12,8 @@
 // Bitcoin, Solana, Tron, Zano, Monero.
 //
 // EVM chains are listed explicitly instead of the EvmBlockchains placeholder: Unstoppable only
-// OCP-broadcasts those six EVMs; Gnosis, Haqq, Citrea and CitreaTestnet from EvmBlockchains
-// are not included. See WalletApp.supportedBlockchainList.
+// OCP-broadcasts those six EVMs; the remaining five EvmBlockchains members — Sepolia, Gnosis,
+// Haqq, Citrea and CitreaTestnet — are not included. See WalletApp.supportedBlockchainList.
 //
 // Columns intentionally omitted so they stay at DB default / NULL:
 // - recommended: normal wallet, not shown in the recommended block
