@@ -1,0 +1,93 @@
+# Full-stack E2E: build this PR's API image and run the Playwright harness from
+# the public companion services repo (e2e-stack/) against it.
+#
+# Do NOT add a job-level `if:` skip condition. A skipped GitHub Actions check
+# counts as passing, which would silently defeat the merge gate. Same reasoning
+# as the coverage-gate job in api-pr.yaml.
+
+name: Full-stack E2E
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      services_ref:
+        description: Ref of DFXswiss/services to check out for the e2e-stack harness
+        required: false
+        default: develop
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-stack-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Full-stack E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout API (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: api-repo
+
+      - name: Checkout services (e2e-stack harness)
+        uses: actions/checkout@v4
+        with:
+          repository: DFXswiss/services
+          ref: ${{ inputs.services_ref || 'develop' }}
+          path: services-repo
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services-repo/package-lock.json
+
+      - name: Build API image from PR head
+        run: docker build -t dfx-api:e2e --build-arg GIT_COMMIT=${{ github.sha }} api-repo
+
+      # Do not use services-repo/e2e-stack/scripts/run.sh here. That script tears the
+      # whole stack down (including named volumes) via trap … EXIT before artifacts
+      # can be copied out. Artifacts live on named volumes under /work/test-results and
+      # /work/playwright-report; bind mounts are forbidden. Instead: up.sh, then a
+      # separate compose test run, then artifact copy (always), then down.sh (always).
+      - name: Bring up e2e stack
+        run: E2E_API_IMAGE=dfx-api:e2e bash services-repo/e2e-stack/scripts/up.sh
+
+      - name: Run Playwright tests
+        run: |
+          docker compose -p dfx-e2e-stack \
+            -f services-repo/e2e-stack/compose.yml \
+            -f services-repo/e2e-stack/compose.tests.yml \
+            run --name dfx-e2e-stack-tests tests
+
+      - name: Collect test artifacts
+        if: always()
+        run: |
+          mkdir -p e2e-artifacts
+          # Named volumes back these paths; copy out before down.sh removes volumes.
+          # Container may be stopped (compose run without --rm keeps it for docker cp).
+          docker cp dfx-e2e-stack-tests:/work/test-results e2e-artifacts/test-results 2>/dev/null || true
+          docker cp dfx-e2e-stack-tests:/work/playwright-report e2e-artifacts/playwright-report 2>/dev/null || true
+
+      - name: Upload e2e report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-stack-report
+          path: e2e-artifacts/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Tear down e2e stack
+        if: always()
+        run: bash services-repo/e2e-stack/scripts/down.sh
