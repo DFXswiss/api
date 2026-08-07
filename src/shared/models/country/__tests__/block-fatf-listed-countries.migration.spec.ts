@@ -1,4 +1,7 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { DataSource, QueryRunner } from 'typeorm';
+import { FATF_LISTED_COUNTRIES } from '../fatf-policy';
 
 // Real Postgres required: the migration uses a PL/pgSQL DO block that pg-mem cannot execute.
 // CI provides MIGRATION_TEST_PG via the postgres:16 service in api-pr.yaml.
@@ -25,6 +28,52 @@ type CountryFlags = {
   ipEnable: boolean;
   updated: Date;
 };
+
+// Migration target-set binding (runs without Postgres): keeps the SQL ARRAY literal, this
+// file's TARGET_SYMBOLS expectation, and FATF_LISTED_COUNTRIES in lockstep.
+//
+// Forward only: every symbol the migration blocks must be on the FATF policy list. The reverse
+// is intentionally NOT asserted — which subset of the policy list still needs a migration
+// depends on the production before-state and is not derivable from the repository alone.
+describe('BlockFatfListedCountries20260619 target set vs policy', () => {
+  const migrationPath = path.join(
+    __dirname,
+    '../../../../../migration/1785229100000-BlockFatfListedCountries20260619.js',
+  );
+
+  const parseTargetSymbolsFromMigration = (): string[] => {
+    const text = fs.readFileSync(migrationPath, 'utf8');
+    const pattern = /target_symbols\s+text\[\]\s*:=\s*ARRAY\[([^\]]*)\]/g;
+    const matches = [...text.matchAll(pattern)];
+    if (matches.length !== 1) {
+      throw new Error(
+        `Expected exactly one target_symbols text[] := ARRAY[...] assignment in ${path.basename(migrationPath)}, found ${matches.length}`,
+      );
+    }
+    const inner = matches[0][1];
+    const codes = [...inner.matchAll(/'([A-Z]{2})'/g)].map((m) => m[1]);
+    return codes;
+  };
+
+  it('parses a well-formed, unique, alphabetically sorted target set from the migration SQL', () => {
+    const parsed = parseTargetSymbolsFromMigration();
+    expect(parsed.length).toBeGreaterThan(0);
+    expect(new Set(parsed).size).toBe(parsed.length);
+    expect(parsed).toEqual([...parsed].sort());
+  });
+
+  it('matches TARGET_SYMBOLS element-wise (SQL literal bound to this spec copy)', () => {
+    const parsed = parseTargetSymbolsFromMigration();
+    expect(parsed).toEqual([...TARGET_SYMBOLS]);
+  });
+
+  it('is a subset of FATF_LISTED_COUNTRIES', () => {
+    const parsed = parseTargetSymbolsFromMigration();
+    expect(parsed).toHaveLength(TARGET_SYMBOLS.length);
+    const listed = new Set<string>(FATF_LISTED_COUNTRIES);
+    expect(parsed.filter((s) => !listed.has(s))).toEqual([]);
+  });
+});
 
 describeDb('BlockFatfListedCountries20260619 migration (real Postgres)', () => {
   let dataSource: DataSource;

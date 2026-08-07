@@ -53,6 +53,7 @@ describe('FATF policy vs seed country.csv', () => {
     dfxEnable: string;
     fatfEnable: string;
     nationalityStepEnable: string;
+    ipEnable: string;
   };
 
   const loadSeed = (): Map<string, SeedRow> => {
@@ -69,6 +70,7 @@ describe('FATF policy vs seed country.csv', () => {
         dfxEnable: cols[idx.dfxEnable],
         fatfEnable: cols[idx.fatfEnable],
         nationalityStepEnable: cols[idx.nationalityStepEnable],
+        ipEnable: cols[idx.ipEnable],
       });
     }
     return map;
@@ -96,5 +98,20 @@ describe('FATF policy vs seed country.csv', () => {
       expect(row!.dfxEnable).toBe('FALSE');
       expect(row!.nationalityStepEnable).toBe('FALSE');
     }
+  });
+
+  it('requires every call-for-action symbol to have ipEnable=FALSE in the seed', () => {
+    // IP block is the stricter measure and is reserved in the seed for the black-list set
+    // (FATF_CALL_FOR_ACTION). The 22 increased-monitoring jurisdictions keep ipEnable=TRUE,
+    // and the BlockFatfListedCountries migration does not touch ipEnable at all.
+    //
+    // Forward only: every call-for-action jurisdiction must be IP-blocked in country.csv.
+    // The reverse is intentionally NOT asserted: DFX may IP-block beyond the FATF lists.
+    // Measured 2026-08-07 against GET https://api.dfx.swiss/v1/country: production returns
+    // locationAllowed=false for IL, IR, KP, MM, US — so IL and US sit outside any FATF list.
+    // An equality assertion would already be false today.
+    const seed = loadSeed();
+    expect(FATF_CALL_FOR_ACTION).toHaveLength(3);
+    expect(FATF_CALL_FOR_ACTION.filter((s) => seed.get(s)?.ipEnable !== 'FALSE')).toEqual([]);
   });
 });
