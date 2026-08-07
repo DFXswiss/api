@@ -1,0 +1,54 @@
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+
+/**
+ * Default lookback when `from`/`to` are omitted: this many inclusive UTC calendar days
+ * ending on the resolved `to` day (half-open period after snap).
+ */
+export const PARTNER_STATISTIC_DEFAULT_PERIOD_DAYS = 30;
+
+/** Maximum allowed period span in calendar days (half-open [from, to)). */
+export const PARTNER_STATISTIC_MAX_PERIOD_DAYS = 366;
+
+/**
+ * Max concurrent SQL queries per partner-statistic request.
+ * Kept well below the default TypeORM pool size (`SQL_POOL_MAX` defaults to 10) so one
+ * request cannot monopolise the pool; the effective pool size may differ per environment.
+ */
+export const PARTNER_STATISTIC_QUERY_CONCURRENCY = 4;
+
+export enum PartnerStatisticGranularity {
+  DAY = 'Day',
+  WEEK = 'Week',
+  MONTH = 'Month',
+}
+
+export enum PartnerStatisticDirection {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  SWAP = 'Swap',
+}
+
+/** Postgres `DATE_TRUNC` unit for each granularity (API values are PascalCase). */
+export const PartnerStatisticDateTruncUnit: {
+  readonly [K in PartnerStatisticGranularity]: 'day' | 'week' | 'month';
+} = {
+  [PartnerStatisticGranularity.DAY]: 'day',
+  [PartnerStatisticGranularity.WEEK]: 'week',
+  [PartnerStatisticGranularity.MONTH]: 'month',
+};
+
+export enum PartnerPaymentMethodName {
+  BANK = 'Bank',
+  CARD = 'Card',
+  ON_CHAIN = 'OnChain',
+  REFERRAL = 'Referral',
+}
+
+/** Maps transaction.sourceType to a partner-facing payment method label. */
+export const PartnerPaymentMethodMap: { [key in TransactionSourceType]: PartnerPaymentMethodName } = {
+  [TransactionSourceType.BANK_TX]: PartnerPaymentMethodName.BANK,
+  [TransactionSourceType.CHECKOUT_TX]: PartnerPaymentMethodName.CARD,
+  [TransactionSourceType.CRYPTO_INPUT]: PartnerPaymentMethodName.ON_CHAIN,
+  [TransactionSourceType.REF]: PartnerPaymentMethodName.REFERRAL,
+  [TransactionSourceType.MANUAL_REF]: PartnerPaymentMethodName.REFERRAL,
+};

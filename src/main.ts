@@ -19,6 +19,8 @@ import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
+import { handleBootstrapFailure } from './bootstrap-failure';
+import { checkProcessTimezone } from './process-timezone';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
 import { DetailedValidationPipe } from './shared/pipes/detailed-validation.pipe';
@@ -48,6 +50,11 @@ process.on('uncaughtException', (error) => {
 });
 
 async function bootstrap() {
+  // Log process timezone at boot (warn if not UTC year-round; never throws — see
+  // process-timezone.ts and Dockerfile ENV TZ=UTC). Must run before NestFactory.create
+  // — TypeORM connects during app creation.
+  checkProcessTimezone();
+
   // Observability is initialized in src/tracing.ts (imported above): the
   // OpenTelemetry SDK auto-instruments HTTP/DB/NestJS and exports traces via
   // OTLP. 4xx-not-a-failure is handled there in the HTTP response hook.
@@ -219,4 +226,7 @@ function runSeed(): void {
   }
 }
 
-void bootstrap();
+// Catch boot failures so they surface as a clear "Bootstrap failed" log with
+// exit 1, not as an unhandled rejection that the uncaughtException handler
+// reports as a generic crash (and Spark-error heuristic).
+void bootstrap().catch(handleBootstrapFailure);
