@@ -13,13 +13,13 @@ describe('BlockchainAdapter', () => {
   let adapter: BlockchainAdapter;
   let client: EvmClient;
   let logError: jest.SpyInstance;
-  let logWarn: jest.SpyInstance;
+  let logInfo: jest.SpyInstance;
 
   beforeEach(() => {
     adapter = new BlockchainAdapter(createMock<DexService>(), createMock<BlockchainRegistryService>());
 
     logError = jest.spyOn(adapter['logger'], 'error').mockImplementation();
-    logWarn = jest.spyOn(adapter['logger'], 'warn').mockImplementation();
+    logInfo = jest.spyOn(adapter['logger'], 'info').mockImplementation();
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -57,7 +57,7 @@ describe('BlockchainAdapter', () => {
 
       await update(asset, []);
 
-      expect(logWarn).toHaveBeenCalledWith('No balance reported for Ethereum/TKN, keeping 100');
+      expect(logInfo).toHaveBeenCalledWith('No balance reported for Ethereum/TKN, keeping 100');
       expect(logError).not.toHaveBeenCalled();
     });
 
@@ -77,7 +77,7 @@ describe('BlockchainAdapter', () => {
       await update(asset, balance(0));
 
       expect(logError).toHaveBeenCalledWith('Balance for Ethereum/TKN went to 0, was 100');
-      expect(logWarn).not.toHaveBeenCalled();
+      expect(logInfo).not.toHaveBeenCalled();
       expect(adapter['balanceCache'].get(asset.id)).toEqual(0);
     });
 
@@ -88,7 +88,7 @@ describe('BlockchainAdapter', () => {
       await update(asset, balance(50));
 
       expect(logError).not.toHaveBeenCalled();
-      expect(logWarn).not.toHaveBeenCalled();
+      expect(logInfo).not.toHaveBeenCalled();
       expect(adapter['balanceCache'].get(asset.id)).toEqual(50);
     });
 
@@ -98,7 +98,7 @@ describe('BlockchainAdapter', () => {
       await update(asset, []);
 
       expect(logError).not.toHaveBeenCalled();
-      expect(logWarn).not.toHaveBeenCalled();
+      expect(logInfo).not.toHaveBeenCalled();
     });
   });
 });

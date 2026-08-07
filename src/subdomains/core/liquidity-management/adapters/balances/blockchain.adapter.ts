@@ -211,7 +211,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         // The cache keeps its previous value in that case, so the two are reported apart: one says
         // the funds are gone, the other says we no longer know what they are.
         if (balance == null) {
-          this.logger.warn(`No balance reported for ${asset.uniqueName}, keeping ${previousBalance}`);
+          this.logger.info(`No balance reported for ${asset.uniqueName}, keeping ${previousBalance}`);
         } else if (balance === 0) {
           this.logger.error(`Balance for ${asset.uniqueName} went to 0, was ${previousBalance}`);
         }
