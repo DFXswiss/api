@@ -3,6 +3,7 @@ import {
   BANK_PROCESSING_RULES,
   BankProcessingRule,
   HOURLY_TOLERANCE_MINUTES,
+  TrackedBankProcessingRule,
   cutoffFor,
   dynamicToleranceMinutes,
   hasTolerance,
@@ -21,6 +22,16 @@ describe('bank-processing.rules', () => {
         expect(rule.toleranceField).toBeDefined();
       }
     }
+  });
+
+  it('measures the MissingLiquidity tolerance against created, not updated', () => {
+    // BuyCryptoPreparationService (doAmlCheck / refreshFee) writes the buy_crypto row roughly once a minute for
+    // the whole lifetime of a transaction, so an age measured against `updated` never reaches the tolerance:
+    // the rule would list a starving transaction but could never mark it overdue
+    const rule = BANK_PROCESSING_RULES.find((r) => r.key === 'bc-payout-missing-liquidity');
+
+    expect(hasTolerance(rule)).toBe(true);
+    expect((rule as TrackedBankProcessingRule).toleranceField).toBe('created');
   });
 
   it('references only existing blocks', () => {

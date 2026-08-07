@@ -279,7 +279,10 @@ export const BANK_PROCESSING_RULES: readonly BankProcessingRule[] = [
     block: 'buyCryptoFiat',
     condition: `bc."amlCheck" = 'Pass' AND bc."txId" IS NULL AND bc."status" = 'MissingLiquidity'`,
     tolerance: { type: 'fixed', minutes: 30 },
-    toleranceField: 'updated',
+    // `created`, not `updated`: BuyCryptoPreparationService (doAmlCheck / refreshFee) writes the row roughly
+    // once a minute for the whole lifetime of a transaction, so an age measured against `updated` never
+    // reaches the tolerance and a starving transaction is listed here but can never become overdue
+    toleranceField: 'created',
   },
   {
     key: 'bc-payout-waiting-lower-fee',
