@@ -543,13 +543,18 @@ export class ScryptWebSocketConnection {
       };
 
       const ws = new WebSocket(this.wsUrl, { headers });
+      // Tracks whether this promise has already settled (open/timeout/superseded), so ws.on('error')
+      // below can tell a still-deciding failure from an orphaned one — see its comment.
+      let settled = false;
       const handshakeTimeout = setTimeout(() => {
+        settled = true;
         ws.terminate();
         reject(new Error(`Scrypt WebSocket handshake timed out after ${this.handshakeTimeoutMs}ms`));
       }, this.handshakeTimeoutMs);
 
       ws.on('open', () => {
         clearTimeout(handshakeTimeout);
+        settled = true;
         if (generation !== this.connectionGeneration) {
           ws.terminate(); // a newer attempt or disconnect() superseded us — do not adopt this socket
           reject(new Error('Scrypt WebSocket connection attempt superseded'));
@@ -565,7 +570,15 @@ export class ScryptWebSocketConnection {
 
       ws.on('error', (error) => {
         clearTimeout(handshakeTimeout);
-        this.logger.error('Scrypt WebSocket error:', error);
+        // Before this promise settles, whichever caller owns this attempt (subscribe()'s catch on
+        // sendSubscription, scheduleReconnect's catch, or a business caller further up the stack reached
+        // via notify()/requestWithId()) already logs the rejection below with equal or better context —
+        // logging here too would just duplicate it. Once settled (by 'open', the handshake timeout, or a
+        // superseded 'open'), reject() is a no-op and nobody downstream observes this error at all — the
+        // close handler right after only carries a code/reason, not this Error's message/stack. That's
+        // the one case where this is the sole diagnostic record, so log it here instead.
+        if (settled) this.logger.error('Scrypt WebSocket error:', error);
+        settled = true;
         reject(error);
       });
 

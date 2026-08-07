@@ -215,8 +215,9 @@ describe('ScryptWebSocketConnection', () => {
     attempt0.remoteClose(1006, 'auth fail');
     await flushPromises();
 
-    // connectWebSocket's ws.on('error') logs via logger.error before rejecting
-    expect(loggerError).toHaveBeenCalledWith('Scrypt WebSocket error:', authError);
+    // connectWebSocket's ws.on('error') rejects silently — scheduleReconnect's catch below is the
+    // sole logger for this attempt; a duplicate raw ERROR line here was removed.
+    expect(loggerError).not.toHaveBeenCalledWith('Scrypt WebSocket error:', authError);
     expect(loggerWarn).toHaveBeenCalledWith(expect.stringMatching(/reconnect attempt 1 failed/), expect.any(Error));
     expect(scheduleSpy).toHaveBeenCalledWith(1, loopEpoch);
 
@@ -246,6 +247,20 @@ describe('ScryptWebSocketConnection', () => {
       [1, loopEpoch],
       [2, loopEpoch],
     ]);
+  });
+
+  it('logs a transport error on an already-open socket, where reject() is a no-op and nobody else observes it', async () => {
+    const firstWs = await firstConnectWithStream();
+
+    const transportError = new Error('read ECONNRESET');
+    firstWs.fail(transportError);
+    await flushPromises();
+
+    // The connect() promise settled long ago via 'open' — reject() here reaches no caller, and the
+    // 'close' handler that follows only carries a code/reason, not this error's message. This is the
+    // one case where the raw handler is the sole diagnostic record, so (unlike the CONNECTING-phase
+    // case above) it must log it itself.
+    expect(loggerError).toHaveBeenCalledWith('Scrypt WebSocket error:', transportError);
   });
 
   it('resubscribes when an implicit reconnect is driven by a business call (ensureConnected)', async () => {
