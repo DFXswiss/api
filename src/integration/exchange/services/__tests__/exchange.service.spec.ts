@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
-import { Currencies, Exchange, Market, mexc } from 'ccxt';
+import { Currencies, Exchange, Market, mexc, OrderBook } from 'ccxt';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { PairNotTradableException } from '../../exceptions/pair-not-tradable.exception';
 import { ExchangeService, OrderSide } from '../exchange.service';
 import * as ExchangeTestModule from './exchange.test';
 
@@ -76,6 +77,37 @@ describe('ExchangeService', () => {
         { symbol: 'BTC/EUR', active: true },
         { symbol: 'BTC/CHF', active: true },
         { symbol: 'ETH/EUR', active: true },
+      ] as Market[]);
+    },
+    MarketsWithOrderBook: () => {
+      jest.spyOn(exchange, 'fetchMarkets').mockResolvedValue([
+        {
+          symbol: 'BTC/EUR',
+          active: true,
+          precision: { price: 2, amount: 8 },
+          limits: { amount: { min: 0 }, cost: { min: 0 } },
+        },
+      ] as Market[]);
+    },
+    InactiveMarket: () => {
+      jest.spyOn(exchange, 'fetchMarkets').mockResolvedValue([
+        {
+          symbol: 'POL/BTC',
+          active: false,
+          precision: { price: 8, amount: 8 },
+          limits: { amount: { min: 0 }, cost: { min: 0 } },
+        },
+      ] as Market[]);
+    },
+    // Markets list has a different symbol than the queried pair → getMarket returns undefined
+    MissingMarket: () => {
+      jest.spyOn(exchange, 'fetchMarkets').mockResolvedValue([
+        {
+          symbol: 'ETH/EUR',
+          active: true,
+          precision: { price: 2, amount: 8 },
+          limits: { amount: { min: 0 }, cost: { min: 0 } },
+        },
       ] as Market[]);
     },
     // `aggregateMax` is the token-level maximum ccxt derives as the highest of all networks — never a usable cap
@@ -418,5 +450,69 @@ describe('ExchangeService', () => {
 
       expect(exchange.fetchCurrencies).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('should throw PairNotTradableException when market is inactive', async () => {
+    Setup.InactiveMarket();
+    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
+      asks: [[1, 1]],
+      bids: [[1, 1]],
+    } as OrderBook);
+
+    // Guard lives on the trade-price path only (not getTradePair / status / history)
+    await expect(service.getCurrentPrice('POL', 'BTC')).rejects.toThrow(PairNotTradableException);
+    await expect(service.getCurrentPrice('POL', 'BTC')).rejects.toThrow(/market POL\/BTC is not tradable/);
+  });
+
+  it('should throw PairNotTradableException when market is missing from markets list', async () => {
+    // Marktliste enthält ein anderes Symbol → getMarket('BTC/EUR') liefert undefined
+    Setup.MissingMarket();
+    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
+      asks: [[50000, 1]],
+      bids: [[49900, 1]],
+    } as OrderBook);
+
+    // Guard sits on fetchCurrentOrderPrice (trade-price path); call it directly so getTradePair
+    // does not fail first with BadRequestException for an unsupported pair.
+    await expect(service['fetchCurrentOrderPrice']('BTC/EUR', OrderSide.BUY)).rejects.toThrow(
+      PairNotTradableException,
+    );
+    await expect(service['fetchCurrentOrderPrice']('BTC/EUR', OrderSide.BUY)).rejects.toThrow(
+      /market BTC\/EUR is not tradable/,
+    );
+  });
+
+  it('should throw PairNotTradableException when asks are empty (buy side)', async () => {
+    Setup.MarketsWithOrderBook();
+    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
+      asks: [],
+      bids: [[49900, 1]],
+    } as OrderBook);
+
+    // EUR -> BTC resolves to BTC/EUR buy (asks)
+    await expect(service.getCurrentPrice('EUR', 'BTC')).rejects.toThrow(PairNotTradableException);
+    await expect(service.getCurrentPrice('EUR', 'BTC')).rejects.toThrow(/no asks in order book for BTC\/EUR/);
+  });
+
+  it('should throw PairNotTradableException when bids are empty (sell side)', async () => {
+    Setup.MarketsWithOrderBook();
+    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
+      asks: [[50000, 1]],
+      bids: [],
+    } as OrderBook);
+
+    // BTC -> EUR resolves to BTC/EUR sell (bids)
+    await expect(service.getCurrentPrice('BTC', 'EUR')).rejects.toThrow(PairNotTradableException);
+    await expect(service.getCurrentPrice('BTC', 'EUR')).rejects.toThrow(/no bids in order book for BTC\/EUR/);
+  });
+
+  it('should return order book price for a normal buy', async () => {
+    Setup.MarketsWithOrderBook();
+    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
+      asks: [[50000, 1]],
+      bids: [[49900, 1]],
+    } as OrderBook);
+
+    await expect(service.getCurrentPrice('EUR', 'BTC')).resolves.toBe(50000);
   });
 });
