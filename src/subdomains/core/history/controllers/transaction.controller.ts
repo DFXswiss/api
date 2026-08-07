@@ -326,8 +326,11 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
-    // a mail-elevated staff token (tfaRequired) is not a wallet login — keep the account-wide list
-    const buys = await this.buyService.getUserDataBuys(jwt.account, jwt.tfaRequired ? undefined : jwt.user);
+    // Account-wide on purpose: the bank transaction being assigned belongs to the account (matched by
+    // bank data IBAN, see getUnassignedTransactions), not to the logged-in wallet address, and
+    // setTransactionTarget below accepts every buy route of the account. Narrowing this list to the
+    // session's address hides routes that the write path still accepts.
+    const buys = await this.buyService.getUserDataBuys(jwt.account);
 
     return buys.map((b) => ({
       id: b.id,
