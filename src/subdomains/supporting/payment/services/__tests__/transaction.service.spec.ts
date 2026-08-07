@@ -113,6 +113,21 @@ function createQueryBuilderMock(terminals: Record<string, unknown>): {
   return { qb, innerQb };
 }
 
+// Joins are asserted as a set, not as a sequence: which relations are joined under which alias is
+// what the query depends on, while the order of independent siblings is not. The call count bounds
+// the set from above, so neither a missing join nor an extra one slips through — including one
+// added through the variant a method does not otherwise use.
+function expectJoins(
+  qb: QueryBuilderMock,
+  expected: { leftJoinAndSelect?: [string, string][]; leftJoin?: [string, string][] },
+): void {
+  for (const method of ['leftJoinAndSelect', 'leftJoin'] as const) {
+    const calls = expected[method] ?? [];
+    expect(qb[method]).toHaveBeenCalledTimes(calls.length);
+    if (calls.length) expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
+  }
+}
+
 // The open end of a default period is `new Date()` taken inside the call, so it can only be pinned
 // to the window the call itself spanned.
 function expectWithinCallWindow(date: Date, before: number, after: number): void {
@@ -1203,13 +1218,16 @@ describe('TransactionService (query builders)', () => {
       expect(qb.where).toHaveBeenCalledWith('transaction.type IS NOT NULL');
       expect(qb.andWhere).not.toHaveBeenCalled();
       expect(qb.orderBy).toHaveBeenCalledWith('transaction.id', 'DESC');
+      expect(qb.select).toHaveBeenCalledWith('transaction');
       // A wrong relation path or alias breaks the query at runtime but leaves a mocked builder
-      // perfectly happy, so the join list is asserted in full.
-      expect(qb.leftJoinAndSelect.mock.calls).toEqual([
-        ['transaction.userData', 'userData'],
-        ['userData.country', 'country'],
-        ['userData.verifiedCountry', 'verifiedCountry'],
-      ]);
+      // perfectly happy, so the joins are asserted too.
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.userData', 'userData'],
+          ['userData.country', 'country'],
+          ['userData.verifiedCountry', 'verifiedCountry'],
+        ],
+      });
     });
 
     it('filters on a closed creation period', async () => {
@@ -1291,10 +1309,12 @@ describe('TransactionService (query builders)', () => {
       // ref fee percentage. The mock returns a fixed row, so only these assertions catch a wrong formula.
       expect(qb.select).toHaveBeenCalledWith('SUM(refReward.amountInEur / user.refFeePercent)', 'volume');
       expect(qb.addSelect).toHaveBeenCalledWith('SUM(refReward.amountInEur)', 'credit');
-      expect(qb.leftJoin.mock.calls).toEqual([
-        ['transaction.user', 'user'],
-        ['transaction.refReward', 'refReward'],
-      ]);
+      expectJoins(qb, {
+        leftJoin: [
+          ['transaction.user', 'user'],
+          ['transaction.refReward', 'refReward'],
+        ],
+      });
       expect(qb.where).toHaveBeenCalledWith('transaction.sourceType = :sourceType', {
         sourceType: TransactionSourceType.MANUAL_REF,
       });
@@ -1333,11 +1353,13 @@ describe('TransactionService (query builders)', () => {
       // Appended, not assigned — `.where()` here would discard all three base filters above.
       expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
       expect(qb.where).toHaveBeenCalledTimes(1);
-      expect(qb.leftJoin.mock.calls).toEqual([
-        ['tx.buyCrypto', 'buyCrypto'],
-        ['tx.buyFiat', 'buyFiat'],
-        ['tx.refReward', 'refReward'],
-      ]);
+      expectJoins(qb, {
+        leftJoin: [
+          ['tx.buyCrypto', 'buyCrypto'],
+          ['tx.buyFiat', 'buyFiat'],
+          ['tx.refReward', 'refReward'],
+        ],
+      });
     });
   });
 
@@ -1351,16 +1373,19 @@ describe('TransactionService (query builders)', () => {
 
       expect(qb.where).toHaveBeenCalledWith('transaction.uid = :param', { param: 'T0123456789ABCDEF' });
       // This is the support lookup: the account tree it selects is the whole point of the method.
-      expect(qb.leftJoinAndSelect.mock.calls).toEqual([
-        ['transaction.userData', 'userData'],
-        ['userData.users', 'users'],
-        ['userData.kycSteps', 'kycSteps'],
-        ['userData.country', 'country'],
-        ['userData.nationality', 'nationality'],
-        ['userData.organizationCountry', 'organizationCountry'],
-        ['userData.verifiedCountry', 'verifiedCountry'],
-        ['userData.language', 'language'],
-      ]);
+      expect(qb.select).toHaveBeenCalledWith('transaction');
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.userData', 'userData'],
+          ['userData.users', 'users'],
+          ['userData.kycSteps', 'kycSteps'],
+          ['userData.country', 'country'],
+          ['userData.nationality', 'nationality'],
+          ['userData.organizationCountry', 'organizationCountry'],
+          ['userData.verifiedCountry', 'verifiedCountry'],
+          ['userData.language', 'language'],
+        ],
+      });
     });
 
     it('keeps a key that already names its alias', async () => {
@@ -1400,14 +1425,16 @@ describe('TransactionService (query builders)', () => {
       // Appended, not assigned — `.where()` here would discard the id bound set above.
       expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
       expect(qb.where).toHaveBeenCalledTimes(1);
-      expect(qb.leftJoinAndSelect.mock.calls).toEqual([
-        ['transaction.buyCrypto', 'buyCrypto'],
-        ['transaction.buyFiat', 'buyFiat'],
-        ['buyFiat.cryptoInput', 'cryptoInput'],
-        ['cryptoInput.asset', 'cryptoInputAsset'],
-      ]);
-      // Joined without select: the ref reward is only the anti-join target of the filter below.
-      expect(qb.leftJoin.mock.calls).toEqual([['transaction.targetRefReward', 'refReward']]);
+      // The ref reward is joined without select: it is only the anti-join target of the filter above.
+      expectJoins(qb, {
+        leftJoinAndSelect: [
+          ['transaction.buyCrypto', 'buyCrypto'],
+          ['transaction.buyFiat', 'buyFiat'],
+          ['buyFiat.cryptoInput', 'cryptoInput'],
+          ['cryptoInput.asset', 'cryptoInputAsset'],
+        ],
+        leftJoin: [['transaction.targetRefReward', 'refReward']],
+      });
     });
 
     it('excludes transactions that already have a ref reward', async () => {
