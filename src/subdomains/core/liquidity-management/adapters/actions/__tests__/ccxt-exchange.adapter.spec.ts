@@ -109,9 +109,7 @@ describe('CcxtExchangeAdapter', () => {
       jest.spyOn(assetService, 'getAssetByUniqueName').mockResolvedValue(tradeAsset);
       jest.spyOn(exchangeService, 'getCurrentPrice').mockResolvedValue(1);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue(Object.assign(new Price(), { price: 1 }));
-      jest
-        .spyOn(exchangeService, 'getTradePair')
-        .mockResolvedValue({ pair: 'POL/BTC', direction: OrderSide.SELL });
+      jest.spyOn(exchangeService, 'getTradePair').mockResolvedValue({ pair: 'POL/BTC', direction: OrderSide.SELL });
       jest
         .spyOn(exchangeService, 'sell')
         .mockRejectedValue(new PairNotTradableException('Binance: market POL/BTC is not active'));
@@ -143,9 +141,7 @@ describe('CcxtExchangeAdapter', () => {
       jest.spyOn(exchangeService, 'getCurrentPrice').mockResolvedValue(1);
       jest.spyOn(pricingService, 'getPrice').mockResolvedValue(Object.assign(new Price(), { price: 1 }));
       jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(1000);
-      jest
-        .spyOn(exchangeService, 'getTradePair')
-        .mockResolvedValue({ pair: 'POL/BTC', direction: OrderSide.SELL });
+      jest.spyOn(exchangeService, 'getTradePair').mockResolvedValue({ pair: 'POL/BTC', direction: OrderSide.SELL });
       jest
         .spyOn(exchangeService, 'sell')
         .mockRejectedValue(new PairNotTradableException('Binance: no bids in order book for POL/BTC (sell)'));

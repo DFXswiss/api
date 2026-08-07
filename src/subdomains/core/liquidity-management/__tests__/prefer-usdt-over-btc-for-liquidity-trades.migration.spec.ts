@@ -124,10 +124,7 @@ async function insertRule(
 }
 
 async function actionOnFail(queryRunner: QueryRunner, id: number): Promise<number | null> {
-  const rows = await queryRunner.query(
-    `SELECT "onFailId" FROM "liquidity_management_action" WHERE "id" = $1`,
-    [id],
-  );
+  const rows = await queryRunner.query(`SELECT "onFailId" FROM "liquidity_management_action" WHERE "id" = $1`, [id]);
   const v = rows.at(0)?.onFailId;
   return v == null ? null : Number(v);
 }
@@ -147,10 +144,9 @@ async function ruleStatus(queryRunner: QueryRunner, id: number): Promise<string>
 }
 
 async function auditMessages(queryRunner: QueryRunner): Promise<unknown[]> {
-  const rows = await queryRunner.query(
-    `SELECT "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`,
-    [AUDIT_SUBSYSTEM],
-  );
+  const rows = await queryRunner.query(`SELECT "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
+    AUDIT_SUBSYSTEM,
+  ]);
   return rows.map((row: { message: string }) =>
     typeof row.message === 'string' ? JSON.parse(row.message) : row.message,
   );
@@ -283,10 +279,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
     expect(firstUpdateIdx).toBeGreaterThan(auditInsertIdx);
 
     // Audit insert is parameterized (subsystem + JSON payload).
-    expect(calls[auditInsertIdx][1]).toEqual([
-      AUDIT_SUBSYSTEM,
-      expect.stringContaining('applyPreferUsdtOverBtc'),
-    ]);
+    expect(calls[auditInsertIdx][1]).toEqual([AUDIT_SUBSYSTEM, expect.stringContaining('applyPreferUsdtOverBtc')]);
 
     // Every UPDATE uses bound parameters, not interpolated ids.
     for (const [sql, bound] of calls.filter(([statement]) => statement.trim().toLowerCase().startsWith('update '))) {
@@ -343,9 +336,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
       }),
     };
 
-    await expect(migration.up(queryRunner as unknown as QueryRunner)).rejects.toThrow(
-      /Failed to write audit event/,
-    );
+    await expect(migration.up(queryRunner as unknown as QueryRunner)).rejects.toThrow(/Failed to write audit event/);
 
     const updates = (queryRunner.query.mock.calls as [string][]).filter(([sql]) =>
       sql.trim().toLowerCase().startsWith('update '),
@@ -594,9 +585,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     // B does not point at U — unexpected structure
     await insertAction(queryRunner, { id: BTC_ID, tag: 'B', onFailId: T_ID });
 
-    await expect(new PreferUsdtOverBtc().up(queryRunner)).rejects.toThrow(
-      /expected B\.onFailId = U \(13\), found/,
-    );
+    await expect(new PreferUsdtOverBtc().up(queryRunner)).rejects.toThrow(/expected B\.onFailId = U \(13\), found/);
 
     expect(await actionOnFail(queryRunner, BTC_ID)).toBe(T_ID);
     expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
@@ -684,10 +673,9 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     await migration.down(queryRunner);
 
     expect(await ruleStart(queryRunner, 1)).toBe(W_ID);
-    const stillThere = await queryRunner.query(
-      `SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`,
-      [w2Id],
-    );
+    const stillThere = await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [
+      w2Id,
+    ]);
     expect(stillThere).toHaveLength(1);
 
     const events = (await auditMessages(queryRunner)) as Array<{
