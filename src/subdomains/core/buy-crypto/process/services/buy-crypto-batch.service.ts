@@ -598,7 +598,18 @@ export class BuyCryptoBatchService {
             loadEagerRelations: false,
             lock: { mode: 'pessimistic_write' },
           });
-          if (!locked) return;
+          // the claim is lost when the transaction changed between the status write and this lock: no order is
+          // placed for the set, and the next cycle picks it up again from its new state
+          if (!locked) {
+            this.logger.info(
+              `Skipping missing buy-crypto liquidity order for ${
+                targetAsset.uniqueName
+              }: transaction ${transaction.id} changed before it could be claimed. Transaction ID(s): ${transactions.map(
+                (t) => t.id,
+              )}`,
+            );
+            return;
+          }
         }
 
         const pipeline = await this.liquidityService.buyLiquidity(targetAsset.id, minDeficit, deficit, true);
@@ -746,7 +757,17 @@ export class BuyCryptoBatchService {
         { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
         update,
       );
-      if (result.affected !== 1) return false;
+      // one lost version race abandons the whole set for this cycle: the amounts were sized against the set as
+      // a whole, so ordering for a part of it would buy the wrong deficit. It self-heals - the next cycle reads
+      // the transactions again - but it has to be readable in the log why no order followed the status writes
+      if (result.affected !== 1) {
+        this.logger.info(
+          `Skipping missing buy-crypto liquidity handling: transaction ${
+            tx.id
+          } changed before its status could be set. Transaction ID(s): ${transactions.map((t) => t.id)}`,
+        );
+        return false;
+      }
       if (previousVersion !== undefined) tx.version = previousVersion + 1;
     }
     return true;

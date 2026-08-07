@@ -4,6 +4,7 @@ import { mock } from 'jest-mock-extended';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -338,6 +339,16 @@ describe('BuyCryptoBatchService', () => {
       return (savedBatch as BuyCryptoBatch).transactions.map((t) => t.id);
     }
 
+    // the logger is a prototype spy and would outlive the test, so it is restored in afterEach
+    let loggerInfoSpy: jest.SpyInstance;
+
+    function captureInfoLogs(): () => string[] {
+      loggerInfoSpy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
+      return () => loggerInfoSpy.mock.calls.map(([message]) => message as string);
+    }
+
+    afterEach(() => loggerInfoSpy?.mockRestore());
+
     it('sets MissingLiquidity on every deferred transaction, guarded by its version', async () => {
       setupPartialLiquidity();
 
@@ -461,6 +472,37 @@ describe('BuyCryptoBatchService', () => {
       // Paused is the state every failed pipeline leaves behind, and it lasts for the whole reactivation
       // window. The deferred path re-orders for its set on every cycle, so a mail here is a mail per minute
       expect(buyCryptoNotificationService.sendMissingLiquidityError).not.toHaveBeenCalled();
+      expect(savedBatchTransactionIds()).toEqual([11]);
+    });
+
+    it('names the deferred set in the log when the claim for the liquidity order is lost', async () => {
+      setupPartialLiquidity();
+      buyCryptoRepoManager.findOne.mockResolvedValue(null);
+      const infoLogs = captureInfoLogs();
+
+      await service.batchAndOptimizeTransactions();
+
+      // no order, no pipeline, no mail — so the log is the only trace this path leaves
+      expect(liquidityManagementService.buyLiquidity).not.toHaveBeenCalled();
+      expect(buyCryptoNotificationService.sendMissingLiquidityError).not.toHaveBeenCalled();
+      expect(infoLogs()).toContainEqual(
+        expect.stringContaining(`transaction 12 changed before it could be claimed. Transaction ID(s): 12,13`),
+      );
+    });
+
+    it('names the transaction that lost the version race, and keeps the sub-batch', async () => {
+      setupPartialLiquidity();
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      const infoLogs = captureInfoLogs();
+
+      await service.batchAndOptimizeTransactions();
+
+      // one lost race abandons the whole set for this cycle, which self-heals on the next one — but the ids
+      // have to say so, otherwise the deferred set is invisible again for exactly one cycle
+      expect(liquidityManagementService.buyLiquidity).not.toHaveBeenCalled();
+      expect(infoLogs()).toContainEqual(
+        expect.stringContaining(`transaction 12 changed before its status could be set. Transaction ID(s): 12,13`),
+      );
       expect(savedBatchTransactionIds()).toEqual([11]);
     });
 
