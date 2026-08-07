@@ -1296,6 +1296,33 @@ describe('TransactionService (lookups)', () => {
     expect((repo.find as jest.Mock).mock.calls[0][0].take).toBe(3);
   });
 
+  // The merge trims back to the page width after every batch. A later batch whose rows fall
+  // between rows already held has to displace them rather than be dropped against them.
+  it('lets a later batch displace rows the merge is already holding', async () => {
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValueOnce([
+        transactionAt(110, '2024-01-10'),
+        transactionAt(108, '2024-01-08'),
+        transactionAt(106, '2024-01-06'),
+      ])
+      .mockResolvedValueOnce([
+        transactionAt(209, '2024-01-09'),
+        transactionAt(207, '2024-01-07'),
+        transactionAt(205, '2024-01-05'),
+      ]);
+
+    const result = await service.getTransactionsForUsers(
+      Array.from({ length: 101 }, (_, i) => i),
+      undefined,
+      undefined,
+      3,
+    );
+
+    // 209 sits between the first two rows the merge held and takes 106's place.
+    expect(result.map((t) => t.id)).toEqual([110, 209, 108]);
+  });
+
   it('applies the offset once to the merged result when no limit bounds it', async () => {
     jest
       .spyOn(repo, 'find')
