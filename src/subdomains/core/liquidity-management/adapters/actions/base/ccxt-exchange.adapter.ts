@@ -18,6 +18,9 @@ import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
 import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
+// decimals every withdrawal amount is floored to before it leaves this adapter
+const WITHDRAWAL_AMOUNT_DECIMALS = 6;
+
 /**
  * @note
  * commands should be lower-case
@@ -109,7 +112,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Util.floor(Math.min(maxAmount, balance), 6);
+    const amount = Util.floor(Math.min(maxAmount, balance), WITHDRAWAL_AMOUNT_DECIMALS);
 
     order.inputAmount = amount;
     order.inputAsset = token;
@@ -272,8 +275,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     // optimum on top, so it runs into the per-withdrawal maximum earlier than a plain withdrawal
     const capped = await this.capToWithdrawalMaximum(order.minAmount, order.maxAmount + (optimum ?? 0), asset, network);
 
-    const minAmount = Util.floor(capped.minAmount, 6);
-    const maxAmount = Util.floor(capped.maxAmount, 6);
+    const minAmount = Util.floor(capped.minAmount, WITHDRAWAL_AMOUNT_DECIMALS);
+    const maxAmount = Util.floor(capped.maxAmount, WITHDRAWAL_AMOUNT_DECIMALS);
 
     const sourceBalance = await this.exchangeService.getAvailableBalance(asset);
     if (minAmount > sourceBalance)
@@ -281,7 +284,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Util.floor(Math.min(maxAmount, sourceBalance), 6);
+    const amount = Util.floor(Math.min(maxAmount, sourceBalance), WITHDRAWAL_AMOUNT_DECIMALS);
 
     order.inputAmount = amount;
     order.inputAsset = asset;
@@ -603,6 +606,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     // an unknown maximum is not a maximum of zero — send what was requested, exactly as before
     if (venueMaximum == null) return { minAmount, maxAmount };
+
+    // a maximum below one unit of the precision this adapter floors to is unusable as a cap: applied, it would
+    // send a withdrawal of zero, which is the endless loop of empty deliveries the limits are read to prevent.
+    // Read it as unknown and leave the request as it stands — the venue answers whether it accepts the amount.
+    if (Util.floor(venueMaximum, WITHDRAWAL_AMOUNT_DECIMALS) === 0) {
+      this.logger.warn(
+        `${this.exchangeService.name}: published withdrawal maximum ${venueMaximum} for ${token} is below the withdrawal precision, leaving the request uncapped`,
+      );
+
+      return { minAmount, maxAmount };
+    }
 
     // WHY no exception on a contradictory pair (published minimum above published maximum): the venue, not this
     // code, decides whether an amount is acceptable. A terminal failure invented here out of numbers that are

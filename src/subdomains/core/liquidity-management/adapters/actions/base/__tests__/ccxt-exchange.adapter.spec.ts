@@ -24,6 +24,9 @@ const NETWORK = 'XMR';
 // neutral round numbers throughout: every assertion is about the capping arithmetic, never about an amount
 const venueLimits = { min: 0.5, max: 50 };
 
+// a maximum below the last decimal the adapter keeps - applied, it floors the withdrawal to zero
+const subPrecisionLimits = { min: 0.0000001, max: 0.0000001 };
+
 /** The adapter is abstract only to force a venue to be named — every command is implemented on the base. */
 class TestCcxtExchangeAdapter extends CcxtExchangeAdapter {}
 
@@ -178,6 +181,19 @@ describe('CcxtExchangeAdapter', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('below the published minimum'));
       expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 1, DEST_ADDRESS, 'key-1', NETWORK);
     });
+
+    // capping to zero is the one outcome the limits are read to prevent: it turns a working payout into an
+    // endless loop of empty deliveries, so a maximum that cannot survive the flooring counts as unknown
+    it('should leave the request uncapped when the published maximum floors to zero', async () => {
+      const warn = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(subPrecisionLimits);
+
+      await expect(adapter.executeOrder(createWithdrawOrder(30, 80))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 80, DEST_ADDRESS, 'key-1', NETWORK);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('below the withdrawal precision'));
+    });
   });
 
   describe('transfer', () => {
@@ -217,6 +233,16 @@ describe('CcxtExchangeAdapter', () => {
       await expect(adapter.executeOrder(createTransferOrder(0.5, 60, 20))).resolves.toBe('w-1');
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('below the published minimum'));
       expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 1, DEST_ADDRESS, 'key-1', NETWORK);
+    });
+
+    it('should leave the request uncapped when the published maximum floors to zero', async () => {
+      jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchangeService, 'getAvailableBalance').mockResolvedValue(90);
+      jest.spyOn(exchangeService, 'getWithdrawalLimits').mockResolvedValue(subPrecisionLimits);
+
+      await expect(adapter.executeOrder(createTransferOrder(10, 60, 20))).resolves.toBe('w-1');
+      expect(exchangeService.withdrawFunds).toHaveBeenCalledWith('XMR', 80, DEST_ADDRESS, 'key-1', NETWORK);
     });
   });
 });
