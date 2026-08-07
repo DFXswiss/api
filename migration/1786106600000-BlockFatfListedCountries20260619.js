@@ -46,8 +46,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class BlockFatfListedCountries202606191785229100000 {
-  name = 'BlockFatfListedCountries202606191785229100000';
+module.exports = class BlockFatfListedCountries202606191786106600000 {
+  name = 'BlockFatfListedCountries202606191786106600000';
 
   /**
    * @param {QueryRunner} queryRunner
@@ -64,7 +64,7 @@ module.exports = class BlockFatfListedCountries202606191785229100000 {
                 sym text;
                 target_symbols text[] := ARRAY['BA', 'CD', 'IQ', 'KW', 'PG'];
                 fatf_source text := 'https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html';
-                migration_name text := 'BlockFatfListedCountries202606191785229100000';
+                migration_name text := 'BlockFatfListedCountries202606191786106600000';
             BEGIN
                 SELECT count(*) INTO total_countries FROM "country";
                 IF total_countries = 0 THEN

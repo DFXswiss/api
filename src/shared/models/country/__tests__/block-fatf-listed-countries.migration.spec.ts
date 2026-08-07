@@ -38,7 +38,7 @@ type CountryFlags = {
 describe('BlockFatfListedCountries20260619 target set vs policy', () => {
   const migrationPath = path.join(
     __dirname,
-    '../../../../../migration/1785229100000-BlockFatfListedCountries20260619.js',
+    '../../../../../migration/1786106600000-BlockFatfListedCountries20260619.js',
   );
 
   const parseTargetSymbolsFromMigration = (): string[] => {
@@ -81,7 +81,7 @@ describeDb('BlockFatfListedCountries20260619 migration (real Postgres)', () => {
 
   beforeAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    BlockFatfListedCountries = require('../../../../../migration/1785229100000-BlockFatfListedCountries20260619');
+    BlockFatfListedCountries = require('../../../../../migration/1786106600000-BlockFatfListedCountries20260619');
     dataSource = new DataSource({ type: 'postgres', url: PG_URL });
     await dataSource.initialize();
   });
@@ -275,7 +275,7 @@ describeDb('BlockFatfListedCountries20260619 migration (real Postgres)', () => {
 
     for (const { symbol, message } of logs) {
       expect(message.action).toBe('fatfPolicySnapshot');
-      expect(message.migration).toBe('BlockFatfListedCountries202606191785229100000');
+      expect(message.migration).toBe('BlockFatfListedCountries202606191786106600000');
       expect(message.effectiveDate).toBe('2026-06-19');
       expect(message.source).toBe('https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html');
       expect(message.next).toEqual({
