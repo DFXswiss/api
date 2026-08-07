@@ -185,7 +185,8 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
    * internal state: BANKING_BOT can create log rows and ADMIN can edit an existing message
    * (log.controller.ts, create-log.dto.ts accept arbitrary system/subsystem/message strings with
    * no allowlist). Column entries and clone entries must never mix fields — a column entry that
-   * also carries createdActionId would otherwise reach the clone-deletion loop unvalidated.
+   * also carries createdActionId would otherwise reach down() unvalidated, before the first restore
+   * mutation runs.
    * Anything that does not match exactly one of the two shapes throws before any mutation runs.
    *
    * @param {unknown[]} entries

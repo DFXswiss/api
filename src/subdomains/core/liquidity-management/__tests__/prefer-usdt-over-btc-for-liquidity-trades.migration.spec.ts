@@ -1007,6 +1007,66 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
   });
 
+  it('accumulates disjoint clone sets across two apply/rollback cycles; old clones stay inert and unreferenced', async () => {
+    await seedBaselineChain(queryRunner, { withW: true });
+    await insertAsset(queryRunner, 2, 'WBTC');
+    await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
+
+    const migration = new PreferUsdtOverBtc();
+
+    // --- Cycle 1: up() creates the first W2 → B2 → U2 → T clone chain.
+    await migration.up(queryRunner);
+
+    const firstCloneRows = await queryRunner.query(
+      `SELECT "id" FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC' ORDER BY "id"`,
+    );
+    const firstCloneIds = firstCloneRows.map((row: { id: number }) => Number(row.id));
+    expect(firstCloneIds).toHaveLength(3);
+
+    const w2FirstId = (await ruleStart(queryRunner, 1)) as number;
+    expect(firstCloneIds).toContain(w2FirstId);
+    const b2FirstId = (await actionOnFail(queryRunner, w2FirstId)) as number;
+    const u2FirstId = (await actionOnFail(queryRunner, b2FirstId)) as number;
+    expect(await actionOnFail(queryRunner, u2FirstId)).toBe(T_ID);
+
+    // --- Cycle 1: down() restores the rule and the shared edges; the three clones remain.
+    await migration.down(queryRunner);
+
+    expect(await ruleStart(queryRunner, 1)).toBe(W_ID);
+    expect(await actionOnFail(queryRunner, W_ID)).toBe(BTC_ID);
+    expect(await actionOnFail(queryRunner, BTC_ID)).toBe(USDT_ID);
+    expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
+    for (const cloneId of firstCloneIds) {
+      expect(
+        await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [cloneId]),
+      ).toHaveLength(1);
+    }
+
+    // --- Cycle 2: up() creates a second, disjoint W2 → B2 → U2 → T clone chain.
+    await migration.up(queryRunner);
+
+    const allCloneRows = await queryRunner.query(
+      `SELECT "id" FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC' ORDER BY "id"`,
+    );
+    const allCloneIds = allCloneRows.map((row: { id: number }) => Number(row.id));
+    expect(allCloneIds).toHaveLength(6);
+
+    const secondCloneIds = allCloneIds.filter((id: number) => !firstCloneIds.includes(id));
+    expect(secondCloneIds).toHaveLength(3);
+
+    const w2SecondId = await ruleStart(queryRunner, 1);
+    expect(secondCloneIds).toContain(w2SecondId);
+    // The rule now points at the NEW W2 — proves it no longer references any first-cycle clone
+    // (there is exactly one rule in this scenario, and it points at exactly one action).
+    expect(firstCloneIds).not.toContain(w2SecondId);
+
+    // Old clones are inert: their internal onFailId chain is byte-for-byte unchanged since cycle 1
+    // — down() and the second up() never touch existing clone rows, only create new ones.
+    expect(await actionOnFail(queryRunner, w2FirstId)).toBe(b2FirstId);
+    expect(await actionOnFail(queryRunner, b2FirstId)).toBe(u2FirstId);
+    expect(await actionOnFail(queryRunner, u2FirstId)).toBe(T_ID);
+  });
+
   it('is a pure no-op on an empty database (no pairs, no DAI) without writing audit', async () => {
     await new PreferUsdtOverBtc().up(queryRunner);
 
