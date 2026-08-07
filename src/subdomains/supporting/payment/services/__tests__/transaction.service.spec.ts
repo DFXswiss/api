@@ -124,8 +124,22 @@ function expectJoins(
   for (const method of ['leftJoinAndSelect', 'leftJoin'] as const) {
     const calls = expected[method] ?? [];
     expect(qb[method]).toHaveBeenCalledTimes(calls.length);
-    if (calls.length) expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
+    if (calls.length) {
+      expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
+      expectParentBeforeChild(qb[method].mock.calls as [string, string][]);
+    }
   }
+}
+
+// The one ordering the query does require: a nested join reads an alias the parent join introduced,
+// so the parent can never come second. Siblings stay unordered.
+function expectParentBeforeChild(calls: [string, string][]): void {
+  const aliasPosition = new Map(calls.map(([, alias], index) => [alias, index]));
+
+  calls.forEach(([path], index) => {
+    const parent = aliasPosition.get(path.split('.')[0]);
+    if (parent !== undefined) expect(parent).toBeLessThan(index);
+  });
 }
 
 // The open end of a default period is `new Date()` taken inside the call, so it can only be pinned
@@ -348,6 +362,22 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
       Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
     );
 
+    expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
+  });
+
+  it('skips the bank data lookup when the bank tx carries no sender account', async () => {
+    // The guard is on the IBAN, not on the bank tx: without it the lookup would run with `undefined`.
+    const entity = Object.assign(new Transaction(), { id: 99, bankTx: new BankTx() });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(Object.assign(new UserData(), { id: 5 }));
+
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
+    );
+
+    expect(bankDataService.getVerifiedBankDataWithIban).not.toHaveBeenCalled();
     expect(bankDataService.createVerifyBankData).not.toHaveBeenCalled();
   });
 
@@ -760,6 +790,54 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     mockResumeManager(buyCrypto, { affected: 0, raw: [], generatedMaps: [] });
 
     await expect(service.resume(99)).rejects.toThrow(ConflictException);
+  });
+
+  // Which guard wins when several are violated at once decides the message the support desk reads,
+  // so the order is pinned here the same way it is for stop().
+  it('resume() reports a transaction that is neither stopped nor passed as not stopped', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.COMPLETE,
+      amlCheck: CheckStatus.FAIL,
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Transaction is not stopped');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a stopped, failed transaction with a chargeback as failing the AML check', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.FAIL,
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions with passed AML check can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched transaction with a chargeback as batched', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+      chargebackDate: new Date(),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions without batch and payout can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
   });
 
   it('resume() rejects when the conditional update hits more than one row', async () => {
@@ -1218,7 +1296,9 @@ describe('TransactionService (query builders)', () => {
       expect(qb.where).toHaveBeenCalledWith('transaction.type IS NOT NULL');
       expect(qb.andWhere).not.toHaveBeenCalled();
       expect(qb.orderBy).toHaveBeenCalledWith('transaction.id', 'DESC');
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
       expect(qb.select).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
       // A wrong relation path or alias breaks the query at runtime but leaves a mocked builder
       // perfectly happy, so the joins are asserted too.
       expectJoins(qb, {
@@ -1307,6 +1387,8 @@ describe('TransactionService (query builders)', () => {
 
       // The aggregate expressions carry the whole arithmetic: the volume is the reward divided by the
       // ref fee percentage. The mock returns a fixed row, so only these assertions catch a wrong formula.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
       expect(qb.select).toHaveBeenCalledWith('SUM(refReward.amountInEur / user.refFeePercent)', 'volume');
       expect(qb.addSelect).toHaveBeenCalledWith('SUM(refReward.amountInEur)', 'credit');
       expectJoins(qb, {
@@ -1341,6 +1423,8 @@ describe('TransactionService (query builders)', () => {
 
       // The two base filters decide which rows reach the aggregate at all — inverting either one
       // would silently produce an empty or wrong audit report.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('tx');
+      expect(qb.select).toHaveBeenCalledTimes(1);
       expect(qb.select).toHaveBeenCalledWith('tx.userDataId', 'userDataId');
       expect(qb.addSelect).toHaveBeenCalledWith('SUM(tx.amountInChf)', 'totalVolume');
       expect(qb.where).toHaveBeenCalledWith('tx.userDataId IS NOT NULL');
@@ -1373,7 +1457,9 @@ describe('TransactionService (query builders)', () => {
 
       expect(qb.where).toHaveBeenCalledWith('transaction.uid = :param', { param: 'T0123456789ABCDEF' });
       // This is the support lookup: the account tree it selects is the whole point of the method.
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
       expect(qb.select).toHaveBeenCalledWith('transaction');
+      expect(qb.select).toHaveBeenCalledTimes(1);
       expectJoins(qb, {
         leftJoinAndSelect: [
           ['transaction.userData', 'userData'],
@@ -1421,6 +1507,7 @@ describe('TransactionService (query builders)', () => {
 
       await service.getRefBonusCandidates('AAA-000', 100);
 
+      expect(repo.createQueryBuilder).toHaveBeenCalledWith('transaction');
       expect(qb.where).toHaveBeenCalledWith('transaction.id > :minTransactionId', { minTransactionId: 100 });
       // Appended, not assigned — `.where()` here would discard the id bound set above.
       expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
