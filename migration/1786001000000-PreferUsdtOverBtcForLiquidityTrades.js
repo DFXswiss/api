@@ -432,7 +432,7 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       if (!entry.column || entry.column === 'status') continue;
       await queryRunner.query(
         `UPDATE "${entry.table}" SET "${entry.column}" = $1
-         WHERE "id" = $2 AND "${entry.column}" IS NOT DISTINCT FROM $3`,
+         WHERE "id" = $2 AND ("${entry.column}" = $3 OR ("${entry.column}" IS NULL AND $3 IS NULL))`,
         [entry.before, entry.id, entry.after],
       );
     }

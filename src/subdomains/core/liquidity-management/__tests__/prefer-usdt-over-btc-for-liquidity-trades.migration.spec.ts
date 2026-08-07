@@ -226,10 +226,30 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
         if (s.includes('from "liquidity_management_action"') && s.includes(`"id" = $1`)) {
           const id = Number(params?.[0]);
           if (id === BTC_ID) {
-            return [{ id: BTC_ID, system: 'Binance', command: 'buy', tag: 'B', params: null, onSuccessId: null, onFailId: USDT_ID }];
+            return [
+              {
+                id: BTC_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'B',
+                params: null,
+                onSuccessId: null,
+                onFailId: USDT_ID,
+              },
+            ];
           }
           if (id === USDT_ID) {
-            return [{ id: USDT_ID, system: 'Binance', command: 'buy', tag: 'U', params: null, onSuccessId: null, onFailId: T_ID }];
+            return [
+              {
+                id: USDT_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'U',
+                params: null,
+                onSuccessId: null,
+                onFailId: T_ID,
+              },
+            ];
           }
           return [];
         }
@@ -286,10 +306,30 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
         if (s.includes('from "liquidity_management_action"') && s.includes(`"id" = $1`)) {
           const id = Number(params?.[0]);
           if (id === BTC_ID) {
-            return [{ id: BTC_ID, system: 'Binance', command: 'buy', tag: 'B', params: null, onSuccessId: null, onFailId: USDT_ID }];
+            return [
+              {
+                id: BTC_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'B',
+                params: null,
+                onSuccessId: null,
+                onFailId: USDT_ID,
+              },
+            ];
           }
           if (id === USDT_ID) {
-            return [{ id: USDT_ID, system: 'Binance', command: 'buy', tag: 'U', params: null, onSuccessId: null, onFailId: null }];
+            return [
+              {
+                id: USDT_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'U',
+                params: null,
+                onSuccessId: null,
+                onFailId: null,
+              },
+            ];
           }
           return [];
         }
@@ -324,16 +364,46 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (SQL content)', () => {
         if (s.includes('from "liquidity_management_action"') && s.includes(`"id" = $1`)) {
           const id = Number(params?.[0]);
           if (id === BTC_ID) {
-            return [{ id: BTC_ID, system: 'Binance', command: 'buy', tag: 'buy BTC', params: '{}', onSuccessId: null, onFailId: USDT_ID }];
+            return [
+              {
+                id: BTC_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'buy BTC',
+                params: '{}',
+                onSuccessId: null,
+                onFailId: USDT_ID,
+              },
+            ];
           }
           if (id === USDT_ID) {
-            return [{ id: USDT_ID, system: 'Binance', command: 'buy', tag: 'buy USDT', params: '{}', onSuccessId: null, onFailId: T_ID }];
+            return [
+              {
+                id: USDT_ID,
+                system: 'Binance',
+                command: 'buy',
+                tag: 'buy USDT',
+                params: '{}',
+                onSuccessId: null,
+                onFailId: T_ID,
+              },
+            ];
           }
           return [];
         }
         if (s.includes('from "liquidity_management_action"') && s.includes('onfailid') && !s.includes('insert')) {
           // One W pointing at B
-          return [{ id: W_ID, system: 'Binance', command: 'withdraw', tag: 'W', params: null, onSuccessId: null, onFailId: BTC_ID }];
+          return [
+            {
+              id: W_ID,
+              system: 'Binance',
+              command: 'withdraw',
+              tag: 'W',
+              params: null,
+              onSuccessId: null,
+              onFailId: BTC_ID,
+            },
+          ];
         }
         if (s.includes('from "liquidity_management_rule"') && s.includes(`'wbtc'`)) {
           // WBTC rule starts at W → triggers W2/B2/U2 clones
