@@ -90,7 +90,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 643 | 21 | find | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:294` | `RecommendationService.checkAndConfirmRecommendInvitation` |
 | 639 | 24 | find | `FiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts:108` | `FiatOutputJobService.generateReports` |
 | 630 | 20 | find | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:284` | `RecommendationService.getUserDataRecommendation` |
-| 623 | 20 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:794` | `BuyFiatService.getAllUserTransactions` |
+| 623 | 20 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:798` | `BuyFiatService.getAllUserTransactions` |
 | 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:82` | `BuyCryptoNotificationService.paymentCompleted` |
 | 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:177` | `BuyCryptoNotificationService.pendingBuyCrypto` |
 | 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:352` | `BuyCryptoNotificationService.chargebackUnconfirmed` |
@@ -99,7 +99,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 583 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-notification.service.ts:209` | `BuyFiatNotificationService.chargebackInitiated` |
 | 583 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:35` | `BuyFiatRegistrationService.syncReturnTxId` |
 | 577 | 18 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:132` | `BuyFiatService.checkAmlResetTx` |
-| 577 | 18 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:597` | `BuyFiatService.resetAmlCheck` |
+| 577 | 18 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:601` | `BuyFiatService.resetAmlCheck` |
 | 567 | 17 | find | `BuyCrypto` | `subdomains/core/accounting/services/consumers/buy-crypto.consumer.ts:114` | `BuyCryptoConsumer.processForward` |
 | 561 | 16 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:209` | `BankTxReturnService.getPendingChargebacks` |
 | 558 | 24 | find | `PaymentQuote` | `subdomains/core/payment-link/services/payment-quote.service.ts:159` | `PaymentQuoteService.getEarliestQuoteClaimingTx` |
@@ -109,12 +109,12 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 545 | 23 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:253` | `PaymentLinkPaymentService.getPendingPaymentByUniqueId` |
 | 545 | 23 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:730` | `PaymentLinkPaymentService.handleBlockchainConfirmed` |
 | 545 | 23 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:840` | `PaymentLinkPaymentService.sendWebhook` |
-| 540 | 17 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:938` | `BuyFiatService.getByAmlReason` |
+| 540 | 17 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:942` | `BuyFiatService.getByAmlReason` |
 | 538 | 21 | find | `CryptoInput` | `subdomains/core/accounting/services/consumers/crypto-input.consumer.ts:89` | `CryptoInputConsumer.processForward` |
 | 535 | 15 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1331` | `BuyCryptoService.getPendingTransactions` |
-| 518 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:952` | `BuyFiatService.getPendingChargebacks` |
+| 518 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:956` | `BuyFiatService.getPendingChargebacks` |
 | 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:615` | `BuyFiatPreparationService.chargebackTx` |
-| 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:610` | `BuyFiatService.retriggerScorechain` |
+| 517 | 16 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:614` | `BuyFiatService.retriggerScorechain` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:65` | `PaymentLinkRepository.getAllPaymentLinks` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:72` | `PaymentLinkRepository.getAllPaymentLinks` |
 | 513 | 21 | find | `PaymentLink` | `subdomains/core/payment-link/repositories/payment-link.repository.ts:79` | `PaymentLinkRepository.getAllPaymentLinksByExternalLinkId` |
@@ -186,7 +186,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:100` | `BuyCryptoRegistrationService.filterBuyCryptoPayIns` |
 | 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:260` | `SwapService.updateSwap` |
 | 396 | 15 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:268` | `SwapService.confirmSwap` |
-| 392 | 14 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:814` | `BuyFiatService.getPendingTransactions` |
+| 392 | 14 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:818` | `BuyFiatService.getPendingTransactions` |
 | 386 | 11 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:440` | `UserService.updateUserName` |
 | 385 | 15 | find | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:139` | `BuyFiatRegistrationService.createBuyFiatsAndAckPayIns` |
 | 385 | 14 | find | `KycStep` | `subdomains/generic/kyc/services/kyc-admin.service.ts:45` | `KycAdminService.updateKycStep` |
@@ -257,7 +257,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 308 | 9 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:761` | `UserService.updateApiFilter` |
 | 301 | 6 | find | `BankTxRepeat` | `subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service.ts:89` | `BankTxRepeatService.getAllUserRepeats` |
 | 299 | 12 | find | `TradingOrder` | `subdomains/core/trading/services/trading-order.service.ts:65` | `TradingOrderService.startNewOrders` |
-| 287 | 8 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:921` | `BuyFiatService.getTransactions` |
+| 287 | 8 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:925` | `BuyFiatService.getTransactions` |
 | 284 | 10 | find | `UserData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:177` | `BankDataService.addBankData` |
 | 276 | 10 | find | `NameCheckLog` | `subdomains/generic/kyc/services/name-check.service.ts:205` | `NameCheckService.createNameCheckLog` |
 | 274 | 10 | find | `BankData` | `subdomains/generic/user/models/bank-data/bank-data.service.ts:63` | `BankDataService.checkUnverifiedBankDatas` |
@@ -303,7 +303,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 253 | 8 | find | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1184` | `UserDataService.loadRelationsAndVerify` |
 | 253 | 8 | find | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:1821` | `UserDataService.getByPhoneCallStatuses` |
 | 247 | 6 | find | `BankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts:451` | `BankTxService.reset` |
-| 247 | 9 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:750` | `BuyFiatService.updateVolumes` |
+| 247 | 9 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:754` | `BuyFiatService.updateVolumes` |
 | 246 | 9 | find | `CustodyAccountAccess` | `subdomains/core/custody/services/custody-account.service.ts:61` | `CustodyAccountService.getCustodyAccountsForUser` |
 | 245 | 8 | find | `NameCheckLog` | `subdomains/generic/kyc/services/name-check.service.ts:40` | `NameCheckService.updateLog` |
 | 245 | 8 | find | `NameCheckLog` | `subdomains/generic/kyc/services/name-check.service.ts:169` | `NameCheckService.closeAndRefreshRiskStatus` |
@@ -330,7 +330,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 229 | 11 | find | `CryptoInput` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:527` | `DashboardReconciliationService.getCryptoInputs` |
 | 201 | 5 | find | `BuyFiat` | `subdomains/core/accounting/services/consumers/payout-order.consumer.ts:293` | `PayoutOrderConsumer.owedCompletionChf` |
 | 201 | 8 | find | `RefReward` | `subdomains/core/referral/reward/services/ref-reward-dex.service.ts:36` | `RefRewardDexService.secureLiquidity` |
-| 201 | 5 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:723` | `BuyFiatService.manualPassAmlCheck` |
+| 201 | 5 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:727` | `BuyFiatService.manualPassAmlCheck` |
 | 201 | 5 | find | `BuyFiat` | `subdomains/supporting/fiat-output/fiat-output.service.ts:99` | `FiatOutputService.create` |
 | 197 | 5 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-job.service.ts:113` | `CustodyJobService.onStepComplete` |
 | 197 | 5 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:271` | `CustodyOrderService.getCustodyOrderByTx` |
@@ -381,7 +381,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 146 | 6 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:182` | `SwapService.getSwapsByUserDataId` |
 | 146 | 6 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:214` | `SwapService.createSwap` |
 | 146 | 6 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:253` | `SwapService.getUserSwaps` |
-| 144 | 6 | find | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:839` | `BuyFiatService.getSell` |
+| 144 | 6 | find | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:843` | `BuyFiatService.getSell` |
 | 143 | 4 | find | `Fee` | `subdomains/supporting/payment/services/fee.service.ts:346` | `FeeService.getAllFees` |
 | 139 | 9 | find | `LiquidityManagementOrder` | `subdomains/core/accounting/services/consumers/liquidity-mgmt.consumer.ts:89` | `LiquidityMgmtConsumer.processForward` |
 | 139 | 9 | find | `LiquidityManagementOrder` | `subdomains/core/liquidity-management/adapters/actions/liquidity-pipeline.adapter.ts:62` | `LiquidityPipelineAdapter.buy` |
@@ -768,7 +768,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 3 | 0 | query-builder (named columns) | `CustodyOrder` | `subdomains/core/custody/services/custody.service.ts:689` | `CustodyService.getHistoricalBalances` |
 | 3 | 0 | query-builder (named columns) | `Swap` | `subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts:90` | `BuyCryptoRegistrationService.filterBuyCryptoPayIns` |
 | 3 | 0 | query-builder (named columns) | `Sell` | `subdomains/core/sell-crypto/process/services/buy-fiat-registration.service.ts:97` | `BuyFiatRegistrationService.filterSellPayIns` |
-| 3 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:853` | `BuyFiatService.updateSellVolume` |
+| 3 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:857` | `BuyFiatService.updateSellVolume` |
 | 3 | 0 | query-builder (named columns) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:261` | `SellService.getUserVolume` |
 | 3 | 0 | query-builder (named columns) | `KycStep` | `subdomains/generic/kyc/services/kyc.service.ts:1989` | `KycService.getPendingReviewSummary` |
 | 3 | 0 | query-builder (field list) | `UserData` | `subdomains/generic/user/models/user-data/user-data.repository.ts:240` | `UserDataRepository.getForApiKey` |
@@ -782,8 +782,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 2 | 0 | query-builder (named columns) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1518` | `BuyCryptoService.getPartnerFeeRefVolume` |
 | 2 | 0 | query-builder (field list) | `LiquidityManagementPipeline` | `subdomains/core/liquidity-management/repositories/liquidity-management-pipeline.repository.ts:43` | `LiquidityManagementPipelineRepository.findForStatus` |
 | 2 | 0 | query-builder (named columns) | `—` | `subdomains/core/monitoring/observers/payment.observer.ts:72` | `PaymentObserver.getPayment` |
-| 2 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:896` | `BuyFiatService.getRefVolume` |
-| 2 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:908` | `BuyFiatService.getPartnerFeeRefVolume` |
+| 2 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:900` | `BuyFiatService.getRefVolume` |
+| 2 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:912` | `BuyFiatService.getPartnerFeeRefVolume` |
 | 2 | 0 | query-builder (named columns) | `TradingOrder` | `subdomains/core/trading/services/trading-order.service.ts:53` | `TradingOrderService.getTradingOrderYield` |
 | 2 | 0 | query-builder (named columns) | `—` | `subdomains/generic/gs/gs.service.ts:868` | `GsService.getExtendedBankTxData` |
 | 2 | 0 | query-builder (named columns) | `—` | `subdomains/generic/gs/gs.service.ts:887` | `GsService.getExtendedBankTxData` |
@@ -827,8 +827,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1 | 0 | query-builder (named columns) | `—` | `subdomains/core/monitoring/observers/bank.observer.ts:117` | `BankObserver.getDbBalance` |
 | 1 | 0 | query-builder (named columns) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:216` | `RefRewardService.getRefRewardVolume` |
 | 1 | 0 | query-builder (named columns) | `RefReward` | `subdomains/core/referral/reward/services/ref-reward.service.ts:249` | `RefRewardService.updatePaidRefCredit` |
-| 1 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:761` | `BuyFiatService.updateRefVolumes` |
-| 1 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:778` | `BuyFiatService.getUserVolume` |
+| 1 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:765` | `BuyFiatService.updateRefVolumes` |
+| 1 | 0 | query-builder (named columns) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:782` | `BuyFiatService.getUserVolume` |
 | 1 | 0 | query-builder (named columns) | `Sell` | `subdomains/core/sell-crypto/route/sell.service.ts:271` | `SellService.getTotalVolume` |
 | 1 | 0 | query-builder (named columns) | `TradingOrder` | `subdomains/core/trading/services/trading-rule.service.ts:35` | `TradingRuleService.getCurrentTradingOrders` |
 | 1 | 0 | query-builder (named columns) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:186` | `UserDataService.getUserDataIdsByServiceProvider` |
@@ -1025,9 +1025,9 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:520` | `BuyFiatService.refundBuyFiatInternal` |
 | — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:528` | `BuyFiatService.refundBuyFiatInternal` |
 | — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:536` | `BuyFiatService.refundBuyFiatInternal` |
-| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:641` | `BuyFiatService.resetAmlCheckInternal` |
-| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:649` | `BuyFiatService.resetAmlCheckInternal` |
-| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:657` | `BuyFiatService.resetAmlCheckInternal` |
+| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:645` | `BuyFiatService.resetAmlCheckInternal` |
+| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:653` | `BuyFiatService.resetAmlCheckInternal` |
+| — | — | find | `—` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:661` | `BuyFiatService.resetAmlCheckInternal` |
 | — | — | raw-sql | `—` | `subdomains/generic/gs/gs.service.ts:337` | `GsService.executeDebugQuery` |
 | — | — | find | `—` | `subdomains/generic/gs/gs.service.ts:739` | `GsService.getParsedJsonData` |
 | — | — | find | `—` | `subdomains/generic/gs/gs.service.ts:742` | `GsService.getParsedJsonData` |
