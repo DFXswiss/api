@@ -771,6 +771,7 @@ export class BuyCryptoPreparationService {
     }
   }
 
+  // Keep in sync with BuyCrypto.getChargebackBlockReasons() promotion conditions.
   async chargebackTx(): Promise<void> {
     const baseRequest: FindOptionsWhere<BuyCrypto> = {
       chargebackAllowedDate: IsNull(),
@@ -812,15 +813,21 @@ export class BuyCryptoPreparationService {
 
         if (entity.bankTx) {
           if (
-            Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
-            Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
-            (!entity.userData.verifiedName && !entity.userData.completeName)
+            Util.matchesCreditorName(
+              entity.userData.verifiedName,
+              entity.userData.completeName,
+              entity.creditorData.name,
+            )
           )
             await this.buyCryptoService.refundBankTx(entity, {
               chargebackAllowedDate,
               chargebackAllowedDateUser,
               chargebackAllowedBy,
             });
+          else
+            this.logger.warn(
+              `BuyCrypto ${entity.id} waiting for manual chargeback approval due to creditor name mismatch`,
+            );
         } else if (entity.cryptoInput) {
           await this.buyCryptoService.refundCryptoInput(entity, {
             chargebackAllowedDate,

@@ -16,8 +16,10 @@ import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outc
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import {
   createCustomBankTx,
   createDefaultBankTx,
@@ -25,7 +27,7 @@ import {
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -824,6 +826,36 @@ describe('BuyCryptoPreparationService', () => {
       for (const branch of where as object[]) {
         expect(branch).toMatchObject({ chargebackDate: IsNull(), chargebackBankTx: IsNull() });
       }
+    });
+
+    it('logs a warning and does not promote when bankTx creditor name mismatches', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 91,
+        bankTx: { id: 90 } as any,
+        chargebackIban: 'CH9300762011623852957',
+        chargebackCreditorData: JSON.stringify({ name: 'Someone Else' }),
+        chargebackAllowedDate: undefined,
+        chargebackAllowedDateUser: new Date('2026-08-01T12:00:00.000Z'),
+        chargebackAmount: 1,
+        isComplete: false,
+        transaction: createCustomTransaction({
+          userData: createCustomUserData({
+            verifiedName: 'Max Mustermann',
+            firstname: 'Max',
+            surname: 'Mustermann',
+          }),
+        }),
+      });
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValueOnce([entity]);
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.chargebackTx();
+
+      expect(buyCryptoService.refundBankTx).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('BuyCrypto 91 waiting for manual chargeback approval due to creditor name mismatch'),
+      );
+      expect(warn.mock.calls[0][0]).not.toMatch(/Max Mustermann|Someone Else/);
     });
   });
 

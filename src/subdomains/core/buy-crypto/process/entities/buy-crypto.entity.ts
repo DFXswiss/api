@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { baseUnitsTransformer } from 'src/shared/models/base-units.transformer';
@@ -17,7 +18,9 @@ import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -887,6 +890,67 @@ export class BuyCrypto extends IEntity {
 
   get creditorData(): CreditorData | undefined {
     return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
+  }
+
+  /**
+   * Block reasons preventing automatic chargeback promotion.
+   * Keep in sync with BuyCryptoPreparationService.chargebackTx() where / promotion conditions
+   * and BuyCryptoService.getPendingChargebacks() pending set.
+   * Empty array = auto-job can release this case.
+   */
+  getChargebackBlockReasons(): ChargebackBlockReason[] {
+    // Fail-closed first: already approved/executed/completed must never appear as waiting.
+    // Redundant with BuyCryptoService.getPendingChargebacks() where — a lost exclusion there
+    // would show a finished refund as pending and risk double payout by Compliance.
+    // Also excludes cases where a checkout refund or crypto return has already started on a related row.
+    if (
+      this.chargebackAllowedDate ||
+      this.chargebackDate ||
+      this.isComplete ||
+      this.chargebackBankTx ||
+      this.chargebackCryptoTxId ||
+      this.chargebackOutput ||
+      this.batch ||
+      (this.outputAmount !== null && this.outputAmount !== undefined) ||
+      this.checkoutRefundStarted ||
+      this.cryptoReturnStarted
+    ) {
+      return [];
+    }
+
+    const reasons: ChargebackBlockReason[] = [];
+
+    if (this.chargebackAmount === null || this.chargebackAmount === undefined) {
+      reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+    }
+
+    const ud = this.userData;
+    const user = this.user;
+    if (
+      ![KycStatus.NA, KycStatus.CHECK, KycStatus.COMPLETED].includes(ud.kycStatus) ||
+      ud.status === UserDataStatus.BLOCKED ||
+      ![RiskStatus.NA, RiskStatus.RELEASED].includes(ud.riskStatus) ||
+      ![UserStatus.NA, UserStatus.ACTIVE].includes(user.status)
+    ) {
+      reasons.push(ChargebackBlockReason.USER_NOT_RELEASED);
+    }
+
+    if (this.bankTx) {
+      if (!this.chargebackIban) {
+        reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_TARGET);
+      }
+      if (!this.chargebackCreditorData) {
+        reasons.push(ChargebackBlockReason.MISSING_CREDITOR_DATA);
+      } else if (!Util.matchesCreditorName(ud.verifiedName, ud.completeName, this.creditorData?.name)) {
+        reasons.push(ChargebackBlockReason.NAME_MISMATCH);
+      }
+    } else if (this.cryptoInput) {
+      if (!this.chargebackIban) {
+        reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_TARGET);
+      }
+    }
+
+    return reasons;
   }
 
   get networkStartCorrelationId(): string {
