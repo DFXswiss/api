@@ -9,7 +9,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycLevel, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
@@ -220,7 +220,7 @@ describe('VirtualIbanService', () => {
     });
     frickVibanProvider = createMock<FrickVibanProvider>({
       bankName: IbanBankName.FRICK,
-      currencies: ['EUR'],
+      currencies: ['EUR', 'CHF'],
       accountHolder: VibanAccountHolder.DFX,
     });
     notificationService = createMock<NotificationService>();
@@ -297,6 +297,8 @@ describe('VirtualIbanService', () => {
       await service.lockUserLevelIssuanceForMerge(20, 10, mergeManager);
 
       expect((mergeManager.query as jest.Mock).mock.calls).toEqual([
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:CHF', '10']],
+        ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:CHF', '20']],
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '10']],
         ['SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', ['virtual-iban-issuance:Bank Frick:EUR', '20']],
       ]);
@@ -338,7 +340,7 @@ describe('VirtualIbanService', () => {
           'Account merge is temporarily blocked by externally live personal IBAN issuance; retry after it is reconciled',
         ),
       );
-      expect(mergeManager.query).toHaveBeenCalledTimes(2);
+      expect(mergeManager.query).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -379,6 +381,18 @@ describe('VirtualIbanService', () => {
     });
   });
 
+  describe('isFrickIssuanceCurrency', () => {
+    it('returns true for EUR and CHF', () => {
+      expect(service.isFrickIssuanceCurrency('EUR')).toBe(true);
+      expect(service.isFrickIssuanceCurrency('CHF')).toBe(true);
+    });
+
+    it('returns false for currencies outside the Frick provider set', () => {
+      expect(service.isFrickIssuanceCurrency('USD')).toBe(false);
+      expect(service.isFrickIssuanceCurrency('GBP')).toBe(false);
+    });
+  });
+
   describe('createForUser', () => {
     beforeEach(() => {
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
@@ -408,90 +422,6 @@ describe('VirtualIbanService', () => {
       expect(bankService.getBankInternal).not.toHaveBeenCalled();
     });
 
-    it('propagates a bank lookup failure before calling Yapeal', async () => {
-      const operationFailure = new BadRequestException('No bank available for this currency');
-      jest.spyOn(bankService, 'getBankInternal').mockRejectedValueOnce(operationFailure);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(operationFailure);
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-    });
-
-    it('throws BadRequestException when currency is not found before any provider call', async () => {
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(undefined);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        new BadRequestException('Currency not found'),
-      );
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-    });
-
-    it('throws BadRequestException when no provider matches the currency', async () => {
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(false);
-      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        new BadRequestException('No personal IBAN provider available for this currency'),
-      );
-      expect(bankService.getBankInternal).not.toHaveBeenCalled();
-    });
-
-    it('throws BadRequestException when bank has no receive account', async () => {
-      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue({ ...bank, receive: false } as Bank);
-
-      await expect(service.createForUser(userData, 'CHF')).rejects.toThrow(
-        new BadRequestException('No bank available for this currency'),
-      );
-      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
-    });
-
-    it('creates a CHF vIBAN via Yapeal and persists providerAccountRef', async () => {
-      const saved = await service.createForUser(userData, 'CHF');
-
-      expect(bankService.getBankInternal).toHaveBeenCalledWith(IbanBankName.YAPEAL, 'CHF');
-      expect(yapealVibanProvider.reserveViban).toHaveBeenCalledWith(bank.iban);
-      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
-      expect(virtualIbanRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userData,
-          bank,
-          currency,
-          iban: 'CH4400762011623852958',
-          bban: '761623852958',
-          providerAccountRef: 'yapeal-uid-1',
-          status: VirtualIbanStatus.ACTIVE,
-          active: true,
-          activatedAt: expect.any(Date),
-        }),
-      );
-      const createArg = (virtualIbanRepo.create as jest.Mock).mock.calls[0][0];
-      expect(createArg).not.toHaveProperty('yapealAccountUid');
-      expect(virtualIbanRepo.save).toHaveBeenCalled();
-      expect(virtualIbanRepo.invalidateCache).toHaveBeenCalled();
-      expect(saved.providerAccountRef).toBe('yapeal-uid-1');
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-    });
-
-    it('does not strand CHF issuance after a Yapeal failure and retries without a Frick intent', async () => {
-      const providerError = new Error('Yapeal unavailable');
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockRejectedValueOnce(providerError).mockResolvedValueOnce({
-        iban: 'CH4400762011623852958',
-        bban: '761623852958',
-        providerAccountRef: 'yapeal-uid-1',
-      });
-      await expect(service.createForUser(userData, 'CHF')).rejects.toBe(providerError);
-      await expect(service.createForUser(userData, 'CHF')).resolves.toMatchObject({
-        iban: 'CH4400762011623852958',
-        providerAccountRef: 'yapeal-uid-1',
-      });
-      expect(yapealVibanProvider.reserveViban).toHaveBeenCalledTimes(2);
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-      expect(manager.query.mock.calls.some(([sql]) => String(sql).includes('virtual_iban_issuance_intent'))).toBe(
-        false,
-      );
-    });
-
     it('exposes post-commit merge cache invalidation without database work', () => {
       service.invalidateCacheAfterMerge();
 
@@ -512,55 +442,100 @@ describe('VirtualIbanService', () => {
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
       expect(saved).toBe(issued);
     });
+
+    it('routes a CHF user-level request to the Frick issuance entry point', async () => {
+      // CHF deposit cutover: createForUser must not reach the Yapeal generic path for Frick-issued
+      // currencies. Grandfathered Yapeal CHF rows stay active via getActiveReceiving; new issuance is Frick.
+      const issued = { id: 8, iban: 'LI75088110105923K0CHF' } as VirtualIban;
+      jest.spyOn(service, 'getOrCreateFrickForUser').mockResolvedValue(issued);
+      jest.spyOn(yapealVibanProvider, 'reserveViban');
+      jest.spyOn(frickVibanProvider, 'reserveViban');
+
+      const saved = await service.createForUser(userData, 'CHF');
+
+      expect(service.getOrCreateFrickForUser).toHaveBeenCalledWith(userData, 'CHF');
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(saved).toBe(issued);
+    });
+
+    describe('generic path via proxy currency (USD)', () => {
+      beforeEach(() => {
+        // USD is a proxy currency: Frick's real currencies (EUR, CHF) are diverted before this
+        // generic path since the CHF deposit cutover.
+        (yapealVibanProvider as unknown as { currencies: string[] }).currencies = ['USD'];
+      });
+
+      afterEach(() => {
+        (yapealVibanProvider as unknown as { currencies: string[] }).currencies = ['CHF'];
+      });
+
+      it('propagates a bank lookup failure before calling Yapeal', async () => {
+        const operationFailure = new BadRequestException('No bank available for this currency');
+        jest.spyOn(bankService, 'getBankInternal').mockRejectedValueOnce(operationFailure);
+
+        await expect(service.createForUser(userData, 'USD')).rejects.toBe(operationFailure);
+        expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      });
+
+      it('throws BadRequestException when currency is not found', async () => {
+        jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(undefined);
+
+        await expect(service.createForUser(userData, 'USD')).rejects.toThrow(
+          new BadRequestException('Currency not found'),
+        );
+        expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+        expect(bankService.getBankInternal).not.toHaveBeenCalled();
+      });
+
+      it('throws when no provider matches the currency', async () => {
+        // GBP is covered by neither provider's roster (Yapeal: USD here, Frick: EUR/CHF) - a pure
+        // roster-coverage gap, no isAvailable override needed.
+        await expect(service.createForUser(userData, 'GBP')).rejects.toThrow(
+          new BadRequestException('No personal IBAN provider available for this currency'),
+        );
+        expect(bankService.getBankInternal).not.toHaveBeenCalled();
+      });
+
+      it('throws when bank has no receive account', async () => {
+        jest.spyOn(bankService, 'getBankInternal').mockResolvedValue({ ...bank, receive: false } as Bank);
+
+        await expect(service.createForUser(userData, 'USD')).rejects.toThrow(
+          new BadRequestException('No bank available for this currency'),
+        );
+        expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      });
+
+      it('does not strand issuance after a Yapeal failure and retries', async () => {
+        const providerError = new Error('Yapeal unavailable');
+        jest.spyOn(yapealVibanProvider, 'reserveViban').mockRejectedValueOnce(providerError).mockResolvedValueOnce({
+          iban: 'CH4400762011623852958',
+          bban: '761623852958',
+          providerAccountRef: 'yapeal-uid-1',
+        });
+        await expect(service.createForUser(userData, 'USD')).rejects.toBe(providerError);
+        await expect(service.createForUser(userData, 'USD')).resolves.toMatchObject({
+          iban: 'CH4400762011623852958',
+          providerAccountRef: 'yapeal-uid-1',
+        });
+        expect(yapealVibanProvider.reserveViban).toHaveBeenCalledTimes(2);
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+        expect(manager.query.mock.calls.some(([sql]) => String(sql).includes('virtual_iban_issuance_intent'))).toBe(
+          false,
+        );
+      });
+    });
   });
 
   describe('createForBuy', () => {
-    it('conflict-checks buy+currency and persists buy + label from asset name', async () => {
-      const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
-      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(currency as Fiat);
-      jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
-      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
-      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(bank as Bank);
-      jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
-        expect(transactionActive).toBe(false);
-        return {
-          iban: 'CH4400762011623852958',
-          bban: '761623852958',
-          providerAccountRef: 'yapeal-uid-buy',
-        };
-      });
-      jest.spyOn(virtualIbanRepo, 'create').mockImplementation((entity) => entity as VirtualIban);
-      jest.spyOn(virtualIbanRepo, 'save').mockImplementation(async (entity) => entity as VirtualIban);
-      jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
-
-      await service.createForBuy(userData, buy, 'CHF');
-
-      expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
-        where: {
-          buy: { id: 55 },
-          currency: { name: 'CHF' },
-          bank: { name: expect.anything() },
-          active: true,
-          status: VirtualIbanStatus.ACTIVE,
-        },
-      });
-      expect(virtualIbanRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          buy,
-          label: 'BTC',
-          providerAccountRef: 'yapeal-uid-buy',
-        }),
-      );
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-    });
-
     it('throws ConflictException when buy already has an active personal IBAN', async () => {
       const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue({ id: 1 } as VirtualIban);
 
       await expect(service.createForBuy(userData, buy, 'CHF')).rejects.toThrow(ConflictException);
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
     it('refuses a buy-specific EUR request instead of issuing through the generic path', async () => {
@@ -577,6 +552,18 @@ describe('VirtualIbanService', () => {
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
+    it('refuses a buy-specific CHF request instead of issuing through the generic path', async () => {
+      // Same refusal as EUR: CHF is a Frick-issued currency after the deposit cutover.
+      const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
+      jest.spyOn(yapealVibanProvider, 'reserveViban');
+      jest.spyOn(frickVibanProvider, 'reserveViban');
+
+      await expect(service.createForBuy(userData, buy, 'CHF')).rejects.toThrow(BadRequestException);
+      expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
     it('reports a conflict before refusing when an EUR buy IBAN already exists', async () => {
       // Order matters: an already-issued IBAN must still surface as a conflict, exactly as it did
       // before Frick joined the generic providers.
@@ -586,6 +573,58 @@ describe('VirtualIbanService', () => {
 
       await expect(service.createForBuy(userData, buy, 'EUR')).rejects.toThrow(ConflictException);
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    describe('generic path via proxy currency (USD)', () => {
+      beforeEach(() => {
+        // USD is a proxy currency: Frick's real currencies (EUR, CHF) are diverted before this
+        // generic path since the CHF deposit cutover.
+        (yapealVibanProvider as unknown as { currencies: string[] }).currencies = ['USD'];
+      });
+
+      afterEach(() => {
+        (yapealVibanProvider as unknown as { currencies: string[] }).currencies = ['CHF'];
+      });
+
+      it('conflict-checks buy+currency and persists buy + label from asset name', async () => {
+        const buy = { id: 55, asset: { name: 'BTC' } } as Buy;
+        jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
+        jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(currency as Fiat);
+        jest.spyOn(yapealVibanProvider, 'isAvailable').mockReturnValue(true);
+        jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
+        jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(bank as Bank);
+        jest.spyOn(yapealVibanProvider, 'reserveViban').mockImplementation(async () => {
+          expect(transactionActive).toBe(false);
+          return {
+            iban: 'CH4400762011623852958',
+            bban: '761623852958',
+            providerAccountRef: 'yapeal-uid-buy',
+          };
+        });
+        jest.spyOn(virtualIbanRepo, 'create').mockImplementation((entity) => entity as VirtualIban);
+        jest.spyOn(virtualIbanRepo, 'save').mockImplementation(async (entity) => entity as VirtualIban);
+        jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
+
+        await service.createForBuy(userData, buy, 'USD');
+
+        expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
+          where: {
+            buy: { id: 55 },
+            currency: { name: 'USD' },
+            bank: { name: expect.anything() },
+            active: true,
+            status: VirtualIbanStatus.ACTIVE,
+          },
+        });
+        expect(virtualIbanRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            buy,
+            label: 'BTC',
+            providerAccountRef: 'yapeal-uid-buy',
+          }),
+        );
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -1410,13 +1449,56 @@ describe('VirtualIbanService', () => {
       expect(frickVibanProvider.reserveViban).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects non-EUR currencies before opening a transaction or calling Frick', async () => {
-      await expect(service.getOrCreateFrickForUser(userData, 'CHF')).rejects.toThrow(
+    it('rejects when the freshly locked UserData has a blocked account status', async () => {
+      // The freshly loaded UserData under the lock is authoritative, not the (possibly stale)
+      // argument passed in - mirrors the "stale below-50 argument" test above but for status.
+      issuanceUserDataFindOne.mockResolvedValue({ ...userData, status: UserDataStatus.BLOCKED });
+
+      const rejection = service.getOrCreateFrickForUser(userData, 'EUR');
+      await expect(rejection).rejects.toThrow(BadRequestException);
+      await expect(rejection).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(currentIntent).toBeNull();
+    });
+
+    it('rejects when the freshly locked UserData has a suspicious risk status', async () => {
+      issuanceUserDataFindOne.mockResolvedValue({ ...userData, riskStatus: RiskStatus.SUSPICIOUS });
+
+      const rejection = service.getOrCreateFrickForUser(userData, 'EUR');
+      await expect(rejection).rejects.toThrow(BadRequestException);
+      await expect(rejection).rejects.toThrow(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+      expect(currentIntent).toBeNull();
+    });
+
+    it('rejects currencies outside the Frick provider set before opening a transaction or calling Frick', async () => {
+      await expect(service.getOrCreateFrickForUser(userData, 'USD')).rejects.toThrow(
         QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED,
       );
       expect(dataSource.transaction).not.toHaveBeenCalled();
       expect(frickVibanProvider.isAvailable).not.toHaveBeenCalled();
       expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('accepts CHF as a Frick issuance currency (does not reject at the currency gate)', async () => {
+      // Gate accepts CHF; subsequent setup (Frick bank, currency fiat, etc.) still runs under the lock.
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({ id: 1, name: 'CHF' } as Fiat);
+      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue({
+        id: 20,
+        iban: 'LI32088110105923K000C',
+        receive: true,
+        name: IbanBankName.FRICK,
+      } as Bank);
+      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickVibanProvider, 'reserveViban').mockResolvedValue({
+        iban: 'LI75088110105923K0CHF',
+        providerAccountRef: 'LI75088110105923K0CHF',
+      });
+
+      await expect(service.getOrCreateFrickForUser(userData, 'CHF')).resolves.toMatchObject({
+        iban: 'LI75088110105923K0CHF',
+      });
+      expect(frickVibanProvider.isAvailable).toHaveBeenCalled();
     });
 
     it('fails closed with 503 when Frick vIBAN service is not available', async () => {
@@ -1783,6 +1865,50 @@ describe('VirtualIbanService', () => {
       expect(yapealVibanProvider.reserveViban).not.toHaveBeenCalled();
     });
 
+    it('returns the newest active receiving CHF row when both Yapeal and Frick rows qualify', async () => {
+      // B2 determinism: repository order id DESC picks the operational replacement. A user holding an
+      // older active Yapeal CHF row and a newer active Frick CHF row (both banks receive=true) must get
+      // the Frick row — never an arbitrary pick between them.
+      const newestFrick = {
+        id: 200,
+        bank: { name: IbanBankName.FRICK, receive: true },
+        currency: { name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(newestFrick);
+
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(newestFrick);
+      expect(virtualIbanRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          userData: { id: 7 },
+          currency: { name: 'CHF' },
+          bank: { receive: true },
+          active: true,
+          status: VirtualIbanStatus.ACTIVE,
+        },
+        relations: { bank: true },
+        order: { id: 'DESC' },
+      });
+    });
+
+    it('keeps returning a sole active Yapeal CHF row (grandfathering)', async () => {
+      // Pre-cutover Yapeal CHF personal IBANs stay active and receiving; no Frick row means the
+      // existing Yapeal row continues to win.
+      const onlyYapeal = {
+        id: 50,
+        bank: { name: IbanBankName.YAPEAL, receive: true },
+        currency: { name: 'CHF' },
+        userData,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(onlyYapeal);
+
+      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(onlyYapeal);
+    });
+
     it('getActiveReceivingForUserAndCurrency only considers rows whose bank still receives', async () => {
       jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
 
@@ -2081,6 +2207,63 @@ describe('VirtualIbanService', () => {
       await expect(
         lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'CHF'),
       ).resolves.toMatchObject({ id: latest.id, iban: latest.iban });
+    });
+
+    it('selects the newer Frick CHF row over an older Yapeal CHF row when both actively receive (B2 determinism, real query)', async () => {
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
+      const lookupCurrency = await pgDataSource
+        .getRepository(ReceivingLookupFiatTable)
+        .save({ name: 'CHF-B2-DETERMINISM' });
+      const yapealBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.YAPEAL, receive: true, send: true });
+      const frickBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.FRICK, receive: true, send: true });
+      // Older row saved first (lower id), newer Frick row saved second (higher id) - id DESC must
+      // pick the newer row regardless of which bank it is on.
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000005',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: yapealBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      const newerFrick = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'LI0000000000000000006',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: frickBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+      await expect(
+        lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'CHF-B2-DETERMINISM'),
+      ).resolves.toMatchObject({ id: newerFrick.id, iban: newerFrick.iban, bank: { id: frickBank.id } });
+    });
+
+    it('keeps returning a sole active Yapeal CHF row when no Frick row exists (grandfathering, real query)', async () => {
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'lookup' });
+      const lookupCurrency = await pgDataSource
+        .getRepository(ReceivingLookupFiatTable)
+        .save({ name: 'CHF-B2-GRANDFATHER' });
+      const yapealBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.YAPEAL, receive: true, send: true });
+      const onlyYapeal = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000007',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: yapealBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+      await expect(
+        lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'CHF-B2-GRANDFATHER'),
+      ).resolves.toMatchObject({ id: onlyYapeal.id, iban: onlyYapeal.iban, bank: { id: yapealBank.id } });
     });
   });
 

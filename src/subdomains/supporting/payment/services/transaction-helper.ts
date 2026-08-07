@@ -38,7 +38,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
+import { CardBankName, FRICK_CURRENCIES, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { VirtualIban } from '../../bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
@@ -897,7 +897,10 @@ export class TransactionHelper implements OnModuleInit {
       [FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT].includes(paymentMethodIn as FiatPaymentMethod);
     if (!isBankTransfer)
       return {
-        bankName: TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn),
+        bankName: TransactionHelper.getDefaultDepositBankByPaymentMethod(
+          paymentMethodIn,
+          isFiat(from) ? from.name : undefined,
+        ),
         activeVirtualIban: undefined,
       };
 
@@ -916,7 +919,9 @@ export class TransactionHelper implements OnModuleInit {
     });
 
     return {
-      bankName: bank?.name ?? TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn),
+      bankName:
+        bank?.name ??
+        TransactionHelper.getDefaultDepositBankByPaymentMethod(paymentMethodIn, isFiat(from) ? from.name : undefined),
       activeVirtualIban,
     };
   }
@@ -932,6 +937,19 @@ export class TransactionHelper implements OnModuleInit {
       default:
         return undefined;
     }
+  }
+
+  // Deposit direction mirrors the routing rule in BankService.getBank: Frick-issued currencies
+  // (FRICK_CURRENCIES) route to Frick; everything else keeps the incumbent default. Payout call
+  // sites deliberately keep using the direction-neutral getDefaultBankByPaymentMethod above - CHF
+  // payouts stay on Yapeal (deposit-side cutover only).
+  static getDefaultDepositBankByPaymentMethod(
+    paymentMethod: PaymentMethod,
+    currency: string | undefined,
+  ): CardBankName | IbanBankName {
+    if (paymentMethod === FiatPaymentMethod.BANK && currency && FRICK_CURRENCIES.includes(currency))
+      return IbanBankName.FRICK;
+    return TransactionHelper.getDefaultBankByPaymentMethod(paymentMethod);
   }
 
   private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, priceValidity: PriceValidity): Promise<TxSpec> {

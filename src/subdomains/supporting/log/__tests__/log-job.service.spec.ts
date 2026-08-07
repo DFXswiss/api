@@ -2485,6 +2485,249 @@ describe('LogJobService', () => {
     });
   });
 
+  describe('CHF Bank Frick -> Kraken reconciliation lane (BL9)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.YAPEAL}-CHF`,
+        yapealCHF.iban,
+      );
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-CHF`,
+        frickCHF.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    function setupChfKrakenLanes(args: {
+      bankTxs?: ReturnType<typeof createCustomBankTx>[];
+      exchangeTxs?: ReturnType<typeof createCustomExchangeTx>[];
+    }) {
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (key, defaultValue) => {
+        if (key === 'financeLogPairIds')
+          return {
+            fromKraken: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toKraken: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toScrypt: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+          } as never;
+        return defaultValue as never;
+      });
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => {
+        if (name === IbanBankName.YAPEAL && currency === 'CHF') return yapealCHF;
+        if (name === IbanBankName.FRICK && currency === 'CHF') return frickCHF;
+        if (name === IbanBankName.YAPEAL && currency === 'EUR') return yapealEUR;
+        if (name === IbanBankName.FRICK && currency === 'EUR') return frickEUR;
+        if (name === IbanBankName.OLKY && currency === 'EUR') return olkyEUR;
+        return Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      });
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) => (type === BankTxType.KRAKEN ? (args.bankTxs ?? []) : []));
+      jest
+        .spyOn(exchangeTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, exchange) =>
+          exchange === ExchangeName.KRAKEN ? (args.exchangeTxs ?? []) : [],
+        );
+    }
+
+    const yapealChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 9101,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'CHF',
+        sellable: true,
+      });
+    const frickChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 9102,
+        blockchain: Blockchain.FRICK,
+        dexName: 'CHF',
+        sellable: true,
+      });
+
+    it('attributes an unmatched Frick CHF DEBIT bank_tx to Frick/CHF toKraken plus (Yapeal control stays empty)', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      const frickDebit = createCustomBankTx({
+        id: 92001,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 4200,
+        amount: 4200,
+      });
+      setupChfKrakenLanes({ bankTxs: [frickDebit] });
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      expect(assetLog[frickAsset.id].plusBalance.pending.toKraken).toBe(4200);
+      expect(assetLog[yapealAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+    });
+
+    it('keeps Yapeal CHF toKraken bit-identical when only Yapeal activity is present', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      const yapealDebit = createCustomBankTx({
+        id: 92002,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 3100,
+        amount: 3100,
+      });
+      setupChfKrakenLanes({ bankTxs: [yapealDebit] });
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toKraken).toBe(3100);
+      expect(assetLog[frickAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+    });
+
+    it('ignores a Yapeal-addressed Kraken deposit in the Frick lane', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      const frickDebit = createCustomBankTx({
+        id: 92010,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 4200,
+        amount: 4200,
+      });
+      // Same amount as frickDebit on purpose: a leaking cross-lane match would net the Frick lane to
+      // 0 here. It stays 4200 because the address filter is BIC-exact, so this deposit only matches
+      // the Yapeal receiver filter — and the Yapeal lane has no sender bank_tx to pair it with.
+      const yapealAddressedDeposit = createCustomExchangeTx({
+        id: 92011,
+        created: Util.hoursBefore(1),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: yapealCHF.bic.padEnd(11, 'XXX'),
+        amount: 4200,
+      });
+      setupChfKrakenLanes({
+        bankTxs: [frickDebit],
+        exchangeTxs: [yapealAddressedDeposit],
+      });
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      expect(assetLog[frickAsset.id].plusBalance.pending.toKraken).toBe(4200);
+      // The Yapeal lane has no sender: filterSenderPendingList's empty-sender early return discards
+      // the receiver list too, so the bait deposit is not counted anywhere.
+      expect(assetLog[yapealAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+    });
+
+    it('ignores a Frick-addressed Kraken deposit in the Yapeal lane', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      const yapealDebit = createCustomBankTx({
+        id: 92012,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 1800,
+        amount: 1800,
+      });
+      // Mirrors the Frick-side test above: same amount as yapealDebit on purpose. The Frick lane has
+      // no sender to pair this bait deposit with, so it is discarded the same way.
+      const frickAddressedDeposit = createCustomExchangeTx({
+        id: 92013,
+        created: Util.hoursBefore(1),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: frickCHF.bic.padEnd(11, 'XXX'),
+        amount: 1800,
+      });
+      setupChfKrakenLanes({
+        bankTxs: [yapealDebit],
+        exchangeTxs: [frickAddressedDeposit],
+      });
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toKraken).toBe(1800);
+      expect(assetLog[frickAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+    });
+
+    it('nets a Frick CHF DEBIT with a Frick-BIC-addressed Kraken deposit on the Frick lane only', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      const frickDebit = createCustomBankTx({
+        id: 92007,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 5500,
+        amount: 5500,
+      });
+      const frickAddressedDeposit = createCustomExchangeTx({
+        id: 92008,
+        created: Util.hoursBefore(1),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: frickCHF.bic.padEnd(11, 'XXX'),
+        amount: 5500,
+      });
+      // Control: independent Yapeal activity must stay bit-identical.
+      const yapealDebit = createCustomBankTx({
+        id: 92009,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 900,
+        amount: 900,
+      });
+      setupChfKrakenLanes({
+        bankTxs: [frickDebit, yapealDebit],
+        exchangeTxs: [frickAddressedDeposit],
+      });
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Paired Frick legs net to 0 (plus 5500 + minus 5500); Yapeal keeps its unmatched DEBIT only.
+      expect(assetLog[frickAsset.id].plusBalance.pending?.toKraken ?? 0).toBe(0);
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toKraken).toBe(900);
+    });
+  });
+
   describe('useUnfilteredTx nets unfiltered Kraken legs before aggregate clamp', () => {
     beforeEach(() => {
       (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
@@ -2785,6 +3028,137 @@ describe('LogJobService', () => {
       ).toBe(false);
       expect(assetLog[cryptoAsset.id].plusBalance.total).toBe(0);
       expect(assetLog[fiatAsset.id].plusBalance.total).toBe(0);
+    });
+
+    it('applies a real, non-zero toKraken.chf watermark to the Frick lane in the unfiltered path', async () => {
+      // BL9 regression: the shared toKraken.chf watermark must actually gate ids in the unfiltered
+      // path, not just default to 0 (which would let everything through and hide a broken filter).
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.YAPEAL}-CHF`,
+        yapealCHF.iban,
+      );
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-CHF`,
+        frickCHF.iban,
+      );
+
+      const yapealAsset = createCustomAsset({
+        id: 8100,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'CHF',
+        sellable: true,
+      });
+      const frickAsset = createCustomAsset({
+        id: 8101,
+        blockchain: Blockchain.FRICK,
+        dexName: 'CHF',
+        sellable: true,
+      });
+
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (key, defaultValue) => {
+        if (key === 'financeLogUnfilteredTx') return true as never;
+        if (key === 'financeLogPairIds')
+          return {
+            fromKraken: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toKraken: { chf: { bankTxId: 6000, exchangeTxId: 7000 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+            toScrypt: { chf: { bankTxId: 0, exchangeTxId: 0 }, eur: { bankTxId: 0, exchangeTxId: 0 } },
+          } as never;
+        return defaultValue as never;
+      });
+
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => {
+        if (name === IbanBankName.YAPEAL && currency === 'CHF') return yapealCHF;
+        if (name === IbanBankName.FRICK && currency === 'CHF') return frickCHF;
+        if (name === IbanBankName.YAPEAL && currency === 'EUR') return yapealEUR;
+        if (name === IbanBankName.FRICK && currency === 'EUR') return frickEUR;
+        if (name === IbanBankName.OLKY && currency === 'EUR') return olkyEUR;
+        return Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      });
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getTrackedInternalTransfers').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      // Below-watermark entries (id < 6000 / < 7000) must be excluded by the id floor; only the
+      // above-watermark ones may feed the unfiltered sums.
+      const frickBelowWatermark = createCustomBankTx({
+        id: 5999,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 1000,
+        amount: 1000,
+      });
+      const frickAboveWatermark = createCustomBankTx({
+        id: 6001,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 2500,
+        amount: 2500,
+      });
+      const yapealControl = createCustomBankTx({
+        id: 6002,
+        created: Util.hoursBefore(1),
+        valueDate: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 700,
+        amount: 700,
+      });
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) =>
+          type === BankTxType.KRAKEN ? [frickBelowWatermark, frickAboveWatermark, yapealControl] : [],
+        );
+
+      const frickDepositBelowWatermark = createCustomExchangeTx({
+        id: 6999,
+        created: Util.hoursBefore(1),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: frickCHF.bic.padEnd(11, 'XXX'),
+        amount: 400,
+      });
+      const frickDepositAboveWatermark = createCustomExchangeTx({
+        id: 7001,
+        created: Util.hoursBefore(1),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'ok',
+        currency: 'CHF',
+        method: 'Bank Frick (SIC) International',
+        address: frickCHF.bic.padEnd(11, 'XXX'),
+        amount: 900,
+      });
+      jest
+        .spyOn(exchangeTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, exchange) =>
+          exchange === ExchangeName.KRAKEN ? [frickDepositBelowWatermark, frickDepositAboveWatermark] : [],
+        );
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Frick: +2500 (above-watermark debit, attributed by accountIban) - 900 (above-watermark
+      // deposit, attributed via the frickChfBank.iban target) = 1600. The below-watermark debit
+      // (1000) and deposit (400) are excluded by the id floor and must not appear in this sum.
+      expect(assetLog[frickAsset.id].plusBalance.pending.toKraken).toBe(1600);
+      // Yapeal: +700 (its own above-watermark control debit only, no matching deposit).
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toKraken).toBe(700);
     });
   });
 });

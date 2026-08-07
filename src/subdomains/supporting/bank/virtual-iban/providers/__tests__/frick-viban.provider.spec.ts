@@ -60,9 +60,9 @@ describe('FrickVibanProvider', () => {
     loggerError.mockRestore();
   });
 
-  it('exposes Frick bank name and EUR currency', () => {
+  it('exposes Frick bank name and EUR+CHF currencies', () => {
     expect(provider.bankName).toBe(IbanBankName.FRICK);
-    expect(provider.currencies).toEqual(['EUR']);
+    expect(provider.currencies).toEqual(['EUR', 'CHF']);
     expect(provider.accountHolder).toBe(VibanAccountHolder.DFX);
   });
 

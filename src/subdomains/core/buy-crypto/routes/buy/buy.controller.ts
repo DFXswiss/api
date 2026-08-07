@@ -294,7 +294,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
-      TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK),
+      TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.BANK, 'EUR'),
       undefined,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,

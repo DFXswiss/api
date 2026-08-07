@@ -26,7 +26,7 @@ export class VibanNotCreatedError extends Error {}
  */
 export interface VibanProvider {
   readonly bankName: IbanBankName;
-  readonly currencies: string[];
+  readonly currencies: readonly string[];
   readonly accountHolder: VibanAccountHolder;
   isAvailable(): boolean;
   /** Optional non-PII description is provider-specific (Bank Frick uses it for crash recovery). */

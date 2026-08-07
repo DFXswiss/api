@@ -6,7 +6,7 @@ import {
   FrickVirtualIbansFetchResult,
 } from 'src/integration/bank/services/frick.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { IbanBankName } from '../../bank/dto/bank.dto';
+import { FRICK_CURRENCIES, IbanBankName } from '../../bank/dto/bank.dto';
 import { VibanAccountHolder } from './viban-account-holder.enum';
 import { ReservedViban, VibanNotCreatedError, VibanProvider } from './viban-provider.interface';
 
@@ -15,7 +15,7 @@ export class FrickVibanProvider implements VibanProvider {
   private readonly logger = new DfxLogger(FrickVibanProvider);
 
   readonly bankName = IbanBankName.FRICK;
-  readonly currencies = ['EUR'];
+  readonly currencies = FRICK_CURRENCIES;
   readonly accountHolder = VibanAccountHolder.DFX;
 
   constructor(private readonly bankFrickService: BankFrickService) {}

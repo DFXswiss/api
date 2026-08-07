@@ -7,6 +7,7 @@ import {
   frickCHF,
   frickEUR,
   olkyEUR,
+  yapealCHF,
   yapealEUR,
 } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -76,6 +77,37 @@ describe('FiatOutputService', () => {
 
       expect(result).toEqual({ accountIban: yapealVirtualIban.iban, bank: yapealEUR });
       expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
+
+    it('skips a Bank Frick CHF virtual IBAN and still selects a Yapeal CHF candidate (payout side unchanged)', async () => {
+      // B3: deposit cutover must not open Frick for automatic CHF payout selection. A Frick CHF
+      // candidate is filtered out; a Yapeal CHF candidate still wins.
+      const userData = createMock<SelectPayoutBankUserData>();
+      const yapealChfVirtualIban = createCustomVirtualIban({
+        bank: yapealCHF,
+        iban: 'SYNTHETIC-YAPEAL-CHF-VIBAN',
+      });
+      virtualIbanService.getActiveSendingCandidatesForUserAndCurrency.mockResolvedValue([
+        createCustomVirtualIban({ bank: frickCHF, iban: 'SYNTHETIC-FRICK-CHF-VIBAN' }),
+        yapealChfVirtualIban,
+      ]);
+
+      const result = await service.selectPayoutBank('CHF', FiatOutputType.BUY_FIAT, userData, country);
+
+      expect(result).toEqual({ accountIban: yapealChfVirtualIban.iban, bank: yapealCHF });
+      expect(bankService.getSenderBanks).not.toHaveBeenCalled();
+    });
+
+    it('falls back to an incumbent CHF sender when only a Frick CHF virtual IBAN candidate exists', async () => {
+      const userData = createMock<SelectPayoutBankUserData>();
+      virtualIbanService.getActiveSendingCandidatesForUserAndCurrency.mockResolvedValue([
+        createCustomVirtualIban({ bank: frickCHF, iban: 'SYNTHETIC-FRICK-CHF-VIBAN' }),
+      ]);
+      bankService.getSenderBanks.mockResolvedValue([yapealCHF]);
+
+      const result = await service.selectPayoutBank('CHF', FiatOutputType.BUY_FIAT, userData, country);
+
+      expect(result).toEqual({ accountIban: yapealCHF.iban, bank: yapealCHF });
     });
 
     it('returns an eligible incumbent virtual IBAN without loading sender banks', async () => {

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { FrickVirtualIban } from 'src/integration/bank/dto/frick-vban.dto';
+import { isUserActive } from 'src/shared/auth/user-active.guard';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -112,6 +113,10 @@ export class VirtualIbanService {
     return this.hasAvailableProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
   }
 
+  isFrickIssuanceCurrency(currencyName: string): boolean {
+    return this.frickVibanProvider.currencies.includes(currencyName);
+  }
+
   /**
    * Resolves who legally holds the deposit account behind a personal-IBAN bank name (see
    * {@link VibanAccountHolder}). This is the seam that lets buildVirtualIbanResponse (buy.service.ts) —
@@ -211,7 +216,7 @@ export class VirtualIbanService {
 
   /**
    * Issuance path for providers without their own protocol - Yapeal today. Bank Frick never reaches
-   * here: both its entry points (explicit selector and implicit EUR resolution) go through
+   * here: both its entry points (explicit selector and Frick-currency resolution) go through
    * getOrCreateFrickForUser, because this path neither takes the claim/recovery route nor passes the
    * description Frick requires. Yapeal must not be routed through that Frick-specific machinery either.
    */
@@ -244,11 +249,12 @@ export class VirtualIbanService {
 
   /**
    * Fail-closed, cross-instance-safe Frick issuance. Used by BOTH entry points: the explicit
-   * personal-IBAN selector and the implicit EUR resolution, which routes here rather than through the
+   * personal-IBAN selector and the Frick-currency resolution, which routes here rather than through the
    * generic createVirtualIban path.
    */
   async getOrCreateFrickForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
-    if (currencyName !== 'EUR') throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+    if (!this.frickVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
 
     if (!this.frickVibanProvider.isAvailable()) {
       this.logger.error('Bank Frick virtual IBAN service is not available');
@@ -334,6 +340,17 @@ export class VirtualIbanService {
     existing: VirtualIban | null;
     claimed: boolean;
   }> {
+    // JWT-guard status checks are read from the token and can be up to ~90s stale (denylist sync
+    // lag). The lock above only serializes concurrent issuance; it does not protect against a
+    // status change that landed after the token was issued. Re-check the freshly loaded UserData's
+    // own block lists here, under the lock, before claiming an intent or calling out to Bank Frick.
+    // Mirrors isUserActive's default block lists (UserActiveGuard); there is no User (login) entity
+    // at this layer, so only the UserData-level account/risk dimensions apply. BadRequestException
+    // is deliberate: infrastructureFailureOrRethrow (buy.service.ts) only rethrows that class,
+    // instead of silently degrading to the shared collection account - this is the fail-closed point.
+    if (!isUserActive({ accountStatus: userData.status, riskStatus: userData.riskStatus }))
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
 
     const currency = await this.fiatService.getFiatByName(currencyName, manager);

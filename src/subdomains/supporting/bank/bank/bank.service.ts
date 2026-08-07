@@ -10,7 +10,7 @@ import { EntityManager } from 'typeorm';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
-import { IbanBankName } from './dto/bank.dto';
+import { FRICK_CURRENCIES, IbanBankName } from './dto/bank.dto';
 import { ReceiveIbanStatus } from './dto/receive-iban.enum';
 
 export interface BankSelectorInput {
@@ -107,21 +107,21 @@ export class BankService implements OnModuleInit {
 
     const receiveBanks = await this.getReceiveBanks();
 
-    // Product decision, deliberately hardcoded: an EUR bank transfer is routed to Bank Frick.
-    // Resolved through getBankInternal so this picks the row selectAttributionBank would pick -
-    // (name, currency) is not unique, and the asset-linked identity is the one isBankMatching and the
-    // booked bank_tx history are keyed on. Choosing by any other rule here, e.g. the newest row, would
-    // hand out an IBAN that attribution does not follow.
+    // Product decision, deliberately hardcoded: EUR and CHF bank transfers are routed to Bank Frick.
+    // Resolved per currency through getBankInternal so this picks the row selectAttributionBank would
+    // pick - (name, currency) is not unique, and the asset-linked identity is the one isBankMatching
+    // and the booked bank_tx history are keyed on. Choosing by any other rule here, e.g. the newest
+    // row, would hand out an IBAN that attribution does not follow.
     // This aligns the selection RULE, not the caches: ibanCache is loaded once at module init while
     // this read goes through the repository cache, so a bank row edited at runtime can still be seen
     // differently by the two until the process restarts. That gap predates this rule and applies to
     // every bank; do not read this call as a guarantee that the two can never disagree.
-    // The rule is scoped to exactly EUR + BANK; receive must still hold, since getBankInternal does
-    // not filter on it - and if the attributed row is not receiving, no other Frick row stands in for
-    // it, because the exclusion below then applies to all of them.
-    if (currency === 'EUR' && paymentMethod === FiatPaymentMethod.BANK) {
-      const frickEur = await this.getBankInternal(IbanBankName.FRICK, 'EUR');
-      if (frickEur?.receive) return frickEur;
+    // The rule is scoped to exactly EUR/CHF + BANK; receive must still hold, since getBankInternal
+    // does not filter on it - and if the attributed row is not receiving, no other Frick row stands
+    // in for it, because the exclusion below then applies to all of them.
+    if (FRICK_CURRENCIES.includes(currency) && paymentMethod === FiatPaymentMethod.BANK) {
+      const frick = await this.getBankInternal(IbanBankName.FRICK, currency);
+      if (frick?.receive) return frick;
     }
 
     // Everything below keeps the categorical exclusion the removed bank-name filter provided: Bank

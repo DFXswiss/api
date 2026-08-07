@@ -65,7 +65,7 @@ describe('Bank Frick operations runbook', () => {
 
   it('documents the Frick-only intent/scanner boundary and immutable reference-account snapshot', () => {
     expect(runbook).toContain("provider = 'Bank Frick'");
-    expect(runbook).toContain('Yapeal retains its pre-feature direct create/save flow');
+    expect(compactRunbook).toContain('retains its pre-feature direct create/save flow');
     expect(runbook).toContain('referenceAccountIban');
     expect(runbook).toContain('referenceAccountReceive');
     expect(runbook).toContain('stop new Frick personal-IBAN issuance');
