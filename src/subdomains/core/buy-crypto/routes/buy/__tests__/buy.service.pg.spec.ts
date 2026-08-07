@@ -19,6 +19,9 @@ class UserDataTable {
   @PrimaryGeneratedColumn()
   id: number;
 
+  // the query only touches user_data.id, but an id-only stub makes TypeORM emit
+  // INSERT ... DEFAULT VALUES on seeding, which pg-mem cannot parse — so mirror one
+  // real column and seed it explicitly
   @Column({ type: 'varchar' })
   kycHash: string;
 }
@@ -28,6 +31,8 @@ class UserTable {
   @PrimaryGeneratedColumn()
   id: number;
 
+  // Explicit varchar: without it TypeORM infers the column type from the TS type, and an enum
+  // reflects as Object, which the postgres driver rejects. The real column is character varying too.
   @Column({ type: 'varchar' })
   status: UserStatus;
 
@@ -125,11 +130,12 @@ describe('BuyService.getUserDataBuys (postgres semantics)', () => {
     const buyRepo = dataSource.getRepository(BuyTable);
 
     const [userData1, userData2] = await userDataRepo.save([{ kycHash: 'hash-1' }, { kycHash: 'hash-2' }]);
-    const [userA, userB, userC, userD] = await userRepo.save([
+    const [userA, userB, userC, userD, userE] = await userRepo.save([
       { userData: userData1, status: UserStatus.ACTIVE },
       { userData: userData1, status: UserStatus.ACTIVE },
       { userData: userData1, status: UserStatus.BLOCKED },
       { userData: userData2, status: UserStatus.ACTIVE },
+      { userData: userData1, status: UserStatus.DELETED },
     ]);
     const [assetBuyable, assetNotBuyable] = await assetRepo.save([{ buyable: true }, { buyable: false }]);
     const [buyA, buyB] = await buyRepo.save([
@@ -139,6 +145,7 @@ describe('BuyService.getUserDataBuys (postgres semantics)', () => {
       { user: userA, asset: assetBuyable, active: false },
       { user: userB, asset: assetNotBuyable, active: true },
       { user: userD, asset: assetBuyable, active: true },
+      { user: userE, asset: assetBuyable, active: true },
     ]);
 
     return { userData1, userA, userC, buyA, buyB };

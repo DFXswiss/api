@@ -212,6 +212,22 @@ describe('TransactionController', () => {
 
       expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, 42);
     });
+
+    it('stays unscoped for a mail-origin token regardless of role', async () => {
+      const mailUserJwt: JwtPayload = {
+        role: UserRole.USER,
+        ip: '1.1.1.1',
+        account: 1,
+        user: 42,
+        address: 'wallet-address',
+        tfaRequired: true,
+      };
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(mailUserJwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+    });
   });
 
   describe('generateInvoiceFromTransaction (UID / TransactionRequest path)', () => {
