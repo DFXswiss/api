@@ -102,7 +102,7 @@ describe('BuyCryptoBatch', () => {
     it('returns no purchase requirement and no warning if available liquidity is enough', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const isPurchaseRequired = batch.optimizeByLiquidity(112, 0);
+      const { isPurchaseRequired } = batch.optimizeByLiquidity(112, 0);
 
       expect(isPurchaseRequired).toBe(false);
     });
@@ -129,7 +129,7 @@ describe('BuyCryptoBatch', () => {
     it('returns no purchase requirement and no warning if available liquidity is enough at least for one tx, but not for entire batch', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const isPurchaseRequired = batch.optimizeByLiquidity(5, 0);
+      const { isPurchaseRequired } = batch.optimizeByLiquidity(5, 0);
 
       expect(isPurchaseRequired).toBe(false);
     });
@@ -156,7 +156,7 @@ describe('BuyCryptoBatch', () => {
     it('returns purchase requirement and a warning if purchasable liquidity is enough at least for one tx, but not for entire batch', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const isPurchaseRequired = batch.optimizeByLiquidity(0.5, 11 * 1.05);
+      const { isPurchaseRequired } = batch.optimizeByLiquidity(0.5, 11 * 1.05);
 
       expect(isPurchaseRequired).toBe(true);
     });
@@ -185,7 +185,7 @@ describe('BuyCryptoBatch', () => {
     it('returns purchase requirement for entire batch and no warning if no upper conditions met', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const isPurchaseRequired = batch.optimizeByLiquidity(0.5, 10000);
+      const { isPurchaseRequired } = batch.optimizeByLiquidity(0.5, 10000);
 
       expect(isPurchaseRequired).toBe(true);
     });
@@ -265,6 +265,75 @@ describe('BuyCryptoBatch', () => {
       expect(batch.transactions.length).toBe(1);
       expect(batch.transactions[0].id).toBe(2); // non-pipeline TX is processed
       expect(batch.outputReferenceAmount).toBe(0.4);
+    });
+
+    it('returns the transactions dropped for lack of available liquidity', () => {
+      const batchA = createDiverseBuyCryptoBatch();
+
+      const { deferredTransactions: deferredA } = batchA.optimizeByLiquidity(11, 0);
+
+      // TX3 (1) and TX2 (10) fit into 11, TX1 (100) does not
+      expect(deferredA.map((t) => t.id)).toEqual([1]);
+
+      const batchB = createDiverseBuyCryptoBatch();
+
+      const { deferredTransactions: deferredB } = batchB.optimizeByLiquidity(5, 0);
+
+      // only TX3 (1) fits into 5, both larger transactions are deferred
+      expect(deferredB.map((t) => t.id)).toEqual([2, 1]);
+    });
+
+    it('returns the transactions dropped for lack of purchasable liquidity', () => {
+      const batch = createDiverseBuyCryptoBatch();
+
+      const { isPurchaseRequired, deferredTransactions } = batch.optimizeByLiquidity(0.5, 11 * 1.06);
+
+      expect(isPurchaseRequired).toBe(true);
+      expect(deferredTransactions.map((t) => t.id)).toEqual([1]);
+    });
+
+    it('returns no deferred transactions if available liquidity is enough for the entire batch', () => {
+      const batch = createDiverseBuyCryptoBatch();
+
+      const { deferredTransactions } = batch.optimizeByLiquidity(112, 0);
+
+      expect(deferredTransactions).toEqual([]);
+      expect(batch.transactions.length).toBe(3);
+    });
+
+    it('returns no deferred transactions if the entire batch amount is purchasable', () => {
+      const batch = createDiverseBuyCryptoBatch();
+
+      const { deferredTransactions } = batch.optimizeByLiquidity(0.5, 10000);
+
+      expect(deferredTransactions).toEqual([]);
+      expect(batch.transactions.length).toBe(3);
+    });
+
+    it('defers exactly the transactions that are no longer part of the batch', () => {
+      const batch = createDiverseBuyCryptoBatch();
+      const inputTransactionIds = batch.transactions.map((t) => t.id);
+
+      const { deferredTransactions } = batch.optimizeByLiquidity(11, 0);
+
+      const keptTransactionIds = batch.transactions.map((t) => t.id);
+      const deferredTransactionIds = deferredTransactions.map((t) => t.id);
+
+      expect([...keptTransactionIds, ...deferredTransactionIds].sort()).toEqual([...inputTransactionIds].sort());
+      expect(keptTransactionIds.filter((id) => deferredTransactionIds.includes(id))).toEqual([]);
+      expect(batch.outputReferenceAmount).toBe(11);
+    });
+
+    it('defers the pipeline transaction that does not fit together with the transaction without pipeline', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 0.6
+
+      const { deferredTransactions } = batch.optimizeByLiquidity(0.6, 0);
+
+      // TX3 (0.5, pipeline 3) is kept, TX1 (1.0, pipeline 5) does not fit and TX2 (0.4) no longer fits either
+      expect(batch.transactions.map((t) => t.id)).toEqual([3]);
+      expect(deferredTransactions.map((t) => t.id)).toEqual([1, 2]);
     });
   });
 
