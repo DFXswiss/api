@@ -223,11 +223,15 @@ export class BuyService {
     return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true }, active: true });
   }
 
-  async getUserDataBuys(userDataId: number): Promise<Buy[]> {
+  async getUserDataBuys(userDataId: number, userId?: number): Promise<Buy[]> {
     return this.buyRepo.find({
       where: {
         active: true,
-        user: { userData: { id: userDataId }, status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])) },
+        user: {
+          ...(userId && { id: userId }),
+          userData: { id: userDataId },
+          status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])),
+        },
         asset: { buyable: true },
       },
       relations: { user: true },

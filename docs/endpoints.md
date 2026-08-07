@@ -600,7 +600,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/transaction/detail/csv` | public | whole rows | 1363 | not yet |  | `TransactionController.createDetailCsv` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/detail/single` | public | whole rows | 484 | not yet | yes | `TransactionController.getSingleTransactionDetails` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/single` | public | whole rows | 484 | not yet | yes | `TransactionController.getSingleTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
-| GET | 1 |  | `/transaction/target` | hidden | whole rows | 130 | not yet |  | `TransactionController.getTransactionTargets` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | 1 |  | `/transaction/target` | hidden | whole rows | 130 | not yet | yes | `TransactionController.getTransactionTargets` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/unassigned` | hidden | whole rows | 357 | not yet |  | `TransactionController.getUnassignedTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | DELETE | 1 | yes | `/user` | public | whole rows | 344 | not yet |  | `UserController.deleteUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | DELETE | 2 |  | `/user` | public | whole rows | 344 | not yet |  | `UserV2Controller.deleteAccount` | `subdomains/generic/user/models/user/user.controller.ts` |

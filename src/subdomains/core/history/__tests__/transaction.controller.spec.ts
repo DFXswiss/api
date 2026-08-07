@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -33,6 +34,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
+import { createCustomBuy } from '../../buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -136,6 +138,96 @@ describe('TransactionController', () => {
     jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(createDefaultBank());
 
     await expect(controller.getTransactionRefund(jwt, 1)).resolves.toBeDefined();
+  });
+
+  describe('getTransactionTargets', () => {
+    it('scopes to the user for a wallet-login token', async () => {
+      const userJwt: JwtPayload = {
+        role: UserRole.USER,
+        ip: '1.1.1.1',
+        account: 1,
+        user: 42,
+        address: 'wallet-address',
+      };
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(userJwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, 42);
+    });
+
+    it('stays unscoped for an account-login token', async () => {
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(jwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+    });
+
+    it('maps buys to transaction targets', async () => {
+      const buy = createCustomBuy({
+        id: 7,
+        bankUsage: 'ABCD-EFGH-IJKL',
+        user: createCustomUser({ address: 'wallet-address' }),
+      });
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([buy]);
+
+      await expect(controller.getTransactionTargets(jwt)).resolves.toEqual([
+        {
+          id: buy.id,
+          address: buy.user.address,
+          asset: AssetDtoMapper.toDto(buy.asset),
+          bankUsage: buy.bankUsage,
+        },
+      ]);
+    });
+
+    it('stays unscoped for a mail-elevated staff token', async () => {
+      const staffJwt: JwtPayload = {
+        role: UserRole.SUPPORT,
+        ip: '1.1.1.1',
+        account: 1,
+        user: 42,
+        address: 'staff-address',
+        tfaRequired: true,
+      };
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(staffJwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+    });
+
+    it('scopes to the user for a staff wallet login without the mail-elevation marker', async () => {
+      const staffWalletJwt: JwtPayload = {
+        role: UserRole.SUPPORT,
+        ip: '1.1.1.1',
+        account: 1,
+        user: 42,
+        address: 'staff-address',
+      };
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(staffWalletJwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, 42);
+    });
+
+    it('stays unscoped for a mail-origin token regardless of role', async () => {
+      const mailUserJwt: JwtPayload = {
+        role: UserRole.USER,
+        ip: '1.1.1.1',
+        account: 1,
+        user: 42,
+        address: 'wallet-address',
+        tfaRequired: true,
+      };
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
+
+      await controller.getTransactionTargets(mailUserJwt);
+
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+    });
   });
 
   describe('generateInvoiceFromTransaction (UID / TransactionRequest path)', () => {
