@@ -440,6 +440,7 @@ describe('BuyFiatService', () => {
             chargebackDate: IsNull(),
             chargebackTxId: IsNull(),
             isComplete: false,
+            outputAmount: IsNull(),
           }),
           relations: expect.objectContaining({
             transaction: { userData: true, user: true },

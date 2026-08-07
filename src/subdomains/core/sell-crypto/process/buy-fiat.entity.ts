@@ -673,7 +673,13 @@ export class BuyFiat extends IEntity {
     // Fail-closed first: already approved/executed/completed must never appear as waiting.
     // Redundant with BuyFiatService.getPendingChargebacks() where — a lost exclusion there
     // would show a finished refund as pending and risk double payout by Compliance.
-    if (this.chargebackAllowedDate || this.chargebackDate || this.isComplete || this.chargebackTxId) {
+    if (
+      this.chargebackAllowedDate ||
+      this.chargebackDate ||
+      this.isComplete ||
+      this.chargebackTxId ||
+      (this.outputAmount !== null && this.outputAmount !== undefined)
+    ) {
       return [];
     }
 

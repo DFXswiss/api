@@ -341,5 +341,10 @@ describe('BuyFiat entity', () => {
       const entity = pendingBuyFiat({ chargebackTxId: 'tx-123', chargebackAmount: undefined });
       expect(entity.getChargebackBlockReasons()).toEqual([]);
     });
+
+    it('fail-closed: returns empty array when outputAmount is set', () => {
+      const entity = pendingBuyFiat({ outputAmount: 0.2, chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
   });
 });

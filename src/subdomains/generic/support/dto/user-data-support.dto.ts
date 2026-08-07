@@ -76,6 +76,9 @@ export class PendingChargebackInfo {
   verifiedName?: string;
   completeName?: string;
   creditorName?: string;
+  // Always empty/undefined here: all three pending queries (BuyCrypto, BuyFiat, BankTxReturn)
+  // enforce chargebackDate: IsNull(). A set value would mean a where exclusion was lost and the
+  // row wrongly appears as pending — the double-payout risk this field surfaces as a UI sentinel.
   chargebackDate?: Date;
 }
 
