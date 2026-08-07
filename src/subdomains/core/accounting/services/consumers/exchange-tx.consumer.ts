@@ -300,8 +300,9 @@ export class ExchangeTxConsumer {
         needsMark: quoteChf == null,
       });
 
-      const feeChf = tx.feeAmountChf; // separate venue fee (real ccxt fee, sign-aware)
-      if (feeChf != null && feeChf !== 0) legs.push(await this.spreadLeg(tx.exchange, feeChf));
+      // #4277: book the venue fee against its NATIVE asset (not the pre-rounded feeAmountChf) so a sub-cent fee's native
+      // outflow survives; falls back to today's CHF spread leg when native booking would double-count or defer (see helper)
+      await this.appendCcxtFeeLeg(tx, base, quote, bookingDate, marks, legs);
 
       // mark-based quote-spread leg: closes the base↔quote mark residual to 0 (sign-aware). Major B5: an ASSET leg
       // without a historical mark is first bridged with the youngest available mark (resolveLegsOrDefer) so the trade
@@ -541,6 +542,43 @@ export class ExchangeTxConsumer {
     const prefix = feeAmountChf > 0 ? 'EXPENSE' : 'INCOME';
     const account = await this.accountService.findOrCreate(`${prefix}/spread-${exchange}`, type, 'CHF');
     return { account, amount: feeAmountChf, priceChf: 1, amountChf: feeAmountChf };
+  }
+
+  // §4.3 (issue #4277) — book the ccxt venue fee against its NATIVE asset (mirroring payout-order appendDistinctFeeLegs)
+  // so a sub-cent fee's native outflow is not lost to the 2dp feeAmountChf rounding, and the fee-currency journal balance
+  // stays accurate (less §7 reconciliation drift). Conservative: only for a fee in a DISTINCT asset (≠ base/quote — those
+  // are already inside `cost`, so a native fee leg there would double-count) that has a bootstrapped ledger account AND a
+  // historical mark; otherwise fall back to today's CHF-only spread leg so no trade that books today starts deferring.
+  // The fee's CHF cost still lands in EXPENSE/INCOME spread-{exchange} via the quote-spread plug; the native leg only adds
+  // the fee-currency outflow (its amountChf rounds to 0 for a sub-cent fee, but the native amount survives on the leg).
+  private async appendCcxtFeeLeg(
+    tx: ExchangeTx,
+    base: string,
+    quote: string,
+    bookingDate: Date,
+    marks: LedgerMarkCache,
+    legs: LedgerLegInput[],
+  ): Promise<void> {
+    const { feeAmount, feeCurrency, feeAmountChf } = tx;
+
+    if (feeAmount && feeCurrency && feeCurrency !== base && feeCurrency !== quote) {
+      const account = await this.accountService.findByName(`${tx.exchange}/${feeCurrency}`);
+      const mark = account?.assetId != null ? marks.getMarkAt(account.assetId, bookingDate) : undefined;
+      if (account && mark != null) {
+        // sign-aware off the signed native feeAmount: outflow (feeAmount > 0) → Cr; maker rebate (feeAmount < 0) → Dr
+        legs.push({
+          account,
+          amount: -feeAmount,
+          priceChf: mark,
+          amountChf: -Util.round(mark * feeAmount, 2),
+          needsMark: false,
+        });
+        return;
+      }
+    }
+
+    // fallback (no native fee data, distinct-asset account/mark missing, or a base/quote-denominated fee): unchanged
+    if (feeAmountChf != null && feeAmountChf !== 0) legs.push(await this.spreadLeg(tx.exchange, feeAmountChf));
   }
 
   private async exchangeAsset(tx: ExchangeTx): Promise<LedgerAccount> {

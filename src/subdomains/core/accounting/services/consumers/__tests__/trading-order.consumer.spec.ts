@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -15,6 +16,7 @@ import { TradingOrderConsumer } from '../trading-order.consumer';
 
 const USDT_ASSET_ID = 501; // assetIn (mark = 0.9)
 const TOKEN_ASSET_ID = 502; // assetOut (mark = 1.05)
+const GAS_COIN_ASSET_ID = 500; // #4277: the chain's native gas COIN (ETH), distinct from the swap pair
 
 function account(name: string, type: AccountType, currency: string, assetId?: number): LedgerAccount {
   return createCustomLedgerAccount({ id: Math.floor(Math.random() * 1e6), name, type, currency, assetId } as any);
@@ -43,6 +45,7 @@ describe('TradingOrderConsumer', () => {
   let accountService: LedgerAccountService;
   let markService: LedgerMarkService;
   let settingService: SettingService;
+  let assetService: AssetService;
   let tradingOrderRepo: Repository<TradingOrder>;
 
   let booked: LedgerTxInput[];
@@ -51,6 +54,8 @@ describe('TradingOrderConsumer', () => {
 
   const usdtWallet = account('Ethereum/USDT', AccountType.ASSET, 'USDT', USDT_ASSET_ID);
   const tokenWallet = account('Ethereum/TOKEN', AccountType.ASSET, 'TOKEN', TOKEN_ASSET_ID);
+  const gasWallet = account('Ethereum/ETH', AccountType.ASSET, 'ETH', GAS_COIN_ASSET_ID);
+  const ethCoin = { id: GAS_COIN_ASSET_ID, blockchain: 'Ethereum', uniqueName: 'Ethereum/ETH' }; // getNativeAsset result
 
   // USDT mark = 0.9 → in CHF 967 × 0.9 = 870.30; TOKEN mark = 1.05 → out CHF 836 × 1.05 = 877.80
   const markMap = new Map([
@@ -67,6 +72,7 @@ describe('TradingOrderConsumer', () => {
     accountService = createMock<LedgerAccountService>();
     markService = createMock<LedgerMarkService>();
     settingService = createMock<SettingService>();
+    assetService = createMock<AssetService>();
     tradingOrderRepo = createMock<Repository<TradingOrder>>();
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
@@ -76,9 +82,12 @@ describe('TradingOrderConsumer', () => {
     jest.spyOn(bookingService, 'nextSeq').mockImplementation(() => Promise.resolve(nextSeqValue));
 
     jest.spyOn(accountService, 'findByAssetId').mockImplementation((assetId: number) => {
-      const wallet = assetId === TOKEN_ASSET_ID ? tokenWallet : usdtWallet;
-      return Promise.resolve(wallet);
+      if (assetId === TOKEN_ASSET_ID) return Promise.resolve(tokenWallet);
+      if (assetId === GAS_COIN_ASSET_ID) return Promise.resolve(gasWallet);
+      return Promise.resolve(usdtWallet);
     });
+    // #4277: no gas coin resolved by default → existing tests book no native gas leg (unchanged); tests opt in
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue(undefined as any);
     jest
       .spyOn(accountService, 'findOrCreate')
       .mockImplementation((name: string, type: AccountType, currency: string) => {
@@ -102,6 +111,7 @@ describe('TradingOrderConsumer', () => {
         { provide: LedgerAccountService, useValue: accountService },
         { provide: LedgerMarkService, useValue: markService },
         { provide: SettingService, useValue: settingService },
+        { provide: AssetService, useValue: assetService },
         { provide: getRepositoryToken(TradingOrder), useValue: tradingOrderRepo },
       ],
     }).compile();
@@ -146,6 +156,77 @@ describe('TradingOrderConsumer', () => {
 
     // residual = −(877.8 − 870.3 + 1 + 2 − 3) = −7.5 → < 0 → EXPENSE/spread-arbitrage
     expect(leg(tx, 'EXPENSE/spread-arbitrage').amountChf).toBe(-7.5);
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // #4277: book the on-chain gas against its native COIN asset; the arbitrage plug shrinks by the gas CHF (no double-count)
+  it('#4277: books the gas fee against its native coin asset and shrinks the arbitrage plug by the gas CHF', async () => {
+    markMap.set(GAS_COIN_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 2000 }]); // ETH mark
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue(ethCoin as any);
+    mockBatch([tradingOrder({ id: 20, txFeeAmount: 0.0005, txFeeAmountChf: 1 })]); // gas 0.0005 ETH × 2000 = 1.00 CHF
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/ETH')?.amount).toBe(-0.0005); // native gas outflow tracked (the fix)
+    expect(leg(tx, 'Ethereum/ETH')?.amountChf).toBe(-1); // 2000 × 0.0005
+    expect(leg(tx, 'EXPENSE/network-fee')?.amountChf).toBe(1); // CHF expense Dr unchanged (single expense)
+    expect(leg(tx, 'EXPENSE/spread-arbitrage')?.amountChf).toBe(-6.5); // plug shrank from −7.5 by the 1.0 gas CHF Cr
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // #4277 core: a sub-cent gas fee keeps its native outflow even though txFeeAmountChf rounds to 0
+  it('#4277: preserves a sub-cent gas fee natively (txFeeAmountChf rounds to 0, native leg not omitted)', async () => {
+    markMap.set(GAS_COIN_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 2000 }]);
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue(ethCoin as any);
+    mockBatch([tradingOrder({ id: 21, txFeeAmount: 0.0000003, txFeeAmountChf: 0 })]); // 0.0000003 × 2000 = 0.0006 → 0.00
+    await consumer.process();
+
+    expect(leg(booked[0], 'Ethereum/ETH')?.amount).toBe(-0.0000003); // native outflow survives
+    expect(leg(booked[0], 'Ethereum/ETH')?.amountChf === 0).toBe(true); // sub-cent → 0 CHF, leg not omitted
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // #4277 conservatism: gas coin equal to a swap side → not distinct → no native leg, plug at status quo (no double-count)
+  it('#4277: falls back to CHF-only when the gas coin is one of the swap assets (not distinct)', async () => {
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue({ id: USDT_ASSET_ID, blockchain: 'Ethereum' } as any);
+    mockBatch([tradingOrder({ id: 22, txFeeAmount: 0.5, txFeeAmountChf: 1 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(tx.legs.filter((l) => l.account.type === AccountType.ASSET)).toHaveLength(2); // only the two swap ASSET legs
+    expect(leg(tx, 'EXPENSE/network-fee')?.amountChf).toBe(1);
+    expect(leg(tx, 'EXPENSE/spread-arbitrage')?.amountChf).toBe(-7.5); // unchanged plug (no gas native leg)
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // #4277 conservatism: gas coin has no ledger account → no native leg, no defer (booking still succeeds)
+  it('#4277: falls back to CHF-only when the gas coin has no ledger account (no native leg, no defer)', async () => {
+    markMap.set(GAS_COIN_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 2000 }]);
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue(ethCoin as any);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockImplementation((id: number) =>
+        Promise.resolve(id === GAS_COIN_ASSET_ID ? undefined : id === TOKEN_ASSET_ID ? tokenWallet : usdtWallet),
+      );
+    mockBatch([tradingOrder({ id: 23, txFeeAmount: 0.0005, txFeeAmountChf: 1 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/ETH')).toBeUndefined(); // no native leg (account missing)
+    expect(leg(tx, 'EXPENSE/network-fee')?.amountChf).toBe(1); // CHF fallback, booking succeeds
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // #4277 conservatism: gas coin has no historical mark → no native leg, no NEW deferral
+  it('#4277: falls back to CHF-only when the gas coin has no historical mark (no native leg, no new defer)', async () => {
+    markMap.delete(GAS_COIN_ASSET_ID); // ensure no mark (markMap persists across tests)
+    jest.spyOn(assetService, 'getNativeAsset').mockResolvedValue(ethCoin as any);
+    mockBatch([tradingOrder({ id: 24, txFeeAmount: 0.0005, txFeeAmountChf: 1 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/ETH')).toBeUndefined(); // no native leg (no mark) → no new deferral
+    expect(leg(tx, 'EXPENSE/network-fee')?.amountChf).toBe(1);
     expect(cents(tx.legs)).toBe(0);
   });
 

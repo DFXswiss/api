@@ -326,6 +326,92 @@ describe('ExchangeTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
+  it('#4277: books a ccxt venue fee against its native asset (distinct fee currency), not only feeAmountChf', async () => {
+    markMap.set(70, [{ created: new Date('2026-01-01'), priceChf: 90000 }]); // BTC quote mark
+    markMap.set(80, [{ created: new Date('2026-01-01'), priceChf: 600 }]); // BNB fee mark
+    accounts.set('Binance/BNB', account('Binance/BNB', AccountType.ASSET, 'BNB', 80));
+    mockBatch([
+      exchangeTx({
+        id: 1,
+        exchange: ExchangeName.BINANCE,
+        type: ExchangeTxType.TRADE,
+        symbol: 'USDT/BTC',
+        side: 'buy',
+        order: 'O-fee-1',
+        amount: 1000,
+        amountChf: 900,
+        cost: 0.01,
+        feeAmount: 0.0001, // native BNB fee
+        feeCurrency: 'BNB',
+        feeAmountChf: 0.06,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const bnb = legs.find((l) => l.account.name === 'Binance/BNB');
+    expect(bnb).toBeDefined(); // the native fee outflow is tracked (the fix), not collapsed to a CHF scalar
+    expect(bnb?.amount).toBe(-0.0001); // Cr: fee currency leaves
+    expect(bnb?.amountChf).toBe(-0.06); // 600 × 0.0001
+    expect(cents(legs)).toBe(0);
+  });
+
+  it('#4277: preserves a sub-cent venue fee natively (feeAmountChf rounds to 0 but the native leg is not omitted)', async () => {
+    markMap.set(70, [{ created: new Date('2026-01-01'), priceChf: 90000 }]);
+    markMap.set(80, [{ created: new Date('2026-01-01'), priceChf: 600 }]);
+    accounts.set('Binance/BNB', account('Binance/BNB', AccountType.ASSET, 'BNB', 80));
+    mockBatch([
+      exchangeTx({
+        id: 1,
+        exchange: ExchangeName.BINANCE,
+        type: ExchangeTxType.TRADE,
+        symbol: 'USDT/BTC',
+        side: 'buy',
+        order: 'O-fee-2',
+        amount: 1000,
+        amountChf: 900,
+        cost: 0.01,
+        feeAmount: 0.0000025, // ≈ 0.0015 CHF → rounds to 0.00
+        feeCurrency: 'BNB',
+        feeAmountChf: 0, // as persisted (sub-cent already rounded away)
+      }),
+    ]);
+    await consumer.process();
+
+    const bnb = booked[0].legs.find((l) => l.account.name === 'Binance/BNB');
+    expect(bnb).toBeDefined(); // NOT omitted despite feeAmountChf 0 — the #4277 fix
+    expect(bnb?.amount).toBe(-0.0000025); // native outflow survives
+    expect(bnb?.amountChf === 0).toBe(true); // sub-cent → 0 CHF, but the leg exists (=== avoids the -0 pitfall)
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  it('#4277: falls back to the CHF spread leg when the fee currency has no ledger account (no native leg, no defer)', async () => {
+    markMap.set(70, [{ created: new Date('2026-01-01'), priceChf: 90000 }]);
+    // NO Binance/BNB account seeded → native path unavailable → conservative fallback to today's CHF behaviour
+    mockBatch([
+      exchangeTx({
+        id: 1,
+        exchange: ExchangeName.BINANCE,
+        type: ExchangeTxType.TRADE,
+        symbol: 'USDT/BTC',
+        side: 'buy',
+        order: 'O-fee-3',
+        amount: 1000,
+        amountChf: 900,
+        cost: 0.01,
+        feeAmount: 0.0001,
+        feeCurrency: 'BNB',
+        feeAmountChf: 2,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs.find((l) => l.account.name === 'Binance/BNB')).toBeUndefined(); // no native leg (fee account missing)
+    expect(legs.some((l) => l.account.name === 'EXPENSE/spread-Binance' && l.amountChf === 2)).toBe(true); // CHF fallback
+    expect(cents(legs)).toBe(0);
+  });
+
   it('routes a Trade with no symbol/side to SUSPENSE/{exchange}-trade-unattributed', async () => {
     mockBatch([
       exchangeTx({ id: 1, type: ExchangeTxType.TRADE, symbol: null, side: null, amount: 100, amountChf: 90 }),

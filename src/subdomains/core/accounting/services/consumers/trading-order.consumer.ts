@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -43,6 +44,7 @@ export class TradingOrderConsumer {
     private readonly bookingService: LedgerBookingService,
     private readonly accountService: LedgerAccountService,
     private readonly markService: LedgerMarkService,
+    private readonly assetService: AssetService,
     @InjectRepository(TradingOrder) private readonly tradingOrderRepo: Repository<TradingOrder>,
   ) {}
 
@@ -153,7 +155,7 @@ export class TradingOrderConsumer {
     const legs: LedgerLegInput[] = [outLeg, inLeg];
 
     // persisted CHF-only fee/profit legs (Major R2-5: book only when field != null, never ?? 0)
-    if (order.txFeeAmountChf != null) legs.push(this.chfLeg(await this.expense('network-fee'), order.txFeeAmountChf));
+    await this.appendNetworkFeeLegs(order, assetIn, assetOut, marks, bookingDate, legs);
     if (order.swapFeeAmountChf != null)
       legs.push(this.chfLeg(await this.expense(`spread-${SWAP_VENUE}`), order.swapFeeAmountChf));
     if (order.profitChf != null) legs.push(this.chfLeg(await this.income('trading'), -order.profitChf));
@@ -167,6 +169,44 @@ export class TradingOrderConsumer {
       bookingDate,
       valueDate: bookingDate,
       legs,
+    });
+  }
+
+  // §4.9 (issue #4277) — book the on-chain GAS fee against its NATIVE coin asset (mirroring payout appendDistinctFeeLegs)
+  // so a sub-cent gas fee's native outflow survives the 2dp txFeeAmountChf rounding. The gas coin is the swap chain's
+  // native COIN — assetService.getNativeAsset(assetIn.blockchain), the exact asset the persisted txFeeAmountChf was
+  // valued from. Conservative: keep the CHF EXPENSE/network-fee Dr; add the native Cr only for a DISTINCT coin
+  // (≠ assetIn/assetOut → no double-count) with a bootstrapped account (non-throwing) AND a historical mark, else keep
+  // today's CHF-only leg so no swap that books today starts deferring. The native Cr is the Cr counterpart of the
+  // EXPENSE Dr (booked once); the arbitrage plug simply shrinks by the same gas CHF.
+  private async appendNetworkFeeLegs(
+    order: TradingOrder,
+    assetIn: Asset,
+    assetOut: Asset,
+    marks: LedgerMarkCache,
+    bookingDate: Date,
+    legs: LedgerLegInput[],
+  ): Promise<void> {
+    if (order.txFeeAmountChf == null) return; // Major R2-5 null-strategy: no fee data → no fee leg at all
+    legs.push(this.chfLeg(await this.expense('network-fee'), order.txFeeAmountChf)); // Dr EXPENSE/network-fee (unchanged)
+
+    const feeAmount = order.txFeeAmount;
+    if (feeAmount == null || feeAmount === 0) return;
+
+    const coin = await this.assetService.getNativeAsset(assetIn.blockchain);
+    if (!coin || coin.id === assetIn.id || coin.id === assetOut.id) return; // distinct gas coin only (no double-count)
+
+    const account = await this.accountService.findByAssetId(coin.id);
+    const mark = marks.getMarkAt(coin.id, bookingDate);
+    if (!account || mark == null) return; // no account / no historical mark → CHF-only (no new deferral)
+
+    // Cr the gas coin's ASSET account: native outflow survives even when its CHF rounds to 0 (sign-aware off feeAmount)
+    legs.push({
+      account,
+      amount: -feeAmount,
+      priceChf: mark,
+      amountChf: -Util.round(mark * feeAmount, 2),
+      needsMark: false,
     });
   }
 

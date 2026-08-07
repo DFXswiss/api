@@ -418,6 +418,62 @@ describe('PayoutOrderConsumer', () => {
     expect(cents(tx.legs)).toBe(0);
   });
 
+  // #4277: the per-distinct-asset native leg must survive even when the persisted CHF sum rounds to 0 (sub-cent gas) —
+  // the early-return gate is removed and only the CHF EXPENSE leg is gated on feeChf.
+  it('#4277: books a distinct fee-asset native leg even when the persisted CHF sum is 0 (sub-cent gas)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 30,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '800',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        payoutFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' },
+        payoutFeeAmount: 0.000001, // 0.000001 × 2000 = 0.002 CHF → rounds to 0.00
+        payoutFeeAmountChf: 0,
+        preparationFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/ETH').amount).toBe(-0.000001); // native gas outflow survives (the fix)
+    expect(leg(tx, 'Ethereum/ETH').amountChf === 0).toBe(true); // sub-cent → 0 CHF, leg not omitted
+    expect(leg(tx, 'EXPENSE/network-fee')).toBeUndefined(); // a 0-CHF EXPENSE leg is suppressed
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // #4277 conservatism: at feeChf 0, an unvaluable distinct fee asset (no mark / no account) falls back to today's
+  // skip — no new deferral, the payout still books.
+  it('#4277: at feeChf 0, skips the native leg for an unvaluable distinct fee asset (no new deferral)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockImplementation((id: number) =>
+        Promise.resolve(id === ETH_ASSET_ID ? ethWallet : id === BTC_ASSET_ID ? btcWallet : undefined),
+      );
+    mockBatch([
+      payoutOrder({
+        id: 31,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '801',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        payoutFeeAsset: { id: 888, uniqueName: 'Feedless/XYZ' }, // no mark, no account
+        payoutFeeAmount: 0.5,
+        payoutFeeAmountChf: 0,
+        preparationFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // booked, not deferred/thrown
+    expect(booked[0].legs.find((l) => l.account.name === 'Feedless/XYZ')).toBeUndefined(); // native leg skipped
+    expect(leg(booked[0], 'EXPENSE/network-fee')).toBeUndefined();
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
   // §4.5 fee-asset == payout-asset: folds into the same wallet Cr leg with a mixed effective priceChf (Minor R13-3)
   it('folds a payout-asset fee into the wallet Cr leg (feeAsset == payoutAsset)', async () => {
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
