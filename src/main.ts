@@ -19,6 +19,7 @@ import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
+import { handleBootstrapFailure } from './bootstrap-failure';
 import { checkProcessTimezone } from './process-timezone';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
@@ -228,8 +229,4 @@ function runSeed(): void {
 // Catch boot failures so they surface as a clear "Bootstrap failed" log with
 // exit 1, not as an unhandled rejection that the uncaughtException handler
 // reports as a generic crash (and Spark-error heuristic).
-void bootstrap().catch((error) => {
-  const logger = new DfxLogger('Bootstrap');
-  logger.error('Bootstrap failed:', error instanceof Error ? error : new Error(String(error)));
-  process.exit(1);
-});
+void bootstrap().catch(handleBootstrapFailure);

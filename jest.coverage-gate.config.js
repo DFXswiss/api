@@ -23,6 +23,7 @@ const FULL_COVERAGE = { branches: 100, functions: 100, lines: 100, statements: 1
 // Files carrying real logic: they have functions and/or branches, so the threshold asserts
 // that executable code stays covered.
 const PINNED_LOGIC = [
+  'src/bootstrap-failure.ts',
   'src/config/frick.config.ts',
   'src/integration/bank/dto/frick-vban.dto.ts',
   'src/integration/bank/dto/frick.dto.ts',
@@ -121,12 +122,12 @@ const PINNED_LOGIC = [
   'src/subdomains/core/payment-link/entities/payment-link.config.ts',
   'src/subdomains/core/payment-link/enums/index.ts',
   'src/subdomains/core/payment-link/enums/merchant.enum.ts',
+  'src/subdomains/core/referral/reward/services/ref-reward-job.service.ts',
+  'src/subdomains/core/referral/reward/services/ref-reward.service.ts',
   'src/subdomains/core/statistic/partner-statistic-rate-limit.guard.ts',
   'src/subdomains/core/statistic/partner-statistic.controller.ts',
   'src/subdomains/core/statistic/partner-statistic.enum.ts',
   'src/subdomains/core/statistic/partner-statistic.service.ts',
-  'src/subdomains/core/referral/reward/services/ref-reward-job.service.ts',
-  'src/subdomains/core/referral/reward/services/ref-reward.service.ts',
   'src/subdomains/core/trading/enums/index.ts',
   'src/subdomains/generic/forwarding/controllers/lnurld-forward.controller.ts',
   'src/subdomains/generic/forwarding/controllers/lnurlw-forward.controller.ts',
@@ -415,6 +416,7 @@ const PINNED_DECLARATIVE = [
   'src/subdomains/core/sell-crypto/route/dto/unsigned-tx.dto.ts',
   'src/subdomains/core/sell-crypto/route/dto/update-sell.dto.ts',
   'src/subdomains/core/statistic/dto/partner-statistic.dto.ts',
+  'src/subdomains/core/statistic/statistic.module.ts',
   'src/subdomains/generic/gs/dto/support-data.dto.ts',
   'src/subdomains/generic/kyc/dto/input/kyc-query.dto.ts',
   'src/subdomains/generic/kyc/dto/input/update-kyc-step.dto.ts',
