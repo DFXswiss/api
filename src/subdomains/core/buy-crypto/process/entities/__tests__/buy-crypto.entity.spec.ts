@@ -25,7 +25,7 @@ import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
-import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
+import { BuyCrypto, BuyCryptoAwaitingPayoutStatus, BuyCryptoStatus } from '../buy-crypto.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price, steps: [] });
@@ -979,5 +979,33 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
       chargebackAmount: undefined,
     });
     expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+});
+
+describe('BuyCryptoAwaitingPayoutStatus', () => {
+  it('covers every status except the two that end a transaction', () => {
+    expect([...BuyCryptoAwaitingPayoutStatus].sort()).toEqual(
+      Object.values(BuyCryptoStatus)
+        .filter((s) => ![BuyCryptoStatus.COMPLETE, BuyCryptoStatus.STOPPED].includes(s))
+        .sort(),
+    );
+  });
+
+  it('excludes a transaction that just completed', () => {
+    expect(BuyCryptoAwaitingPayoutStatus).not.toContain(BuyCryptoStatus.COMPLETE);
+  });
+
+  it('excludes a transaction that was stopped', () => {
+    expect(BuyCryptoAwaitingPayoutStatus).not.toContain(BuyCryptoStatus.STOPPED);
+  });
+
+  it('includes a transaction whose liquidity is still missing', () => {
+    // the state the transaction of the incident sat in while its coin was bought, failed delivery
+    // and was sold back underneath it
+    expect(BuyCryptoAwaitingPayoutStatus).toContain(BuyCryptoStatus.MISSING_LIQUIDITY);
+  });
+
+  it('includes a transaction that is already paying out', () => {
+    expect(BuyCryptoAwaitingPayoutStatus).toContain(BuyCryptoStatus.PAYING_OUT);
   });
 });

@@ -23,6 +23,24 @@ export enum PayoutOrderStatus {
   COMPLETE = 'Complete',
 }
 
+/**
+ * Every status of an order whose asset has not reached its recipient yet — `PAYOUT_UNCERTAIN`
+ * included, because a payout parked for a human to resolve is one the recipient is still owed.
+ *
+ * Spelled out rather than negating COMPLETE: the table still holds rows carrying a `Failed` status
+ * that this enum has not contained for years, and a negation would report those as outstanding
+ * forever. For a caller that withholds an action while payouts are outstanding, forever is the
+ * whole cost of getting this wrong.
+ */
+export const PendingPayoutOrderStatus = [
+  PayoutOrderStatus.CREATED,
+  PayoutOrderStatus.PREPARATION_PENDING,
+  PayoutOrderStatus.PREPARATION_CONFIRMED,
+  PayoutOrderStatus.PAYOUT_DESIGNATED,
+  PayoutOrderStatus.PAYOUT_UNCERTAIN,
+  PayoutOrderStatus.PAYOUT_PENDING,
+];
+
 @Entity()
 @Index((p: PayoutOrder) => [p.context, p.correlationId], { unique: true })
 // Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).

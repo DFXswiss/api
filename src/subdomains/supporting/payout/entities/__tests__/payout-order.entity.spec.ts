@@ -1,7 +1,7 @@
 import { getMetadataArgsStorage } from 'typeorm';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus, PendingPayoutOrderStatus } from '../payout-order.entity';
 import { createCustomPayoutOrder } from '../__mocks__/payout-order.entity.mock';
 
 describe('PayoutOrder', () => {
@@ -344,5 +344,23 @@ describe('PayoutOrder', () => {
       expect(index).toBeDefined();
       expect(index!.unique).toBeFalsy();
     });
+  });
+});
+
+describe('PendingPayoutOrderStatus', () => {
+  it('covers every status except the one that ends an order', () => {
+    expect([...PendingPayoutOrderStatus].sort()).toEqual(
+      Object.values(PayoutOrderStatus)
+        .filter((s) => s !== PayoutOrderStatus.COMPLETE)
+        .sort(),
+    );
+  });
+
+  it('excludes a payout that just completed', () => {
+    expect(PendingPayoutOrderStatus).not.toContain(PayoutOrderStatus.COMPLETE);
+  });
+
+  it('includes a payout parked as uncertain, which the recipient is still owed', () => {
+    expect(PendingPayoutOrderStatus).toContain(PayoutOrderStatus.PAYOUT_UNCERTAIN);
   });
 });

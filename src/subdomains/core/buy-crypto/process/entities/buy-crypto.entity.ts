@@ -64,6 +64,26 @@ export enum BuyCryptoStatus {
   STOPPED = 'Stopped',
 }
 
+/**
+ * Every status of a transaction that is on its way to a payout it has not delivered yet.
+ *
+ * The whole enum minus COMPLETE and STOPPED, spelled out rather than negated: the table still holds
+ * rows carrying `InProgress` and `Completed`, values this enum has not contained for years, and a
+ * negation would report those as awaiting payout forever.
+ */
+export const BuyCryptoAwaitingPayoutStatus = [
+  BuyCryptoStatus.CREATED,
+  BuyCryptoStatus.PRICE_INVALID,
+  BuyCryptoStatus.MISSING_LIQUIDITY,
+  BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+  BuyCryptoStatus.BATCHED,
+  BuyCryptoStatus.PRICE_SLIPPAGE,
+  BuyCryptoStatus.PENDING_LIQUIDITY,
+  BuyCryptoStatus.PENDING_AGGREGATION,
+  BuyCryptoStatus.READY_FOR_PAYOUT,
+  BuyCryptoStatus.PAYING_OUT,
+];
+
 export interface CreditorData {
   name?: string;
   address?: string;
