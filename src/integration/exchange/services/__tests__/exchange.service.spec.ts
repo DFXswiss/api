@@ -9,37 +9,41 @@ import * as ExchangeTestModule from './exchange.test';
 const withdrawalMin = '0.500000000000000000';
 const withdrawalMax = '50.000000000000000000';
 
+/** A network as the venue publishes it: its own identifier, and the maximum it accepts on it. */
+interface PublishedNetwork {
+  rawNetwork: string;
+  withdrawMax: string;
+}
+
 /** The payload MEXC answers with, as ccxt receives it: every number a string, the network name unmapped. */
-function mexcCurrencyPayload(rawNetwork: string): Record<string, unknown>[] {
+function mexcCurrencyPayload(coin: string, published: PublishedNetwork[]): Record<string, unknown>[] {
   return [
     {
-      coin: 'XMR',
-      name: 'Monero',
-      networkList: [
-        {
-          coin: 'XMR',
-          depositEnable: true,
-          name: 'Monero',
-          netWork: rawNetwork,
-          withdrawEnable: true,
-          withdrawFee: '0.000100000000000000',
-          withdrawIntegerMultiple: null,
-          withdrawMax: withdrawalMax,
-          withdrawMin: withdrawalMin,
-          contract: null,
-        },
-      ],
+      coin,
+      name: coin,
+      networkList: published.map(({ rawNetwork, withdrawMax }) => ({
+        coin,
+        depositEnable: true,
+        name: coin,
+        netWork: rawNetwork,
+        withdrawEnable: true,
+        withdrawFee: '0.000100000000000000',
+        withdrawIntegerMultiple: null,
+        withdrawMax,
+        withdrawMin: withdrawalMin,
+        contract: null,
+      })),
     },
   ];
 }
 
 /** Runs ccxt's own mexc parser over a raw venue payload, so the assertions see the production structure. */
-function parseMexcCurrencies(rawNetwork: string): Promise<Currencies> {
+function parseMexcCurrencies(coin: string, published: PublishedNetwork[]): Promise<Currencies> {
   const exchange = new mexc({ apiKey: 'key', secret: 'secret' });
 
   // the parser's only network call, replaced by the raw payload - fetchCurrencies answers {} without credentials
   Object.assign(exchange, {
-    spotPrivateGetCapitalConfigGetall: () => Promise.resolve(mexcCurrencyPayload(rawNetwork)),
+    spotPrivateGetCapitalConfigGetall: () => Promise.resolve(mexcCurrencyPayload(coin, published)),
   });
 
   return exchange.fetchCurrencies();
@@ -203,6 +207,8 @@ describe('ExchangeService', () => {
 
       await expect(service.getWithdrawalLimits('XMR', 'XMR')).resolves.toEqual({});
       expect(warn).toHaveBeenCalledTimes(1);
+      // "is none of" would be a false statement about this list: the code is in both of them
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('matches 2 of'));
     });
 
     it('should warn about a network the token does not publish', async () => {
@@ -212,6 +218,19 @@ describe('ExchangeService', () => {
 
       await expect(service.getWithdrawalLimits('XMR', 'BSC')).resolves.toEqual({});
       expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('network BSC matches none of'));
+    });
+
+    // an unpublished token is not an unresolved network: naming the network sends the reader after a spelling
+    // that is not the problem
+    it('should name the token when the venue publishes no such token', async () => {
+      const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      Setup.Currencies({ XMR: xmrNetwork });
+
+      await expect(service.getWithdrawalLimits('BTC', 'BTC')).resolves.toEqual({});
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('No withdrawal limits for BTC'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('publishes no such token'));
     });
 
     it('should not warn when the network resolves without a published maximum', async () => {
@@ -267,13 +286,107 @@ describe('ExchangeService', () => {
   });
 
   // ccxt's mexc parser decides what `networks` is keyed by, and its answer depends on the raw network string the
-  // venue sends: without a unified mapping for it, key and id are that raw string verbatim. Both spellings are in
-  // the wild for the same network, and the repo asks with the short one.
+  // venue sends: without a unified mapping for it, key and id are that raw string verbatim. The repo asks with
+  // the short code MexcService stores for the blockchain, and a venue publishes networks whose identifiers carry
+  // those letters without being that network - ETHW next to Ethereum, opBNB next to Optimism, each with a
+  // maximum of its own. Read off the wrong network, that maximum caps a payout to a fraction of what fits.
   describe('getWithdrawalLimits over a real ccxt payload', () => {
-    it.each(['XMR', 'Monero(XMR)'])('should find the limits for raw network %s', async (rawNetwork) => {
-      jest.spyOn(exchange, 'fetchCurrencies').mockResolvedValue(await parseMexcCurrencies(rawNetwork));
+    const cap = { min: 0.5, max: 50 };
 
-      await expect(service.getWithdrawalLimits('XMR', 'XMR')).resolves.toEqual({ min: 0.5, max: 50 });
+    // what the requested network accepts, and what a network merely carrying the same letters accepts: distinct,
+    // so a lookup landing on the wrong entry shows up as the wrong number instead of as a missing cap
+    const requestedMax = { withdrawMax: withdrawalMax };
+    const foreignMax = { withdrawMax: '7.000000000000000000' };
+    const otherMax = { withdrawMax: '900.000000000000000000' };
+
+    it.each([
+      {
+        name: 'XMR',
+        coin: 'XMR',
+        requested: 'XMR',
+        published: [{ rawNetwork: 'XMR', ...requestedMax }],
+        expected: cap,
+      },
+      {
+        name: 'Monero(XMR)',
+        coin: 'XMR',
+        requested: 'XMR',
+        published: [{ rawNetwork: 'Monero(XMR)', ...requestedMax }],
+        expected: cap,
+      },
+      {
+        name: 'BEP20(BSC)',
+        coin: 'USDT',
+        requested: 'BSC',
+        published: [{ rawNetwork: 'BEP20(BSC)', ...requestedMax }],
+        expected: cap,
+      },
+      {
+        name: 'Polygon(MATIC)',
+        coin: 'USDT',
+        requested: 'MATIC',
+        published: [{ rawNetwork: 'Polygon(MATIC)', ...requestedMax }],
+        expected: cap,
+      },
+      {
+        name: 'Optimism(OP)',
+        coin: 'OP',
+        requested: 'OP',
+        published: [{ rawNetwork: 'Optimism(OP)', ...requestedMax }],
+        expected: cap,
+      },
+      {
+        name: 'ERC20 next to ETHW',
+        coin: 'ETH',
+        requested: 'ETH',
+        published: [
+          { rawNetwork: 'ERC20', ...otherMax },
+          { rawNetwork: 'ETHW', ...foreignMax },
+        ],
+        expected: {},
+      },
+      {
+        name: 'Ethereum(ERC20) next to ETHW',
+        coin: 'ETH',
+        requested: 'ETH',
+        published: [
+          { rawNetwork: 'Ethereum(ERC20)', ...otherMax },
+          { rawNetwork: 'ETHW', ...foreignMax },
+        ],
+        expected: {},
+      },
+      { name: 'opBNB', coin: 'OP', requested: 'OP', published: [{ rawNetwork: 'opBNB', ...foreignMax }], expected: {} },
+      {
+        name: 'SOLANAOLD',
+        coin: 'SOL',
+        requested: 'SOL',
+        published: [{ rawNetwork: 'SOLANAOLD', ...foreignMax }],
+        expected: {},
+      },
+    ])('should read $requested off the published $name', async ({ coin, requested, published, expected }) => {
+      const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchange, 'fetchCurrencies').mockResolvedValue(await parseMexcCurrencies(coin, published));
+
+      await expect(service.getWithdrawalLimits(coin, requested)).resolves.toEqual(expected);
+      // a miss stays a logged miss, because nothing downstream can tell it from "no maximum published"
+      expect(warn).toHaveBeenCalledTimes(Object.keys(expected).length ? 0 : 1);
+    });
+
+    // the published list in the warning is what an operator compares against the venue's own page: ccxt keys
+    // "Ethereum(ERC20)" by its unified code "ERC20", which appears nowhere on that page
+    it('should name the identifiers the venue published, not the keys ccxt replaced them with', async () => {
+      const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      jest.spyOn(exchange, 'fetchCurrencies').mockResolvedValue(
+        await parseMexcCurrencies('ETH', [
+          { rawNetwork: 'Ethereum(ERC20)', ...otherMax },
+          { rawNetwork: 'ETHW', ...foreignMax },
+        ]),
+      );
+
+      await expect(service.getWithdrawalLimits('ETH', 'ETH')).resolves.toEqual({});
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[Ethereum(ERC20),ETHW]'));
     });
   });
 

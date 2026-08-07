@@ -301,15 +301,29 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
       return {};
     }
 
-    const networks: Dictionary<CurrencyNetwork> = currencies[token]?.networks ?? {};
+    const currency = currencies[token];
+    if (!currency) {
+      this.logger.warn(`No withdrawal limits for ${token} at ${this.name}: the venue publishes no such token`);
+      return {};
+    }
 
-    const entry = this.findNetwork(networks, network);
-    if (!entry) {
+    const networks: Dictionary<CurrencyNetwork> = currency.networks ?? {};
+
+    const matches = this.findNetworks(networks, network);
+    if (matches.length !== 1) {
+      // name the identifiers the venue published and the lookup ran on, not the dictionary keys: ccxt replaces
+      // the key with its own unified code wherever it has a mapping, so the key of "Ethereum(ERC20)" is "ERC20"
+      // and a reader of the key list cannot see what was compared
+      const published = Object.entries(networks).map(([key, entry]) => entry?.id ?? key);
+      const verdict = matches.length ? `matches ${matches.length} of` : 'matches none of';
+
       this.logger.warn(
-        `No withdrawal limits for ${token} at ${this.name}: network ${network} is none of [${Object.keys(networks)}]`,
+        `No withdrawal limits for ${token} at ${this.name}: network ${network} ${verdict} the networks the venue publishes for it [${published}]`,
       );
       return {};
     }
+
+    const [entry] = matches;
 
     const limits = { min: this.toLimit(entry.limits?.withdraw?.min), max: this.toLimit(entry.limits?.withdraw?.max) };
     if (limits.max == null)
@@ -344,13 +358,17 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   /**
-   * The venue's network entry for the network string this repo stores. `networks` is keyed by ccxt's unified
-   * network code, but only where ccxt has a mapping for the venue — MEXC ships four of them, so for every other
-   * network the key, the `id` and the raw payload all carry the venue's own string, which is sometimes the short
-   * code ("XMR") and sometimes the long form ("Monero(XMR)"). Matching the key alone misses the long form, and
-   * the caller cannot tell that miss from "no limit published" unless this method is asked twice.
+   * Every venue network entry spelled with the network string this repo stores. `networks` is keyed by ccxt's
+   * unified network code, but only where ccxt has a mapping for the venue — MEXC ships four of them, so for
+   * every other network the key, the `id` and the raw payload all carry the venue's own string, which is
+   * sometimes the short code ("XMR") and sometimes a long form embedding it ("Monero(XMR)").
+   *
+   * This compares spellings and does nothing beyond that: it does not establish that a matched entry *is* the
+   * requested network. A venue naming an unrelated network with the same delimited code would be
+   * indistinguishable from the right one here, which is why the caller reads anything but a single match as no
+   * limit at all, and why the code has to sit at a delimiter rather than anywhere inside the identifier.
    */
-  private findNetwork(networks: Dictionary<CurrencyNetwork>, network: string): CurrencyNetwork | undefined {
+  private findNetworks(networks: Dictionary<CurrencyNetwork>, network: string): CurrencyNetwork[] {
     const candidates = Object.entries(networks).map(([key, entry]) => ({
       entry,
       // every spelling ccxt keeps of the venue's identifier: dictionary key, unified code, id and the raw fields
@@ -361,14 +379,30 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
     const wanted = network.toLowerCase();
 
-    const exact = candidates.find((c) => c.ids.includes(wanted));
-    if (exact) return exact.entry;
+    // an entry spelling the code and nothing else outranks one that merely embeds it
+    const exact = candidates.filter((c) => c.ids.includes(wanted));
+    if (exact.length) return exact.map((c) => c.entry);
 
-    // the long form embeds the short code ("Monero(XMR)"), so exactly one containing candidate identifies the
-    // network — two of them would make it a guess, and a guessed cap is worse than no cap
-    const containing = candidates.filter((c) => c.ids.some((i) => i.includes(wanted)));
+    return candidates.filter((c) => c.ids.some((i) => this.embedsCode(i, wanted))).map((c) => c.entry);
+  }
 
-    return containing.length === 1 ? containing[0].entry : undefined;
+  /**
+   * Whether `id` carries `code` as a delimited token — bounded by the ends of the identifier or by a separator
+   * such as "(", ")", "-", "_" or a space, as in "Monero(XMR)" or "BEP20(BSC)".
+   *
+   * A plain substring test would read "ETHW" as Ethereum and "opBNB" as Optimism. Both are networks MEXC
+   * publishes in their own right, next to the requested one and with a far smaller maximum of their own, so the
+   * substring test does not merely miss — it caps a withdrawal to a number belonging to another network.
+   */
+  private embedsCode(id: string, code: string): boolean {
+    const isBoundary = (char: string): boolean => !char || !/[a-z0-9]/.test(char);
+
+    for (let i = 0; i + code.length <= id.length; i++) {
+      if (!id.startsWith(code, i)) continue;
+      if (isBoundary(id[i - 1]) && isBoundary(id[i + code.length])) return true;
+    }
+
+    return false;
   }
 
   private toLimit(value?: unknown): number | undefined {
