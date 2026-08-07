@@ -130,19 +130,39 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       });
     }
 
-    it('loads the row fresh and claims it with a conditional update (no full-entity save)', async () => {
+    /** Own-transaction path: claim + updateInternal must share the tx manager. */
+    function mockOwnTransaction(fresh: CryptoInput | null, updateAffected = 1) {
+      const txRepo = {
+        findOne: jest.fn().mockResolvedValue(fresh),
+        update: jest.fn().mockResolvedValue({ affected: updateAffected }),
+      };
+      const txManager = {
+        getRepository: jest.fn().mockReturnValue(txRepo),
+      } as unknown as EntityManager;
+      const transactionSpy = jest.fn(async (run: (m: EntityManager) => unknown) => run(txManager));
+      Object.defineProperty(payInRepository, 'manager', {
+        configurable: true,
+        value: { transaction: transactionSpy },
+      });
+      return { txRepo, txManager, transactionSpy };
+    }
+
+    it('without a manager, runs claim and updateInternal inside one repository transaction', async () => {
       const fresh = idlePayIn();
-      const findOneSpy = jest.spyOn(payInRepository, 'findOne').mockResolvedValue(fresh);
-      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as never);
-      jest.spyOn(transactionService, 'updateInternal').mockResolvedValue(undefined as never);
+      const { txRepo, txManager, transactionSpy } = mockOwnTransaction(fresh);
+      const updateInternalSpy = jest.spyOn(transactionService, 'updateInternal').mockResolvedValue(undefined as never);
+      const repoFindSpy = jest.spyOn(payInRepository, 'findOne');
+      const repoUpdateSpy = jest.spyOn(payInRepository, 'update');
 
       await service.returnPayIn(idlePayIn({ status: PayInStatus.ACKNOWLEDGED }), returnAddress, chargebackAmount);
 
-      expect(findOneSpy).toHaveBeenCalledWith({
+      expect(transactionSpy).toHaveBeenCalledTimes(1);
+      expect(txManager.getRepository).toHaveBeenCalledWith(CryptoInput);
+      expect(txRepo.findOne).toHaveBeenCalledWith({
         where: { id: 52 },
         relations: { route: { user: true }, transaction: true },
       });
-      expect(updateSpy).toHaveBeenCalledWith(
+      expect(txRepo.update).toHaveBeenCalledWith(
         {
           id: 52,
           status: PayInStatus.ACKNOWLEDGED,
@@ -156,31 +176,38 @@ describe('PayInService designate-before-broadcast safeguards', () => {
           chargebackAmount,
         },
       );
+      expect(updateInternalSpy).toHaveBeenCalledWith(
+        fresh.transaction,
+        { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN, user: fresh.route.user },
+        txManager,
+      );
+      expect(txRepo.update.mock.invocationCallOrder[0]).toBeLessThan(updateInternalSpy.mock.invocationCallOrder[0]);
+      expect(repoFindSpy).not.toHaveBeenCalled();
+      expect(repoUpdateSpy).not.toHaveBeenCalled();
       expect(payInRepository.save).not.toHaveBeenCalled();
     });
 
     it('guards evaluate the fresh row, not the caller snapshot', async () => {
       const staleCaller = idlePayIn({ status: PayInStatus.ACKNOWLEDGED });
       const freshReturned = idlePayIn({ status: PayInStatus.RETURNED });
-      jest.spyOn(payInRepository, 'findOne').mockResolvedValue(freshReturned);
-      const updateSpy = jest.spyOn(payInRepository, 'update');
+      const { txRepo, transactionSpy } = mockOwnTransaction(freshReturned);
 
       await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
         new BadRequestException('CryptoInput already returned'),
       );
-      expect(updateSpy).not.toHaveBeenCalled();
+      expect(transactionSpy).toHaveBeenCalledTimes(1);
+      expect(txRepo.update).not.toHaveBeenCalled();
     });
 
     it('guards when the fresh row already has returnTxId set', async () => {
       const staleCaller = idlePayIn({ status: PayInStatus.ACKNOWLEDGED, returnTxId: null });
       const freshWithTx = idlePayIn({ status: PayInStatus.ACKNOWLEDGED, returnTxId: '0xabc' });
-      jest.spyOn(payInRepository, 'findOne').mockResolvedValue(freshWithTx);
-      const updateSpy = jest.spyOn(payInRepository, 'update');
+      const { txRepo } = mockOwnTransaction(freshWithTx);
 
       await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
         new BadRequestException('CryptoInput already returned'),
       );
-      expect(updateSpy).not.toHaveBeenCalled();
+      expect(txRepo.update).not.toHaveBeenCalled();
     });
 
     it.each([PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN])(
@@ -188,33 +215,31 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       async (status) => {
         const staleCaller = idlePayIn({ status: PayInStatus.ACKNOWLEDGED });
         const freshInFlight = idlePayIn({ status, action: PayInAction.WAITING, returnTxId: null });
-        jest.spyOn(payInRepository, 'findOne').mockResolvedValue(freshInFlight);
-        const updateSpy = jest.spyOn(payInRepository, 'update');
+        const { txRepo } = mockOwnTransaction(freshInFlight);
 
         await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
           new BadRequestException('CryptoInput send in flight or uncertain'),
         );
-        expect(updateSpy).not.toHaveBeenCalled();
+        expect(txRepo.update).not.toHaveBeenCalled();
         expect(payInRepository.save).not.toHaveBeenCalled();
       },
     );
 
     it('throws ConflictException when the claim loses and does not relabel the transaction', async () => {
       const fresh = idlePayIn();
-      jest.spyOn(payInRepository, 'findOne').mockResolvedValue(fresh);
-      jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 0 } as never);
+      const { txRepo } = mockOwnTransaction(fresh, 0);
       const updateInternalSpy = jest.spyOn(transactionService, 'updateInternal');
 
       await expect(service.returnPayIn(fresh, returnAddress, chargebackAmount)).rejects.toThrow(
         new ConflictException('CryptoInput state changed concurrently'),
       );
+      expect(txRepo.update).toHaveBeenCalled();
       expect(updateInternalSpy).not.toHaveBeenCalled();
     });
 
-    it('calls transactionService.updateInternal after a winning claim', async () => {
+    it('calls transactionService.updateInternal after a winning claim (via own transaction)', async () => {
       const fresh = idlePayIn();
-      jest.spyOn(payInRepository, 'findOne').mockResolvedValue(fresh);
-      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as never);
+      const { txRepo, txManager } = mockOwnTransaction(fresh);
       const updateInternalSpy = jest.spyOn(transactionService, 'updateInternal').mockResolvedValue(undefined as never);
 
       await service.returnPayIn(fresh, returnAddress, chargebackAmount);
@@ -222,12 +247,12 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       expect(updateInternalSpy).toHaveBeenCalledWith(
         fresh.transaction,
         { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN, user: fresh.route.user },
-        undefined,
+        txManager,
       );
-      expect(updateSpy.mock.invocationCallOrder[0]).toBeLessThan(updateInternalSpy.mock.invocationCallOrder[0]);
+      expect(txRepo.update.mock.invocationCallOrder[0]).toBeLessThan(updateInternalSpy.mock.invocationCallOrder[0]);
     });
 
-    it('routes the fresh read and claim through a caller-provided manager repository', async () => {
+    it('with a caller-provided manager, does not open its own transaction', async () => {
       const fresh = idlePayIn();
       const repo = {
         findOne: jest.fn().mockResolvedValue(fresh),
@@ -237,11 +262,17 @@ describe('PayInService designate-before-broadcast safeguards', () => {
         getRepository: jest.fn().mockReturnValue(repo),
       } as unknown as EntityManager;
       jest.spyOn(transactionService, 'updateInternal').mockResolvedValue(undefined as never);
+      const transactionSpy = jest.fn();
+      Object.defineProperty(payInRepository, 'manager', {
+        configurable: true,
+        value: { transaction: transactionSpy },
+      });
       const repoFindSpy = jest.spyOn(payInRepository, 'findOne');
       const repoUpdateSpy = jest.spyOn(payInRepository, 'update');
 
       await service.returnPayIn(fresh, returnAddress, chargebackAmount, manager);
 
+      expect(transactionSpy).not.toHaveBeenCalled();
       expect(manager.getRepository).toHaveBeenCalledWith(CryptoInput);
       expect(repo.findOne).toHaveBeenCalledWith({
         where: { id: 52 },
@@ -271,13 +302,12 @@ describe('PayInService designate-before-broadcast safeguards', () => {
     });
 
     it('throws NotFoundException when the fresh row is missing', async () => {
-      jest.spyOn(payInRepository, 'findOne').mockResolvedValue(null);
-      const updateSpy = jest.spyOn(payInRepository, 'update');
+      const { txRepo } = mockOwnTransaction(null);
 
       await expect(service.returnPayIn(idlePayIn(), returnAddress, chargebackAmount)).rejects.toThrow(
         new NotFoundException('CryptoInput not found'),
       );
-      expect(updateSpy).not.toHaveBeenCalled();
+      expect(txRepo.update).not.toHaveBeenCalled();
     });
   });
 

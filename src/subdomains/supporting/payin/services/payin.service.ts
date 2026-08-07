@@ -251,6 +251,10 @@ export class PayInService {
     return fee ?? 0;
   }
 
+  async getPayIn(id: number): Promise<CryptoInput> {
+    return this.payInRepository.findOneBy({ id });
+  }
+
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<void> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
     const strategy = this.sendStrategyRegistry.getSendStrategy(payIn.asset);
@@ -273,6 +277,23 @@ export class PayInService {
     returnAddress: string,
     chargebackAmount: number,
     manager?: EntityManager,
+  ): Promise<void> {
+    if (manager) {
+      return this.executeReturnPayIn(payIn, returnAddress, chargebackAmount, manager);
+    }
+
+    // The claim and the transaction relabel must commit together; a relabel failure after a
+    // committed claim would leave a ToReturn pay-in whose transaction never became CryptoInputReturn.
+    await this.payInRepository.manager.transaction(async (txManager) => {
+      await this.executeReturnPayIn(payIn, returnAddress, chargebackAmount, txManager);
+    });
+  }
+
+  private async executeReturnPayIn(
+    payIn: CryptoInput,
+    returnAddress: string,
+    chargebackAmount: number,
+    manager: EntityManager | undefined,
   ): Promise<void> {
     const repo = manager?.getRepository(CryptoInput) ?? this.payInRepository;
 

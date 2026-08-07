@@ -330,18 +330,25 @@ export class BuyFiatService implements OnModuleInit {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
-    if (CryptoInputInFlightSendStatus.includes(cryptoInput.status))
+
+    // Routing on the caller's snapshot let a FORWARDED→FORWARD_CONFIRMED flip land in neither branch
+    // while the chargeback state was already persisted (#4744 review); the asset relation is eager,
+    // so the fresh row carries it.
+    const currentPayIn = await this.payInService.getPayIn(cryptoInput.id);
+    if (!currentPayIn) throw new NotFoundException('CryptoInput not found');
+
+    if (CryptoInputInFlightSendStatus.includes(currentPayIn.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
 
     // Skip if a return is already in progress or completed.
     if (
-      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status) ||
-      cryptoInput.returnTxId
+      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(currentPayIn.status) ||
+      currentPayIn.returnTxId
     )
       return;
 
     // Hardened returnPayIn decides on a DB-fresh row; no shared manager needed on this cron path.
-    await this.returnCrypto(buyFiat, cryptoInput, chargebackAddress, chargebackAmount);
+    await this.returnCrypto(buyFiat, currentPayIn, chargebackAddress, chargebackAmount);
   }
 
   private async returnCrypto(
@@ -352,17 +359,25 @@ export class BuyFiatService implements OnModuleInit {
     manager?: EntityManager,
   ): Promise<void> {
     if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
-      // doPayout cannot join the DB transaction (PayoutService has no manager parameter) and stays
-      // guarded by the unique PayoutOrder (context, correlationId) index.
-      await this.payoutService.doPayout({
-        context: PayoutOrderContext.BUY_FIAT_RETURN,
-        correlationId: `${buyFiat.id}`,
-        asset: cryptoInput.asset,
-        amount,
-        destinationAddress: returnAddress,
-      });
+      // When a manager is present the PayoutOrder joins the caller's transaction so it commits or
+      // rolls back with the BuyFiat chargeback claim; the unique (context, correlationId) index
+      // remains the guard against concurrent duplicate triggers.
+      await this.payoutService.doPayout(
+        {
+          context: PayoutOrderContext.BUY_FIAT_RETURN,
+          correlationId: `${buyFiat.id}`,
+          asset: cryptoInput.asset,
+          amount,
+          destinationAddress: returnAddress,
+        },
+        manager,
+      );
     } else if (cryptoInput.action !== PayInAction.FORWARD) {
       await this.payInService.returnPayIn(cryptoInput, returnAddress, amount, manager);
+    } else {
+      // Falling through both branches used to succeed silently with the chargeback state written and
+      // no return scheduled — a permanently stuck, invisible refund.
+      throw new BadRequestException('CryptoInput forward is pending confirmation - retry once confirmed');
     }
   }
 

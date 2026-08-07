@@ -202,14 +202,80 @@ describe('BuyFiatService', () => {
         chargebackAmount: 0.1,
       });
       const cryptoInput = createCustomCryptoInput({ status, returnTxId: null });
+      jest.spyOn(payInService, 'getPayIn').mockResolvedValue(cryptoInput);
 
       await expect(service['triggerBuyFiatReturn'](buyFiat, cryptoInput)).rejects.toThrow(
         new BadRequestException('CryptoInput send in flight or uncertain'),
       );
 
       expect(payInService.returnPayIn).not.toHaveBeenCalled();
+      expect(payoutService.doPayout).not.toHaveBeenCalled();
     },
   );
+
+  it('routes triggerBuyFiatReturn on the fresh pay-in row, not the caller snapshot', async () => {
+    const buyFiat = createCustomBuyFiat({
+      id: 72,
+      chargebackAddress: '0x0000000000000000000000000000000000000001',
+      chargebackAmount: 0.1,
+    });
+    // Stale snapshot still says FORWARDED/FORWARD — would fall through both branches if used.
+    const staleSnapshot = createCustomCryptoInput({
+      id: 23,
+      status: PayInStatus.FORWARDED,
+      action: PayInAction.FORWARD,
+      returnTxId: null,
+    });
+    const freshConfirmed = createCustomCryptoInput({
+      id: 23,
+      status: PayInStatus.FORWARD_CONFIRMED,
+      action: PayInAction.FORWARD,
+      returnTxId: null,
+      asset: staleSnapshot.asset,
+    });
+    jest.spyOn(payInService, 'getPayIn').mockResolvedValue(freshConfirmed);
+    const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined as never);
+    const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+
+    await service['triggerBuyFiatReturn'](buyFiat, staleSnapshot);
+
+    expect(payInService.getPayIn).toHaveBeenCalledWith(23);
+    expect(doPayoutSpy).toHaveBeenCalledWith(
+      {
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: '72',
+        asset: freshConfirmed.asset,
+        amount: 0.1,
+        destinationAddress: buyFiat.chargebackAddress,
+      },
+      undefined,
+    );
+    expect(returnPayInSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws when the fresh pay-in is still FORWARDED with action FORWARD (pending confirmation)', async () => {
+    const buyFiat = createCustomBuyFiat({
+      id: 73,
+      chargebackAddress: '0x0000000000000000000000000000000000000001',
+      chargebackAmount: 0.1,
+    });
+    const pendingForward = createCustomCryptoInput({
+      id: 24,
+      status: PayInStatus.FORWARDED,
+      action: PayInAction.FORWARD,
+      returnTxId: null,
+    });
+    jest.spyOn(payInService, 'getPayIn').mockResolvedValue(pendingForward);
+    const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined as never);
+    const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+
+    await expect(service['triggerBuyFiatReturn'](buyFiat, pendingForward)).rejects.toThrow(
+      new BadRequestException('CryptoInput forward is pending confirmation - retry once confirmed'),
+    );
+
+    expect(doPayoutSpy).not.toHaveBeenCalled();
+    expect(returnPayInSpy).not.toHaveBeenCalled();
+  });
 
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
@@ -697,13 +763,16 @@ describe('BuyFiatService', () => {
       });
 
       expect(manager.update).toHaveBeenCalled();
-      expect(doPayoutSpy).toHaveBeenCalledWith({
-        context: PayoutOrderContext.BUY_FIAT_RETURN,
-        correlationId: '7',
-        asset: cryptoInput.asset,
-        amount: 1,
-        destinationAddress: refundUser.address,
-      });
+      expect(doPayoutSpy).toHaveBeenCalledWith(
+        {
+          context: PayoutOrderContext.BUY_FIAT_RETURN,
+          correlationId: '7',
+          asset: cryptoInput.asset,
+          amount: 1,
+          destinationAddress: refundUser.address,
+        },
+        manager,
+      );
       expect(returnPayInSpy).not.toHaveBeenCalled();
       expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(doPayoutSpy.mock.invocationCallOrder[0]);
     });
