@@ -159,6 +159,10 @@ function expectWithinCallWindow(date: Date, before: number, after: number): void
   expect(date.getTime()).toBeLessThanOrEqual(after);
 }
 
+function transactionAt(id: number, created: string): Transaction {
+  return Object.assign(new Transaction(), { id, created: new Date(created) });
+}
+
 describe('TransactionService (admin door — amlCheck audit trail)', () => {
   let service: TransactionService;
 
@@ -1200,21 +1204,19 @@ describe('TransactionService (lookups)', () => {
     });
   });
 
-  it('queries the user transactions in batches and stops at the limit', async () => {
-    const transactions = Array.from({ length: 100 }, (_, i) => Object.assign(new Transaction(), { id: i }));
-    jest.spyOn(repo, 'find').mockResolvedValue(transactions);
+  it('leaves the paging to the database while the user list fits into one batch', async () => {
+    jest.spyOn(repo, 'find').mockResolvedValue([]);
     const from = new Date('2024-01-01');
     const to = new Date('2024-02-01');
 
-    const result = await service.getTransactionsForUsers(
-      Array.from({ length: 250 }, (_, i) => i),
+    await service.getTransactionsForUsers(
+      Array.from({ length: 100 }, (_, i) => i),
       from,
       to,
       100,
       20,
     );
 
-    expect(result).toHaveLength(100);
     expect(repo.find).toHaveBeenCalledTimes(1);
     expect(repo.find).toHaveBeenCalledWith({
       where: {
@@ -1234,27 +1236,109 @@ describe('TransactionService (lookups)', () => {
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
       },
-      order: { created: 'DESC' },
+      order: { created: 'DESC', id: 'DESC' },
       take: 100,
       skip: 20,
     });
   });
 
-  it('walks the user list in batches of 100 and narrows the limit left for the next one', async () => {
-    const firstBatch = Array.from({ length: 100 }, (_, i) => Object.assign(new Transaction(), { id: i }));
-    const secondBatch = [Object.assign(new Transaction(), { id: 100 })];
+  // The regression: with a second batch the offset used to be re-applied per query and the batches
+  // were concatenated, so the caller got batch 1's own page instead of the second page of the
+  // merged, globally ordered list.
+  it('cuts the page from the merged result once the user list needs a second batch', async () => {
+    const firstBatch = [
+      transactionAt(109, '2024-01-09'),
+      transactionAt(107, '2024-01-07'),
+      transactionAt(105, '2024-01-05'),
+      transactionAt(103, '2024-01-03'),
+      transactionAt(101, '2024-01-01'),
+    ];
+    const secondBatch = [
+      transactionAt(208, '2024-01-08'),
+      transactionAt(206, '2024-01-06'),
+      transactionAt(204, '2024-01-04'),
+      transactionAt(202, '2024-01-02'),
+    ];
     jest.spyOn(repo, 'find').mockResolvedValueOnce(firstBatch).mockResolvedValueOnce(secondBatch);
     const userIds = Array.from({ length: 150 }, (_, i) => i);
 
-    const result = await service.getTransactionsForUsers(userIds, undefined, undefined, 150);
+    const result = await service.getTransactionsForUsers(userIds, undefined, undefined, 3, 2);
+
+    // Merged order is 109, 208, 107, 206, 105, 204, 103, 202, 101 — the third to fifth of those.
+    expect(result.map((t) => t.id)).toEqual([107, 206, 105]);
 
     expect(repo.find).toHaveBeenCalledTimes(2);
     const [[firstQuery], [secondQuery]] = (repo.find as jest.Mock).mock.calls;
     expect(firstQuery.where.user).toEqual({ id: In(userIds.slice(0, 100)) });
-    expect(firstQuery.take).toBe(150);
     expect(secondQuery.where.user).toEqual({ id: In(userIds.slice(100)) });
-    expect(secondQuery.take).toBe(50);
-    expect(result).toEqual([...firstBatch, ...secondBatch]);
+    // Each batch reads the head the page can possibly come from, and skips nothing itself.
+    for (const query of [firstQuery, secondQuery]) {
+      expect(query.take).toBe(5);
+      expect(query.skip).toBeUndefined();
+    }
+  });
+
+  it('breaks ties across batches by descending id', async () => {
+    const created = '2024-01-01';
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValueOnce([transactionAt(101, created), transactionAt(103, created)])
+      .mockResolvedValueOnce([transactionAt(202, created), transactionAt(204, created)]);
+
+    const result = await service.getTransactionsForUsers(
+      Array.from({ length: 101 }, (_, i) => i),
+      undefined,
+      undefined,
+      3,
+    );
+
+    expect(result.map((t) => t.id)).toEqual([204, 202, 103]);
+    expect((repo.find as jest.Mock).mock.calls[0][0].take).toBe(3);
+  });
+
+  // The merge trims back to the page width after every batch. A later batch whose rows fall
+  // between rows already held has to displace them rather than be dropped against them.
+  it('lets a later batch displace rows the merge is already holding', async () => {
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValueOnce([
+        transactionAt(110, '2024-01-10'),
+        transactionAt(108, '2024-01-08'),
+        transactionAt(106, '2024-01-06'),
+      ])
+      .mockResolvedValueOnce([
+        transactionAt(209, '2024-01-09'),
+        transactionAt(207, '2024-01-07'),
+        transactionAt(205, '2024-01-05'),
+      ]);
+
+    const result = await service.getTransactionsForUsers(
+      Array.from({ length: 101 }, (_, i) => i),
+      undefined,
+      undefined,
+      3,
+    );
+
+    // 209 sits between the first two rows the merge held and takes 106's place.
+    expect(result.map((t) => t.id)).toEqual([110, 209, 108]);
+  });
+
+  it('applies the offset once to the merged result when no limit bounds it', async () => {
+    jest
+      .spyOn(repo, 'find')
+      .mockResolvedValueOnce([transactionAt(105, '2024-01-05'), transactionAt(101, '2024-01-01')])
+      .mockResolvedValueOnce([transactionAt(204, '2024-01-04'), transactionAt(202, '2024-01-02')]);
+
+    const result = await service.getTransactionsForUsers(
+      Array.from({ length: 101 }, (_, i) => i),
+      undefined,
+      undefined,
+      undefined,
+      1,
+    );
+
+    expect(result.map((t) => t.id)).toEqual([204, 202, 101]);
+    expect((repo.find as jest.Mock).mock.calls[0][0].take).toBeUndefined();
   });
 
   it('defaults the user period and leaves the batch size unbounded without a limit', async () => {
