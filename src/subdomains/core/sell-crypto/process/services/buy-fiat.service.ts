@@ -779,6 +779,7 @@ export class BuyFiatService implements OnModuleInit {
         chargebackAllowedDateUser: Not(IsNull()),
         chargebackAllowedDate: IsNull(),
         chargebackDate: IsNull(),
+        chargebackTxId: IsNull(),
         isComplete: false,
       },
       relations: {

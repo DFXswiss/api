@@ -6,13 +6,19 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -23,17 +29,12 @@ import { createCustomTransaction } from 'src/subdomains/supporting/payment/__moc
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
-import { ChargebackBlockReason } from '../../../../shared/dto/chargeback-block-reason.enum';
 import { KycService } from '../../kyc/services/kyc.service';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
-import { createCustomUserData } from '../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStatus, RiskStatus, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { createCustomUser } from '../../user/models/user/__mocks__/user.entity.mock';
 import { User } from '../../user/models/user/user.entity';
-import { UserStatus } from '../../user/models/user/user.enum';
 import { UserService } from '../../user/models/user/user.service';
 import { ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
 import { SupportService } from '../support.service';
@@ -164,6 +165,7 @@ describe('SupportService', () => {
         chargebackCryptoTxId: undefined,
         batch: undefined,
         outputAmount: undefined,
+        amlCheck: CheckStatus.FAIL,
         bankTx: { id: 1 } as any,
         chargebackIban: 'CH9300762011623852957',
         chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
@@ -191,6 +193,7 @@ describe('SupportService', () => {
         chargebackCryptoTxId: undefined,
         batch: undefined,
         outputAmount: undefined,
+        amlCheck: CheckStatus.FAIL,
         bankTx: { id: 2 } as any,
         chargebackIban: 'CH9300762011623852957',
         chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
@@ -213,6 +216,8 @@ describe('SupportService', () => {
         chargebackTxId: undefined,
         chargebackAsset: 'BTC',
         inputAmount: 0.1,
+        amlCheck: CheckStatus.FAIL,
+        outputAmount: undefined,
         transaction: createCustomTransaction({
           id: 201,
           uid: 'T_BF',

@@ -2,12 +2,13 @@ import { Test } from '@nestjs/testing';
 import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
-import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -20,7 +21,6 @@ import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entitie
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { createCustomSell } from '../../route/__mocks__/sell.entity.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
-import { BuyFiat } from '../buy-fiat.entity';
 
 function bankOf(name: IbanBankName): Bank {
   return Object.assign(new Bank(), { name });
@@ -239,6 +239,8 @@ describe('BuyFiat entity', () => {
         chargebackAmount: 100,
         chargebackAddress: 'bc1qexample',
         chargebackAsset: 'BTC',
+        amlCheck: CheckStatus.FAIL,
+        outputAmount: undefined,
         transaction: createCustomTransaction({
           userData: releasedUserData(),
           user: createCustomUser({ status: UserStatus.ACTIVE }),

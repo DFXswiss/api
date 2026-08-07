@@ -30,6 +30,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
+import { IsNull, Not } from 'typeorm';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -420,6 +421,32 @@ describe('BuyFiatService', () => {
 
       expect(result.inputAmountBaseUnits).toBeNull();
       expect(result.inputAmount).toBe(0.1);
+    });
+  });
+
+  describe('getPendingChargebacks', () => {
+    // Where exclusions keep already-completed chargebacks out of the pending queue so
+    // compliance is not asked again to approve a refund that already went through.
+    it('excludes completed chargebacks from the pending queue and loads required relations', async () => {
+      const findSpy = jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([]);
+
+      await service.getPendingChargebacks();
+
+      expect(findSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            chargebackAllowedDateUser: Not(IsNull()),
+            chargebackAllowedDate: IsNull(),
+            chargebackDate: IsNull(),
+            chargebackTxId: IsNull(),
+            isComplete: false,
+          }),
+          relations: expect.objectContaining({
+            transaction: { userData: true, user: true },
+            cryptoInput: true,
+          }),
+        }),
+      );
     });
   });
 });

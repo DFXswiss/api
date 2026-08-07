@@ -1621,6 +1621,7 @@ export class BuyCryptoService implements OnModuleInit {
         isComplete: false,
         chargebackBankTx: IsNull(),
         chargebackOutput: IsNull(),
+        chargebackCryptoTxId: IsNull(),
         batch: IsNull(),
         outputAmount: IsNull(),
       },

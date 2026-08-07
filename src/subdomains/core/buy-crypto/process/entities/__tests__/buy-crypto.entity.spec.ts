@@ -7,6 +7,7 @@ import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
+import { createCustomBuyCryptoBatch } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto-batch.entity.mock';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -20,7 +21,6 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { createCustomBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 
@@ -799,6 +799,7 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
       checkoutTx: undefined,
       batch: undefined,
       outputAmount: undefined,
+      amlCheck: CheckStatus.FAIL,
       transaction: createCustomTransaction({
         userData: releasedUserData(),
         user: createCustomUser({ status: UserStatus.ACTIVE }),
