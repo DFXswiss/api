@@ -902,6 +902,7 @@ export class BuyCrypto extends IEntity {
     // Fail-closed first: already approved/executed/completed must never appear as waiting.
     // Redundant with BuyCryptoService.getPendingChargebacks() where — a lost exclusion there
     // would show a finished refund as pending and risk double payout by Compliance.
+    // Also excludes cases where a checkout refund or crypto return has already started on a related row.
     if (
       this.chargebackAllowedDate ||
       this.chargebackDate ||
@@ -910,7 +911,9 @@ export class BuyCrypto extends IEntity {
       this.chargebackCryptoTxId ||
       this.chargebackOutput ||
       this.batch ||
-      (this.outputAmount !== null && this.outputAmount !== undefined)
+      (this.outputAmount !== null && this.outputAmount !== undefined) ||
+      this.checkoutRefundStarted ||
+      this.cryptoReturnStarted
     ) {
       return [];
     }

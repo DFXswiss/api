@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,7 +19,9 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
+import { createCustomCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
@@ -958,6 +961,21 @@ describe('BuyCrypto #getChargebackBlockReasons()', () => {
 
   it('fail-closed: returns empty array when outputAmount is set', () => {
     const entity = pendingBankTxBuyCrypto({ outputAmount: 0.2, chargebackAmount: undefined });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when checkout refund already started on related row', () => {
+    const entity = pendingBankTxBuyCrypto({
+      checkoutTx: createCustomCheckoutTx({ status: CheckoutPaymentStatus.REFUND_PENDING }),
+    });
+    expect(entity.getChargebackBlockReasons()).toEqual([]);
+  });
+
+  it('fail-closed: returns empty array when crypto return already started on related row', () => {
+    const entity = pendingBankTxBuyCrypto({
+      bankTx: undefined,
+      cryptoInput: createCustomCryptoInput({ id: 1, status: PayInStatus.TO_RETURN }),
+    });
     expect(entity.getChargebackBlockReasons()).toEqual([]);
   });
 });
