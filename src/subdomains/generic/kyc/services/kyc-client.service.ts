@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto-webhook.service';
@@ -7,16 +8,20 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
+import { Wallet } from '../../user/models/wallet/wallet.entity';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
 import { FileType, KycClientDataDto, KycFileBlob, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { PartnerPaymentDto, toPartnerPaymentDto } from '../dto/partner-payment.dto';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycDocumentService } from './integration/kyc-document.service';
 
 @Injectable()
 export class KycClientService {
+  private readonly logger = new DfxLogger(KycClientService);
+
   constructor(
     private readonly documentService: KycDocumentService,
     private readonly userService: UserService,
@@ -33,14 +38,16 @@ export class KycClientService {
     return wallet.users.map((b) => this.toKycDataDto(b));
   }
 
-  async getAllPayments(walletId: number, dateFrom: Date, dateTo: Date, limit?: number): Promise<PaymentWebhookData[]> {
+  async getAllPayments(walletId: number, dateFrom: Date, dateTo: Date, limit?: number): Promise<PartnerPaymentDto[]> {
     const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
+    this.assertPaymentsApiEnabled(wallet);
 
+    // Row set matches pre-gate behaviour: every wallet user, no consent filter.
     const userIds = wallet.users.map((u) => u.id);
     const transactions = await this.transactionService.getTransactionsForUsers(userIds, dateFrom, dateTo, limit);
 
-    return this.toPaymentDtos(transactions);
+    return this.toPartnerPaymentDtos(transactions);
   }
 
   async getAllUserPayments(
@@ -48,16 +55,17 @@ export class KycClientService {
     userAddress: string,
     dateFrom: Date,
     dateTo: Date,
-  ): Promise<PaymentWebhookData[]> {
+  ): Promise<PartnerPaymentDto[]> {
     const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
+    this.assertPaymentsApiEnabled(wallet);
 
     const user = wallet.users.find((u) => u.address === userAddress);
     if (!user) throw new NotFoundException('User not found');
 
     const transactions = await this.transactionService.getTransactionsForUsers([user.id], dateFrom, dateTo);
 
-    return this.toPaymentDtos(transactions);
+    return this.toPartnerPaymentDtos(transactions);
   }
 
   async getKycFiles(userAddress: string, walletId: number): Promise<KycReportDto[]> {
@@ -87,6 +95,20 @@ export class KycClientService {
   }
 
   // --- HELPER METHODS --- //
+
+  /** Fail-closed: only wallets with an explicit paymentsApiEnabled=true may list payments. */
+  private assertPaymentsApiEnabled(wallet: Wallet): void {
+    if (!wallet.isPaymentsApiEnabled) {
+      this.logger.warn(`Payments API denied for wallet ${wallet.id}`);
+      throw new ForbiddenException('Payments API not enabled for this wallet');
+    }
+  }
+
+  private async toPartnerPaymentDtos(transactions: Transaction[]): Promise<PartnerPaymentDto[]> {
+    const full = await this.toPaymentDtos(transactions);
+    return full.map(toPartnerPaymentDto);
+  }
+
   private async toPaymentDtos(transactions: Transaction[]): Promise<PaymentWebhookData[]> {
     const txList = transactions.filter((t) => t.buyCrypto || t.buyFiat).map((t) => t.buyCrypto || t.buyFiat);
 

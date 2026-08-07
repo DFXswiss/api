@@ -6,8 +6,8 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { KycClientDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { PartnerPaymentDto } from '../dto/partner-payment.dto';
 import { KycClientService } from '../services/kyc-client.service';
 
 @ApiTags('KYC Client')
@@ -26,7 +26,7 @@ export class KycClientController {
   @Get('payments')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.CLIENT_COMPANY))
-  @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
+  @ApiOkResponse({ type: PartnerPaymentDto, isArray: true })
   @ApiQuery({ name: 'from', required: false, description: 'Start date filter' })
   @ApiQuery({ name: 'to', required: false, description: 'End date filter' })
   @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of results (default/max: 1000)' })
@@ -35,7 +35,7 @@ export class KycClientController {
     @Query('from') from: string,
     @Query('to') to: string,
     @Query('limit') limit?: string,
-  ): Promise<PaymentWebhookData[]> {
+  ): Promise<PartnerPaymentDto[]> {
     const parsedLimit = Math.min(limit ? parseInt(limit) : 1000, 1000);
 
     return this.kycClientService.getAllPayments(
@@ -69,13 +69,13 @@ export class KycClientController {
   @Get('users/:id/payments')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
+  @ApiOkResponse({ type: PartnerPaymentDto, isArray: true })
   async getUserPayments(
     @GetJwt() jwt: JwtPayload,
     @Param('id') userId: string,
     @Query('from') from: string,
     @Query('to') to: string,
-  ): Promise<PaymentWebhookData[]> {
+  ): Promise<PartnerPaymentDto[]> {
     return this.kycClientService.getAllUserPayments(
       jwt.user,
       userId,
