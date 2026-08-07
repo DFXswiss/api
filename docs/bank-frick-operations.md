@@ -167,8 +167,8 @@ All values remain blank in `.env.example`. Deployment must provide:
 - `FRICK_APPROVE_WITHOUT_TAN=true` only after Bank Frick confirms backend exemption
 - `FRICK_VBAN_API_URL` — base URL of Bank Frick's separate VBAN API (test
   `https://api-test.bankfrick.li/vban`, production `https://api.bankfrick.li/vban`), used to issue
-  EUR personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable and there
-  is no behaviour change
+  EUR and CHF personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable
+  and there is no behaviour change
 
 **vIBAN transport contract (bodyless GET Content-Type):** Bodyless vIBAN GET calls (list and detail)
 must **omit** the `Content-Type` request header entirely. Production evidence: Bank Frick's vIBAN
