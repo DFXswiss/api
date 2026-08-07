@@ -18,6 +18,9 @@ import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
 import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
+// decimals every withdrawal amount is floored to before it leaves this adapter
+const WITHDRAWAL_AMOUNT_DECIMALS = 6;
+
 /**
  * @note
  * commands should be lower-case
@@ -96,13 +99,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
+    const { minAmount, maxAmount } = await this.capToWithdrawalMaximum(
+      order.minAmount,
+      order.maxAmount,
+      token,
+      network,
+    );
+
     const balance = await this.exchangeService.getAvailableBalance(token);
-    if (order.minAmount > balance)
+    if (minAmount > balance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        `${this.exchangeService.name}: not enough balance for ${token} (balance: ${balance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Util.floor(Math.min(order.maxAmount, balance), 6);
+    const amount = Util.floor(Math.min(maxAmount, balance), WITHDRAWAL_AMOUNT_DECIMALS);
 
     order.inputAmount = amount;
     order.inputAsset = token;
@@ -115,7 +125,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(
-          `${e.message} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+          `${e.message} (balance: ${balance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
         );
       }
 
@@ -261,8 +271,12 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const minAmount = Util.floor(order.minAmount, 6);
-    const maxAmount = Util.floor(order.maxAmount + (optimum ?? 0), 6);
+    // a transfer leaves the venue through the same withdrawal endpoint and raises the request by the target
+    // optimum on top, so it runs into the per-withdrawal maximum earlier than a plain withdrawal
+    const capped = await this.capToWithdrawalMaximum(order.minAmount, order.maxAmount + (optimum ?? 0), asset, network);
+
+    const minAmount = Util.floor(capped.minAmount, WITHDRAWAL_AMOUNT_DECIMALS);
+    const maxAmount = Util.floor(capped.maxAmount, WITHDRAWAL_AMOUNT_DECIMALS);
 
     const sourceBalance = await this.exchangeService.getAvailableBalance(asset);
     if (minAmount > sourceBalance)
@@ -270,7 +284,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${sourceBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Util.floor(Math.min(maxAmount, sourceBalance), 6);
+    const amount = Util.floor(Math.min(maxAmount, sourceBalance), WITHDRAWAL_AMOUNT_DECIMALS);
 
     order.inputAmount = amount;
     order.inputAsset = asset;
@@ -562,6 +576,69 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   // --- HELPER METHODS --- //
+
+  /**
+   * Reduces a withdrawal request to the maximum the venue accepts in one withdrawal. MEXC rejects anything above
+   * it outright (code 10255, "Withdrawal shall not be greater than the Max amount of:<amount>"), and the coins
+   * bought for the rejected request are sold back at a loss by the redundancy rule.
+   *
+   * The excess is neither lost nor a failure: it stays on the venue, the short delivery still completes the
+   * order and the pipeline, and the next balance check re-detects the remaining deficit and delivers it in a
+   * further installment. Nothing after the request compares the delivered amount against the requested one, which
+   * is what makes installments work — the Lightning withdrawal, capped by a constant, already runs this way.
+   *
+   * Both amounts are capped, and the caller applies the result before its balance check. The maximum, because
+   * the onFail buy action re-reads `max. requested` out of the error message to size its purchase, and buying
+   * more than one withdrawal can move is what produced the rejected requests. The minimum, because a minimum
+   * above the maximum can never be met by any balance and would leave the pipeline buying against a gate that
+   * stays shut. Capping the minimum has one accepted edge: with a balance just under the cap, the onFail buy is
+   * sized from the gap between balance and capped minimum and can end up below the venue's minimum trade. The
+   * buy action carries `minTradeAmount` for exactly that, and the alternative — an order that fails whenever the
+   * need exceeds the cap — is the outage this method exists to remove.
+   */
+  protected async capToWithdrawalMaximum(
+    minAmount: number,
+    maxAmount: number,
+    token: string,
+    network?: string,
+  ): Promise<{ minAmount: number; maxAmount: number }> {
+    const { min: venueMinimum, max: venueMaximum } = await this.exchangeService.getWithdrawalLimits(token, network);
+
+    // an unknown maximum is not a maximum of zero — send what was requested, exactly as before
+    if (venueMaximum == null) return { minAmount, maxAmount };
+
+    // a maximum below one unit of the precision this adapter floors to is unusable as a cap: applied, it would
+    // send a withdrawal of zero, which is the endless loop of empty deliveries the limits are read to prevent.
+    // Read it as unknown and leave the request as it stands — the venue answers whether it accepts the amount.
+    if (Util.floor(venueMaximum, WITHDRAWAL_AMOUNT_DECIMALS) === 0) {
+      this.logger.warn(
+        `${this.exchangeService.name}: published withdrawal maximum ${venueMaximum} for ${token} is below the withdrawal precision, leaving the request uncapped`,
+      );
+
+      return { minAmount, maxAmount };
+    }
+
+    // WHY no exception on a contradictory pair (published minimum above published maximum): the venue, not this
+    // code, decides whether an amount is acceptable. A terminal failure invented here out of numbers that are
+    // merely read would be a new outage on a base class shared by every ccxt venue, and it would fire on exactly
+    // the kind of parsing slip these numbers invite (they arrive as strings). Capping loses nothing — if no
+    // amount satisfies both limits, the venue rejects the request in its own words, which says more than a guess
+    // made here, and the warning below puts the contradiction in front of a human either way.
+    if (venueMinimum > venueMaximum)
+      this.logger.warn(
+        `${this.exchangeService.name}: published withdrawal maximum ${venueMaximum} for ${token} is below the published minimum ${venueMinimum}, capping to the maximum and leaving the decision to the venue`,
+      );
+
+    // a capped request delivers less than the pipeline asked for, while the pipeline logs its own maxAmount on
+    // completion — this is the only place the short delivery becomes visible
+    if (maxAmount > venueMaximum)
+      this.logger.info(
+        `${this.exchangeService.name}: capping the ${token} withdrawal request of ${maxAmount} to the venue maximum ${venueMaximum}, the remainder follows in a later installment`,
+      );
+
+    return { minAmount: Math.min(minAmount, venueMaximum), maxAmount: Math.min(maxAmount, venueMaximum) };
+  }
+
   private isBalanceTooLowError(e: Error): boolean {
     return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>
       e.message?.includes(m),

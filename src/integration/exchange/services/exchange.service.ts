@@ -4,6 +4,7 @@ import {
   Balance,
   Balances,
   ConstructorArgs,
+  Currencies,
   Dictionary,
   Exchange,
   Market,
@@ -15,6 +16,7 @@ import {
 } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/services/integration/pricing-provider';
@@ -25,6 +27,27 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 export enum OrderSide {
   BUY = 'buy',
   SELL = 'sell',
+}
+
+/**
+ * Amounts a venue accepts in a single withdrawal. A field is undefined when the venue publishes no such limit
+ * or the query failed — an unknown limit is never the same as a limit of zero.
+ */
+export interface WithdrawalLimits {
+  min?: number;
+  max?: number;
+}
+
+/**
+ * One entry of `currency.networks`, which ccxt types as `any`. The limits are typed as `unknown` on purpose:
+ * ccxt builds them per network with `safeString` and parses only the token-level aggregate into a number, so
+ * what arrives here is a string on the venues that publish per-network limits at all.
+ */
+interface CurrencyNetwork {
+  id?: string;
+  network?: string;
+  info?: { netWork?: string; network?: string };
+  limits?: { withdraw?: { min?: unknown; max?: unknown } };
 }
 
 enum OrderStatus {
@@ -46,6 +69,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   protected readonly exchange: Exchange;
 
   private markets: Market[];
+  private readonly currenciesCache = new AsyncCache<Currencies>(CacheItemResetPeriod.EVERY_HOUR);
 
   @Inject() private readonly registry: ExchangeRegistryService;
 
@@ -213,7 +237,32 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     }
   }
 
+  /**
+   * A venue whose ccxt implementation needs other withdrawal parameters overrides {@link executeWithdrawal}, not
+   * this method: the cache handling below is what keeps a stale maximum from capping every retry of the next
+   * hour to the amount the venue has just rejected, and an override placed here would silently drop it.
+   */
   async withdrawFunds(
+    token: string,
+    amount: number,
+    address: string,
+    key: string,
+    network?: string,
+  ): Promise<WithdrawalResponse> {
+    return this.executeWithdrawal(token, amount, address, key, network).catch((e) => {
+      // a rejection for exceeding the maximum proves the cached limits stale, and the rejection carries the new
+      // number: kept, the cache would cap every retry of the next hour to the very amount just rejected
+      if (this.isWithdrawalAboveMaximumError(e)) {
+        this.logger.warn(`Withdrawal of ${token} at ${this.name} was above the venue maximum, reloading limits:`, e);
+        this.currenciesCache.invalidate();
+      }
+
+      throw e;
+    });
+  }
+
+  /** The venue call itself, and the only part of a withdrawal a venue may replace. */
+  protected async executeWithdrawal(
     token: string,
     amount: number,
     address: string,
@@ -243,7 +292,152 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return (tokenFees?.networks?.[network] as any)?.withdraw?.fee ?? tokenFees?.withdraw?.fee ?? 0;
   }
 
+  /**
+   * Per-withdrawal limits the venue publishes for a token on a network. Read from `fetchCurrencies`, because
+   * `fetchDepositWithdrawFees` (the source of {@link getWithdrawalFee}) carries fees only, no limits.
+   *
+   * Every unknown case yields an empty result, which callers must read as "no limit known" and never as zero:
+   * capping a withdrawal to zero would turn a working payout into an endless loop of empty deliveries. Each of
+   * those cases is logged, because the empty result cannot tell "the venue publishes no maximum" from "the
+   * maximum could not be read" — only the second one needs a human, and only the log can name it.
+   */
+  async getWithdrawalLimits(token: string, network?: string): Promise<WithdrawalLimits> {
+    // without a network there is nothing to look up: ccxt aggregates the token-level `limits.withdraw` as the
+    // maximum over all networks, which is above what any single network accepts and would cap nothing
+    if (!network) return {};
+
+    const currencies = await this.getCurrencies();
+    // a failed lookup is already logged by getCurrencies, an empty answer is not: ccxt returns an empty
+    // dictionary, and no error, when the venue serves its currency list to authenticated callers only and no
+    // credentials are configured — that lookup would otherwise leave no trace at all
+    if (!currencies) return {};
+
+    if (!Object.keys(currencies).length) {
+      this.logger.warn(`No withdrawal limits for ${token} at ${this.name}: the venue published no currencies`);
+      return {};
+    }
+
+    const currency = currencies[token];
+    if (!currency) {
+      this.logger.warn(`No withdrawal limits for ${token} at ${this.name}: the venue publishes no such token`);
+      return {};
+    }
+
+    const networks: Dictionary<CurrencyNetwork> = currency.networks ?? {};
+
+    const matches = this.findNetworks(networks, network);
+    if (matches.length !== 1) {
+      // name the identifiers the venue published and the lookup ran on, not the dictionary keys: ccxt replaces
+      // the key with its own unified code wherever it has a mapping, so the key of "Ethereum(ERC20)" is "ERC20"
+      // and a reader of the key list cannot see what was compared
+      const published = Object.entries(networks).map(([key, entry]) => entry?.id ?? key);
+      const verdict = matches.length ? `matches ${matches.length} of` : 'matches none of';
+
+      this.logger.warn(
+        `No withdrawal limits for ${token} at ${this.name}: network ${network} ${verdict} the networks the venue publishes for it [${published}]`,
+      );
+      return {};
+    }
+
+    const [entry] = matches;
+
+    const limits = { min: this.toLimit(entry.limits?.withdraw?.min), max: this.toLimit(entry.limits?.withdraw?.max) };
+    if (limits.max == null)
+      this.logger.verbose(`${this.name} publishes no withdrawal maximum for ${token} on network ${network}`);
+
+    return limits;
+  }
+
   // --- Helper Methods --- //
+  // withdrawal limits
+  private async getCurrencies(): Promise<Currencies | undefined> {
+    return (
+      this.currenciesCache
+        .get(
+          `currencies-${this.name}`,
+          () =>
+            // the warning belongs inside the update call: AsyncCache swallows a failed update as soon as an entry
+            // for the key exists, so a caller-side catch never sees this failure and would never report it. Every
+            // request from here on goes out uncapped, which is worth a line
+            this.callApi((e) => e.fetchCurrencies()).catch((e) => {
+              this.logger.warn(`Failed to fetch currencies of ${this.name}:`, e);
+              throw e;
+            }),
+          undefined,
+          // serve the last known limits when the query fails: degrading to "no limit" sends the uncapped amount
+          // the venue rejects
+          true,
+        )
+        // the limits are advisory — a failed lookup must never fail a withdrawal that is otherwise fine
+        .catch(() => undefined)
+    );
+  }
+
+  /**
+   * Every venue network entry spelled with the network string this repo stores. `networks` is keyed by ccxt's
+   * unified network code, but only where ccxt has a mapping for the venue, and those mappings never cover every
+   * network a venue lists. For an unmapped one the key, the `id` and the raw payload all carry the venue's own
+   * string, which is sometimes the short code ("XMR") and sometimes a long form embedding it ("Monero(XMR)").
+   *
+   * This compares spellings and does nothing beyond that: it does not establish that a matched entry *is* the
+   * requested network. A venue naming an unrelated network with the same delimited code would be
+   * indistinguishable from the right one here, which is why the caller reads anything but a single match as no
+   * limit at all, and why the code has to sit at a delimiter rather than anywhere inside the identifier.
+   */
+  private findNetworks(networks: Dictionary<CurrencyNetwork>, network: string): CurrencyNetwork[] {
+    const candidates = Object.entries(networks).map(([key, entry]) => ({
+      entry,
+      // every spelling ccxt keeps of the venue's identifier: dictionary key, unified code, id and the raw fields
+      ids: [key, entry?.id, entry?.network, entry?.info?.netWork, entry?.info?.network]
+        .filter((i): i is string => typeof i === 'string')
+        .map((i) => i.toLowerCase()),
+    }));
+
+    const wanted = network.toLowerCase();
+
+    // an entry spelling the code and nothing else outranks one that merely embeds it
+    const exact = candidates.filter((c) => c.ids.includes(wanted));
+    if (exact.length) return exact.map((c) => c.entry);
+
+    return candidates.filter((c) => c.ids.some((i) => this.embedsCode(i, wanted))).map((c) => c.entry);
+  }
+
+  /**
+   * Whether `id` carries `code` as a delimited token — bounded by the ends of the identifier or by a separator
+   * such as "(", ")", "-", "_" or a space, as in "Monero(XMR)" or "BEP20(BSC)".
+   *
+   * A plain substring test would read "ETHW" as Ethereum and "opBNB" as Optimism. Both are networks MEXC
+   * publishes in their own right, next to the requested one and with a far smaller maximum of their own, so the
+   * substring test does not merely miss — it caps a withdrawal to a number belonging to another network.
+   */
+  private embedsCode(id: string, code: string): boolean {
+    const isBoundary = (char: string): boolean => !char || !/[a-z0-9]/.test(char);
+
+    for (let i = 0; i + code.length <= id.length; i++) {
+      if (!id.startsWith(code, i)) continue;
+      if (isBoundary(id[i - 1]) && isBoundary(id[i + code.length])) return true;
+    }
+
+    return false;
+  }
+
+  private toLimit(value?: unknown): number | undefined {
+    // ccxt builds the per-network limits with `safeString`, so they arrive as strings while the token-level
+    // aggregate arrives as a number — compared as they come, "20" sorts after "100" and inverts every check
+    const limit = Number(value);
+
+    // a limit of zero is the venue's way of saying "not published", not "nothing may be withdrawn"
+    return Number.isFinite(limit) && limit > 0 ? limit : undefined;
+  }
+
+  // each venue words this rejection itself, e.g. MEXC code 10255 "Withdrawal shall not be greater than the Max
+  // amount of:<amount>"
+  private isWithdrawalAboveMaximumError(e: Error): boolean {
+    return ['greater than the max amount', 'exceeds the maximum', 'above the maximum'].some((m) =>
+      e.message?.toLowerCase().includes(m),
+    );
+  }
+
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {

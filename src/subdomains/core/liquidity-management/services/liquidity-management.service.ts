@@ -142,6 +142,9 @@ export class LiquidityManagementService {
           return;
         }
 
+        // the entry survives a completed pipeline on purpose (handlePipelineCompletion does not reset it), and
+        // that is load-bearing for deliveries a venue only accepts in installments: installments 2..n keep the
+        // activation time of the first one and therefore run without waiting out the delay again
         if (!this.ruleActivations.has(rule.id)) {
           this.ruleActivations.set(rule.id, new Date());
           this.logger.info(
