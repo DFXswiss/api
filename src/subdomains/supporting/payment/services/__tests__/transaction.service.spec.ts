@@ -285,6 +285,13 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
       Object.assign(new UpdateTransactionDto(), { userData: Object.assign(new UserData(), { id: 5 }) }),
     );
 
+    // The bank tx has to be loaded for this path to work at all — asserted here because every test
+    // below hands `entity.bankTx` in through the mocked findOne and would pass without the relation.
+    expect(repo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: { request: { supportIssues: true }, supportIssues: true, bankTx: true },
+      }),
+    );
     expect(bankDataService.getVerifiedBankDataWithIban).toHaveBeenCalledWith('CH00', 5);
     expect(bankTx.bankDataName).toHaveBeenCalledWith(multiAccounts);
     expect(bankDataService.createVerifyBankData).toHaveBeenCalledWith(userData, {
@@ -364,14 +371,24 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const entity = Object.assign(new Transaction(), { id: 70, buyCrypto, outputDate: new Date() });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
 
-    await expect(service.stop(70)).rejects.toThrow(BadRequestException);
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already completed');
+    expect(buyCryptoRepo.update).not.toHaveBeenCalled();
+  });
+
+  // Completed AND not a BuyCrypto: the completion guard has to win, otherwise a finished transaction
+  // is reported as the wrong kind of transaction. Only the message tells the two guards apart.
+  it('reports a completed non-BuyCrypto transaction as completed, not as unstoppable', async () => {
+    const entity = Object.assign(new Transaction(), { id: 70, outputDate: new Date() });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already completed');
     expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
   it('rejects stop for a transaction that is not a BuyCrypto', async () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70 }));
 
-    await expect(service.stop(70)).rejects.toThrow(BadRequestException);
+    await expect(service.stop(70)).rejects.toThrow('Only BuyCrypto transactions can be stopped');
     expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
@@ -379,7 +396,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.STOPPED });
     jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
 
-    await expect(service.stop(70)).rejects.toThrow(BadRequestException);
+    await expect(service.stop(70)).rejects.toThrow('Transaction is already stopped');
     expect(buyCryptoRepo.update).not.toHaveBeenCalled();
   });
 
@@ -605,6 +622,25 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() rejects a stopped transaction whose crypto input is being forwarded', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4, action: PayInAction.FORWARD }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    // A forward in progress blocks the resume just like a return does — a separate guard, and the
+    // return case does not exercise it.
+    await expect(service.resume(99)).rejects.toThrow(
+      'Transactions with a refund or forward in progress cannot be resumed',
+    );
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -1199,6 +1235,10 @@ describe('TransactionService (query builders)', () => {
 
       await expect(service.getManualRefVolume('AAA-000')).resolves.toEqual({ volume: 500, credit: 25 });
 
+      // The aggregate expressions carry the whole arithmetic: the volume is the reward divided by the
+      // ref fee percentage. The mock returns a fixed row, so only these assertions catch a wrong formula.
+      expect(qb.select).toHaveBeenCalledWith('SUM(refReward.amountInEur / user.refFeePercent)', 'volume');
+      expect(qb.addSelect).toHaveBeenCalledWith('SUM(refReward.amountInEur)', 'credit');
       expect(qb.where).toHaveBeenCalledWith('transaction.sourceType = :sourceType', {
         sourceType: TransactionSourceType.MANUAL_REF,
       });
@@ -1223,6 +1263,12 @@ describe('TransactionService (query builders)', () => {
 
       await expect(service.getAuditPeriodVolumes(startDate, endDate)).resolves.toBe(volumes);
 
+      // The two base filters decide which rows reach the aggregate at all — inverting either one
+      // would silently produce an empty or wrong audit report.
+      expect(qb.select).toHaveBeenCalledWith('tx.userDataId', 'userDataId');
+      expect(qb.addSelect).toHaveBeenCalledWith('SUM(tx.amountInChf)', 'totalVolume');
+      expect(qb.where).toHaveBeenCalledWith('tx.userDataId IS NOT NULL');
+      expect(qb.andWhere).toHaveBeenCalledWith('tx.amountInChf IS NOT NULL');
       expect(qb.andWhere).toHaveBeenCalledWith('tx.created BETWEEN :startDate AND :endDate', { startDate, endDate });
       expect(innerQb.where).toHaveBeenCalledWith('buyCrypto.outputDate BETWEEN :startDate AND :endDate');
       expect(innerQb.orWhere).toHaveBeenCalledWith('buyFiat.outputDate BETWEEN :startDate AND :endDate');
