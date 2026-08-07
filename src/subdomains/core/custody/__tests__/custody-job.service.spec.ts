@@ -121,6 +121,23 @@ describe('CustodyJobService', () => {
     });
   });
 
+  describe('when closing out a failed step itself fails', () => {
+    it('still does not abort the run', async () => {
+      // `onStepError` runs inside the catch that provides the isolation, so a throw from its own
+      // writes would escape the loop and take the cycle down — the exact failure it exists to
+      // prevent. Leaving the step InProgress is recoverable: the next tick sees the same revert.
+      const isComplete = jest.fn().mockRejectedValue(new TransactionRevertedException('0x1'));
+
+      const { service, stepRepo } = buildService({ isComplete });
+      stepRepo.find.mockResolvedValue([runningStep(1), runningStep(2)]);
+      stepRepo.update.mockRejectedValue(new Error('connection terminated'));
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
+      await expect(service['checkStep']()).resolves.not.toThrow();
+      expect(isComplete).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('a step that could not be dispatched', () => {
     it('fails the order when the transaction reverted, and keeps going otherwise', async () => {
       // `executeStep` had the same shape: one throw from `adapter.execute` aborted the cycle before

@@ -102,7 +102,6 @@ export class CustodyJobService {
   private async checkStep() {
     const runningSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.IN_PROGRESS },
-      relations: { order: true },
     });
 
     for (const step of runningSteps) {
@@ -148,8 +147,17 @@ export class CustodyJobService {
 
     this.logger.error(`Custody order step ${step.id} failed on-chain while ${phase}:`, cause);
 
-    await this.custodyOrderStepRepo.update(...step.fail());
-    await this.custodyOrderRepo.update(...step.order.fail());
+    // Guarded, because this runs INSIDE the catch that provides the per-step isolation. A throw
+    // here — a lost connection on the write, or `step.order` absent because someone dropped the
+    // eager relation the step entity declares — would escape the loop and abort the whole cycle,
+    // which is the failure this method exists to prevent. Leaving the step InProgress is the
+    // recoverable outcome: the next tick reads it again and reports the same revert.
+    try {
+      await this.custodyOrderStepRepo.update(...step.fail());
+      await this.custodyOrderRepo.update(...step.order.fail());
+    } catch (e) {
+      this.logger.error(`Could not close out failed custody order step ${step.id}:`, e);
+    }
   }
 
   private async onStepComplete(step: CustodyOrderStep) {
