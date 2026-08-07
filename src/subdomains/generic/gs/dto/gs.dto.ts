@@ -1082,11 +1082,13 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'check2Reference',
       'check2Source',
       'currentPrice',
+      'currentSellPrice',
       'priceAsset',
       'priceReference',
       'priceSource',
       'referenceDisplayName',
       'referenceId',
+      'sellPriceSource',
     ],
   },
   recall: {
