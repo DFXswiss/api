@@ -24,8 +24,9 @@ import type PyroscopeSdk from '@pyroscope/nodejs';
 // variable is unset, tracing and metrics are disabled and the app boots
 // unchanged.
 //
-// Metrics export every 15000 ms to match the central Prometheus scrape_interval;
-// a shorter interval would only produce points that nobody scrapes.
+// The metric export cadence is left to OTEL_METRIC_EXPORT_INTERVAL rather than
+// pinned here — metricExportIntervalMs() explains why an explicit value would
+// silently disable that variable.
 //
 // Profiling follows the same rule with its own variable
 // (PYROSCOPE_SERVER_ADDRESS) and answers a different question: tracing measures

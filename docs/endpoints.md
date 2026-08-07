@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **537 decorated route entries** across 94 controller files, of which **536 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **538 decorated route entries** across 95 controller files, of which **537 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -278,6 +278,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | POST | 1 |  | `/ikna/bfs/address` | hidden | none | — | n/a |  | `IknaController.createBfsAddressRequest` | `integration/ikna/controllers/ikna.controller.ts` |
 | GET | 1 |  | `/ikna/tag` | hidden | none | — | n/a |  | `IknaController.getIknaAddressTag` | `integration/ikna/controllers/ikna.controller.ts` |
 | GET | 1 |  | `/juice/info` | public | whole rows | 11 | not yet |  | `JuiceController.getInfo` | `integration/blockchain/juice/controllers/juice.controller.ts` |
+| GET | 1 |  | `/job/:uid` | public | whole rows | 250 | not yet | yes | `JobController.getJob` | `subdomains/supporting/job/job.controller.ts` |
 | GET | 1 | yes | `/kyc` | public | whole rows | 351 | not yet |  | `KycController.getKycProgressV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
 | GET | 2 |  | `/kyc` | public | whole rows | 351 | not yet |  | `KycController.getKycLevel` | `subdomains/generic/kyc/controllers/kyc.controller.ts` |
 | POST | 1 | yes | `/kyc` | public | whole rows | 351 | not yet |  | `KycController.requestKycV1` | `subdomains/generic/user/models/kyc/kyc.controller.ts` |
