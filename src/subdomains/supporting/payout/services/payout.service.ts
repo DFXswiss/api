@@ -66,6 +66,10 @@ export class PayoutService {
     payoutAsset: Asset;
     payoutAmountBaseUnits: string | null;
   }> {
+    // Both arrive as raw query strings on the admin endpoint; absent, an arbitrary payout order is
+    // returned and reported as this one's completion state.
+    if (!context || !correlationId) throw new BadRequestException('Context and correlation ID are required');
+
     const order = await this.payoutOrderRepo.findOneBy({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
     const payoutFee = order && order.payoutFee;
@@ -154,13 +158,57 @@ export class PayoutService {
     if (dto.noBroadcastVerified !== true)
       throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
 
+    // A signed transaction is co-owned: it pays every order it was built for (#4673). Discarding it
+    // here while a sibling can still relay it would release THIS order for a rebuild and then let that
+    // relay pay its address anyway — a double payment the operator's check cannot catch, because
+    // absence at the moment they looked is not absence after a sibling relays. Only siblings the
+    // automatic path can still act on block it; ones already parked as PayoutUncertain relay nothing,
+    // so a whole group stays resolvable one order at a time and this cannot deadlock. A sibling that
+    // is merely retrying reaches the cap and joins them here, so it cannot block indefinitely either.
+    if (order.signedPayoutTxId) {
+      const relayableSiblings = await this.payoutOrderRepo.countBy({
+        id: Not(order.id),
+        signedPayoutTxId: order.signedPayoutTxId,
+        status: In([PayoutOrderStatus.PREPARATION_CONFIRMED, PayoutOrderStatus.PAYOUT_DESIGNATED]),
+      });
+
+      if (relayableSiblings)
+        throw new ConflictException(
+          `Payout order ${dto.id} shares signed tx ${order.signedPayoutTxId} with ${relayableSiblings} order(s) that can still relay it, not retried`,
+        );
+    }
+
     // Atomic conditional transition — a concurrent state change must not be overwritten.
     // Restore the pre-broadcast retry budget: orders that escalated via the cap still carry
     // retryCount = maxPreBroadcastRetries; without this reset the first transient pre-broadcast
     // error on the manual retry would silently re-escalate to PayoutUncertain.
+    //
+    // Discarding a signed-but-unrelayed transaction (#4673) belongs to the same transition. The
+    // automatic path re-relays such a transaction, which is always safe — but one that can no longer
+    // be relayed at all would loop forever, since nothing else ever clears these columns. It is
+    // noBroadcastVerified that licenses the discard: the operator has confirmed signedPayoutTxId is
+    // absent from the chain, the same assertion every other chain's retry already rebuilds on, and
+    // now a lookup of one id rather than an inference from a wallet log. The discarded id is logged
+    // below. The assertion carries the same weight it always did — asserting it wrongly here rebuilds
+    // over a transaction that did land, i.e. pays twice — which is why the automatic path never
+    // discards and re-relays instead, and why only a human who checked that id may take this route.
+    // The signed tx is pinned as well as the status: the operator asserted absence about the id they
+    // READ, while MoneroStrategy#signPayout writes that column with no status predicate — deliberately,
+    // so an order escalated mid-flight still gets its record. Without the pin those two interleave and
+    // this discards an id nobody verified. A miss is reported as a conflict, and the operator retries
+    // against the row as it now stands.
     const result = await this.payoutOrderRepo.update(
-      { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-      { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
+      {
+        id: order.id,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        signedPayoutTxId: order.signedPayoutTxId ?? IsNull(),
+      },
+      {
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        retryCount: 0,
+        signedPayoutTxId: null,
+        signedPayoutTxMetadata: null,
+      },
     );
     if (!result.affected) throw new ConflictException(`Payout order ${dto.id} changed state concurrently, not retried`);
 
@@ -168,7 +216,9 @@ export class PayoutService {
     // until the next broadcast attempt overwrites it; the retry BUDGET is restored above so a
     // verified manual retry tolerates transient pre-broadcast errors instead of re-escalating.
     this.logger.info(
-      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', reference: ${dto.verificationReference}`,
+      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}'${
+        order.signedPayoutTxId ? `, discarded signedPayoutTxId '${order.signedPayoutTxId}'` : ''
+      }, reference: ${dto.verificationReference}`,
     );
   }
 

@@ -1,4 +1,6 @@
 const mockStart = jest.fn();
+const mockPyroscopeInit = jest.fn();
+const mockStartWallProfiling = jest.fn();
 
 jest.mock('@opentelemetry/sdk-node', () => ({
   NodeSDK: jest.fn().mockImplementation(() => ({ start: mockStart })),
@@ -15,10 +17,14 @@ jest.mock('@opentelemetry/exporter-metrics-otlp-http', () => ({
 jest.mock('@opentelemetry/sdk-metrics', () => ({
   PeriodicExportingMetricReader: jest.fn(),
 }));
+jest.mock('@pyroscope/nodejs', () => ({
+  __esModule: true,
+  default: { init: mockPyroscopeInit, startWallProfiling: mockStartWallProfiling },
+}));
 
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base';
-import { ClientErrorSpanProcessor, isClientError, startTracing, tracingServiceName } from '../tracing';
+import { ClientErrorSpanProcessor, isClientError, startProfiling, startTracing, tracingServiceName } from '../tracing';
 
 function fakeSpan(kind: SpanKind, statusCode: SpanStatusCode, httpStatus?: number): ReadableSpan {
   return {
@@ -116,5 +122,111 @@ describe('tracingServiceName', () => {
     else process.env.CRON_ROLE = role;
 
     expect(tracingServiceName()).toBe('dfx-api');
+  });
+});
+
+// Every case loads its own copy of the module: importing tracing.ts calls
+// startProfiling() as a side effect, and the module latches `profiling` after
+// the first successful start. A fresh registry per case keeps that latch — the
+// thing being tested — from leaking between them.
+describe('startProfiling', () => {
+  const originalAddress = process.env.PYROSCOPE_SERVER_ADDRESS;
+  const originalEnvironment = process.env.ENVIRONMENT;
+  const originalCronRole = process.env.CRON_ROLE;
+
+  function loadTracing(): { startProfiling: () => boolean } {
+    let loaded: { startProfiling: () => boolean };
+    jest.isolateModules(() => {
+      // require, not import: isolateModules is synchronous and the point is to
+      // re-execute the module body (and with it its start-up side effects).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      loaded = require('../tracing');
+    });
+
+    return loaded;
+  }
+
+  beforeEach(() => {
+    mockPyroscopeInit.mockReset();
+    mockStartWallProfiling.mockReset();
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+
+    if (originalAddress === undefined) delete process.env.PYROSCOPE_SERVER_ADDRESS;
+    else process.env.PYROSCOPE_SERVER_ADDRESS = originalAddress;
+
+    if (originalEnvironment === undefined) delete process.env.ENVIRONMENT;
+    else process.env.ENVIRONMENT = originalEnvironment;
+
+    if (originalCronRole === undefined) delete process.env.CRON_ROLE;
+    else process.env.CRON_ROLE = originalCronRole;
+  });
+
+  it('is disabled (returns false) without PYROSCOPE_SERVER_ADDRESS', () => {
+    delete process.env.PYROSCOPE_SERVER_ADDRESS;
+    process.env.ENVIRONMENT = 'prd';
+
+    expect(startProfiling()).toBe(false);
+    expect(mockPyroscopeInit).not.toHaveBeenCalled();
+    expect(mockStartWallProfiling).not.toHaveBeenCalled();
+  });
+
+  it('starts the wall profiler with the environment tag and CPU time enabled', () => {
+    process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
+    process.env.ENVIRONMENT = 'prd';
+    delete process.env.CRON_ROLE;
+
+    const tracing = loadTracing();
+
+    expect(mockPyroscopeInit).toHaveBeenCalledWith({
+      appName: 'dfx-api',
+      serverAddress: 'http://localhost:4040',
+      tags: { env: 'prd' },
+      wall: { collectCpuTime: true },
+    });
+    // Once for the module-level call, and not again on the explicit one:
+    // starting a second sampler would double the profiling cost.
+    expect(tracing.startProfiling()).toBe(true);
+    expect(mockStartWallProfiling).toHaveBeenCalledTimes(1);
+  });
+
+  it('profiles the worker under its own app name', () => {
+    // The two roles run the same image and both configure a server address, so a constant appName
+    // would file both sets of samples under one service and merge the flame graphs.
+    process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
+    process.env.ENVIRONMENT = 'prd';
+    process.env.CRON_ROLE = 'worker';
+
+    loadTracing();
+
+    expect(mockPyroscopeInit).toHaveBeenCalledWith(expect.objectContaining({ appName: 'dfx-api-worker' }));
+  });
+
+  it('reports the failure and keeps running when ENVIRONMENT is missing', () => {
+    process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
+    delete process.env.ENVIRONMENT;
+
+    const tracing = loadTracing();
+
+    expect(tracing.startProfiling()).toBe(false);
+    expect(mockStartWallProfiling).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('reports the failure and keeps running when the SDK throws', () => {
+    process.env.PYROSCOPE_SERVER_ADDRESS = 'http://localhost:4040';
+    process.env.ENVIRONMENT = 'prd';
+    mockPyroscopeInit.mockImplementation(() => {
+      throw new Error('boom');
+    });
+
+    const tracing = loadTracing();
+
+    expect(tracing.startProfiling()).toBe(false);
+    expect(mockStartWallProfiling).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
   });
 });

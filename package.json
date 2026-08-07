@@ -27,7 +27,9 @@
     "type-check": "tsc --noEmit",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "check": "npm run lint && npm run test",
-    "migration": "bash migration/generate.sh"
+    "migration": "bash migration/generate.sh",
+    "docs:inventory": "bash scripts/inventory/run.sh",
+    "docs:inventory:test": "python3 scripts/inventory/selftest.py"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
@@ -70,6 +72,7 @@
     "@opentelemetry/sdk-metrics": "2.7.1",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@pyroscope/nodejs": "^0.6.2",
     "@railgun-community/engine": "^9.4.0",
     "@scure/bip32": "^1.6.2",
     "@scure/bip39": "^1.5.4",

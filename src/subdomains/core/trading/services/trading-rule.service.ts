@@ -21,25 +21,39 @@ export class TradingRuleService {
 
   // --- PUBLIC API --- //
 
-  // One statement, not a per-rule loop: all rules' maxima must come from the same
+  // One statement, not a per-rule loop: all rules' latest orders must come from the same
   // READ-COMMITTED snapshot, because LogJobService writes the FinanceLog from this result.
   // Separate statements per rule could observe an insert into trading_order mid-loop and mix
-  // maxima from different points in time — a single GROUP BY aggregate cannot do that.
-  // The composite index on trading_order ("tradingRuleId", "id") (see the
-  // AddTradingOrderRuleIdIndex migration) lets Postgres answer this with an Index Only Scan.
-  // A correlated per-rule lookup would be faster still, but pg-mem (this repo's test engine for
-  // this query, see trading-rule.service.pg.spec.ts) cannot execute a correlated subquery —
-  // don't "optimize" this into one without first solving that.
+  // rows from different points in time. A LATERAL keeps that property — still one statement,
+  // one snapshot — while removing the aggregate's whole-index read.
+  //
+  // `MAX(id) GROUP BY tradingRuleId` has to walk the composite index on
+  // trading_order ("tradingRuleId", "id") end to end, because PostgreSQL has no skip scan: its
+  // cost grows with the number of orders, which is unbounded. Driven from trading_rule instead,
+  // each rule is one backward index scan stopped at the first row, so the cost grows with the
+  // number of rules — configuration, and small. DFXServer/server#1223 measured the aggregate at
+  // roughly 0.5 s a run, 20 runs over 100 ms within 75 minutes, with that index already in place.
+  //
+  // Raw SQL because LATERAL has no query-builder equivalent. The set semantics are the ones the
+  // INNER JOIN gave: driving from trading_rule drops orders whose rule no longer exists, and a
+  // rule with no orders contributes nothing because its lateral subquery returns no row.
+  //
+  // pg-mem cannot execute this — it does not resolve the outer reference — which is why the spec
+  // for this method runs against a real PostgreSQL behind MIGRATION_TEST_PG.
   async getCurrentTradingOrders(): Promise<TradingOrder[]> {
-    const lastTradingOrderIds = await this.orderRepo
-      .createQueryBuilder('tradingOrder')
-      .select('MAX(tradingOrder.id)', 'tradingOrderId')
-      .innerJoin('tradingOrder.tradingRule', 'tradingRule')
-      .groupBy('tradingOrder.tradingRuleId')
-      .getRawMany<{ tradingOrderId: number }>()
-      .then((t) => t.map((t) => t.tradingOrderId));
+    const rows: { tradingOrderId: number }[] = await this.orderRepo.manager.query(`
+      SELECT latest."id" AS "tradingOrderId"
+      FROM "trading_rule" rule
+      CROSS JOIN LATERAL (
+        SELECT "order"."id"
+        FROM "trading_order" "order"
+        WHERE "order"."tradingRuleId" = rule."id"
+        ORDER BY "order"."id" DESC
+        LIMIT 1
+      ) latest
+    `);
 
-    return this.orderRepo.findBy({ id: In(lastTradingOrderIds) });
+    return this.orderRepo.findBy({ id: In(rows.map((row) => row.tradingOrderId)) });
   }
 
   async updateTradingRule(id: number, dto: UpdateTradingRuleDto): Promise<void> {

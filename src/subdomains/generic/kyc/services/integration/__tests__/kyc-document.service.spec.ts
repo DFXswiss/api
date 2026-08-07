@@ -2,10 +2,12 @@
 // spy and no real S3/Azure/mock storage is touched.
 const uploadWormBlobMock = jest.fn();
 const copyBlobsMock = jest.fn();
+const getBlobMock = jest.fn();
 jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
   createStorageService: jest.fn(() => ({
     uploadWormBlob: (...args: any[]) => uploadWormBlobMock(...args),
     copyBlobs: (...args: any[]) => copyBlobsMock(...args),
+    getBlob: (...args: any[]) => getBlobMock(...args),
   })),
 }));
 
@@ -63,6 +65,29 @@ describe('KycDocumentService - storage', () => {
     ).rejects.toThrow('Supported file types');
 
     expect(uploadWormBlobMock).not.toHaveBeenCalled();
+  });
+
+  describe('downloadKycFile', () => {
+    const blob = { data, contentType: ContentType.PDF, created: new Date(), updated: new Date(), metadata: {} };
+
+    beforeEach(() => getBlobMock.mockResolvedValue(blob));
+
+    it('resolves a row without a path through the canonical layout', async () => {
+      const file = { type: FileType.IDENTIFICATION, name: 'passport.pdf' } as KycFile;
+
+      await expect(service.downloadKycFile(file, 42)).resolves.toEqual(blob);
+
+      expect(getBlobMock).toHaveBeenCalledWith(expectedBlobName);
+    });
+
+    it('resolves a legacy row through its stored path', async () => {
+      const path = 'spider/42/online-identification/1699356511987/report.pdf';
+      const file = { type: FileType.IDENTIFICATION, name: 'report.pdf', path } as KycFile;
+
+      await expect(service.downloadKycFile(file, 42)).resolves.toEqual(blob);
+
+      expect(getBlobMock).toHaveBeenCalledWith(path);
+    });
   });
 
   describe('copyFiles', () => {

@@ -8,6 +8,7 @@ import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { legacyDocumentDate } from 'src/subdomains/generic/kyc/utils/legacy-document-date';
 import {
   BuySupportInfo,
   SellSupportInfo,
@@ -131,22 +132,59 @@ export class RealUnitComplianceDtoMapper {
           ? {
               status: identStep?.status,
               type: identStep?.type,
-              date: identStep?.created ?? identFile?.created,
-              fileUid: identFile?.uid,
-              fileName: identFile?.name,
+              date: identStep?.created ?? identFile?.date,
+              fileUid: identFile?.file.uid,
+              fileName: identFile?.file.name,
             }
           : undefined,
       nameCheck: nameCheckFile
-        ? { date: nameCheckFile.created, fileUid: nameCheckFile.uid, fileName: nameCheckFile.name }
+        ? { date: nameCheckFile.date, fileUid: nameCheckFile.file.uid, fileName: nameCheckFile.file.name }
         : undefined,
     };
   }
 
-  private static latestFileOfType(files: KycFile[], type: FileType): KycFile | undefined {
-    return Util.maxObj(
-      files.filter((f) => f.type === type),
-      'created',
-    );
+  /**
+   * The file that stands for a check, with the date that check carries — or nothing.
+   *
+   * Two rules, and both exist because a row carrying `path` was catalogued from the Spider-era
+   * storage by the legacy backfill rather than written when its document was produced.
+   *
+   * **A current file always wins.** `kyc_file.created` on a legacy row is the date of the document
+   * only where its key carried a timestamp; otherwise it is the day the backfill ran. Compared on
+   * that column alone, such a row outranks the Dilisense or Sumsub document that actually describes
+   * the account today, and the dossier would name a Spider document as the current check.
+   *
+   * **An undatable legacy row is no check at all.** `check/gen_<n>/…` — the whole of the legacy name
+   * checks — carries no timestamp anywhere, so the true date of that screening is not recoverable.
+   * Reporting the row's `created` would tell a compliance officer that an account last screened in
+   * 2021 was screened this month, which is worse than telling them nothing: the empty field renders
+   * as an overdue check, which is exactly what it is. The document itself stays in the file list and
+   * stays downloadable — this decides the date, not the evidence.
+   *
+   * A legacy row whose key DOES carry a timestamp is a check like any other and reports that date.
+   */
+  private static latestFileOfType(files: KycFile[], type: FileType): { file: KycFile; date: Date } | undefined {
+    const dated = files
+      .filter((f) => f.type === type)
+      .map((f) => ({ file: f, date: RealUnitComplianceDtoMapper.documentDate(f) }))
+      .filter((f): f is { file: KycFile; date: Date } => f.date != null);
+
+    const current = dated.filter((f) => f.file.path == null);
+
+    return Util.maxObj(current.length ? current : dated, 'date');
+  }
+
+  /**
+   * The date that describes the DOCUMENT, or nothing.
+   *
+   * `kyc_file.created` answers it for every row written when its document was produced. On a row
+   * catalogued from the Spider-era storage (`path` set) it answers it only where the key carried a
+   * timestamp; where it did not, the column holds the day the backfill ran, and there is no date to
+   * report. The column cannot say which of the two it is — it is never null — so the key is read
+   * again, by the same function the backfill used to write it.
+   */
+  private static documentDate(file: KycFile): Date | undefined {
+    return file.path == null ? file.created : legacyDocumentDate(file.path);
   }
 
   // --- KYC FILES --- //
@@ -156,7 +194,11 @@ export class RealUnitComplianceDtoMapper {
       uid: file.uid,
       type: file.type,
       name: file.name,
-      created: file.created,
+      // Absent where the date is not the document's — the same rule the reported checks follow. The
+      // field carries no provenance of its own (`path` is deliberately not exposed), so a client
+      // cannot tell a document date from the day the backfill ran, and would read the second as the
+      // first: a file listed beside a missing check would look like evidence from last month.
+      created: RealUnitComplianceDtoMapper.documentDate(file),
     };
   }
 

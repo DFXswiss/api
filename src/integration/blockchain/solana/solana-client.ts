@@ -17,6 +17,7 @@ import {
 } from './dto/solana.dto';
 import { SolanaWallet } from './solana-wallet';
 import { SolanaUtil } from './solana.util';
+import { TransactionRevertedException } from 'src/integration/blockchain/shared/exceptions/transaction-reverted.exception';
 
 const INSTRUCTION_TYPES = ['create', 'closeAccount', 'transfer', 'transferchecked'];
 const TOKEN_PROGRAM_IDS = [
@@ -113,7 +114,7 @@ export class SolanaClient extends BlockchainClient {
     if (currentConfirmations > confirmations) {
       if (!transaction.meta.err) return true;
 
-      throw new Error(`Transaction ${txHash} has failed`);
+      throw new TransactionRevertedException(txHash);
     }
 
     return false;

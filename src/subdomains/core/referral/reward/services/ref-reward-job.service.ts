@@ -17,15 +17,20 @@ export class RefRewardJobService {
   ) {}
 
   @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
-  async createPendingRefRewards() {
+  async createPendingRefRewards(): Promise<void> {
     await this.refRewardService.createPendingRefRewards();
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
-  async processPendingRefRewards() {
+  async processPendingRefRewards(): Promise<void> {
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();
     await this.refRewardOutService.payoutNewTransactions();
     await this.refRewardNotificationService.sendNotificationMails();
+  }
+
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { scope: CronScope.WORKER, process: Process.REF_PAYOUT, timeout: 1800 })
+  async createRefBonusRewards(): Promise<void> {
+    await this.refRewardService.createRefBonusRewards();
   }
 }

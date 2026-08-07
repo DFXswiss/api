@@ -74,7 +74,11 @@ export class BankService implements OnModuleInit {
   }
 
   async getBankByIban(iban: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(iban, { iban });
+    // accountIban is nullable and parsed from the SEPA payload; absent, the lookup returns an
+    // arbitrary Bank, which then drives the chargeback fee.
+    if (!iban) return undefined;
+
+    return this.bankRepo.findOneCachedBy(`iban:${iban}`, { iban });
   }
 
   async areKnownBankIbans(...ibans: string[]): Promise<boolean> {

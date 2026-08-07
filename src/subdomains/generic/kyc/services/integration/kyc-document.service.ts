@@ -122,6 +122,16 @@ export class KycDocumentService {
     return this.storageService.getBlob(this.toFileId(category, userDataId, type, name));
   }
 
+  // Resolves a catalog row to its blob. A row carrying `path` points at a blob outside the canonical
+  // `user/<userDataId>/<type>/<name>` layout (legacy Spider documents), so the stored key wins; every
+  // other row keeps resolving by category, user, type and name. The user id is passed in because the
+  // callers that read the catalog do not all load the `userData` relation.
+  async downloadKycFile(file: KycFile, userDataId: number): Promise<BlobContent> {
+    return file.path
+      ? this.storageService.getBlob(file.path)
+      : this.downloadFile(FileCategory.USER, userDataId, file.type, file.name);
+  }
+
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
     await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
     await this.storageService.copyBlobs(

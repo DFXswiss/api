@@ -20,9 +20,11 @@ import {
   GetBalanceResultDto,
   GetFeeEstimateResultDto,
   GetInfoResultDto,
+  GetRelayTransactionResultDto,
   GetSendTransferResultDto,
   GetTransactionResultDto,
   GetTransfersResultDto,
+  MoneroSignedTxDto,
   MoneroTransactionDto,
   MoneroTransactionType,
   MoneroTransferDto,
@@ -61,10 +63,11 @@ const MONERO_PRE_BROADCAST_RPC_CODES = [
 // second transaction over the same key images — a real double-spend race whose winner may be a txid the
 // order never learned. That is the invariant #4238 exists to protect.
 //
-// Structural remedy (follow-up, not this PR): split the atomic call — `transfer` with
-// do_not_relay + get_tx_metadata, persist the returned tx_hash, then relay via the separate `relay_tx`
-// RPC. Every build-phase failure is then provably pre-broadcast, and every relay-phase failure arrives
-// with a durable txid, turning recovery into a lookup instead of an inference.
+// The structural remedy sketched here has since been built (#4673): buildTransfer + relayTransfer below
+// split the atomic call, so the payout path never has to classify a -38 from `transfer` at all. What
+// remains behind these allowlists is sendTransfers, the atomic path kept for callers that have no order
+// to persist a pre-relay txid against (dex withdrawal, pay-in forwarding) — for those, an unclassified
+// -38 must keep failing closed for exactly the reason above.
 //
 // Daemon faults that fall through to GENERIC_TRANSFER_ERROR (-4) — handle_rpc_exception has no dedicated
 // catch for them — are discriminated by their exact what() string instead, since -4 is also the code for
@@ -81,7 +84,22 @@ const MONERO_PRE_BROADCAST_RPC_MESSAGES: PreBroadcastRpcMessage[] = [
   { code: -4, message: 'failed to get output distribution' },
 ];
 
+const MONERO_REQUEST_TIMEOUT_MS = 30_000;
+
+// Pinned explicitly rather than left to the wallet's silent correction: an unset ring_size arrives as 0,
+// wallet_rpc_server turns that into mixin 0 and adjust_mixin then raises it to the consensus minimum,
+// logging "Requested ring size 1 too low, using 16" on every production transfer (#4673). 16 is
+// CRYPTONOTE_DEFAULT_TX_MIXIN + 1 and therefore the value the wallet was already choosing.
+//
+// The trade this makes: adjust_mixin used to absorb a consensus minimum bump on its own, and now a bump
+// needs a change here. It applies to every caller of transferParams — the payout split below, and
+// sendTransfers for dex withdrawal and pay-in forwarding — so treat it as a consensus constant, not a
+// payout preference.
+const MONERO_RING_SIZE = 16;
+
 export class MoneroClient extends BlockchainClient implements CoinOnly {
+  private agent?: Agent;
+
   constructor(private readonly http: HttpService) {
     super();
   }
@@ -170,7 +188,9 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   }
 
   private mapTransaction(status: string, txs?: GetTransactionResultDto[]): MoneroTransactionDto {
-    if ('OK' !== status || !txs) return {};
+    // An unknown hash comes back as status OK with the hash listed under missed_tx and `txs` either
+    // absent or empty; both mean "not found", and reading txs[0] out of an empty array would throw.
+    if ('OK' !== status || !txs?.length) return {};
 
     const transactionResult = txs[0];
 
@@ -299,17 +319,16 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays atomically.
   // Connection-establishment failures and the official wallet pre-funding codes stay plain;
   // parsed RPC errors are deterministic, while ambiguous transport failures fail closed.
+  //
+  // Callers that own a payout order should use buildTransfer + relayTransfer instead (#4673); this
+  // atomic path remains for callers with nowhere to persist a pre-relay txid.
   async sendTransfers(payout: PayoutGroup): Promise<MoneroTransferDto> {
     try {
       const result = await this.http.post<GetSendTransferResultDto>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
-          params: {
-            destinations: payout.map((p) => ({ address: p.addressTo, amount: MoneroHelper.xmrToAu(p.amount) })),
-            account_index: 0,
-            priority: 0,
-          },
+          params: this.transferParams(payout),
         },
         this.httpConfig(),
       );
@@ -320,6 +339,78 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
     } catch (e) {
       throw toBroadcastBoundaryError(e, MONERO_PRE_BROADCAST_RPC_CODES, MONERO_PRE_BROADCAST_RPC_MESSAGES);
     }
+  }
+
+  // Build and sign, without relaying — phase one of the split introduced by #4673.
+  //
+  // do_not_relay is what makes this phase safe to retry blindly: wallet_rpc_server::fill_response guards
+  // the relay with `else if (!do_not_relay) m_wallet->commit_tx(ptx_vector);`, and commit_tx is the sole
+  // caller of /sendrawtransaction, add_unconfirmed_tx and set_spent. Skipping it means the wallet reserves
+  // nothing at all, so a failure here — a lost response, a timeout, a -38 from decoy selection — is
+  // provably pre-broadcast no matter which sub-request threw. That is why this method deliberately does
+  // NOT wrap its errors in the broadcast boundary: they stay plain and roll back for auto-retry like the
+  // -17/-37 pre-funding codes. Verified against monero v0.18.3.4, the tag the production wallet image
+  // runs; the guarantee is a property of that guard, so a wallet version that relayed despite
+  // do_not_relay would invalidate it.
+  //
+  // The returned tx_hash is final: relay_tx re-submits this very transaction rather than rebuilding one.
+  async buildTransfer(payout: PayoutGroup): Promise<MoneroSignedTxDto> {
+    const result = await this.http.post<GetSendTransferResultDto>(
+      `${Config.blockchain.monero.rpc.url}/json_rpc`,
+      {
+        method: 'transfer',
+        params: { ...this.transferParams(payout), do_not_relay: true, get_tx_metadata: true },
+      },
+      this.httpConfig(),
+    );
+
+    return this.mapSignedTransfer(result);
+  }
+
+  // Relay a transaction built by buildTransfer — phase two, and the only step that can leave a
+  // transaction in flight. wallet_rpc_server::on_relay_tx deserialises the metadata into a pending_tx and
+  // calls m_wallet->commit_tx(ptx) on it, so a repeat re-submits the SAME transaction under the SAME id
+  // instead of building a competing one over the same inputs; the daemon short-circuits a transaction it
+  // already has (core::handle_incoming_txs marks it already_have and leaves the verification context
+  // untouched, so on_send_raw_tx answers OK with not_relayed) and commit_tx does not throw.
+  //
+  // The boundary stays fail-closed here with no RPC-code allowlist at all: the pre-funding codes cannot
+  // occur once the transaction is signed, and -38 at this point is the genuinely ambiguous case. Class A
+  // connection-establishment failures still classify as plain by construction — the request never left.
+  async relayTransfer(metadata: string): Promise<string> {
+    try {
+      const result = await this.http.post<GetRelayTransactionResultDto>(
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
+        {
+          method: 'relay_tx',
+          params: { hex: metadata },
+        },
+        this.httpConfig(),
+      );
+
+      return this.mapRelayTransfer(result);
+    } catch (e) {
+      // Empty allowlists on purpose: only Class A (connection establishment) stays plain here.
+      throw toBroadcastBoundaryError(e, []);
+    }
+  }
+
+  // Presence, not confirmation: the daemon's /get_transactions answers for the mempool as well as the
+  // chain, so a hit proves the transaction reached the network even before it is mined. This is the
+  // lookup that replaces the inference for a relay whose response was lost (#4673).
+  async isTxKnown(txId: string): Promise<boolean> {
+    const transaction = await this.getTransaction(txId);
+
+    return Boolean(transaction?.tx_hash);
+  }
+
+  private transferParams(payout: PayoutGroup): Record<string, unknown> {
+    return {
+      destinations: payout.map((p) => ({ address: p.addressTo, amount: MoneroHelper.xmrToAu(p.amount) })),
+      account_index: 0,
+      priority: 0,
+      ring_size: MONERO_RING_SIZE,
+    };
   }
 
   private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
@@ -340,6 +431,35 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
       fee: sendTransferResult.result.fee,
       txid: sendTransferResult.result.tx_hash,
     });
+  }
+
+  // Every failure of the build phase is plain (see buildTransfer), so these throws are plain too — an
+  // unusable response means the wallet has nothing to relay, not that it might have relayed something.
+  private mapSignedTransfer(buildResult: GetSendTransferResultDto): MoneroSignedTxDto {
+    if (!buildResult) throw new Error('No response after building the Monero transfer');
+    if (buildResult.error) throw new Error(buildResult.error.message, { cause: buildResult.error });
+    if (!buildResult.result) throw new Error('No result after building the Monero transfer');
+
+    const { tx_hash, tx_metadata } = buildResult.result;
+    if (!tx_hash) throw new Error('Monero transfer build returned an empty tx hash');
+    // Without the metadata the transaction can never be relayed and would have to be rebuilt, which is
+    // the one thing the split exists to avoid — refuse it here rather than persist a dead id.
+    if (!tx_metadata) throw new Error('Monero transfer build returned no tx metadata');
+
+    return { txId: tx_hash, metadata: tx_metadata };
+  }
+
+  private mapRelayTransfer(relayResult: GetRelayTransactionResultDto): string {
+    // Unconditional, with no allowlist to consult: an in-band wallet RPC error at this point was raised
+    // by commit_tx, which had already called /sendrawtransaction. There is no code here that proves the
+    // transaction stayed put, so every one of them is at-or-after the broadcast.
+    if (relayResult.error) throw new TxBroadcastError(relayResult.error.message, { cause: relayResult.error });
+    if (!relayResult.result) throw new TxBroadcastError('No result after relaying the Monero transfer');
+    // An empty tx_hash after a resolved relay is ambiguous the same way an empty one after `transfer` is.
+    if (!relayResult.result.tx_hash)
+      throw new TxBroadcastError('Monero relay returned an empty tx hash', { cause: relayResult });
+
+    return relayResult.result.tx_hash;
   }
 
   async getTransfers(type: MoneroTransactionType, blockHeight: number): Promise<MoneroTransferDto[]> {
@@ -396,10 +516,15 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   // --- HELPER --- //
 
   private httpConfig(): HttpRequestConfig {
+    // one keep-alive agent per client: without it every call pays a full TCP + TLS handshake
+    this.agent ??= new Agent({
+      ca: Config.blockchain.monero.certificate,
+      keepAlive: true,
+    });
+
     return {
-      httpsAgent: new Agent({
-        ca: Config.blockchain.monero.certificate,
-      }),
+      httpsAgent: this.agent,
+      timeout: MONERO_REQUEST_TIMEOUT_MS,
     };
   }
 }

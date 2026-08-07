@@ -17,6 +17,8 @@ export interface AlchemyWebhookActivityDto {
   value: number;
   asset: string;
   category: string;
+  erc721TokenId?: string;
+  erc1155Metadata?: { tokenId: string; value: string }[];
   rawContract: {
     rawValue: string;
     decimals: number;

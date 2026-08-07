@@ -316,6 +316,7 @@ export class BuyCryptoService implements OnModuleInit {
         checkoutTx: true,
         transaction: { user: { wallet: true }, userData: { users: true, kycSteps: true } },
         chargebackOutput: true,
+        chargebackBankTx: true,
         bankData: true,
       },
     });
@@ -375,6 +376,13 @@ export class BuyCryptoService implements OnModuleInit {
 
       if (dto.chargebackAllowedDate) {
         if (entity.checkoutTx) throw new BadRequestException('Checkout refunds must use the dedicated refund endpoint');
+        // the refund already left the bank (executed externally and matched, or linked manually -
+        // including a link in this very request) - creating a fiat output on top would pay the
+        // customer a second time. Deliberately a hard reject (not a silent skip-payout): the
+        // operator must see that nothing will be paid; the auto-match cron sets the date (and
+        // thereby the chargeback mail) itself, so a date-only update is not needed here.
+        if (entity.chargebackBankTx ?? update.chargebackBankTx)
+          throw new BadRequestException('Chargeback already executed (chargeback bank TX linked)');
         if (entity.bankTx && !entity.chargebackOutput) {
           if (!dto.chargebackCreditorName && !entity.creditorData)
             throw new BadRequestException('Creditor data is required for chargeback');
@@ -797,7 +805,6 @@ export class BuyCryptoService implements OnModuleInit {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         undefined,
-        undefined,
         blockchainFee,
       );
       const claim = await manager.update(BuyCrypto, claimWhere, update);
@@ -875,16 +882,6 @@ export class BuyCryptoService implements OnModuleInit {
         assetMismatch: chargebackAsset && chargebackAsset !== currentBuyCrypto.inputAsset,
       });
 
-      if (dto.chargebackAllowedDate && chargebackAmount && chargebackAsset)
-        dto.chargebackOutput = await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_CRYPTO_FAIL,
-          { buyCrypto: currentBuyCrypto },
-          currentBuyCrypto.id,
-          false,
-          { iban: chargebackIban, amount: chargebackAmount, currency: chargebackAsset, ...creditorData },
-          manager,
-        );
-
       const claimWhere = BuyCryptoService.refundClaimWhere(currentBuyCrypto);
       previousAmlCheck = currentBuyCrypto.amlCheck;
       previousAmlReason = currentBuyCrypto.amlReason;
@@ -896,13 +893,31 @@ export class BuyCryptoService implements OnModuleInit {
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
-        dto.chargebackOutput,
         currentBuyCrypto.chargebackBankRemittanceInfo,
         undefined,
         creditorData,
       );
       const claim = await manager.update(BuyCrypto, claimWhere, update);
       if (claim.affected !== 1) throw new ConflictException('BuyCrypto refund state changed concurrently');
+
+      // The chargeback output is created only after the claim succeeded. FiatOutput.buyCrypto is the
+      // inverse side of the BuyCrypto.chargebackOutput one-to-one, so saving it makes TypeORM write
+      // chargebackOutputId onto this very row. Creating it first therefore violated the claim's own
+      // `chargebackOutput: IsNull()` condition, so the claim matched no row and every bank chargeback
+      // on this approval leg failed with a bogus "state changed concurrently" conflict against the
+      // transaction's own write.
+      if (dto.chargebackAllowedDate && chargebackAmount && chargebackAsset) {
+        const chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_CRYPTO_FAIL,
+          { buyCrypto: currentBuyCrypto },
+          currentBuyCrypto.id,
+          false,
+          { iban: chargebackIban, amount: chargebackAmount, currency: chargebackAsset, ...creditorData },
+          manager,
+        );
+        currentBuyCrypto.chargebackOutput = chargebackOutput;
+      }
+
       refundEntity = currentBuyCrypto;
     });
 

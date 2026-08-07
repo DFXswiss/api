@@ -408,8 +408,18 @@ export class SupportIssueService {
         ) {
           try {
             await this.bankDataService.createIbanForUserInternal(userData, { iban: dto.transaction.senderIban }, false);
-          } catch (_) {
-            // Skip errors from creating user bankData
+          } catch (e) {
+            // Non-fatal: a rejected IBAN must not stop the support issue from being created. Logged
+            // rather than swallowed — a silent catch here hid a DFX-owned IBAN being registered as a
+            // user bankData until the resulting misattributed transfers were noticed months later.
+            // senderIban is free text (no IBAN validation on the DTO), so a rejection is ordinary
+            // input and stays at info; anything else is a real failure and gets warn, which is the
+            // level that reaches the trace view via recordOnSpan.
+            if (e instanceof BadRequestException) {
+              this.logger.info(`Skipped user bankData for support issue of userData ${userData.id}: ${e.message}`);
+            } else {
+              this.logger.warn(`Failed to create user bankData for support issue of userData ${userData.id}:`, e);
+            }
           }
         }
       }

@@ -1,0 +1,20 @@
+# Handbook-specific context: keep docs, infrastructure READMEs and
+# .github/PULL_REQUEST_TEMPLATE.md available (unlike the main API image).
+node_modules
+_handbook-deps
+docs/handbook/build
+dist
+.git
+coverage
+coverage-gate
+*.log
+.env
+.env.*
+test
+test-results
+scripts/email-previews
+.api.pid
+.claude
+thunder-tests
+rest-client
+typings

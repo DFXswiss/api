@@ -11,6 +11,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import * as processServiceModule from 'src/shared/services/process.service';
+import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -137,7 +138,7 @@ describe('KycService getFileByUid protected-file access', () => {
     (service as any).kycLogService = createMock<KycLogService>();
     (service as any).tfaService = tfaService;
 
-    documentService.downloadFile.mockResolvedValue(
+    documentService.downloadKycFile.mockResolvedValue(
       createMock<BlobContent>({ contentType: 'application/pdf', data: Buffer.from('x') }),
     );
   });
@@ -150,7 +151,7 @@ describe('KycService getFileByUid protected-file access', () => {
       const dto = await service.getFileByUid('FILE-UID', jwtFor(role), ip);
 
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
   });
 
@@ -160,7 +161,7 @@ describe('KycService getFileByUid protected-file access', () => {
     await expect(service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    expect(documentService.downloadFile).not.toHaveBeenCalled();
+    expect(documentService.downloadKycFile).not.toHaveBeenCalled();
   });
 
   // The counterpart: a wrong role is a different problem with a different fix, so it must NOT produce
@@ -180,7 +181,7 @@ describe('KycService getFileByUid protected-file access', () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile());
 
     await expect(service.getFileByUid('FILE-UID', undefined, ip)).rejects.toBeInstanceOf(ForbiddenException);
-    expect(documentService.downloadFile).not.toHaveBeenCalled();
+    expect(documentService.downloadKycFile).not.toHaveBeenCalled();
   });
 
   // This route is OptionalJwtAuthGuard-only, so no RoleGuard has applied the staff KYC gate — the role
@@ -197,7 +198,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await expect(service.getFileByUid('FILE-UID', jwtFor(role), ip)).rejects.toBeInstanceOf(
         StaffKycRequiredException,
       );
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
 
     it('answers with the machine-readable code', async () => {
@@ -233,7 +234,7 @@ describe('KycService getFileByUid protected-file access', () => {
       kycFileService.getKycFile.mockResolvedValue(kycFile());
 
       await expect(service.getFileByUid('FILE-UID', jwtFor(role, statuses), ip)).rejects.toThrow('User is not active');
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
   });
 
@@ -243,7 +244,7 @@ describe('KycService getFileByUid protected-file access', () => {
     const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip);
 
     expect(dto.uid).toBe('FILE-UID');
-    expect(documentService.downloadFile).toHaveBeenCalled();
+    expect(documentService.downloadKycFile).toHaveBeenCalled();
   });
 
   // A mail-elevated staff token (tfaRequired) must pass STRICT 2FA before a protected file is served,
@@ -256,7 +257,7 @@ describe('KycService getFileByUid protected-file access', () => {
 
       expect(tfaService.check).toHaveBeenCalledWith(1, ip, TfaLevel.STRICT);
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
 
     it('blocks the download when 2FA verification fails', async () => {
@@ -266,7 +267,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await expect(
         service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip),
       ).rejects.toThrow('TFA required (strict)');
-      expect(documentService.downloadFile).not.toHaveBeenCalled();
+      expect(documentService.downloadKycFile).not.toHaveBeenCalled();
     });
 
     it('skips 2FA for a wallet-login staff session (no tfaRequired marker)', async () => {
@@ -276,7 +277,7 @@ describe('KycService getFileByUid protected-file access', () => {
 
       expect(tfaService.check).not.toHaveBeenCalled();
       expect(dto.uid).toBe('FILE-UID');
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
 
     it('does not run 2FA for a non-protected file even with tfaRequired', async () => {
@@ -285,7 +286,7 @@ describe('KycService getFileByUid protected-file access', () => {
       await service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip);
 
       expect(tfaService.check).not.toHaveBeenCalled();
-      expect(documentService.downloadFile).toHaveBeenCalled();
+      expect(documentService.downloadKycFile).toHaveBeenCalled();
     });
   });
 });
@@ -664,6 +665,7 @@ describe('KycService reviewIdentSteps file sync', () => {
   let service: KycService;
   let kycStepRepo: jest.Mocked<KycStepRepository>;
   let userDataService: jest.Mocked<UserDataService>;
+  let identFileService: jest.Mocked<KycFileService>;
   let syncIdentFilesInternalSpy: jest.SpyInstance;
   // the status as seen by the repo, not as read after the run: manualReview() mutates the entity
   // in memory before the sync, so asserting on the entity afterwards would pass either way -
@@ -717,12 +719,16 @@ describe('KycService reviewIdentSteps file sync', () => {
     });
     userDataService = createMock<UserDataService>();
     userDataService.getUserDataByBirthday.mockResolvedValue([]);
+    identFileService = createMock<KycFileService>();
+    // the default is the step without a valid report, which is the case the retry net exists for
+    identFileService.hasValidIdentReport.mockResolvedValue(false);
 
     // with getIdentCheckErrors, createStepLog and syncIdentFilesInternal stubbed below, the review
     // path only touches these deps; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycStepRepo = kycStepRepo;
     (service as any).userDataService = userDataService;
+    (service as any).kycFileService = identFileService;
     (service as any).countryService = createMock<CountryService>();
     (service as any).logger = createMock<DfxLogger>();
 
@@ -750,28 +756,45 @@ describe('KycService reviewIdentSteps file sync', () => {
     await service.reviewIdentSteps();
 
     expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    // the type guard comes first, so a non-Sumsub step is not worth a database round trip
+    expect(identFileService.hasValidIdentReport).not.toHaveBeenCalled();
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
   it.each(sumsubTypes)('still syncs the files of a %s ident step that has no ident report yet', async (type) => {
-    // an unrelated file must not stand in for the report: only a missing IDENT_REPORT triggers the sync
-    const step = identStep(type, [createMock<KycFile>({ subType: FileSubType.IDENT_SELFIE })]);
+    const step = identStep(type);
     kycStepRepo.find.mockResolvedValue([step]);
 
     await service.reviewIdentSteps();
 
+    // asked about the step, not about the account - see the regression case below
+    expect(identFileService.hasValidIdentReport).toHaveBeenCalledWith(step.id);
     expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
   // the normal case: the ident webhook already downloaded the report, so there is nothing to fetch
   it.each(sumsubTypes)('skips the file sync of a %s ident step that already has its report', async (type) => {
+    const step = identStep(type);
+    kycStepRepo.find.mockResolvedValue([step]);
+    identFileService.hasValidIdentReport.mockResolvedValue(true);
+
+    await service.reviewIdentSteps();
+
+    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+  });
+
+  // the regression this check was scoped for: the account carries a report from an earlier ident -
+  // a previous Sumsub run, or a Spider-era document catalogued from the legacy storage - while THIS
+  // step has none. Account-wide the retry net switched off here and the step advanced document-less.
+  it.each(sumsubTypes)('still syncs a %s ident step whose report belongs to another step', async (type) => {
     const step = identStep(type, [createMock<KycFile>({ subType: FileSubType.IDENT_REPORT })]);
     kycStepRepo.find.mockResolvedValue([step]);
 
     await service.reviewIdentSteps();
 
-    expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+    expect(syncIdentFilesInternalSpy).toHaveBeenCalledWith(step);
     expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
   });
 
@@ -851,5 +874,191 @@ describe('KycService checkDfxApproval step promotion', () => {
 
     await expect(service.checkDfxApproval(approvalUser())).resolves.toBeUndefined();
     expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+});
+
+// A flow that writes personal data outside the step machinery (RealUnit registration) leaves the
+// PERSONAL_DATA step IN_PROGRESS: initiateStep's auto-completion is gated on `!preventDirectEvaluation`,
+// which any prior step row sets, so an account that once abandoned the step could never satisfy it again
+// and KycInfoMapper kept handing that stale step back as `currentStep`.
+describe('KycService completeSatisfiedPersonalDataStep', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+  let userDataService: jest.Mocked<UserDataService>;
+
+  const personalStep = (status: ReviewStatus, sequenceNumber = 0, result?: string, comment?: string): KycStep =>
+    Object.assign(new KycStep(), {
+      id: 2 + sequenceNumber,
+      name: KycStepName.PERSONAL_DATA,
+      status,
+      sequenceNumber,
+      result,
+      comment,
+    });
+
+  // Every field in `requiredKycFields` for a personal account, so `isDataComplete` is true.
+  const completeUser = (kycSteps: KycStep[], overrides: Partial<UserData> = {}): UserData =>
+    createCustomUserData({
+      id: 1,
+      accountType: AccountType.PERSONAL,
+      mail: 'test@test.com',
+      phone: '+41790000000',
+      firstname: 'Erika',
+      surname: 'Mueller',
+      street: 'Bahnhofstrasse 1',
+      location: 'Zurich',
+      zip: '8001',
+      kycSteps,
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    userDataService = createMock<UserDataService>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+    (service as any).userDataService = userDataService;
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined);
+  });
+
+  const run = async (user: UserData): Promise<void> => {
+    userDataService.getUserData.mockResolvedValue(user);
+    // the caller's UserData need not carry `kycSteps`; the method reloads it itself
+    await service.completeSatisfiedPersonalDataStep(createCustomUserData({ id: user.id }));
+  };
+
+  it('completes a pending step and advances the process', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step]));
+
+    expect(userDataService.getUserData).toHaveBeenCalledWith(1, { kycSteps: true });
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(step.status).toBe(ReviewStatus.COMPLETED);
+    expect(step.getResult()).toMatchObject({ firstname: 'Erika', surname: 'Mueller', zip: '8001' });
+    expect((service as any).updateProgress).toHaveBeenCalled();
+  });
+
+  // preventDirectEvaluation exists so a retry does not paper over a prior rejection. A FAILED step must
+  // keep going through the normal flow rather than being silently resurrected by a registration.
+  it('leaves a FAILED step untouched', async () => {
+    const step = personalStep(ReviewStatus.FAILED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.FAILED);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // When Sumsub reports PROBLEMATIC_APPLICANT_DATA, restartStep FAILS the completed step and opens a fresh
+  // IN_PROGRESS one so the user can correct data that is present but wrong. isDataComplete is a non-null
+  // check and cannot see that, so without the failed-step guard the retry would be auto-completed with the
+  // same rejected data and the user stranded on IDENT instead of the correction step.
+  it('leaves a step re-opened by a rejection alone (FAILED + fresh IN_PROGRESS chain)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const reopened = personalStep(ReviewStatus.IN_PROGRESS, 1);
+    await run(completeUser([failed, reopened]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(reopened.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+
+  // A rejection the user has since remedied ends in a step that COMPLETED and was later cancelled by
+  // initiateStep. cancel() leaves `result` in place, so that row still carries the proof it was satisfied.
+  it('still completes when an older rejection was remedied before the step was re-opened', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const remedied = personalStep(ReviewStatus.CANCELED, 1, '{"firstname":"Erika"}');
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, remedied, pending]));
+
+    expect(kycStepRepo.update).toHaveBeenCalledTimes(1);
+    expect(pending.status).toBe(ReviewStatus.COMPLETED);
+  });
+
+  // The negative twin. initiateStep also cancels a merely PENDING step, so a CANCELED row with no result is
+  // an untouched retry, not a remediation — the FAILED step behind it must still block.
+  it('leaves the chain alone when the cancelled step never completed (no result)', async () => {
+    const failed = personalStep(ReviewStatus.FAILED, 0);
+    const untouched = personalStep(ReviewStatus.CANCELED, 1);
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 2);
+    await run(completeUser([failed, untouched, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Legacy merged-in accounts can carry two IN_PROGRESS steps, the merged-in one at a negative sequence.
+  // Closing that dead step would leave the live one open and the account still wedged.
+  it('closes the live pending step and ignores a merged-in one', async () => {
+    const merged = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.IN_PROGRESS, 0);
+    await run(completeUser([merged, live]));
+
+    expect(live.status).toBe(ReviewStatus.COMPLETED);
+    expect(merged.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // Merged-in rows are history, not the account's own chain: a merge seeds them 100 below the floor, and
+  // batches are ordered chronologically only WITHIN a batch. Left in scope they would both vote on the
+  // verdict and be eligible for closing — completing a dead row while the account has no live step at all.
+  it('does nothing when the only pending step is merged-in', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -100);
+    await run(completeUser([mergedPending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // The shape carried by a number of merged prod accounts: the live chain is already COMPLETED at sequence 0
+  // and only a merged-in leftover is still pending. Closing that dead row would stamp a COMPLETED verdict and
+  // a step log onto history inherited from a merged-away account, and leave two COMPLETED rows behind.
+  it('does nothing when only a merged-in step is pending and the live step is already completed', async () => {
+    const mergedPending = personalStep(ReviewStatus.IN_PROGRESS, -102);
+    const live = personalStep(ReviewStatus.COMPLETED, 0, '{"firstname":"Erika"}');
+    await run(completeUser([mergedPending, live]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(mergedPending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  // restartStep calls fail(undefined, …) and setResult(undefined) keeps the existing value, so a
+  // completed-then-restarted row still carries a stale result. Cancelling it afterwards must not read as a
+  // clean completion — the RESTARTED_STEP marker survives both writes and says the outcome was withdrawn.
+  it('leaves the chain alone when a restarted step was later cancelled but kept its stale result', async () => {
+    const withdrawn = personalStep(
+      ReviewStatus.CANCELED,
+      0,
+      '{"firstname":"Erika"}',
+      'PersonalDataNotMatching;RestartedStep',
+    );
+    const pending = personalStep(ReviewStatus.IN_PROGRESS, 1);
+    await run(completeUser([withdrawn, pending]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(pending.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  it('leaves an already completed step untouched', async () => {
+    const step = personalStep(ReviewStatus.COMPLETED);
+    await run(completeUser([step]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the account data is incomplete', async () => {
+    const step = personalStep(ReviewStatus.IN_PROGRESS);
+    await run(completeUser([step], { surname: undefined }));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+  });
+
+  it('does nothing when there is no PersonalData step', async () => {
+    await run(completeUser([]));
+
+    expect(kycStepRepo.update).not.toHaveBeenCalled();
+    expect((service as any).updateProgress).not.toHaveBeenCalled();
   });
 });

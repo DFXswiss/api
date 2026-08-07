@@ -69,7 +69,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
-import { FileSubType, FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -85,7 +85,6 @@ import {
 } from '../dto/sum-sub.dto';
 import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
-import { FileCategory } from '../enums/file-category.enum';
 import { KycStepCancelable, KycStepIdentRequiredForReview, KycStepName } from '../enums/kyc-step-name.enum';
 import { KycContext, KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
@@ -203,7 +202,9 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true, kycFiles: true, organization: { country: true } } },
+      // No kycFiles: the account-wide file set was loaded for the ident-report check below, which now
+      // asks about the step itself. Nothing else on this path reads it.
+      relations: { userData: { users: true, wallet: true, organization: { country: true } } },
     });
 
     for (const entity of entities) {
@@ -284,10 +285,21 @@ export class KycService {
         // Sumsub idents have files to sync (and an IDENT_REPORT at all), a manual ident uploads its
         // document in updateIdentManual, and syncIdentFilesInternal throws on every other type. An
         // unguarded call therefore wedged manual idents in INTERNAL_REVIEW to be retried forever.
+        //
+        // The document check asks about THIS step, and about its VALID files. Account-wide it asked
+        // whether the account holds an IDENT_REPORT anywhere, so a single older report - an earlier
+        // Sumsub ident, or a Spider-era document catalogued from the legacy storage - switched the
+        // retry net off for every later ident of that account: the step advanced without its
+        // documents, with no error and no log line. A rejected attempt on the step itself is the same
+        // trap one level down, because it stores its documents against that step as invalid; only a
+        // valid report says the documents of THIS ident were fetched.
+        //
+        // Asked last, after the two in-memory conditions: it is a database round trip, and the
+        // conditions in front of it leave only the steps that are about to advance.
         if (
           entity.isSumsub &&
-          !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
-          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
+          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW) &&
+          !(await this.kycFileService.hasValidIdentReport(entity.id))
         )
           await this.syncIdentFilesInternal(entity);
 
@@ -491,12 +503,7 @@ export class KycService {
       if (jwt.tfaRequired) await this.tfaService.check(jwt.account, ip, TfaLevel.STRICT);
     }
 
-    const blob = await this.documentService.downloadFile(
-      FileCategory.USER,
-      kycFile.userData.id,
-      kycFile.type,
-      kycFile.name,
-    );
+    const blob = await this.documentService.downloadKycFile(kycFile, kycFile.userData.id);
 
     const log = `User ${jwt?.account} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);
@@ -650,6 +657,40 @@ export class KycService {
     await this.updateProgress(user, false);
 
     return KycStepMapper.toStepBase(kycStep);
+  }
+
+  /**
+   * Closes a PERSONAL_DATA step for flows that write personal data outside the KYC step machinery
+   * (RealUnit registration), which otherwise leaves it open forever — `initiateStep` will not
+   * auto-complete a step that has been attempted before.
+   *
+   * An open step means one of two things and only the history tells them apart: abandoned, or re-opened
+   * by `restartStep` after identification rejected the data so the user can correct it. Closing the
+   * second would mark rejected data as verified and strand the user on IDENT.
+   */
+  async completeSatisfiedPersonalDataStep(userData: UserData): Promise<void> {
+    const user = await this.userDataService.getUserData(userData.id, { kycSteps: true });
+
+    // Own rows only: a merge seeds inherited steps below 0, and orders them chronologically only within
+    // a batch, so ranking across batches could let older history outrank a newer rejection.
+    const steps = user.getStepsWith(KycStepName.PERSONAL_DATA).filter((s) => s.sequenceNumber >= 0);
+
+    const lastSettled = Util.maxObj(
+      steps.filter((s) => s.hasSettledVerdict),
+      'sequenceNumber',
+    );
+    if (lastSettled?.isRejected) return;
+
+    const kycStep = Util.maxObj(
+      steps.filter((s) => s.isInProgress),
+      'sequenceNumber',
+    );
+    if (!kycStep || !user.isDataComplete) return;
+
+    await this.kycStepRepo.update(...kycStep.complete(user.kycFieldData));
+    await this.createStepLog(user, kycStep);
+
+    await this.updateProgress(user, false);
   }
 
   async updateKycStep(
@@ -1366,8 +1407,7 @@ export class KycService {
         const completedStep = user.getStepsWith(KycStepName.PERSONAL_DATA).find((s) => s.isCompleted);
         if (completedStep) await this.kycStepRepo.update(...completedStep.cancel());
 
-        const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
-        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
+        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(user.kycFieldData);
         break;
       }
 

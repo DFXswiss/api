@@ -17,6 +17,7 @@ import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/tra
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { createCustomBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -254,6 +255,47 @@ describe('BuyFiatPreparationService', () => {
 
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
+    });
+
+    // Same reason as on the buy side: a reviewed account must not be sent through the identical manual
+    // review on every further deposit from a permanently tainted source.
+    it('skips the provider for a compliance-reviewed account', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: true } as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('is not triggered by a phone-call check date', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      // A real UserData, so `hasValidScorechainReview` is computed by the getter instead of being handed
+      // in: reading `phoneCallCheckDate` there — the realistic copy-paste error, the columns are adjacent
+      // on the entity — has to turn this test red, and a hard-coded flag would hide exactly that.
+      jest
+        .spyOn(entity, 'userData', 'get')
+        .mockReturnValue(Object.assign(new UserData(), { id: 42, phoneCallCheckDate: new Date() }));
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
+    });
+
+    it('still screens an account without a valid review', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(entity, 'userData', 'get').mockReturnValue({ id: 42, hasValidScorechainReview: false } as any);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalled();
     });
 
     it('yields no signal (false) and skips the provider for an unsupported chain', async () => {

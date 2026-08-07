@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **537 decorated route entries** across 94 controller files, of which **536 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 299 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **536 decorated route entries** across 94 controller files, of which **535 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 298 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -389,9 +389,9 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/paymentLink` | public | whole rows | 513 | not yet | yes | `PaymentLinkController.getAllPaymentLinks` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink` | public | whole rows | 545 | not yet |  | `PaymentLinkController.createPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink` | public | whole rows | 513 | not yet |  | `PaymentLinkController.updatePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| DELETE | 1 |  | `/paymentLink/:id` | hidden | whole rows | 195 | not yet |  | `PaymentLinkController.deletePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/:id` | hidden | whole rows | 513 | not yet |  | `PaymentLinkController.updatePaymentLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/:id/pos` | hidden | projected | 7 | 4/4 |  | `PaymentLinkController.createPosLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| DELETE | 1 |  | `/paymentLink/:id` | hidden | whole rows | 195 | not yet | yes | `PaymentLinkController.deletePaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/:id` | hidden | whole rows | 513 | not yet | yes | `PaymentLinkController.updatePaymentLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/:id/pos` | hidden | projected | 7 | 4/4 | yes | `PaymentLinkController.createPosLinkAdmin` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/assign` | public | whole rows | 513 | not yet | yes | `PaymentLinkController.assignPaymentLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/config` | public | whole rows | 253 | not yet |  | `PaymentLinkController.getUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/config` | public | whole rows | 253 | not yet |  | `PaymentLinkController.updateUserPaymentLinksConfig` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
@@ -406,7 +406,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/paymentLink/payment` | public | whole rows | 545 | not yet |  | `PaymentLinkController.cancelPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/payment` | hidden | whole rows | 545 | not yet | yes | `PaymentLinkController.createInvoicePayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | POST | 1 |  | `/paymentLink/payment` | public | whole rows | 545 | not yet |  | `PaymentLinkController.createPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
-| PUT | 1 |  | `/paymentLink/payment/:id` | hidden | whole rows | 545 | not yet |  | `PaymentLinkController.updatePaymentLinkPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
+| PUT | 1 |  | `/paymentLink/payment/:id` | hidden | whole rows | 545 | not yet | yes | `PaymentLinkController.updatePaymentLinkPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/payment/confirm` | public | whole rows | 513 | not yet |  | `PaymentLinkController.confirmPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | GET | 1 |  | `/paymentLink/payment/wait` | public | whole rows | 513 | not yet |  | `PaymentLinkController.waitForPayment` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
 | PUT | 1 |  | `/paymentLink/pos` | public | whole rows | 513 | not yet |  | `PaymentLinkController.createPosLink` | `subdomains/core/payment-link/controllers/payment-link.controller.ts` |
@@ -501,7 +501,6 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/ref` | hidden | none | — | n/a |  | `RefController.createRef` | `subdomains/core/referral/process/ref.controller.ts` |
 | POST | 1 |  | `/reward/ref` | hidden | whole rows | 156 | not yet |  | `RefRewardController.createPendingRefRewards` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | 1 |  | `/reward/ref/:id` | hidden | whole rows | 234 | not yet |  | `RefRewardController.updateRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
-| POST | 1 |  | `/reward/ref/manual` | hidden | whole rows | 308 | not yet |  | `RefRewardController.createManualRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | 1 |  | `/reward/ref/volumes` | hidden | whole rows | 308 | not yet |  | `RefRewardController.updateVolumes` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | GET | 1 |  | `/route` | hidden | whole rows | 308 | not yet |  | `RouteController.getAllRoutes` | `subdomains/core/route/route.controller.ts` |
 | PUT | 1 |  | `/route/:id` | hidden | whole rows | 170 | not yet |  | `RouteController.updateRoute` | `subdomains/core/route/route.controller.ts` |

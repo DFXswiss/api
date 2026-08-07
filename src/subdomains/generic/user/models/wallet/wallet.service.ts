@@ -25,7 +25,12 @@ export class WalletService {
   }
 
   async getByAddress(address: string): Promise<Wallet | undefined> {
-    return this.repo.findOneCachedBy(address, { address });
+    // An undefined address is dropped from the where, leaving an unconditioned lookup that returns an
+    // arbitrary wallet. GET /auth/challenge reaches this with no guard, and its own `!wallet`
+    // rejection would never fire.
+    if (!address) return undefined;
+
+    return this.repo.findOneCachedBy(`address:${address}`, { address });
   }
 
   async getByIdOrName(
@@ -33,7 +38,15 @@ export class WalletService {
     name?: string,
     relations: FindOptionsRelations<Wallet> = {},
   ): Promise<Wallet | undefined> {
-    return id || name ? this.repo.findOneCached(`${id}${name}`, { where: [{ id }, { name }], relations }) : undefined;
+    if (!id && !name) return undefined;
+
+    // The relations shape is part of the key: without it a caller that needs no relations and one
+    // that needs `users` share an entry, and whichever asks first decides what the other gets.
+    // Serialised as an array rather than interpolated, so a missing name cannot collide with the
+    // literal string 'undefined' — dto.wallet is a free-text field and could carry exactly that.
+    const key = `idOrName:${JSON.stringify([id, name, relations])}`;
+
+    return this.repo.findOneCached(key, { where: [{ id }, { name }], relations });
   }
 
   async getKycClients(): Promise<Wallet[]> {

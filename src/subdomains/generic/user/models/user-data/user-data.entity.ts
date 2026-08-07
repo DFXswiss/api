@@ -252,6 +252,17 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   serviceProviders?: string; // semicolon separated ServiceProvider add-ons (e.g. RealUnit); DFX core never reads this, only the RealUnit dashboards
 
+  // Date on which compliance reviewed this account's Scorechain findings with the customer and released
+  // them. Written on a compliance release, two ways: explicitly through the compliance tool (admins are
+  // not column-restricted either), and automatically when compliance passes a transaction that hit
+  // ScorechainHighRisk — see `AmlService`. It suppresses the Scorechain screening of this
+  // account's DEPOSITS while it is valid — see `hasValidScorechainReview`. Withdrawal screening is
+  // deliberately never suppressed by it: that control asks whether DFX may pay INTO an address, which a
+  // review of the customer's funding source does not answer. Every other AML check still runs, so a
+  // payment is only released automatically when nothing else is open.
+  @Column({ type: 'timestamp', nullable: true })
+  scorechainCheckDate?: Date;
+
   @Column({ type: 'timestamp', nullable: true })
   phoneCallCheckDate?: Date;
 
@@ -579,8 +590,15 @@ export class UserData extends IEntity {
       : specialAccountValue;
   }
 
+  // Bounded on both sides, like `hasValidScorechainReview` below: `daysDiff` goes negative for a date in
+  // the future, and a negative value satisfies `<=`, so a forward-dated check would stay valid far beyond
+  // `amlCheckLastNameCheckValidity` instead of expiring with it. An implausible date counts as no check at
+  // all, never as a longer one.
   get hasValidNameCheckDate(): boolean {
-    return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
+    if (this.lastNameCheckDate == null) return false;
+
+    const daysSinceCheck = Util.daysDiff(this.lastNameCheckDate);
+    return daysSinceCheck >= 0 && daysSinceCheck <= Config.amlCheckLastNameCheckValidity;
   }
 
   get kycUrl(): string {
@@ -676,6 +694,22 @@ export class UserData extends IEntity {
       RiskStatus.BLOCKED_BUY_FIAT,
       RiskStatus.SUSPICIOUS,
     ].includes(this.riskStatus);
+  }
+
+  // A compliance Scorechain review expires after half a year (`amlScorechainReviewValidity`): the funding
+  // picture of an account is re-assessed rather than trusted indefinitely. Deliberately stricter than the
+  // phoneCall*CheckDate fields this is modelled on — those record a one-off fact about a person, this one
+  // records a risk assessment that ages. Same shape as `hasValidNameCheckDate` above.
+  //
+  // Bounded on BOTH sides on purpose: a date in the future makes `daysDiff` negative, which would suppress
+  // the screening for longer than the configured window. The exemption must never outlast
+  // `amlScorechainReviewValidity`, no matter how the value reached the column (operator typo, direct DB
+  // write, data import) — so an implausible date is treated as no review at all, never as a longer one.
+  get hasValidScorechainReview(): boolean {
+    if (this.scorechainCheckDate == null) return false;
+
+    const daysSinceReview = Util.daysDiff(this.scorechainCheckDate);
+    return daysSinceReview >= 0 && daysSinceReview <= Config.amlScorechainReviewValidity;
   }
 
   get isRiskBlocked(): boolean {
@@ -868,6 +902,10 @@ export class UserData extends IEntity {
     return this.requiredKycFields.every((f) => this[f]);
   }
 
+  get kycFieldData(): Record<string, unknown> {
+    return this.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: this[curr] }), {});
+  }
+
   get requiredInvoiceFields(): string[] {
     return ['accountType'].concat(this.isPersonalAccount ? ['firstname', 'surname'] : ['organizationName']);
   }
@@ -906,6 +944,7 @@ export const UserDataComplianceUpdateCols = [
   'amlAccountType',
   'complexOrgStructure',
   'highRisk',
+  'scorechainCheckDate',
   'phoneCallStatus',
   'phoneCallCheckDate',
   'phoneCallIpCheckDate',

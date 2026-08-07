@@ -4,7 +4,7 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import * as processServiceModule from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, LessThan, MoreThan } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
@@ -127,15 +127,94 @@ describe('PayoutService', () => {
       order.lastError = 'broadcast ambiguous';
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
       const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      const countSpy = jest.spyOn(payoutOrderRepo, 'countBy');
       const infoSpy = jest.spyOn(service['logger'], 'info');
 
       await service.retryUncertainPayout(accountId, baseDto);
 
       expect(updateSpy).toHaveBeenCalledWith(
-        { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN, signedPayoutTxId: IsNull() },
+        {
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          retryCount: 0,
+          signedPayoutTxId: null,
+          signedPayoutTxMetadata: null,
+        },
       );
-      expect(infoSpy).toHaveBeenCalled();
+      // No signed tx to discard, so the audit line must not invent one — and the sibling lookup that
+      // only a signed tx needs must not run at all, or every BTC/EVM retry pays for a DB round-trip.
+      expect(infoSpy.mock.calls[0][0]).not.toContain('discarded signedPayoutTxId');
+      expect(countSpy).not.toHaveBeenCalled();
+    });
+
+    // A signed tx pays every order it was built for. Releasing this one for a rebuild while a sibling
+    // can still relay it means both go out — a double payment the operator's absence check cannot see,
+    // because absence when they looked is not absence once the sibling relays.
+    it('refuses to discard a signed tx a sibling can still relay', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+        signedPayoutTxId: 'SHARED_XMR_TX',
+        signedPayoutTxMetadata: 'META',
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const countSpy = jest.spyOn(payoutOrderRepo, 'countBy').mockResolvedValue(2);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
+
+      await expect(service.retryUncertainPayout(accountId, baseDto)).rejects.toThrow(ConflictException);
+
+      expect(updateSpy).not.toHaveBeenCalled();
+      // Only siblings the automatic path can still act on block it; ones already parked relay nothing,
+      // so a whole group stays resolvable one order at a time rather than deadlocking.
+      expect(countSpy).toHaveBeenCalledWith({
+        id: Not(order.id),
+        signedPayoutTxId: 'SHARED_XMR_TX',
+        status: In([PayoutOrderStatus.PREPARATION_CONFIRMED, PayoutOrderStatus.PAYOUT_DESIGNATED]),
+      });
+    });
+
+    it('proceeds when no sibling can relay the signed tx any more', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+        signedPayoutTxId: 'SHARED_XMR_TX',
+        signedPayoutTxMetadata: 'META',
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(payoutOrderRepo, 'countBy').mockResolvedValue(0);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.retryUncertainPayout(accountId, baseDto);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // #4673: the automatic path re-relays a signed-but-unrelayed transaction, which is always safe, so
+    // nothing else ever clears these columns — a transaction that can no longer be relayed at all would
+    // loop forever. noBroadcastVerified is the operator's assertion that the id is absent from the
+    // chain, and that is what licenses discarding it here. The discarded id goes into the audit log.
+    it('discards a verified-absent signed tx so the order can be rebuilt, and logs the discarded id', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+        retryCount: 3,
+        signedPayoutTxId: 'DEAD_XMR_TX',
+        signedPayoutTxMetadata: 'DEAD_META',
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      const infoSpy = jest.spyOn(service['logger'], 'info');
+
+      await service.retryUncertainPayout(accountId, baseDto);
+
+      expect(updateSpy.mock.calls[0][1]).toMatchObject({ signedPayoutTxId: null, signedPayoutTxMetadata: null });
+      // Pinned on the id the operator actually verified: signPayout writes that column with no status
+      // predicate, so an unpinned WHERE could discard an id nobody checked.
+      expect(updateSpy.mock.calls[0][0]).toMatchObject({ signedPayoutTxId: 'DEAD_XMR_TX' });
+      expect(infoSpy.mock.calls[0][0]).toContain("discarded signedPayoutTxId 'DEAD_XMR_TX'");
     });
 
     it('throws ConflictException when the conditional update affects no rows (concurrent state change)', async () => {

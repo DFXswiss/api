@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **141 `@DfxCron` declarations** across 98 files and 34 areas.
+Every scheduled job this service runs: **144 `@DfxCron` declarations** across 99 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **141 `@DfxCron` declarations** across 98
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-119 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+122 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,10 +31,15 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-117 of the 141 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+120 of the 144 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
+
+There is a further source, hard-coded rather than operable: while the ledger master switch
+(`Config.ledger.enabled`) is off, `Config.disabledProcesses()` returns every `LEDGER_*` process as
+well, which is what keeps those jobs out of the cron lease entirely. The `disabledProcesses`
+setting cannot switch them back on — that takes flipping the master switch and a deploy.
 
 A job **without** a flag runs unconditionally. That is deliberate for nine of them. The four
 `ProcessService::resync*` jobs maintain the disabled set, the JWT denylists and the staff
@@ -74,8 +79,9 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 15 seconds | 1 |
 | 30 seconds | 10 |
 | minute | 53 |
-| 5 minutes | 18 |
-| 10 minutes | 16 |
+| 5 minutes | 19 |
+| 10 minutes | 17 |
+| 15 minutes | 1 |
 | hour | 16 |
 | day at 3am | 1 |
 | day at 4am | 3 |
@@ -92,11 +98,11 @@ Jobs by area:
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
 | `subdomains/generic/user` | 16 | 8 |
-| `subdomains/core/monitoring` | 14 | — |
+| `subdomains/core/monitoring` | 15 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
 | `integration/blockchain` | 7 | — |
-| `subdomains/core/buy-crypto` | 6 | 4 |
+| `subdomains/core/buy-crypto` | 7 | 4 |
 | `shared/services` | 5 | 5 |
 | `subdomains/core/sell-crypto` | 5 | 2 |
 | `subdomains/supporting/payment` | 5 | 1 |
@@ -107,7 +113,7 @@ Jobs by area:
 | `subdomains/supporting/fiat-output` | 4 | — |
 | `subdomains/supporting/support-issue` | 4 | — |
 | `subdomains/core/liquidity-management` | 3 | — |
-| `subdomains/core/referral` | 3 | — |
+| `subdomains/core/referral` | 4 | — |
 | `subdomains/core/trading` | 3 | — |
 | `subdomains/supporting/pricing` | 3 | — |
 | `integration/exchange` | 2 | 1 |
@@ -129,9 +135,9 @@ Jobs by area:
 ## How this list is produced
 
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
-scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
+scan, so multi-line declarations are included — a line-based match misses 28 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **141 = 141**, no gap. Class and
+count is asserted against a raw text count of the decorator: **144 = 144**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -155,7 +161,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 141 declarations, 140 have a registration path.
+here rather than fixed in passing. Of the 144 declarations, 143 have a registration path.
 
 ## Jobs
 
@@ -235,6 +241,7 @@ here rather than fixed in passing. Of the 141 declarations, 140 have a registrat
 | minute | `USER` | `worker` | `UserJobService::fillUser` | `subdomains/generic/user/models/user/user-job.service.ts` |
 | 5 minutes | `PRICING` | `worker` | `AssetPricesJobService::updatePaymentPrices` | `subdomains/supporting/pricing/services/asset-prices-job.service.ts` |
 | 5 minutes | `LNURL_AUTH_CACHE` | `both` | `AuthLnUrlService::processCleanupAuthCache` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
+| 5 minutes | `BANK_PROCESSING_MONITORING` | `worker` | `BankProcessingObserver::fetch` | `subdomains/core/monitoring/observers/bank-processing/bank-processing.observer.ts` |
 | 5 minutes | `BANK_TX_RETURN` | `worker` | `BankTxReturnService::fillBankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts` |
 | 5 minutes | `BANK_TX` | `worker` | `BankTxService::enrichYapealTransactions` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |
 | 5 minutes | `BLOCKCHAIN_CONFIG_CHECK` | `worker` | `BlockchainConfigCheckService::logUnconfiguredClients` | `integration/blockchain/shared/services/blockchain-config-check.service.ts` |
@@ -264,9 +271,11 @@ here rather than fixed in passing. Of the 141 declarations, 140 have a registrat
 | 10 minutes | `PAY_IN` | `worker` | `PayInService::updateFailedPayments` | `subdomains/supporting/payin/services/payin.service.ts` |
 | 10 minutes | `MONITORING` | `worker` | `PaymentObserver::fetch` | `subdomains/core/monitoring/observers/payment.observer.ts` |
 | 10 minutes | `MONITORING` | `worker` | `RealUnitW2wGasObserver::fetch` | `subdomains/core/monitoring/observers/realunit-w2w-gas.observer.ts` |
+| 10 minutes | `REF_PAYOUT` | `worker` | `RefRewardJobService::createRefBonusRewards` | `subdomains/core/referral/reward/services/ref-reward-job.service.ts` |
 | 10 minutes | `REF_PAYOUT` | `worker` | `RefRewardJobService::processPendingRefRewards` | `subdomains/core/referral/reward/services/ref-reward-job.service.ts` |
 | 10 minutes | `MONITORING` | `worker` | `UserObserver::fetch` | `subdomains/core/monitoring/observers/user.observer.ts` |
 | 10 minutes | `ZANO_ASSET_WHITELIST` | `worker` | `ZanoService::setupAssetWhitelist` | `integration/blockchain/zano/services/zano.service.ts` |
+| 15 minutes | `EXTERNAL_CHARGEBACK_MATCH` | `worker` | `BuyCryptoJobService::matchExternalChargebacks` | `subdomains/core/buy-crypto/process/services/buy-crypto-job.service.ts` |
 | hour | `PRICING` | `worker` | `AssetPricesJobService::updatePrices` | `subdomains/supporting/pricing/services/asset-prices-job.service.ts` |
 | hour | `BANK_ACCOUNT` | `worker` | `BankAccountService::reloadErrorBankAccounts` | `subdomains/supporting/bank/bank-account/bank-account.service.ts` |
 | hour | `BINANCE_PAY_CERTIFICATES_UPDATE` | `worker` | `BinancePayService::updateCertificates` | `integration/binance-pay/services/binance-pay.service.ts` |
