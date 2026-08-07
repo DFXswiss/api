@@ -4,7 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { PricingProviderMap } from '../interfaces';
-import { Price } from './price';
+import { Price, PriceStep } from './price';
 
 export enum PriceSource {
   KRAKEN = 'Kraken',
@@ -93,9 +93,18 @@ export class PriceRule extends IEntity {
   @Column({ type: 'float', nullable: true })
   currentPrice?: number;
 
+  // Optional dual-sided market (e.g. Denario bid). priceTimestamp is shared: both buy and sell
+  // quotes are written in the same update cycle.
+  @Column({ nullable: true })
+  sellPriceSource?: string; // {src}:{param}:{name}
+
+  @Column({ type: 'float', nullable: true })
+  currentSellPrice?: number;
+
   @Column({ type: 'integer' })
   priceValiditySeconds: number;
 
+  // Shared by currentPrice and currentSellPrice — both come from the same update cycle.
   @Column({ type: 'timestamp', nullable: true })
   priceTimestamp?: Date;
 
@@ -124,17 +133,30 @@ export class PriceRule extends IEntity {
     return Util.hoursDiff(this.priceTimestamp) >= 24;
   }
 
-  getPrice(providers: PricingProviderMap): Price {
-    if (!this.currentPrice || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
+  /**
+   * @param preferSellPrice When true and currentSellPrice is set, that value is used instead of
+   *   currentPrice. Reference-hop rules in a chain leave preferSellPrice false so only the asset's
+   *   own first rule can switch to the sell side.
+   */
+  getPrice(providers: PricingProviderMap, preferSellPrice = false): Price {
+    const useSell = preferSellPrice && this.currentSellPrice != null;
+    const priceValue = useSell ? this.currentSellPrice : this.currentPrice;
+    if (!priceValue || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
 
-    return Price.create(
-      this.from,
-      this.to,
-      this.currentPrice,
-      this.isPriceValid,
-      this.priceTimestamp,
-      providers[this.rule.source].getPriceStep(this),
-    );
+    const providerStep = providers[this.rule.source].getPriceStep(this);
+    // getPriceStep always reads currentPrice (buy). When quoting the sell side, rebuild the step
+    // with currentSellPrice while keeping the provider's source/from/to labels.
+    const step = useSell
+      ? PriceStep.create(
+          providerStep.source,
+          providerStep.from,
+          providerStep.to,
+          this.currentSellPrice,
+          this.priceTimestamp,
+        )
+      : providerStep;
+
+    return Price.create(this.from, this.to, priceValue, this.isPriceValid, this.priceTimestamp, step);
   }
 
   get rule(): Rule {
@@ -143,6 +165,17 @@ export class PriceRule extends IEntity {
       asset: this.priceAsset,
       reference: this.priceReference,
     };
+  }
+
+  /** Sell-side source, if configured. Same asset/reference as the buy rule; only source/param differ. */
+  get sellRule(): Rule | undefined {
+    return this.sellPriceSource
+      ? {
+          ...this.parseSource(this.sellPriceSource),
+          asset: this.priceAsset,
+          reference: this.priceReference,
+        }
+      : undefined;
   }
 
   get check1(): Rule {

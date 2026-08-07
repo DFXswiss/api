@@ -49,7 +49,7 @@ describe('PricingDenarioService', () => {
     jest.restoreAllMocks();
   });
 
-  it('DGC → USD: convert(1) equals priceAsk (not bid, not mid)', async () => {
+  it('DGC → USD without param: convert(1) equals priceAsk (not bid, not mid)', async () => {
     http.get.mockResolvedValue(goldUsdResponse);
 
     const price = await service.getPrice('DGC', 'USD');
@@ -64,6 +64,30 @@ describe('PricingDenarioService', () => {
     expect(Math.abs(price.convert(1) - mid)).toBeGreaterThan(0.0001);
   });
 
+  it("DGC → USD with param='bid': convert(1) equals priceBid (not ask)", async () => {
+    http.get.mockResolvedValue(goldUsdResponse);
+
+    const price = await service.getPrice('DGC', 'USD', 'bid');
+
+    expect(Math.abs(price.convert(1) - 4259.41142)).toBeLessThanOrEqual(0.0001);
+    expect(price.isValid).toBe(true);
+
+    // Anti-mutation: if bid still took the ask, convert(1) would match ask instead.
+    expect(Math.abs(price.convert(1) - 4511.00359)).toBeGreaterThan(0.0001);
+  });
+
+  it('same response yields ask without param and bid with param=bid', async () => {
+    http.get.mockResolvedValue(goldUsdResponse);
+
+    const askPrice = await service.getPrice('DGC', 'USD');
+    const bidPrice = await service.getPrice('DGC', 'USD', 'bid');
+
+    expect(Math.abs(askPrice.convert(1) - 4511.00359)).toBeLessThanOrEqual(0.0001);
+    expect(Math.abs(bidPrice.convert(1) - 4259.41142)).toBeLessThanOrEqual(0.0001);
+    // Same HTTP body, two distinct market sides.
+    expect(Math.abs(askPrice.convert(1) - bidPrice.convert(1))).toBeGreaterThan(1);
+  });
+
   it('USD → DGC: inverted ask direction', async () => {
     http.get.mockResolvedValue(goldUsdResponse);
 
@@ -75,6 +99,16 @@ describe('PricingDenarioService', () => {
     expect(Math.abs(price.convert(1) - 4511.00359)).toBeGreaterThan(1);
   });
 
+  it("USD → DGC with param='bid': inverted bid direction", async () => {
+    http.get.mockResolvedValue(goldUsdResponse);
+
+    const price = await service.getPrice('USD', 'DGC', 'bid');
+
+    expect(Math.abs(price.convert(1) - 1 / 4259.41142)).toBeLessThanOrEqual(1e-10);
+    // Anti-mutation: must not use the ask for the inverted bid path.
+    expect(Math.abs(price.convert(1) - 1 / 4511.00359)).toBeGreaterThan(1e-8);
+  });
+
   it('DSC → CHF: convert(1) equals priceAsk', async () => {
     http.get.mockResolvedValue(silverChfResponse);
 
@@ -82,6 +116,15 @@ describe('PricingDenarioService', () => {
 
     expect(Math.abs(price.convert(1) - 56.75893)).toBeLessThanOrEqual(0.0001);
     expect(Math.abs(price.convert(1) - 49.01426)).toBeGreaterThan(0.0001);
+  });
+
+  it("DSC → CHF with param='bid': convert(1) equals priceBid", async () => {
+    http.get.mockResolvedValue(silverChfResponse);
+
+    const price = await service.getPrice('DSC', 'CHF', 'bid');
+
+    expect(Math.abs(price.convert(1) - 49.01426)).toBeLessThanOrEqual(0.0001);
+    expect(Math.abs(price.convert(1) - 56.75893)).toBeGreaterThan(0.0001);
   });
 
   it('sets X-AUTH-TOKEN from config and calls the singular goldcoin path', async () => {
@@ -201,6 +244,17 @@ describe('PricingDenarioService', () => {
 
     await expect(service.getPrice('DGC', 'USD')).rejects.toThrow(messagePart);
     // Fallback must not mask a bad quote.
+    expect(assetService.getAssetByQuery).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['0', 'not a sane price'],
+    [null, 'missing or empty'],
+    ['not-a-number', 'not a finite number'],
+  ] as const)('throws for implausible priceBid %j when param=bid', async (priceBid, messagePart) => {
+    http.get.mockResolvedValue({ ...goldUsdResponse, priceBid });
+
+    await expect(service.getPrice('DGC', 'USD', 'bid')).rejects.toThrow(messagePart);
     expect(assetService.getAssetByQuery).not.toHaveBeenCalled();
   });
 });

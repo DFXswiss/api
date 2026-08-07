@@ -50,22 +50,20 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     this.assetService = this.moduleRef.get(AssetService, { strict: false });
   }
 
-  async getPrice(from: string, to: string): Promise<Price> {
+  async getPrice(from: string, to: string, param?: string): Promise<Price> {
     const { token, currency } = this.resolvePair(from, to);
 
-    const livePrice = await this.getLiveAsk(token, currency);
+    const livePrice = await this.getLivePrice(token, currency, param);
     if (livePrice != null) return this.toPrice(from, to, token, livePrice);
 
     // Live feed unavailable or stale: fall back to the last persisted asset price so estimates
     // keep working during an outage. Flagged invalid so the rule update does not store it as fresh
     // and VALID_ONLY consumers still skip it.
     //
-    // Deliberate decision (DFX, 2026-08-06): both directions are priced off priceAsk. A price_rule
-    // holds exactly one price and asset.priceRuleId points at exactly one rule, so the sell path
-    // derives from Price.invert() of the same Ask rather than from priceBid. Denario quotes a wide
-    // two-sided market — gold 4511.00359 against 4259.41142 USD and silver 56.75893 against
-    // 49.01426 CHF on 2026-08-06 — so a sell settles above Denario's own buy-back level and the
-    // difference has to be carried by the fee configuration rather than by the rate.
+    // Buy is priced off priceAsk; sell is priced off priceBid when the rule is configured with
+    // sellPriceSource 'Denario:bid' (param === 'bid'). Both values come from the same Denario
+    // response. Without param (or any value other than 'bid') the ask is used — the previous
+    // default for both directions.
     const fallback = await this.getLastKnownPrice(token, currency);
     if (fallback == null) throw new Error(`No price available for ${from} -> ${to}`);
 
@@ -86,7 +84,7 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     throw new Error(`from asset ${from} to asset ${to} is not allowed`);
   }
 
-  private async getLiveAsk(token: string, currency: string): Promise<number | null> {
+  private async getLivePrice(token: string, currency: string, param?: string): Promise<number | null> {
     const apiKey = Config.denario?.apiKey;
     const baseUrl = Config.denario?.baseUrl;
     if (!apiKey || !baseUrl) {
@@ -116,13 +114,16 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
       return null;
     }
 
+    // param === 'bid' → priceBid; otherwise priceAsk (including no param — today's default).
+    const field: 'priceBid' | 'priceAsk' = param === 'bid' ? 'priceBid' : 'priceAsk';
+
     // Missing field → fallback. Present but invalid (null, "0", non-numeric, insane) → throw.
-    if (response.priceAsk === undefined) {
-      this.logger.info(`Denario response for ${token}/${currency} missing priceAsk`);
+    if (response[field] === undefined) {
+      this.logger.info(`Denario response for ${token}/${currency} missing ${field}`);
       return null;
     }
 
-    const ask = this.parseAsk(response.priceAsk, token, currency);
+    const value = this.parsePrice(response[field], field, token, currency);
 
     if (!response.priceDate) {
       this.logger.info(`Denario response for ${token}/${currency} missing priceDate`);
@@ -143,23 +144,28 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
       return null;
     }
 
-    return ask;
+    return value;
   }
 
-  private parseAsk(raw: string | null | undefined, token: string, currency: string): number {
+  private parsePrice(
+    raw: string | null | undefined,
+    field: 'priceAsk' | 'priceBid',
+    token: string,
+    currency: string,
+  ): number {
     if (raw == null || (typeof raw === 'string' && raw.trim() === '')) {
-      throw new Error(`Denario priceAsk for ${token}/${currency} is missing or empty`);
+      throw new Error(`Denario ${field} for ${token}/${currency} is missing or empty`);
     }
 
-    const ask = Number(raw);
-    if (!Number.isFinite(ask)) {
-      throw new Error(`Denario priceAsk for ${token}/${currency} is not a finite number: '${raw}'`);
+    const price = Number(raw);
+    if (!Number.isFinite(price)) {
+      throw new Error(`Denario ${field} for ${token}/${currency} is not a finite number: '${raw}'`);
     }
-    if (!Asset.isSanePrice(ask)) {
-      throw new Error(`Denario priceAsk for ${token}/${currency} is not a sane price: ${ask}`);
+    if (!Asset.isSanePrice(price)) {
+      throw new Error(`Denario ${field} for ${token}/${currency} is not a sane price: ${price}`);
     }
 
-    return ask;
+    return price;
   }
 
   private async getLastKnownPrice(token: string, currency: string): Promise<{ price: number; timestamp: Date } | null> {
@@ -181,16 +187,16 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     from: string,
     to: string,
     token: string,
-    askPrice: number,
+    marketPrice: number,
     isValid = true,
     timestamp = new Date(),
   ): Price {
     // Price.create(from, to, price); Price.convert divides by price.
-    // Token → currency: stored value is 1/ask so convert(1) yields ask.
-    // Currency → token: stored value is ask so convert(1) yields 1/ask.
-    // 12 decimals (not 8): gold asks are ~10^3–10^4, so 1/ask needs enough digits for
-    // convert(1) to recover the ask within 0.0001 (8 decimals would leave ~0.1 USD error).
-    const assetPrice = from === token ? 1 / askPrice : askPrice;
+    // Token → currency: stored value is 1/market so convert(1) yields market.
+    // Currency → token: stored value is market so convert(1) yields 1/market.
+    // 12 decimals (not 8): gold quotes are ~10^3–10^4, so 1/price needs enough digits for
+    // convert(1) to recover the market price within 0.0001 (8 decimals would leave ~0.1 USD error).
+    const assetPrice = from === token ? 1 / marketPrice : marketPrice;
 
     return Price.create(from, to, Util.round(assetPrice, 12), isValid, timestamp);
   }

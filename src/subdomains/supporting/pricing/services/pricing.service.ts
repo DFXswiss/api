@@ -220,7 +220,9 @@ export class PricingService implements OnModuleInit {
         ),
       ]);
 
-      const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
+      // from = sell side (prefer currentSellPrice on the asset's own first rule), to = buy side
+      // (currentPrice). Reference hops in either chain keep currentPrice.
+      const price = Price.join(this.joinRules(fromRules, true), this.joinRules(toRules).invert());
 
       if (!price.isValid && validity === PriceValidity.VALID_ONLY) {
         if (tryCount > 1) return await this.getPrice(from, to, validity, tryCount - 1);
@@ -297,20 +299,31 @@ export class PricingService implements OnModuleInit {
   }
 
   private async doUpdatePriceFor(rule: PriceRule, from?: Active): Promise<PriceRule> {
-    const [price, check1Price, check2Price] = await Promise.all([
+    const [price, check1Price, check2Price, sellPrice] = await Promise.all([
       this.getRulePrice(rule.rule),
       rule.check1 && this.getRulePrice(rule.check1),
       rule.check2 && this.getRulePrice(rule.check2),
+      // Only fetch a sell quote when the rule is dual-sided; most rules have no sellPriceSource.
+      rule.sellRule && this.getRulePrice(rule.sellRule),
     ]);
 
     const source = from?.name ?? price.source;
     const target = rule.reference?.name ?? price.target;
 
+    // check1/check2 deliberately only validate the buy price: their limit is calibrated against
+    // the ask. The sell quote is only sanity-checked via Asset.isSanePrice below.
     if (
       price.isValid &&
       (await this.isPriceValid(source, target, price.price, rule.check1, check1Price)) &&
       (await this.isPriceValid(source, target, price.price, rule.check2, check2Price))
     ) {
+      // Fail-closed for dual-sided rules: if the sell quote is configured but unusable, leave the
+      // whole row untouched (no half-updated currentPrice / priceTimestamp).
+      if (rule.sellRule) {
+        if (!sellPrice?.isValid || !Asset.isSanePrice(sellPrice.price)) return rule;
+        rule.currentSellPrice = sellPrice.price;
+      }
+
       rule.currentPrice = price.price;
       rule.priceTimestamp = new Date();
       return this.priceRuleRepo.save(rule);
@@ -364,13 +377,19 @@ export class PricingService implements OnModuleInit {
     return `${isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
   }
 
-  private joinRules(rules: PriceRule[]): Price {
-    return Price.join(...rules.map((r) => r.getPrice(this.providerMap)));
+  /**
+   * @param preferSellPriceOnFirst When true, the first rule in the chain (the asset's own rule)
+   *   uses currentSellPrice if present; reference hops always use currentPrice.
+   */
+  private joinRules(rules: PriceRule[], preferSellPriceOnFirst = false): Price {
+    return Price.join(...rules.map((r, i) => r.getPrice(this.providerMap, preferSellPriceOnFirst && i === 0)));
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
+    // Include param in the cache key so bid and ask of the same pair do not collide
+    // (e.g. Denario:DGC/USD with and without param 'bid').
     return this.providerPriceCache
-      .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
+      .get(`${rule.source}:${rule.param ?? ''}:${rule.asset}/${rule.reference}`, () =>
         this.getPriceFrom(rule.source, rule.asset, rule.reference, rule.param),
       )
       .catch((e) => {
