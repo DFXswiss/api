@@ -124,19 +124,29 @@ function expectJoins(
   for (const method of ['leftJoinAndSelect', 'leftJoin'] as const) {
     const calls = expected[method] ?? [];
     expect(qb[method]).toHaveBeenCalledTimes(calls.length);
-    if (calls.length) {
-      expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
-      expectParentBeforeChild(qb[method].mock.calls as [string, string][]);
-    }
+    if (calls.length) expect(qb[method].mock.calls).toEqual(expect.arrayContaining(calls));
   }
+
+  expectParentBeforeChild(qb);
 }
 
 // The one ordering the query does require: a nested join reads an alias the parent join introduced,
-// so the parent can never come second. Siblings stay unordered.
-function expectParentBeforeChild(calls: [string, string][]): void {
-  const aliasPosition = new Map(calls.map(([, alias], index) => [alias, index]));
+// so the parent can never come second. Siblings stay unordered. Both variants are merged by their
+// global invocation order, because a parent introduced by one is a valid source for the other's child.
+function expectParentBeforeChild(qb: QueryBuilderMock): void {
+  const joins = (['leftJoinAndSelect', 'leftJoin'] as const)
+    .flatMap((method) =>
+      qb[method].mock.calls.map((call, index) => ({
+        path: call[0] as string,
+        alias: call[1] as string,
+        invocation: qb[method].mock.invocationCallOrder[index],
+      })),
+    )
+    .sort((a, b) => a.invocation - b.invocation);
 
-  calls.forEach(([path], index) => {
+  const aliasPosition = new Map(joins.map(({ alias }, index) => [alias, index]));
+
+  joins.forEach(({ path }, index) => {
     const parent = aliasPosition.get(path.split('.')[0]);
     if (parent !== undefined) expect(parent).toBeLessThan(index);
   });
@@ -653,18 +663,27 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 
-  it('resume() rejects a stopped transaction with a chargeback in progress', async () => {
+  // Every field of the refund guard on its own: the condition is a seven-way OR, so a disjunct that
+  // no test sets in isolation can be deleted without any test noticing.
+  it.each([
+    ['a chargeback the support desk allowed', { chargebackAllowedDate: new Date() }],
+    ['a chargeback the user requested', { chargebackAllowedDateUser: new Date() }],
+    ['a chargeback that already went out', { chargebackDate: new Date() }],
+    ['a chargeback with a crypto payout', { chargebackCryptoTxId: '0xabc' }],
+  ])('resume() rejects a stopped transaction with %s', async (_, refundState) => {
     const buyCrypto = Object.assign(new BuyCrypto(), {
       id: 7,
       status: BuyCryptoStatus.STOPPED,
       amlCheck: CheckStatus.PASS,
-      chargebackAllowedDateUser: new Date(),
+      ...refundState,
     });
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     const manager = mockResumeManager(buyCrypto);
 
-    await expect(service.resume(99)).rejects.toThrow(BadRequestException);
+    await expect(service.resume(99)).rejects.toThrow(
+      'Transactions with a refund or forward in progress cannot be resumed',
+    );
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -821,6 +840,36 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const manager = mockResumeManager(buyCrypto);
 
     await expect(service.resume(99)).rejects.toThrow('Only transactions with passed AML check can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched, AML-failed transaction as failing the AML check', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.FAIL,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Only transactions with passed AML check can be resumed');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('resume() reports a batched, unstopped transaction as not stopped', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.COMPLETE,
+      amlCheck: CheckStatus.PASS,
+      batch: Object.assign(new BuyCryptoBatch(), { id: 1 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await expect(service.resume(99)).rejects.toThrow('Transaction is not stopped');
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -1355,6 +1404,24 @@ describe('TransactionService (query builders)', () => {
         outputFrom,
         outputTo,
       });
+    });
+
+    it('adds the output period to an open-ended creation period', async () => {
+      const dateTo = new Date('2024-02-01');
+      const outputFrom = new Date('2024-03-01');
+      const { qb, innerQb } = createQueryBuilderMock({ getMany: [] });
+      jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(qb as never);
+
+      // `dateTo` alone still counts as a creation period, so the output filter has to be appended.
+      // Assigned instead, it would drop the creation bound that was just set.
+      await service.getTransactionList(undefined, dateTo, outputFrom);
+
+      expect(innerQb.where).toHaveBeenCalledWith('transaction.created <= :dateTo', { dateTo });
+      expect(innerQb.andWhere).toHaveBeenCalledWith('transaction.outputDate >= :outputFrom', {
+        outputFrom,
+        outputTo: undefined,
+      });
+      expect(innerQb.where).toHaveBeenCalledTimes(1);
     });
 
     it('filters on the output period alone', async () => {
