@@ -184,6 +184,12 @@ export class BuyCrypto extends IEntity {
   @Column({ nullable: true })
   highRisk?: boolean;
 
+  // The Scorechain screening that produced this tx's high-risk verdict (see
+  // buy-crypto-preparation.screenScorechain). Persisted so a later compliance release can bind its
+  // address exemption to exactly the reviewed screening instead of guessing by address.
+  @Column({ nullable: true })
+  scorechainScreeningId?: number;
+
   // Fee
   @Column({ length: 256, nullable: true })
   usedFees?: string; // Semicolon separated id's

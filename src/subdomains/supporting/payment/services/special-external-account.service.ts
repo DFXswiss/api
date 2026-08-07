@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { In, Raw } from 'typeorm';
 import { CreateSpecialExternalAccountDto } from '../dto/input/create-special-external-account.dto';
 import { SpecialExternalAccount, SpecialExternalAccountType } from '../entities/special-external-account.entity';
 import { SpecialExternalAccountRepository } from '../repositories/special-external-account.repository';
@@ -11,15 +10,21 @@ export class SpecialExternalAccountService {
   constructor(private readonly specialExternalAccountRepo: SpecialExternalAccountRepository) {}
 
   async createSpecialExternalAccount(dto: CreateSpecialExternalAccountDto): Promise<SpecialExternalAccount> {
-    const existing = await this.specialExternalAccountRepo.findOneBy({
-      type: dto.type,
-      value: dto.value,
-    });
-    if (existing) throw new BadRequestException('Special external account already created');
+    // Exempt-address rows are append-only events (each registration restarts the validity window),
+    // so duplicates are legitimate there; every other type is unique.
+    if (dto.type !== SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS) {
+      const existing = await this.specialExternalAccountRepo.findOneBy({ type: dto.type, value: dto.value });
+      if (existing) throw new BadRequestException('Special external account already created');
+    }
 
     const specialExternalAccount = this.specialExternalAccountRepo.create(dto);
+    const saved = await this.specialExternalAccountRepo.save(specialExternalAccount);
 
-    return this.specialExternalAccountRepo.save(specialExternalAccount);
+    // The list lookups of the other types are served from the 5-minute cache — a manual admin write
+    // must become visible on this instance without waiting for the TTL.
+    this.specialExternalAccountRepo.invalidateCache();
+
+    return saved;
   }
 
   async getMultiAccounts(): Promise<SpecialExternalAccount[]> {
@@ -46,50 +51,39 @@ export class SpecialExternalAccountService {
     );
   }
 
-  // Whether a payout address was reviewed and exempted from the Scorechain withdrawal gate.
-  // Exact, case-insensitive comparison — deliberately NOT the regex matching of the ban lists: an
-  // exemption suppresses an AML control, so an entry must never be able to cover more than the one
-  // reviewed address. Only the Scorechain gate is skipped; every other AML check still applies.
+  // Whether a payout address was reviewed and exempted from the Scorechain withdrawal gate on this
+  // chain. Exact, case-insensitive match on (blockchain, address) — deliberately NOT the regex
+  // matching of the ban lists: an exemption suppresses an AML control, so an entry must never cover
+  // more than the one reviewed address on the one reviewed chain.
   //
-  // An exemption ages like the account-level review: it counts for `amlScorechainReviewValidity` days
-  // from its last (re-)registration, then the address is screened again. Bounded on both sides for the
-  // same reason as `UserData.hasValidScorechainReview` — an implausible future date must be treated as
-  // no review at all, never as a longer one.
-  async isScorechainExemptAddress(address: string): Promise<boolean> {
-    const exemptions = await this.specialExternalAccountRepo.findCachedBy('ScorechainExemptAddresses', {
-      type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+  // Deliberately UNCACHED: this gates a billable AML control, so a revocation (deleting the rows)
+  // must take effect immediately on every instance; the check runs once per pending payout in the
+  // preparation job, far off any hot path.
+  async isScorechainExemptAddress(blockchain: Blockchain, address: string): Promise<boolean> {
+    const exemptions = await this.specialExternalAccountRepo.find({
+      where: {
+        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+        blockchain,
+        value: Raw((alias) => `LOWER(${alias}) = :address`, { address: address.toLowerCase() }),
+      },
     });
 
-    return exemptions.some((e) => {
-      if (!e.value || !Util.equalsIgnoreCase(e.value, address)) return false;
-
-      const daysSinceReview = Util.daysDiff(e.updated);
-      return daysSinceReview >= 0 && daysSinceReview <= Config.amlScorechainReviewValidity;
-    });
+    return exemptions.some((e) => e.hasValidScorechainExemption);
   }
 
-  // Records a compliance release of a Scorechain-flagged payout address. Upsert keyed on the
-  // case-insensitive address: a re-release refreshes `updated` and thereby restarts the validity
-  // window instead of stacking duplicate rows. Reads uncached — the 5-minute list cache must not
-  // resurrect a just-replaced row, and this path is far off the hot path.
-  async registerScorechainExemptAddress(address: string, comment: string): Promise<void> {
-    const existing = await this.specialExternalAccountRepo
-      .findBy({ type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS })
-      .then((list) => list.find((e) => e.value && Util.equalsIgnoreCase(e.value, address)));
-
-    if (existing) {
-      await this.specialExternalAccountRepo.update(existing.id, { comment });
-    } else {
-      await this.specialExternalAccountRepo.save(
-        this.specialExternalAccountRepo.create({
-          type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-          value: address,
-          comment,
-        }),
-      );
-    }
-
-    this.specialExternalAccountRepo.invalidateCache();
+  // Records a compliance release of a Scorechain-flagged payout address. Append-only: every release
+  // is an immutable event row, the validity window runs from the row's `created` date. No upsert —
+  // the previous registration (when, from which release) must stay reconstructible, and concurrent
+  // releases must not race a check-then-act. Revoking an exemption means deleting ALL its valid rows.
+  async registerScorechainExemptAddress(blockchain: Blockchain, address: string, comment: string): Promise<void> {
+    await this.specialExternalAccountRepo.save(
+      this.specialExternalAccountRepo.create({
+        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+        blockchain,
+        value: address,
+        comment,
+      }),
+    );
   }
 
   async getPhoneCallList(): Promise<SpecialExternalAccount[]> {

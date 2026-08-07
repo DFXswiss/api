@@ -1,8 +1,13 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { SpecialExternalAccountType } from '../../entities/special-external-account.entity';
+import { Util } from 'src/shared/utils/util';
 import { createCustomSpecialExternalAccount } from '../../__mocks__/special-external-account.entity.mock';
+import { CreateSpecialExternalAccountDto } from '../../dto/input/create-special-external-account.dto';
+import { SpecialExternalAccount, SpecialExternalAccountType } from '../../entities/special-external-account.entity';
 import { SpecialExternalAccountRepository } from '../../repositories/special-external-account.repository';
 import { SpecialExternalAccountService } from '../special-external-account.service';
 
@@ -24,138 +29,128 @@ describe('SpecialExternalAccountService', () => {
     service = module.get<SpecialExternalAccountService>(SpecialExternalAccountService);
   });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.create.mockImplementation((dto) => Object.assign(new SpecialExternalAccount(), dto));
+  });
+
   describe('isScorechainExemptAddress', () => {
-    const exemption = createCustomSpecialExternalAccount({
-      type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-      value: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
-      updated: new Date(),
-    });
+    const address = '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5';
 
-    it('matches an exempted address exactly', async () => {
-      repo.findCachedBy.mockResolvedValue([exemption]);
+    it('returns true for a valid exemption on the same chain', async () => {
+      const exemption = createCustomSpecialExternalAccount({
+        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+        blockchain: Blockchain.ETHEREUM,
+        value: address,
+        created: new Date(),
+      });
+      // repo.find is SQL-filtered; the test supplies the already-filtered list for this call.
+      repo.find.mockResolvedValue([exemption]);
 
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(true);
-    });
-
-    it('matches case-insensitively (checksum vs. lowercase address)', async () => {
-      repo.findCachedBy.mockResolvedValue([exemption]);
-
-      await expect(service.isScorechainExemptAddress('0xfa73137a652633302dedc91a79ebdadb81e0d2c5')).resolves.toBe(true);
-    });
-
-    it('does not match a different address', async () => {
-      repo.findCachedBy.mockResolvedValue([exemption]);
-
-      await expect(service.isScorechainExemptAddress('0x0000000000000000000000000000000000000001')).resolves.toBe(
-        false,
-      );
-    });
-
-    it('does not treat an exemption value as a regex/prefix pattern', async () => {
-      repo.findCachedBy.mockResolvedValue([
-        createCustomSpecialExternalAccount({
-          type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-          value: '0xFA73',
+      await expect(service.isScorechainExemptAddress(Blockchain.ETHEREUM, address)).resolves.toBe(true);
+      expect(repo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+            blockchain: Blockchain.ETHEREUM,
+          }),
         }),
-      ]);
-
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(
-        false,
       );
+      expect(repo.findCachedBy).not.toHaveBeenCalled();
     });
 
-    it('returns false when no exemptions exist', async () => {
-      repo.findCachedBy.mockResolvedValue([]);
+    it('returns false when no row exists for the requested chain (other-chain rows filtered out by SQL)', async () => {
+      // Simulates SQL where-filtering: a different-chain row would not be returned by find.
+      repo.find.mockResolvedValue([]);
 
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(
-        false,
-      );
-    });
-
-    it('ignores entries without a value', async () => {
-      repo.findCachedBy.mockResolvedValue([
-        createCustomSpecialExternalAccount({
-          type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-          value: undefined,
-          updated: new Date(),
+      await expect(service.isScorechainExemptAddress(Blockchain.BITCOIN, address)).resolves.toBe(false);
+      expect(repo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+            blockchain: Blockchain.BITCOIN,
+          }),
         }),
-      ]);
-
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(
-        false,
       );
     });
 
-    // An exemption ages like the account-level review: after the validity window the address is
-    // screened again, no matter how the entry was registered.
-    it('does not honor an expired exemption', async () => {
-      repo.findCachedBy.mockResolvedValue([
-        createCustomSpecialExternalAccount({
-          type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-          value: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
-          updated: new Date(Date.now() - 181 * 24 * 60 * 60 * 1000),
-        }),
-      ]);
+    it('returns false for an expired exemption row', async () => {
+      const expired = createCustomSpecialExternalAccount({
+        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+        blockchain: Blockchain.ETHEREUM,
+        value: address,
+        created: Util.daysBefore(Config.amlScorechainReviewValidity + 1),
+      });
+      repo.find.mockResolvedValue([expired]);
 
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(
-        false,
-      );
-    });
-
-    // Bounded on both sides like UserData.hasValidScorechainReview: an implausible future date must
-    // never suppress the screening for longer than the configured window.
-    it('does not honor an exemption with a future date', async () => {
-      repo.findCachedBy.mockResolvedValue([
-        createCustomSpecialExternalAccount({
-          type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-          value: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
-          updated: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-        }),
-      ]);
-
-      await expect(service.isScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5')).resolves.toBe(
-        false,
-      );
+      await expect(service.isScorechainExemptAddress(Blockchain.ETHEREUM, address)).resolves.toBe(false);
     });
   });
 
   describe('registerScorechainExemptAddress', () => {
-    beforeEach(() => {
-      repo.findBy.mockReset();
-      repo.update.mockReset();
-      repo.save.mockReset();
-      repo.create.mockImplementation((dto) => dto as any);
-    });
-
-    it('creates a new entry for an unknown address', async () => {
-      repo.findBy.mockResolvedValue([]);
-
-      await service.registerScorechainExemptAddress('0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5', 'released tx 7');
+    it('saves an append-only event row with type, blockchain, value and comment', async () => {
+      await service.registerScorechainExemptAddress(
+        Blockchain.ETHEREUM,
+        '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
+        'released tx 7',
+      );
 
       expect(repo.save).toHaveBeenCalledWith(
         expect.objectContaining({
           type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+          blockchain: Blockchain.ETHEREUM,
           value: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
           comment: 'released tx 7',
         }),
       );
       expect(repo.update).not.toHaveBeenCalled();
+      expect(repo.findBy).not.toHaveBeenCalled();
+      expect(repo.find).not.toHaveBeenCalled();
+    });
+
+    // Append-only: every release is a new immutable event row; concurrent re-releases must not
+    // race a check-then-act upsert.
+    it('saves a second row on re-registration without update or prior lookup', async () => {
+      await service.registerScorechainExemptAddress(Blockchain.ETHEREUM, '0xabc', 'released tx 7');
+      await service.registerScorechainExemptAddress(Blockchain.ETHEREUM, '0xabc', 'released tx 8');
+
+      expect(repo.save).toHaveBeenCalledTimes(2);
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(repo.findBy).not.toHaveBeenCalled();
+      expect(repo.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createSpecialExternalAccount', () => {
+    it('allows duplicate SCORECHAIN_EXEMPT_ADDRESS rows and invalidates the list cache', async () => {
+      const dto = {
+        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
+        value: '0xabc',
+        blockchain: Blockchain.ETHEREUM,
+        comment: 'manual release',
+      } as CreateSpecialExternalAccountDto;
+      const saved = Object.assign(new SpecialExternalAccount(), dto, { id: 9 });
+      repo.save.mockResolvedValue(saved);
+
+      await expect(service.createSpecialExternalAccount(dto)).resolves.toBe(saved);
+      expect(repo.findOneBy).not.toHaveBeenCalled();
+      expect(repo.save).toHaveBeenCalled();
       expect(repo.invalidateCache).toHaveBeenCalled();
     });
 
-    // A re-release refreshes the existing row (restarting the validity window via `updated`) instead
-    // of stacking duplicates — matched case-insensitively like the lookup.
-    it('updates the existing entry for a known address, matched case-insensitively', async () => {
-      const existing = createCustomSpecialExternalAccount({
-        id: 12,
-        type: SpecialExternalAccountType.SCORECHAIN_EXEMPT_ADDRESS,
-        value: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
-      });
-      repo.findBy.mockResolvedValue([existing]);
+    it('still rejects a duplicate non-exemption type with BadRequestException', async () => {
+      const dto = {
+        type: SpecialExternalAccountType.BANNED_IBAN,
+        value: 'DE123',
+      } as CreateSpecialExternalAccountDto;
+      repo.findOneBy.mockResolvedValue(
+        createCustomSpecialExternalAccount({
+          type: SpecialExternalAccountType.BANNED_IBAN,
+          value: 'DE123',
+        }),
+      );
 
-      await service.registerScorechainExemptAddress('0xfa73137a652633302dedc91a79ebdadb81e0d2c5', 'released tx 8');
-
-      expect(repo.update).toHaveBeenCalledWith(12, { comment: 'released tx 8' });
+      await expect(service.createSpecialExternalAccount(dto)).rejects.toBeInstanceOf(BadRequestException);
       expect(repo.save).not.toHaveBeenCalled();
     });
   });
