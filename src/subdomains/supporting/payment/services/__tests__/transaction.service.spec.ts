@@ -106,6 +106,13 @@ function createQueryBuilderMock(terminals: Record<string, unknown>): {
   return { qb, innerQb };
 }
 
+// The open end of a default period is `new Date()` taken inside the call, so it can only be pinned
+// to the window the call itself spanned.
+function expectWithinCallWindow(date: Date, before: number, after: number): void {
+  expect(date.getTime()).toBeGreaterThanOrEqual(before);
+  expect(date.getTime()).toBeLessThanOrEqual(after);
+}
+
 describe('TransactionService (admin door — amlCheck audit trail)', () => {
   let service: TransactionService;
 
@@ -850,12 +857,15 @@ describe('TransactionService (lookups)', () => {
   it('defaults the account period to everything up to now', async () => {
     jest.spyOn(repo, 'find').mockResolvedValue([]);
 
+    const before = Date.now();
     await service.getTransactionsForAccount(5);
+    const after = Date.now();
 
     const { where, take, skip } = (repo.find as jest.Mock).mock.calls[0][0];
     expect(where.userData).toEqual({ id: 5 });
     expect(where.type).toEqual(Not(IsNull()));
     expect(where.created.value[0]).toEqual(new Date(0));
+    expectWithinCallWindow(where.created.value[1], before, after);
     expect(take).toBeUndefined();
     expect(skip).toBeUndefined();
   });
@@ -905,14 +915,34 @@ describe('TransactionService (lookups)', () => {
     );
   });
 
+  it('walks the user list in batches of 100 and narrows the limit left for the next one', async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, i) => Object.assign(new Transaction(), { id: i }));
+    const secondBatch = [Object.assign(new Transaction(), { id: 100 })];
+    jest.spyOn(repo, 'find').mockResolvedValueOnce(firstBatch).mockResolvedValueOnce(secondBatch);
+    const userIds = Array.from({ length: 150 }, (_, i) => i);
+
+    const result = await service.getTransactionsForUsers(userIds, undefined, undefined, 150);
+
+    expect(repo.find).toHaveBeenCalledTimes(2);
+    const [[firstQuery], [secondQuery]] = (repo.find as jest.Mock).mock.calls;
+    expect(firstQuery.where.user).toEqual({ id: In(userIds.slice(0, 100)) });
+    expect(firstQuery.take).toBe(150);
+    expect(secondQuery.where.user).toEqual({ id: In(userIds.slice(100)) });
+    expect(secondQuery.take).toBe(50);
+    expect(result).toEqual([...firstBatch, ...secondBatch]);
+  });
+
   it('defaults the user period and leaves the batch size unbounded without a limit', async () => {
     jest.spyOn(repo, 'find').mockResolvedValue([]);
 
+    const before = Date.now();
     await service.getTransactionsForUsers([1, 2]);
+    const after = Date.now();
 
     const { where, take } = (repo.find as jest.Mock).mock.calls[0][0];
     expect(where.user).toEqual({ id: In([1, 2]) });
     expect(where.created.value[0]).toEqual(new Date(0));
+    expectWithinCallWindow(where.created.value[1], before, after);
     expect(take).toBeUndefined();
   });
 
