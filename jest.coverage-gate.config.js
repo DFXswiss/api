@@ -349,6 +349,7 @@ const PINNED_DECLARATIVE = [
   'src/shared/models/asset/dto/asset-query.dto.ts',
   'src/shared/models/asset/dto/update-asset.dto.ts',
   'src/shared/models/country/dto/country.dto.ts',
+  'src/shared/models/country/fatf-policy.ts',
   'src/shared/models/language/dto/language.dto.ts',
   'src/shared/models/language/language.entity.ts',
   'src/shared/models/setting/dto/custom-sign-up-fees.dto.ts',
