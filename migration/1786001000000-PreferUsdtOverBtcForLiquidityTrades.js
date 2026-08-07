@@ -180,15 +180,19 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
   }
 
   /**
-   * Validate every audit entry before down() mutates anything. `apply.entries` comes from the
-   * "log" table, which is not trusted internal state: BANKING_BOT can create log rows and ADMIN
-   * can edit an existing message (log.controller.ts, create-log.dto.ts accept arbitrary
-   * system/subsystem/message strings with no allowlist). A tampered entry must never let down()
-   * build an UPDATE against an attacker-chosen table/column. Only the three (table, column)
-   * combinations this migration ever writes are allowed; anything else — or a mistyped
-   * id/before/after/createdActionId — throws before any mutation runs (fail closed).
+   * Validate every audit entry before down() mutates anything, and split them into two strictly
+   * disjoint, normalized forms. `entries` comes from the "log" table, which is not trusted
+   * internal state: BANKING_BOT can create log rows and ADMIN can edit an existing message
+   * (log.controller.ts, create-log.dto.ts accept arbitrary system/subsystem/message strings with
+   * no allowlist). Column entries and clone entries must never mix fields — a column entry that
+   * also carries createdActionId would otherwise reach the clone-deletion loop unvalidated.
+   * Anything that does not match exactly one of the two shapes throws before any mutation runs.
    *
-   * @param {Array<Record<string, unknown>>} entries
+   * @param {unknown[]} entries
+   * @returns {{
+   *   columnEntries: Array<{ table: string, column: string, id: number, before: unknown, after: unknown }>,
+   *   cloneEntries: Array<{ createdActionId: number, role: unknown, sourceActionId: number }>,
+   * }}
    */
   validateEntries(entries) {
     const ALLOWED_COLUMNS = {
@@ -196,11 +200,33 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       'liquidity_management_rule.deficitStartActionId': 'nullableInt',
       'liquidity_management_rule.status': 'string',
     };
-    const isPositiveInt = (v) => Number.isSafeInteger(v) && v > 0;
-    const isNullableInt = (v) => v === null || Number.isSafeInteger(v);
+    /** @param {unknown} v @returns {boolean} */
+    const isPositiveInt = (v) => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
+    /** @param {unknown} v @returns {boolean} */
+    const isNullableInt = (v) => v === null || (typeof v === 'number' && Number.isSafeInteger(v));
+
+    /** @type {Array<{ table: string, column: string, id: number, before: unknown, after: unknown }>} */
+    const columnEntries = [];
+    /** @type {Array<{ createdActionId: number, role: unknown, sourceActionId: number }>} */
+    const cloneEntries = [];
 
     for (const entry of entries) {
-      if (entry && typeof entry === 'object' && entry.column !== undefined) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new Error(`Unrecognized audit entry shape for ${AUDIT_MIGRATION}`);
+      }
+
+      const hasColumnFields = entry.table !== undefined || entry.column !== undefined;
+      const hasCloneFields =
+        entry.createdActionId !== undefined || entry.role !== undefined || entry.sourceActionId !== undefined;
+
+      if (hasColumnFields && hasCloneFields) {
+        throw new Error(`Audit entry mixes column and clone fields for ${AUDIT_MIGRATION}`);
+      }
+
+      if (hasColumnFields) {
+        if (typeof entry.table !== 'string' || typeof entry.column !== 'string') {
+          throw new Error(`Audit entry table/column must be strings for ${AUDIT_MIGRATION}`);
+        }
         const key = `${entry.table}.${entry.column}`;
         const type = ALLOWED_COLUMNS[key];
         if (!type) throw new Error(`Unknown audit entry table/column '${key}' for ${AUDIT_MIGRATION}`);
@@ -214,16 +240,37 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
         if (!validValues) {
           throw new Error(`Invalid before/after type for audit entry '${key}' (id ${entry.id}) in ${AUDIT_MIGRATION}`);
         }
+        columnEntries.push({
+          table: entry.table,
+          column: entry.column,
+          id: entry.id,
+          before: entry.before,
+          after: entry.after,
+        });
         continue;
       }
-      if (entry && typeof entry === 'object' && entry.createdActionId !== undefined) {
+
+      if (hasCloneFields) {
         if (!isPositiveInt(entry.createdActionId)) {
           throw new Error(`Invalid createdActionId '${entry.createdActionId}' in audit entry for ${AUDIT_MIGRATION}`);
         }
+        if (!isPositiveInt(entry.sourceActionId)) {
+          throw new Error(
+            `Invalid sourceActionId '${entry.sourceActionId}' for createdActionId ${entry.createdActionId} in ${AUDIT_MIGRATION}`,
+          );
+        }
+        cloneEntries.push({
+          createdActionId: entry.createdActionId,
+          role: entry.role,
+          sourceActionId: entry.sourceActionId,
+        });
         continue;
       }
+
       throw new Error(`Unrecognized audit entry shape for ${AUDIT_MIGRATION}`);
     }
+
+    return { columnEntries, cloneEntries };
   }
 
   /**
@@ -520,7 +567,8 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     if (!apply) return;
 
     // Fail closed on tampered audit entries before any mutation (log table is not trusted).
-    this.validateEntries(apply.entries);
+    // Returns two strictly disjoint, normalized lists — never re-filter apply.entries below.
+    const { columnEntries, cloneEntries } = this.validateEntries(apply.entries);
 
     const deletedCloneIds = [];
     const keptCloneIds = [];
@@ -529,8 +577,8 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     // without the audit we could not distinguish rules this migration deactivated from ones that
     // were already Inactive or were deactivated independently afterwards. Same rationale as
     // DeactivateTradingRules; reactivation is an operational decision).
-    for (const entry of apply.entries) {
-      if (!entry.column || entry.column === 'status') continue;
+    for (const entry of columnEntries) {
+      if (entry.column === 'status') continue; // DAI deactivation is not auto-reversed
       const { sql, params } = this.buildRestoreQuery(entry);
       await queryRunner.query(sql, params);
     }
@@ -538,9 +586,9 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     // Delete clones only when unreferenced. Self-FKs on onFailId/onSuccessId (and order/pipeline
     // action ids) are ON DELETE NO ACTION, so a referenced clone must stay. Process newest first
     // (reverse of creation: W2 → B2 → U2) so dependent clones are removed before their targets.
-    const cloneEntries = apply.entries.filter((entry) => entry.createdActionId != null).reverse();
-    for (const entry of cloneEntries) {
-      const cloneId = Number(entry.createdActionId);
+    // Before deleting, verify the row actually looks like a clone this migration created.
+    for (const entry of [...cloneEntries].reverse()) {
+      const cloneId = entry.createdActionId;
 
       const refs = await queryRunner.query(
         `SELECT
@@ -564,6 +612,28 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
         // rewired were already rewound to the source above when their value still matched `after`.
         keptCloneIds.push(cloneId);
         continue;
+      }
+
+      // Verify this row is actually a clone this migration created before deleting it — a tampered
+      // audit entry must not be able to point createdActionId at an arbitrary unreferenced action.
+      const [clone] = await queryRunner.query(
+        `SELECT "system", "command", "tag" FROM "liquidity_management_action" WHERE "id" = $1`,
+        [cloneId],
+      );
+      const [source] = await queryRunner.query(
+        `SELECT "system", "command", "tag" FROM "liquidity_management_action" WHERE "id" = $1`,
+        [entry.sourceActionId],
+      );
+      const looksLikeClone =
+        clone &&
+        source &&
+        clone.system === source.system &&
+        clone.command === source.command &&
+        clone.tag === this.wbtcTag(source.tag);
+      if (!looksLikeClone) {
+        throw new Error(
+          `createdActionId ${cloneId} does not look like a clone of sourceActionId ${entry.sourceActionId} for ${AUDIT_MIGRATION}`,
+        );
       }
 
       await queryRunner.query(`DELETE FROM "liquidity_management_action" WHERE "id" = $1`, [cloneId]);
