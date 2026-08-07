@@ -902,9 +902,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     await migration.up(queryRunner);
 
     const cloneIds = (
-      await queryRunner.query(
-        `SELECT "id" FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC' ORDER BY "id"`,
-      )
+      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC' ORDER BY "id"`)
     ).map((row: { id: number }) => Number(row.id));
     expect(cloneIds.length).toBeGreaterThan(0);
 
