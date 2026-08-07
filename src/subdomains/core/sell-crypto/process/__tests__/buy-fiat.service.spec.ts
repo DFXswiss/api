@@ -381,9 +381,30 @@ describe('BuyFiatService', () => {
     });
   });
 
+  function mockManagerTransaction(manager: { findOne?: jest.Mock; update?: jest.Mock; save?: jest.Mock }): void {
+    Object.defineProperty(buyFiatRepo, 'manager', {
+      configurable: true,
+      value: {
+        transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+          run(manager as unknown as EntityManager),
+        ),
+      },
+    });
+  }
+
   describe('amlCheck audit trail', () => {
     it('records a MANUAL_RESET history row (previous verdict → null) when resetAmlCheckInternal clears the check', async () => {
       const entity = createCustomBuyFiat({ id: 5, amlCheck: CheckStatus.PENDING, amlReason: null });
+      const cryptoInput = entity.cryptoInput;
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: 5 } : entity;
+          if (type === CryptoInput) return options.select?.id ? { id: cryptoInput.id } : cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockManagerTransaction(manager);
 
       await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
 
@@ -407,7 +428,10 @@ describe('BuyFiatService', () => {
       jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
       // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
       // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
-      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+      const manager = {
+        save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
+      };
+      mockManagerTransaction(manager);
 
       await service.update(
         12,
@@ -432,7 +456,10 @@ describe('BuyFiatService', () => {
       const entity = createCustomBuyFiat({ id: 14, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
       jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
       jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
-      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+      const manager = {
+        save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
+      };
+      mockManagerTransaction(manager);
 
       await service.update(14, Object.assign(new UpdateBuyFiatDto(), { amlCheck: null }), AmlSourceType.MANUAL_UPDATE);
 
@@ -492,37 +519,336 @@ describe('BuyFiatService', () => {
     });
   });
 
-  describe('refundBuyFiatInternal', () => {
-    function mockManagerTransaction(manager: { findOne: jest.Mock; update: jest.Mock }): void {
-      Object.defineProperty(buyFiatRepo, 'manager', {
-        configurable: true,
-        value: {
-          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
-            run(manager as unknown as EntityManager),
-          ),
-        },
-      });
-    }
-
-    it('claims the BuyFiat before returnPayIn on the approval leg and passes the manager', async () => {
+  describe('update chargeback release (F1)', () => {
+    it('runs save + triggerBuyFiatReturn inside one transaction and fires webhook only after', async () => {
       const cryptoInput = createCustomCryptoInput({
         id: 23,
         action: PayInAction.WAITING,
         status: PayInStatus.ACKNOWLEDGED,
+        returnTxId: null,
+      });
+      const entity = createCustomBuyFiat({
+        id: 80,
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+        cryptoInput,
+      });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const webhookSpy = jest.spyOn(service, 'triggerWebhook').mockResolvedValue();
+      const manager = {
+        save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === CryptoInput) return options.select?.id ? { id: 23 } : cryptoInput;
+          return undefined;
+        }),
+      };
+      mockManagerTransaction(manager);
+
+      const allowedDate = new Date('2026-08-01T12:00:00.000Z');
+      await service.update(
+        80,
+        Object.assign(new UpdateBuyFiatDto(), {
+          chargebackAllowedDate: allowedDate,
+          chargebackDate: allowedDate,
+        }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      expect(manager.save).toHaveBeenCalledWith(BuyFiat, expect.objectContaining({ id: 80 }));
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, entity.chargebackAddress, 0.1, manager);
+      expect(payInService.getPayIn).not.toHaveBeenCalled();
+      expect(webhookSpy).toHaveBeenCalled();
+      expect(manager.save.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
+      expect(returnPayInSpy.mock.invocationCallOrder[0]).toBeLessThan(webhookSpy.mock.invocationCallOrder[0]);
+    });
+
+    it('propagates forward-pending and skips webhook/volume side effects when routing fails', async () => {
+      const pendingForward = createCustomCryptoInput({
+        id: 24,
+        status: PayInStatus.FORWARDED,
+        action: PayInAction.FORWARD,
+        returnTxId: null,
+      });
+      const entity = createCustomBuyFiat({
+        id: 81,
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+        cryptoInput: pendingForward,
+      });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      const webhookSpy = jest.spyOn(service, 'triggerWebhook').mockResolvedValue();
+      const updateSellVolumeSpy = jest.spyOn(service, 'updateSellVolume').mockResolvedValue();
+      const updateRefVolumeSpy = jest.spyOn(service as any, 'updateRefVolume').mockResolvedValue(undefined);
+      const manager = {
+        save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === CryptoInput) return options.select?.id ? { id: 24 } : pendingForward;
+          return undefined;
+        }),
+      };
+      mockManagerTransaction(manager);
+
+      await expect(
+        service.update(
+          81,
+          Object.assign(new UpdateBuyFiatDto(), {
+            chargebackAllowedDate: new Date(),
+            chargebackDate: new Date(),
+            amountInChf: 10,
+            amountInEur: 10,
+          }),
+          AmlSourceType.MANUAL_UPDATE,
+        ),
+      ).rejects.toThrow(new BadRequestException('CryptoInput forward is pending confirmation - retry once confirmed'));
+
+      // Transaction mock rethrows, so nothing after the tx runs — release did not commit.
+      expect(webhookSpy).not.toHaveBeenCalled();
+      expect(updateSellVolumeSpy).not.toHaveBeenCalled();
+      expect(updateRefVolumeSpy).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+
+    it('with a manager, triggerBuyFiatReturn reads the pay-in via manager.findOne not getPayIn', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 25,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+        returnTxId: null,
       });
       const buyFiat = createCustomBuyFiat({
-        id: 7,
+        id: 82,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+      });
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const getPayInSpy = jest.spyOn(payInService, 'getPayIn');
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === CryptoInput) return options.select?.id ? { id: 25 } : cryptoInput;
+          return undefined;
+        }),
+      };
+
+      await service['triggerBuyFiatReturn'](buyFiat, cryptoInput, manager as unknown as EntityManager);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        CryptoInput,
+        expect.objectContaining({
+          where: { id: 25 },
+          select: { id: true },
+          loadEagerRelations: false,
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(manager.findOne).toHaveBeenCalledWith(
+        CryptoInput,
+        expect.objectContaining({
+          where: { id: 25 },
+          relations: { asset: true },
+        }),
+      );
+      expect(getPayInSpy).not.toHaveBeenCalled();
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, buyFiat.chargebackAddress, 0.1, manager);
+    });
+  });
+
+  describe('resetAmlCheckInternal claim (F2)', () => {
+    it('claims with the pinned where and applies resetAmlCheck update', async () => {
+      const cryptoInput = createCustomCryptoInput({ id: 30 });
+      const userDate = new Date('2026-07-15T00:00:00.000Z');
+      const entity = createCustomBuyFiat({
+        id: 90,
         amlCheck: CheckStatus.PENDING,
-        outputAmount: null,
-        chargebackAmount: 1,
-        chargebackAddress: null,
+        amlReason: null,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        chargebackAllowedDateUser: userDate,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+        fiatOutput: null,
+      });
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: 90 } : entity;
+          if (type === CryptoInput) return options.select?.id ? { id: 30 } : cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockManagerTransaction(manager);
+
+      await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyFiat,
+        {
+          id: 90,
+          amlCheck: CheckStatus.PENDING,
+          isComplete: false,
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: userDate,
+          chargebackDate: IsNull(),
+          chargebackTxId: IsNull(),
+        },
+        expect.objectContaining({ amlCheck: null, amlReason: null, amlPostProcessed: false }),
+      );
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalled();
+    });
+
+    it('throws ConflictException on a lost claim and skips side effects', async () => {
+      const cryptoInput = createCustomCryptoInput({ id: 31 });
+      const entity = createCustomBuyFiat({
+        id: 91,
+        amlCheck: CheckStatus.FAIL,
+        amlReason: null,
+        isComplete: false,
         chargebackAllowedDate: null,
         chargebackAllowedDateUser: null,
         chargebackDate: null,
         chargebackTxId: null,
         cryptoInput,
+        fiatOutput: createCustomFiatOutput({ id: 44 }),
       });
-      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: 91 } : entity;
+          if (type === CryptoInput) return options.select?.id ? { id: 31 } : cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      mockManagerTransaction(manager);
+
+      await expect(service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET)).rejects.toThrow(
+        new ConflictException('BuyFiat state changed concurrently'),
+      );
+
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+      expect(fiatOutputService.delete).not.toHaveBeenCalled();
+      expect(supportLogService.createSupportLog).not.toHaveBeenCalled();
+    });
+
+    it('evaluates guards against the fresh entity (released row → BadRequest, no update)', async () => {
+      const cryptoInput = createCustomCryptoInput({ id: 32 });
+      // Caller snapshot still looks resettable.
+      const caller = createCustomBuyFiat({
+        id: 92,
+        amlCheck: CheckStatus.PENDING,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        cryptoInput,
+      });
+      // Fresh row already released for chargeback.
+      const freshReleased = createCustomBuyFiat({
+        id: 92,
+        amlCheck: CheckStatus.PENDING,
+        isComplete: false,
+        chargebackAllowedDate: new Date('2026-08-01T00:00:00.000Z'),
+        cryptoInput,
+        fiatOutput: null,
+        transaction: caller.transaction,
+      });
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: 92 } : freshReleased;
+          if (type === CryptoInput) return options.select?.id ? { id: 32 } : cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockManagerTransaction(manager);
+
+      await expect(service.resetAmlCheckInternal(caller, AmlSourceType.MANUAL_RESET)).rejects.toThrow(
+        new BadRequestException('BuyFiat is already complete or refund in progress'),
+      );
+
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+
+    it('pins chargebackAllowedDateUser to IsNull when the fresh row has none', async () => {
+      const cryptoInput = createCustomCryptoInput({ id: 33 });
+      const entity = createCustomBuyFiat({
+        id: 93,
+        amlCheck: CheckStatus.GSHEET,
+        amlReason: null,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        chargebackAllowedDateUser: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+        fiatOutput: null,
+      });
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: 93 } : entity;
+          if (type === CryptoInput) return options.select?.id ? { id: 33 } : cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockManagerTransaction(manager);
+
+      await service.resetAmlCheckInternal(entity, AmlSourceType.PHONE_CALL_RESET);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyFiat,
+        expect.objectContaining({
+          id: 93,
+          chargebackAllowedDateUser: IsNull(),
+          chargebackAllowedDate: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackTxId: IsNull(),
+        }),
+        expect.objectContaining({ amlCheck: null }),
+      );
+    });
+  });
+
+  describe('refundBuyFiatInternal', () => {
+    it('claims the BuyFiat before returnPayIn on the approval leg and pins the caller request version', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+      const staleUserDate = new Date('2026-07-01T10:00:00.000Z');
+      const freshUserDate = new Date('2026-07-02T10:00:00.000Z');
+      const staleChargebackAddress = '0x00000000000000000000000000000000000000aa';
+      const freshChargebackAddress = '0x00000000000000000000000000000000000000bb';
+      const staleChargebackAmount = 1;
+      const freshChargebackAmount = 99;
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: staleChargebackAmount,
+        chargebackAddress: staleChargebackAddress,
+        chargebackAllowedDate: null,
+        chargebackAllowedDateUser: staleUserDate,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      // Fresh row was amended between cron select and claim (request version, address, amount).
+      const currentBuyFiat = createCustomBuyFiat({
+        ...buyFiat,
+        chargebackAllowedDateUser: freshUserDate,
+        chargebackAddress: freshChargebackAddress,
+        chargebackAmount: freshChargebackAmount,
+        cryptoInput: undefined,
+      });
       const refundUser = {
         address: '0x0000000000000000000000000000000000000001',
         userData: buyFiat.userData,
@@ -555,21 +881,26 @@ describe('BuyFiatService', () => {
           id: 7,
           chargebackAllowedDate: IsNull(),
           chargebackTxId: IsNull(),
+          // Claim pins the CALLER snapshot's request version, address and amount — not the fresh row's.
+          chargebackAllowedDateUser: staleUserDate,
+          chargebackAddress: staleChargebackAddress,
+          chargebackAmount: staleChargebackAmount,
         }),
         expect.objectContaining({ chargebackAllowedDate: allowedDate }),
       );
-      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, staleChargebackAmount, manager);
       expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
       expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalled();
     });
 
-    it('does not call returnPayIn or createFromEntity when the claim loses', async () => {
+    it('does not call returnPayIn or createFromEntity when the claim loses (request-version drift)', async () => {
       const cryptoInput = createCustomCryptoInput({ id: 23 });
       const buyFiat = createCustomBuyFiat({
         id: 7,
         amlCheck: CheckStatus.PENDING,
         outputAmount: null,
         chargebackAmount: 1,
+        chargebackAllowedDateUser: new Date('2026-07-01T10:00:00.000Z'),
         cryptoInput,
       });
       const refundUser = {

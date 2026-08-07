@@ -281,16 +281,24 @@ export class BuyFiatService implements OnModuleInit {
     const amlCheckBefore = entity.amlCheck;
     const amlReasonBefore = entity.amlReason;
 
-    entity = await this.buyFiatRepo.save(
-      Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate }),
-    );
+    entity = Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate });
 
-    // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
-    // undefined, so the DB keeps the prior verdict. Restore ONLY the undefined-clobber to the persisted
-    // value (=== undefined, not ??): this avoids a phantom "verdict cleared" row for an omitted field
-    // while still recording an explicit `null` verdict clear that save() actually persisted.
-    entity.amlCheck = entity.amlCheck === undefined ? amlCheckBefore : entity.amlCheck;
-    entity.amlReason = entity.amlReason === undefined ? amlReasonBefore : entity.amlReason;
+    // Persist the admin fields and (when newly releasing a chargeback) route the return in one
+    // transaction: a forward-pending throw rolls the release back so the promised retry works.
+    await this.buyFiatRepo.manager.transaction(async (manager) => {
+      entity = await manager.save(BuyFiat, entity);
+
+      // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
+      // undefined, so the DB keeps the prior verdict. Restore ONLY the undefined-clobber to the persisted
+      // value (=== undefined, not ??): this avoids a phantom "verdict cleared" row for an omitted field
+      // while still recording an explicit `null` verdict clear that save() actually persisted.
+      entity.amlCheck = entity.amlCheck === undefined ? amlCheckBefore : entity.amlCheck;
+      entity.amlReason = entity.amlReason === undefined ? amlReasonBefore : entity.amlReason;
+
+      if (dto.chargebackAllowedDate && !chargebackAllowedDateBefore) {
+        await this.triggerBuyFiatReturn(entity, cryptoInputBefore, manager);
+      }
+    });
 
     await this.transactionAmlCheckService.createFromEntity(
       entity,
@@ -306,7 +314,7 @@ export class BuyFiatService implements OnModuleInit {
       await this.amlService.postProcessing(entity, undefined);
     }
 
-    // payment webhook
+    // Webhook / volume / ref-volume must not fire for a rolled-back release.
     if (
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
@@ -318,23 +326,39 @@ export class BuyFiatService implements OnModuleInit {
     if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
-    // Trigger return flow when chargebackAllowedDate is newly set via admin update
-    if (dto.chargebackAllowedDate && !chargebackAllowedDateBefore) {
-      await this.triggerBuyFiatReturn(entity, cryptoInputBefore);
-    }
-
     return entity;
   }
 
-  private async triggerBuyFiatReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
+  private async triggerBuyFiatReturn(
+    buyFiat: BuyFiat,
+    cryptoInput: CryptoInput,
+    manager?: EntityManager,
+  ): Promise<void> {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
 
     // Routing on the caller's snapshot let a FORWARDED→FORWARD_CONFIRMED flip land in neither branch
     // while the chargeback state was already persisted (#4744 review); the asset relation is eager,
-    // so the fresh row carries it.
-    const currentPayIn = await this.payInService.getPayIn(cryptoInput.id);
+    // so the fresh row carries it. With a manager (admin release path) lock + re-read through it so
+    // the return joins the same transaction as the chargeback release.
+    let currentPayIn: CryptoInput | null;
+    if (manager) {
+      const lockedPayIn = await manager.findOne(CryptoInput, {
+        where: { id: cryptoInput.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedPayIn) throw new NotFoundException('CryptoInput not found');
+
+      currentPayIn = await manager.findOne(CryptoInput, {
+        where: { id: cryptoInput.id },
+        relations: { asset: true },
+      });
+    } else {
+      currentPayIn = await this.payInService.getPayIn(cryptoInput.id);
+    }
     if (!currentPayIn) throw new NotFoundException('CryptoInput not found');
 
     if (CryptoInputInFlightSendStatus.includes(currentPayIn.status))
@@ -347,8 +371,8 @@ export class BuyFiatService implements OnModuleInit {
     )
       return;
 
-    // Hardened returnPayIn decides on a DB-fresh row; no shared manager needed on this cron path.
-    await this.returnCrypto(buyFiat, currentPayIn, chargebackAddress, chargebackAmount);
+    // Hardened returnPayIn decides on a DB-fresh row; no shared manager needed on the cron path.
+    await this.returnCrypto(buyFiat, currentPayIn, chargebackAddress, chargebackAmount, manager);
   }
 
   private async returnCrypto(
@@ -518,7 +542,17 @@ export class BuyFiatService implements OnModuleInit {
       currentBuyFiat.cryptoInput = cryptoInput;
       TransactionUtilService.validateRefund(currentBuyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
-      const claimWhere = BuyFiatService.refundClaimWhere(currentBuyFiat);
+      const claimWhere = {
+        ...BuyFiatService.refundClaimWhere(currentBuyFiat),
+        // Amount and address were derived from the caller's snapshot (the cron passes only the release);
+        // pinning the snapshot's request version makes an amended user request lose the claim, so the
+        // next cron run re-selects it with the fresh values instead of sending the outdated ones.
+        // An admin correction can change address or amount without touching the request timestamp, so
+        // both are pinned from the same snapshot the sent values were derived from.
+        chargebackAllowedDateUser: buyFiat.chargebackAllowedDateUser ?? IsNull(),
+        chargebackAddress: buyFiat.chargebackAddress ?? IsNull(),
+        chargebackAmount: buyFiat.chargebackAmount ?? IsNull(),
+      };
       previousAmlCheck = currentBuyFiat.amlCheck;
       previousAmlReason = currentBuyFiat.amlReason;
       const [, update] = currentBuyFiat.chargebackFillUp(
@@ -599,35 +633,80 @@ export class BuyFiatService implements OnModuleInit {
   }
 
   async resetAmlCheckInternal(entity: BuyFiat, source: AmlSourceType): Promise<void> {
-    if (!entity.cryptoInput) throw new BadRequestException('BuyFiat crypto input not loaded');
-    if (
-      entity.isComplete ||
-      entity.fiatOutput?.isComplete ||
-      entity.chargebackAllowedDate ||
-      entity.cryptoReturnStarted
-    )
-      throw new BadRequestException('BuyFiat is already complete or refund in progress');
-    if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
+    // Callers pass a loaded entity; only its id is authoritative — guards and the claim run against
+    // a locked fresh row so a concurrent refund cannot have its chargeback metadata wiped.
+    let previousAmlCheck: CheckStatus;
+    let previousAmlReason: AmlReason;
+    let fiatOutputId: number | undefined;
+    let resetDetails: Record<string, unknown>;
+    let freshEntity: BuyFiat;
 
-    const fiatOutputId = entity.fiatOutput?.id;
+    await this.buyFiatRepo.manager.transaction(async (manager) => {
+      const lockedBuyFiat = await manager.findOne(BuyFiat, {
+        where: { id: entity.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedBuyFiat) throw new NotFoundException('BuyFiat not found');
 
-    const previousAmlCheck = entity.amlCheck;
-    const previousAmlReason = entity.amlReason;
+      freshEntity = await manager.findOne(BuyFiat, {
+        where: { id: entity.id },
+        relations: { cryptoInput: true, fiatOutput: true, transaction: { userData: true }, outputAsset: true },
+      });
+      if (!freshEntity) throw new NotFoundException('BuyFiat not found');
 
-    const resetDetails = {
-      buyFiatId: entity.id,
-      amlCheck: entity.amlCheck,
-      amlReason: entity.amlReason,
-      outputAmount: entity.outputAmount,
-      outputAsset: entity.outputAsset?.name,
-      fiatOutputId: fiatOutputId,
-      fiatOutputTransmitted: entity.fiatOutput?.isTransmittedDate,
-      priceDefinitionAllowedDate: entity.priceDefinitionAllowedDate,
-    };
+      if (!freshEntity.cryptoInput) throw new BadRequestException('BuyFiat crypto input not loaded');
 
-    await this.buyFiatRepo.update(...entity.resetAmlCheck());
+      const lockedCryptoInput = await manager.findOne(CryptoInput, {
+        where: { id: freshEntity.cryptoInput.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedCryptoInput) throw new NotFoundException('CryptoInput not found');
+
+      if (
+        freshEntity.isComplete ||
+        freshEntity.fiatOutput?.isComplete ||
+        freshEntity.chargebackAllowedDate ||
+        freshEntity.cryptoReturnStarted
+      )
+        throw new BadRequestException('BuyFiat is already complete or refund in progress');
+      if (!freshEntity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
+
+      fiatOutputId = freshEntity.fiatOutput?.id;
+      previousAmlCheck = freshEntity.amlCheck;
+      previousAmlReason = freshEntity.amlReason;
+      resetDetails = {
+        buyFiatId: freshEntity.id,
+        amlCheck: freshEntity.amlCheck,
+        amlReason: freshEntity.amlReason,
+        outputAmount: freshEntity.outputAmount,
+        outputAsset: freshEntity.outputAsset?.name,
+        fiatOutputId: fiatOutputId,
+        fiatOutputTransmitted: freshEntity.fiatOutput?.isTransmittedDate,
+        priceDefinitionAllowedDate: freshEntity.priceDefinitionAllowedDate,
+      };
+
+      // Build this before resetAmlCheck runs: it assigns the new state onto the entity, so a
+      // claim built afterwards would pin the post-write state and always match.
+      const claimWhere: FindOptionsWhere<BuyFiat> = {
+        id: freshEntity.id,
+        amlCheck: freshEntity.amlCheck,
+        isComplete: false,
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: freshEntity.chargebackAllowedDateUser ?? IsNull(),
+        chargebackDate: IsNull(),
+        chargebackTxId: IsNull(),
+      };
+      const [, update] = freshEntity.resetAmlCheck();
+      const claim = await manager.update(BuyFiat, claimWhere, update);
+      if (claim.affected !== 1) throw new ConflictException('BuyFiat state changed concurrently');
+    });
+
     await this.transactionAmlCheckService.createFromEntity(
-      entity,
+      freshEntity,
       'BuyFiat',
       source,
       previousAmlCheck,
@@ -635,10 +714,10 @@ export class BuyFiatService implements OnModuleInit {
     );
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
 
-    if (entity.transaction.userData) {
-      await this.supportLogService.createSupportLog(entity.transaction.userData, {
+    if (freshEntity.transaction.userData) {
+      await this.supportLogService.createSupportLog(freshEntity.transaction.userData, {
         type: SupportLogType.SUPPORT,
-        message: `BuyFiat ${entity.id} reset`,
+        message: `BuyFiat ${freshEntity.id} reset`,
         comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
       });
     }
