@@ -39,6 +39,8 @@ import { SpecialExternalAccountService } from './special-external-account.servic
 
 type RelationLoadStrategy = FindOneOptions<Transaction>['relationLoadStrategy'];
 
+const USER_BATCH_SIZE = 100;
+
 @Injectable()
 export class TransactionService {
   constructor(
@@ -394,30 +396,58 @@ export class TransactionService {
     limit?: number,
     offset?: number,
   ): Promise<Transaction[]> {
-    return Util.doInBatchesWithLimit(
+    // A single batch is one query, so the database pages it. Several batches cannot page
+    // themselves: none of them knows how many rows the others place ahead of its own, so the
+    // batches are merged first and the page is cut once from the combined result.
+    if (userIds.length <= USER_BATCH_SIZE) return this.findTransactionsForUsers(userIds, from, to, limit, offset);
+
+    // The page can only hold rows from the leading offset + limit of any single batch. Merging
+    // trims back to that after every batch, so what is held in memory does not grow with the
+    // number of users.
+    const head = limit != null ? limit + (offset ?? 0) : undefined;
+
+    let merged: Transaction[] = [];
+    await Util.doInBatches(
       userIds,
-      (batch, remaining) =>
-        this.repo.find({
-          where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
-          relations: {
-            buyCrypto: {
-              buy: true,
-              cryptoRoute: true,
-              bankTx: true,
-              checkoutTx: true,
-              cryptoInput: true,
-              chargebackOutput: true,
-            },
-            buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
-            refReward: true,
-          },
-          order: { created: 'DESC' },
-          take: remaining,
-          skip: offset,
-        }),
-      100,
-      limit,
+      async (batch) => {
+        merged = merged
+          .concat(await this.findTransactionsForUsers(batch, from, to, head))
+          .sort((a, b) => b.created.getTime() - a.created.getTime() || b.id - a.id)
+          .slice(0, head);
+      },
+      USER_BATCH_SIZE,
     );
+
+    return merged.slice(offset ?? 0);
+  }
+
+  private findTransactionsForUsers(
+    userIds: number[],
+    from: Date,
+    to: Date,
+    limit?: number,
+    offset?: number,
+  ): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { user: { id: In(userIds) }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
+      },
+      // created is not unique, so the id breaks the tie — without a total order the same row can
+      // end up on two pages or on none.
+      order: { created: 'DESC', id: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
   }
 
   async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
