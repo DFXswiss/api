@@ -445,7 +445,11 @@ describe('BuyCryptoBatchService', () => {
       setupPartialLiquidity();
       jest
         .spyOn(liquidityManagementService, 'buyLiquidity')
-        .mockRejectedValue(new ConflictException(`Rule 1 is ${LiquidityManagementRuleStatus.PROCESSING}`));
+        .mockRejectedValue(
+          new ConflictException(
+            `Pipeline for rule 1 cannot be started (status ${LiquidityManagementRuleStatus.PROCESSING})`,
+          ),
+        );
 
       await service.batchAndOptimizeTransactions();
 
@@ -457,7 +461,7 @@ describe('BuyCryptoBatchService', () => {
       expect(savedBatchTransactionIds()).toEqual([11]);
     });
 
-    it('sends no notification while the rule is paused after a failed pipeline', async () => {
+    it('reports the refusal while the rule is paused after a failed pipeline', async () => {
       setupPartialLiquidity();
       jest
         .spyOn(liquidityManagementService, 'buyLiquidity')
@@ -469,9 +473,32 @@ describe('BuyCryptoBatchService', () => {
 
       await service.batchAndOptimizeTransactions();
 
-      // Paused is the state every failed pipeline leaves behind, and it lasts for the whole reactivation
-      // window. The deferred path re-orders for its set on every cycle, so a mail here is a mail per minute
-      expect(buyCryptoNotificationService.sendMissingLiquidityError).not.toHaveBeenCalled();
+      // Paused is not Processing: no order is under way, the deficit stays unordered, and the pause reaches
+      // nobody by itself - the pipeline that caused it only mails if its rule carries sendNotifications. The
+      // repetition this produces is the debounce's job, so the report goes out and names the set it is about
+      expect(buyCryptoRepo.update).toHaveBeenCalledTimes(2);
+      expect(liquidityManagementService.buyLiquidity).toHaveBeenCalledTimes(1);
+      expect(buyCryptoNotificationService.sendMissingLiquidityError).toHaveBeenCalledTimes(1);
+
+      const [, , , txIds, messages] = (buyCryptoNotificationService.sendMissingLiquidityError as jest.Mock).mock
+        .calls[0] as [string, string, string, number[], string[]];
+      expect(txIds).toEqual(deferredIds);
+      expect(messages.join(' ')).toContain(LiquidityManagementRuleStatus.PAUSED);
+
+      expect(savedBatchTransactionIds()).toEqual([11]);
+    });
+
+    it('reports a failure that is no rule-state conflict, even when its message names a rule status', async () => {
+      setupPartialLiquidity();
+      jest
+        .spyOn(liquidityManagementService, 'buyLiquidity')
+        .mockRejectedValue(new Error(`Venue order is ${LiquidityManagementRuleStatus.PROCESSING}`));
+
+      await service.batchAndOptimizeTransactions();
+
+      // what the order was refused for is the exception type, never the words in the message: an unrelated
+      // failure that happens to contain a rule status is still a failure nobody else reports
+      expect(buyCryptoNotificationService.sendMissingLiquidityError).toHaveBeenCalledTimes(1);
       expect(savedBatchTransactionIds()).toEqual([11]);
     });
 

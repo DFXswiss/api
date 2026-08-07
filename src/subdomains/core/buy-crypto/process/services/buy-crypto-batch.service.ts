@@ -10,6 +10,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -635,15 +636,19 @@ export class BuyCryptoBatchService {
     } catch (e) {
       this.logger.info(`Failed to order missing liquidity for asset ${targetAsset.uniqueName}:`, e);
 
-      // Send the missing liquidity message, unless the rule state is what refused the order. executeRule
-      // raises ConflictException for exactly that - a rule that is Processing while its pipeline runs, or
-      // Paused for the whole reactivation window after one failed. Neither is news: a running pipeline is the
-      // throttle, and the pipeline that failed already mailed its failure. Matching on the message text
-      // (Processing only) let the Paused window through, and since the deferred path re-orders for its set on
-      // every cycle, that was a mail per minute for as long as the rule stayed paused. The transactions do not
-      // go quiet: they hold MissingLiquidity, the bc-payout-missing-liquidity ops rule reports them, and the
-      // refusal is logged above.
-      if (!(e instanceof ConflictException)) {
+      // Report every refusal but one: a rule that is already Processing has the order this call wanted to place
+      // under way, so there is nothing to report - the case this path suppressed before the deferral existed.
+      // No other rule state is covered by that: Paused, Inactive and Disabled all leave the deficit unordered
+      // and reach nobody on their own. A paused rule mails its own pipeline failure only if it carries
+      // sendNotifications, Inactive and Disabled report nothing at all, and the bc-payout-missing-liquidity ops
+      // rule only counts the transactions into a monitoring snapshot, which mails nobody. The repetition the
+      // deferred path adds is handled where it belongs - by the debounce in sendMissingLiquidityError, whose
+      // correlation id names the asset, so a waiting set that grows by one transaction no longer opens a new
+      // debounce window.
+      const isOrderAlreadyRunning =
+        e instanceof ConflictException && e.message?.includes(LiquidityManagementRuleStatus.PROCESSING);
+
+      if (!isOrderAlreadyRunning) {
         const maxPurchasableTargetAmountMessage =
           maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
 
