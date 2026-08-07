@@ -7,9 +7,12 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -658,6 +661,44 @@ export class BuyFiat extends IEntity {
 
   set userData(userData: UserData) {
     this.transaction.userData = userData;
+  }
+
+  /**
+   * Block reasons preventing automatic chargeback promotion.
+   * Keep in sync with BuyFiatPreparationService.chargebackTx() where / promotion conditions
+   * and BuyFiatService.getPendingChargebacks() pending set.
+   * Empty array = auto-job can release this case.
+   */
+  getChargebackBlockReasons(): ChargebackBlockReason[] {
+    // Fail-closed first: already approved/executed/completed must never appear as waiting.
+    // Redundant with BuyFiatService.getPendingChargebacks() where — a lost exclusion there
+    // would show a finished refund as pending and risk double payout by Compliance.
+    if (this.chargebackAllowedDate || this.chargebackDate || this.isComplete || this.chargebackTxId) {
+      return [];
+    }
+
+    const reasons: ChargebackBlockReason[] = [];
+
+    if (!this.chargebackAmount) {
+      reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+    }
+
+    const ud = this.userData;
+    const user = this.user;
+    if (
+      ![KycStatus.NA, KycStatus.COMPLETED].includes(ud.kycStatus) ||
+      ud.status === UserDataStatus.BLOCKED ||
+      ![RiskStatus.NA, RiskStatus.RELEASED].includes(ud.riskStatus) ||
+      ![UserStatus.NA, UserStatus.ACTIVE].includes(user.status)
+    ) {
+      reasons.push(ChargebackBlockReason.USER_NOT_RELEASED);
+    }
+
+    if (!this.chargebackAddress) {
+      reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_TARGET);
+    }
+
+    return reasons;
   }
 
   get noCommunication(): boolean {

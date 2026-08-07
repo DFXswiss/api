@@ -3,6 +3,7 @@ import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -311,6 +312,33 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       );
       expect(fiatOutputService.createInternal).not.toHaveBeenCalled();
       expect(mockBankTxReturn.chargebackOutput).toBeUndefined();
+    });
+  });
+
+  describe('chargebackTx — name mismatch else branch', () => {
+    it('logs a warning and does not promote when creditor name mismatches', async () => {
+      const entity = createBankTxReturn({
+        id: 42,
+        chargebackCreditorData: JSON.stringify({ name: 'Someone Else' }),
+        userData: createCustomUserData({
+          verifiedName: 'Max Mustermann',
+          firstname: 'Max',
+          surname: 'Mustermann',
+        }),
+      });
+      jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValueOnce([entity]);
+      const refundSpy = jest.spyOn(service, 'refundBankTx');
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.chargebackTx();
+
+      expect(refundSpy).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'BankTxReturn 42 waiting for manual chargeback approval due to creditor name mismatch',
+        ),
+      );
+      expect(warn.mock.calls[0][0]).not.toMatch(/Max Mustermann|Someone Else/);
     });
   });
 });

@@ -9,10 +9,17 @@ import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.se
 import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { ChargebackBlockReason } from 'src/subdomains/generic/support/dto/user-data-support.dto';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { createCustomSell } from '../../route/__mocks__/sell.entity.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
+import { BuyFiat } from '../buy-fiat.entity';
 
 function bankOf(name: IbanBankName): Bank {
   return Object.assign(new Bank(), { name });
@@ -206,6 +213,125 @@ describe('BuyFiat entity', () => {
 
       expect(update.amlPostProcessed).toBe(false);
       expect(entity.amlPostProcessed).toBe(false);
+    });
+  });
+
+  describe('#getChargebackBlockReasons()', () => {
+    function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}) {
+      return createCustomUserData({
+        kycStatus: KycStatus.COMPLETED,
+        status: UserDataStatus.ACTIVE,
+        riskStatus: RiskStatus.NA,
+        verifiedName: 'Max Mustermann',
+        firstname: 'Max',
+        surname: 'Mustermann',
+        ...overrides,
+      });
+    }
+
+    function pendingBuyFiat(overrides: Partial<BuyFiat> = {}): BuyFiat {
+      return createCustomBuyFiat({
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        isComplete: false,
+        chargebackTxId: undefined,
+        chargebackAmount: 100,
+        chargebackAddress: 'bc1qexample',
+        chargebackAsset: 'BTC',
+        transaction: createCustomTransaction({
+          userData: releasedUserData(),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+        ...overrides,
+      });
+    }
+
+    it('returns empty array when all auto-promotion conditions are met', () => {
+      expect(pendingBuyFiat().getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('returns MISSING_CHARGEBACK_AMOUNT when chargebackAmount is missing', () => {
+      const entity = pendingBuyFiat({ chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT]);
+    });
+
+    it('returns USER_NOT_RELEASED when userData is blocked', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns USER_NOT_RELEASED when kycStatus CHECK (not allowed for BuyFiat)', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ kycStatus: KycStatus.CHECK }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns USER_NOT_RELEASED when user status is not active', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData(),
+          user: createCustomUser({ status: UserStatus.BLOCKED }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns MISSING_CHARGEBACK_TARGET when chargebackAddress is missing', () => {
+      const entity = pendingBuyFiat({ chargebackAddress: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_TARGET]);
+    });
+
+    it('returns multiple reasons when several conditions fail', () => {
+      const entity = pendingBuyFiat({
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([
+        ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT,
+        ChargebackBlockReason.USER_NOT_RELEASED,
+        ChargebackBlockReason.MISSING_CHARGEBACK_TARGET,
+      ]);
+    });
+
+    it('fail-closed: returns empty array when chargebackAllowedDate is set even if other reasons apply', () => {
+      const entity = pendingBuyFiat({
+        chargebackAllowedDate: new Date(),
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when chargebackDate is set', () => {
+      const entity = pendingBuyFiat({ chargebackDate: new Date(), chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when isComplete is true', () => {
+      const entity = pendingBuyFiat({ isComplete: true, chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when chargebackTxId is set', () => {
+      const entity = pendingBuyFiat({ chargebackTxId: 'tx-123', chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
     });
   });
 });

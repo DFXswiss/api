@@ -1611,6 +1611,26 @@ export class BuyCryptoService implements OnModuleInit {
     });
   }
 
+  // Keep in sync with BuyCrypto.getChargebackBlockReasons() fail-closed / pending set.
+  async getPendingChargebacks(): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: {
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        isComplete: false,
+        chargebackBankTx: IsNull(),
+      },
+      relations: {
+        transaction: { userData: true, user: true },
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+      },
+      order: { chargebackAllowedDateUser: 'ASC' },
+    });
+  }
+
   async countByAmlReason(reason: AmlReason, status: CheckStatus): Promise<number> {
     return this.buyCryptoRepo.countBy({ amlReason: reason, amlCheck: status });
   }

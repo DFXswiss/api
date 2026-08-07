@@ -58,6 +58,34 @@ export class PendingTransactionInfo {
   date: Date;
 }
 
+export enum ChargebackBlockReason {
+  NAME_MISMATCH = 'NameMismatch',
+  MISSING_CREDITOR_DATA = 'MissingCreditorData',
+  MISSING_CHARGEBACK_AMOUNT = 'MissingChargebackAmount',
+  MISSING_CHARGEBACK_TARGET = 'MissingChargebackTarget',
+  USER_NOT_RELEASED = 'UserNotReleased',
+}
+
+export class PendingChargebackInfo {
+  txId: number;
+  uid: string;
+  sourceType: 'BuyCrypto' | 'BuyFiat' | 'BankTxReturn';
+  entityId: number;
+  userDataId: number;
+  userName?: string;
+  inputAmount?: number;
+  inputAsset?: string;
+  chargebackAmount?: number;
+  chargebackAsset?: string;
+  blockReasons: ChargebackBlockReason[];
+  requestedDate: Date;
+  date: Date;
+  verifiedName?: string;
+  completeName?: string;
+  creditorName?: string;
+  chargebackDate?: Date;
+}
+
 export enum PendingReviewType {
   KYC_STEP = 'KycStep',
   BANK_DATA = 'BankData',

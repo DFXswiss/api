@@ -41,6 +41,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
   BankTx,
@@ -110,6 +111,7 @@ import {
   KycStepSupportInfo,
   NotificationSupportInfo,
   OnboardingStatus,
+  PendingChargebackInfo,
   PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
@@ -1142,6 +1144,20 @@ export class SupportService {
     return items.sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 
+  async getPendingChargebacks(): Promise<PendingChargebackInfo[]> {
+    const [buyCryptos, buyFiats, bankTxReturns] = await Promise.all([
+      this.buyCryptoService.getPendingChargebacks(),
+      this.buyFiatService.getPendingChargebacks(),
+      this.bankTxReturnService.getPendingChargebacks(),
+    ]);
+    const items: PendingChargebackInfo[] = [
+      ...buyCryptos.map((bc) => this.toPendingChargebackInfo(bc, 'BuyCrypto')),
+      ...buyFiats.map((bf) => this.toPendingChargebackInfo(bf, 'BuyFiat')),
+      ...bankTxReturns.map((btr) => this.toPendingChargebackInfo(btr, 'BankTxReturn')),
+    ].filter((i) => i.blockReasons.length > 0);
+    return items.sort((a, b) => a.requestedDate.getTime() - b.requestedDate.getTime());
+  }
+
   private toPendingTransactionInfo(
     tx: BuyCrypto | BuyFiat,
     sourceType: 'BuyCrypto' | 'BuyFiat',
@@ -1162,6 +1178,59 @@ export class SupportService {
       amlCheck: tx.amlCheck,
       amlReason: tx.amlReason,
       date: tx.created,
+    };
+  }
+
+  private toPendingChargebackInfo(
+    entity: BuyCrypto | BuyFiat | BankTxReturn,
+    sourceType: 'BuyCrypto' | 'BuyFiat' | 'BankTxReturn',
+  ): PendingChargebackInfo {
+    const ud = entity.userData;
+    const blockReasons = entity.getChargebackBlockReasons();
+
+    let txId: number;
+    let uid: string;
+    let inputAsset: string | undefined;
+    let creditorName: string | undefined;
+
+    if (sourceType === 'BankTxReturn') {
+      const btr = entity as BankTxReturn;
+      txId = btr.transaction.id;
+      uid = btr.transaction.uid;
+      inputAsset = btr.inputAsset;
+      creditorName = btr.creditorData?.name;
+    } else if (sourceType === 'BuyCrypto') {
+      const bc = entity as BuyCrypto;
+      txId = bc.transaction.id;
+      uid = bc.transaction.uid;
+      inputAsset = bc.inputAsset;
+      creditorName = bc.bankTx ? bc.creditorData?.name : undefined;
+    } else {
+      const bf = entity as BuyFiat;
+      txId = bf.transaction.id;
+      uid = bf.transaction.uid;
+      inputAsset = bf.cryptoInput?.asset?.name;
+      creditorName = undefined;
+    }
+
+    return {
+      txId,
+      uid,
+      sourceType,
+      entityId: entity.id,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      inputAmount: entity.inputAmount,
+      inputAsset,
+      chargebackAmount: entity.chargebackAmount,
+      chargebackAsset: entity.chargebackAsset,
+      blockReasons,
+      requestedDate: entity.chargebackAllowedDateUser,
+      date: entity.created,
+      verifiedName: ud.verifiedName,
+      completeName: ud.completeName,
+      creditorName,
+      chargebackDate: entity.chargebackDate,
     };
   }
 

@@ -204,6 +204,16 @@ export class Util {
     return testedNameArray.some((n) => referenceArray.includes(n));
   }
 
+  // true, wenn der Kontoinhaber zum verifizierten oder vollständigen Kundennamen passt, oder wenn
+  // der Kunde selbst keinen der beiden Namen hinterlegt hat (dann gibt es nichts zu vergleichen)
+  static matchesCreditorName(verifiedName: string, completeName: string, creditorName: string): boolean {
+    return (
+      this.includesSameName(verifiedName, creditorName) ||
+      this.includesSameName(completeName, creditorName) ||
+      (!verifiedName && !completeName)
+    );
+  }
+
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
