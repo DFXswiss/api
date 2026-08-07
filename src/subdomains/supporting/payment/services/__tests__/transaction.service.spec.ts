@@ -171,6 +171,20 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     );
   });
 
+  it('carries the transaction highRisk flag into the history row when the verdict alone changes', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: true });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    // The dto leaves highRisk untouched, so the audit row has to fall back to the flag the
+    // transaction already carried — not to a hardcoded `false`.
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS }));
+
+    expect(transactionAmlCheckService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amlCheck: CheckStatus.PASS, highRisk: true }),
+    );
+  });
+
   it('does NOT record a history row when the admin update leaves amlCheck unchanged (non-AML field)', async () => {
     const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PASS, highRisk: false });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
@@ -416,6 +430,45 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
       },
       { status: BuyCryptoStatus.CREATED },
     );
+  });
+
+  it('resume() takes a write lock on the BuyCrypto and on both refund-bearing relations', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+      checkoutTx: Object.assign(new CheckoutTx(), { id: 3, status: CheckoutPaymentStatus.PAID }),
+      cryptoInput: Object.assign(new CryptoInput(), { id: 4 }),
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    const manager = mockResumeManager(buyCrypto);
+
+    await service.resume(99);
+
+    // The locks are the race safety of resume(): without them a refund committing in parallel could
+    // overtake the decision. Assert the lock mode and the locked row, not just that a read happened.
+    expect(manager.findOne).toHaveBeenNthCalledWith(1, BuyCrypto, {
+      where: { id: 7 },
+      select: { id: true },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(2, BuyCrypto, {
+      where: { id: 7 },
+      relations: { batch: true, checkoutTx: true, cryptoInput: true },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(3, CheckoutTx, {
+      where: { id: 3 },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(4, CryptoInput, {
+      where: { id: 4 },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.update).toHaveBeenCalled();
   });
 
   it('resume() rejects a transaction that is not stopped', async () => {
@@ -851,7 +904,29 @@ describe('TransactionService (lookups)', () => {
 
     await service.getTransactionsByUserDataId(5);
 
-    expect(repo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { userData: { id: 5 } } }));
+    // Asserted in full rather than with objectContaining: the relation tree, the eager-loading opt-out
+    // and the sort order are what the account history depends on, and a dropped relation or a flipped
+    // order would otherwise pass unnoticed.
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 5 } },
+      relations: {
+        buyCrypto: {
+          cryptoInput: true,
+          checkoutTx: true,
+          outputAsset: true,
+          bankData: true,
+          batch: true,
+          chargebackBankTx: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },
+        bankTxReturn: true,
+        bankTxRepeat: true,
+      },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+      take: 100,
+    });
   });
 
   it('defaults the account period to everything up to now', async () => {
@@ -877,13 +952,26 @@ describe('TransactionService (lookups)', () => {
 
     await service.getTransactionsForAccount(5, from, to, 10, 20);
 
-    expect(repo.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userData: { id: 5 }, type: Not(IsNull()), created: Between(from, to) },
-        take: 10,
-        skip: 20,
-      }),
-    );
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { userData: { id: 5 }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackOutput: true,
+        },
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
+        bankTx: { transaction: true },
+        bankTxReturn: true,
+      },
+      order: { created: 'DESC' },
+      take: 10,
+      skip: 20,
+    });
   });
 
   it('queries the user transactions in batches and stops at the limit', async () => {
@@ -902,17 +990,28 @@ describe('TransactionService (lookups)', () => {
 
     expect(result).toHaveLength(100);
     expect(repo.find).toHaveBeenCalledTimes(1);
-    expect(repo.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          user: { id: In(Array.from({ length: 100 }, (_, i) => i)) },
-          type: Not(IsNull()),
-          created: Between(from, to),
+    expect(repo.find).toHaveBeenCalledWith({
+      where: {
+        user: { id: In(Array.from({ length: 100 }, (_, i) => i)) },
+        type: Not(IsNull()),
+        created: Between(from, to),
+      },
+      relations: {
+        buyCrypto: {
+          buy: true,
+          cryptoRoute: true,
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackOutput: true,
         },
-        take: 100,
-        skip: 20,
-      }),
-    );
+        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+        refReward: true,
+      },
+      order: { created: 'DESC' },
+      take: 100,
+      skip: 20,
+    });
   });
 
   it('walks the user list in batches of 100 and narrows the limit left for the next one', async () => {
@@ -980,16 +1079,16 @@ describe('TransactionService (lookups)', () => {
 
     await service.getByAssetId(9);
 
-    expect(repo.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: [
-          { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: 9 } },
-          { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: 9 } },
-        ],
-        take: 50,
-        skip: 0,
-      }),
-    );
+    expect(repo.find).toHaveBeenCalledWith({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: 9 } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: 9 } },
+      ],
+      order: { created: 'DESC' },
+      take: 50,
+      skip: 0,
+      relations: { request: true, user: true, userData: true },
+    });
   });
 
   it('pages the asset transactions with the given window', async () => {
@@ -1019,6 +1118,7 @@ describe('TransactionService (query builders)', () => {
 
       expect(qb.where).toHaveBeenCalledWith('transaction.type IS NOT NULL');
       expect(qb.andWhere).not.toHaveBeenCalled();
+      expect(qb.orderBy).toHaveBeenCalledWith('transaction.id', 'DESC');
     });
 
     it('filters on a closed creation period', async () => {
