@@ -152,6 +152,21 @@ async function auditMessages(queryRunner: QueryRunner): Promise<unknown[]> {
   );
 }
 
+interface AuditLogRow {
+  id: number;
+  message: string;
+}
+
+interface AuditPayload {
+  action: string;
+  entries: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+function parseAuditMessage(row: AuditLogRow): AuditPayload {
+  return (typeof row.message === 'string' ? JSON.parse(row.message) : row.message) as AuditPayload;
+}
+
 /** Baseline chain W → B → U → T for a single pair (BTC_ID / USDT_ID). */
 async function seedBaselineChain(
   queryRunner: QueryRunner,
@@ -729,7 +744,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(await auditMessages(queryRunner)).toHaveLength(1);
   });
 
-  it('up() then down() restores edges and deletes unreferenced clones', async () => {
+  it('up() then down() restores edges, clones remain', async () => {
     await seedBaselineChain(queryRunner, { withW: true });
     await insertAsset(queryRunner, 2, 'WBTC');
     await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
@@ -755,7 +770,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     const clonesLeft = (
       await queryRunner.query(`SELECT COUNT(*)::int AS c FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC'`)
     ).at(0).c;
-    expect(clonesLeft).toBe(0);
+    expect(clonesLeft).toBe(cloneCount);
 
     const events = (await auditMessages(queryRunner)) as Array<{ action: string }>;
     expect(events.map((e) => e.action)).toEqual(['applyPreferUsdtOverBtc', 'rollbackPreferUsdtOverBtc']);
@@ -784,7 +799,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     const rows = await queryRunner.query(`SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
       AUDIT_SUBSYSTEM,
     ]);
-    const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
+    const apply = parseAuditMessage(rows[0] as AuditLogRow);
     apply.entries.push({ table: 'user', column: 'password', id: 1, before: 'x', after: 'y' });
     await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [JSON.stringify(apply), rows[0].id]);
 
@@ -817,7 +832,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     const rows = await queryRunner.query(`SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
       AUDIT_SUBSYSTEM,
     ]);
-    const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
+    const apply = parseAuditMessage(rows[0] as AuditLogRow);
     apply.entries.push({
       table: 'liquidity_management_rule',
       column: 'status',
@@ -857,7 +872,7 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     const rows = await queryRunner.query(`SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
       AUDIT_SUBSYSTEM,
     ]);
-    const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
+    const apply = parseAuditMessage(rows[0] as AuditLogRow);
     apply.entries.push({
       table: ['liquidity_management_rule'],
       column: ['status'],
@@ -876,103 +891,52 @@ describe('PreferUsdtOverBtcForLiquidityTrades migration (pg-mem semantics)', () 
     expect(await auditMessages(queryRunner)).toHaveLength(1);
   });
 
-  it('down() rejects a clone entry whose createdActionId is a foreign unreferenced action', async () => {
+  it('down() never deletes clone actions; rules and edges are restored', async () => {
     await seedBaselineChain(queryRunner, { withW: true });
     await insertAsset(queryRunner, 2, 'WBTC');
     await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
+    await insertAsset(queryRunner, 1, 'ETH');
+    await insertRule(queryRunner, { id: 2, deficitStartActionId: BTC_ID, targetAssetId: 1 });
 
     const migration = new PreferUsdtOverBtc();
     await migration.up(queryRunner);
 
-    // Foreign action: exists, unreferenced, and does NOT match wbtcTag(source) of any real clone.
-    const FOREIGN_ID = 9001;
-    await insertAction(queryRunner, {
-      id: FOREIGN_ID,
-      system: 'Foreign',
-      command: 'noop',
-      tag: 'not-a-clone',
-      onFailId: null,
-    });
+    const cloneIds = (
+      await queryRunner.query(
+        `SELECT "id" FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC' ORDER BY "id"`,
+      )
+    ).map((row: { id: number }) => Number(row.id));
+    expect(cloneIds.length).toBeGreaterThan(0);
 
-    const rows = await queryRunner.query(`SELECT "id", "message" FROM "log" WHERE "subsystem" = $1 ORDER BY "id"`, [
-      AUDIT_SUBSYSTEM,
-    ]);
-    const apply = typeof rows[0].message === 'string' ? JSON.parse(rows[0].message) : rows[0].message;
-    const cloneEntry = apply.entries.find((e: { createdActionId?: number }) => e.createdActionId != null) as {
-      createdActionId: number;
-      sourceActionId: number;
-      role: string;
-    };
-    expect(cloneEntry).toBeDefined();
-    const originalCloneId = cloneEntry.createdActionId;
-    const sourceActionId = cloneEntry.sourceActionId;
-    cloneEntry.createdActionId = FOREIGN_ID;
-    await queryRunner.query(`UPDATE "log" SET "message" = $1 WHERE "id" = $2`, [JSON.stringify(apply), rows[0].id]);
-
-    await expect(migration.down(queryRunner)).rejects.toThrow(
-      new RegExp(`createdActionId ${FOREIGN_ID} does not look like a clone of sourceActionId ${sourceActionId}`),
-    );
-
-    // Foreign action must still exist (not deleted as a fake clone).
-    expect(
-      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [FOREIGN_ID]),
-    ).toHaveLength(1);
-    // The real clone whose id was overwritten in the audit was never targeted for DELETE.
-    expect(
-      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [originalCloneId]),
-    ).toHaveLength(1);
-    // No rollback audit was written (down aborted before writeAuditEvent).
-    expect(await auditMessages(queryRunner)).toHaveLength(1);
-  });
-
-  it('down() keeps a clone referenced by liquidity_management_order but rewinds rules', async () => {
-    await seedBaselineChain(queryRunner, { withW: true });
-    await insertAsset(queryRunner, 2, 'WBTC');
-    await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
-
-    const migration = new PreferUsdtOverBtc();
-    await migration.up(queryRunner);
-
-    const w2Id = await ruleStart(queryRunner, 1);
-    await queryRunner.query(`INSERT INTO "liquidity_management_order" ("actionId") VALUES ($1)`, [w2Id]);
+    // One clone is also referenced by an order (proves retention is independent of references).
+    await queryRunner.query(`INSERT INTO "liquidity_management_order" ("actionId") VALUES ($1)`, [cloneIds[0]]);
 
     await migration.down(queryRunner);
 
+    // Rules and edges restored to pre-migration state.
     expect(await ruleStart(queryRunner, 1)).toBe(W_ID);
-    const stillThere = await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [
-      w2Id,
-    ]);
-    expect(stillThere).toHaveLength(1);
+    expect(await ruleStart(queryRunner, 2)).toBe(BTC_ID);
+    expect(await actionOnFail(queryRunner, W_ID)).toBe(BTC_ID);
+    expect(await actionOnFail(queryRunner, BTC_ID)).toBe(USDT_ID);
+    expect(await actionOnFail(queryRunner, USDT_ID)).toBe(T_ID);
+
+    // All clones created during up() still exist after down() — no DELETE runs.
+    for (const cloneId of cloneIds) {
+      expect(
+        await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [cloneId]),
+      ).toHaveLength(1);
+    }
+    const clonesLeft = (
+      await queryRunner.query(`SELECT COUNT(*)::int AS c FROM "liquidity_management_action" WHERE "tag" LIKE '%WBTC'`)
+    ).at(0).c;
+    expect(clonesLeft).toBe(cloneIds.length);
 
     const events = (await auditMessages(queryRunner)) as Array<{
       action: string;
-      keptCloneIds?: number[];
-      deletedCloneIds?: number[];
+      cloneActionIds?: number[];
     }>;
     const rollback = events.find((e) => e.action === 'rollbackPreferUsdtOverBtc');
-    expect(rollback?.keptCloneIds).toContain(w2Id);
-  });
-
-  it('down() keeps a clone referenced by pipeline current/previous action ids', async () => {
-    await seedBaselineChain(queryRunner, { withW: false });
-    await insertAsset(queryRunner, 2, 'WBTC');
-    await insertRule(queryRunner, { id: 1, deficitStartActionId: BTC_ID, targetAssetId: 2 });
-
-    const migration = new PreferUsdtOverBtc();
-    await migration.up(queryRunner);
-
-    const b2Id = await ruleStart(queryRunner, 1);
-    await queryRunner.query(
-      `INSERT INTO "liquidity_management_pipeline" ("currentActionId", "previousActionId") VALUES ($1, NULL)`,
-      [b2Id],
-    );
-
-    await migration.down(queryRunner);
-
-    expect(await ruleStart(queryRunner, 1)).toBe(BTC_ID);
-    expect(
-      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [b2Id]),
-    ).toHaveLength(1);
+    expect(rollback?.cloneActionIds).toEqual(expect.arrayContaining(cloneIds));
   });
 
   it('deactivates Active DAI rules and down() does not reactivate them', async () => {
@@ -1147,46 +1111,6 @@ describeDb('PreferUsdtOverBtcForLiquidityTrades migration (real Postgres)', () =
     const wbtcStart = await ruleStart(queryRunner, 2);
     expect(wbtcStart).not.toBe(BTC_ID);
     expect(wbtcStart).not.toBe(USDT_ID);
-  });
-
-  it('down() does not DELETE a clone that is FK-referenced by order.actionId', async () => {
-    await seedBaselineChain(queryRunner, { withW: true });
-    await insertAsset(queryRunner, 2, 'WBTC');
-    await insertRule(queryRunner, { id: 1, deficitStartActionId: W_ID, targetAssetId: 2 });
-
-    const migration = new PreferUsdtOverBtc();
-    await migration.up(queryRunner);
-
-    const w2Id = await ruleStart(queryRunner, 1);
-    await queryRunner.query(`INSERT INTO "liquidity_management_order" ("actionId") VALUES ($1)`, [w2Id]);
-
-    // Would throw under ON DELETE NO ACTION if down() tried a blind DELETE.
-    await expect(migration.down(queryRunner)).resolves.toBeUndefined();
-
-    expect(await ruleStart(queryRunner, 1)).toBe(W_ID);
-    expect(
-      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [w2Id]),
-    ).toHaveLength(1);
-  });
-
-  it('down() does not DELETE a clone referenced by pipeline.previousActionId', async () => {
-    await seedBaselineChain(queryRunner, { withW: false });
-    await insertAsset(queryRunner, 2, 'WBTC');
-    await insertRule(queryRunner, { id: 1, deficitStartActionId: BTC_ID, targetAssetId: 2 });
-
-    const migration = new PreferUsdtOverBtc();
-    await migration.up(queryRunner);
-
-    const b2Id = await ruleStart(queryRunner, 1);
-    await queryRunner.query(
-      `INSERT INTO "liquidity_management_pipeline" ("currentActionId", "previousActionId") VALUES (NULL, $1)`,
-      [b2Id],
-    );
-
-    await expect(migration.down(queryRunner)).resolves.toBeUndefined();
-    expect(
-      await queryRunner.query(`SELECT "id" FROM "liquidity_management_action" WHERE "id" = $1`, [b2Id]),
-    ).toHaveLength(1);
   });
 
   it('up() then down() restores a full chain on real Postgres', async () => {

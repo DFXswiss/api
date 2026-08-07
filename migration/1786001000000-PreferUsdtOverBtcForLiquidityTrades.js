@@ -570,12 +570,9 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
     // Returns two strictly disjoint, normalized lists — never re-filter apply.entries below.
     const { columnEntries, cloneEntries } = this.validateEntries(apply.entries);
 
-    const deletedCloneIds = [];
-    const keptCloneIds = [];
-
-    // Reverse column overwrites first (except status — DAI deactivation is not auto-reversed:
-    // without the audit we could not distinguish rules this migration deactivated from ones that
-    // were already Inactive or were deactivated independently afterwards. Same rationale as
+    // Reverse column overwrites (except status — DAI deactivation is not auto-reversed: without
+    // the audit we could not distinguish rules this migration deactivated from ones that were
+    // already Inactive or were deactivated independently afterwards. Same rationale as
     // DeactivateTradingRules; reactivation is an operational decision).
     for (const entry of columnEntries) {
       if (entry.column === 'status') continue; // DAI deactivation is not auto-reversed
@@ -583,69 +580,24 @@ module.exports = class PreferUsdtOverBtcForLiquidityTrades1786001000000 {
       await queryRunner.query(sql, params);
     }
 
-    // Delete clones only when unreferenced. Self-FKs on onFailId/onSuccessId (and order/pipeline
-    // action ids) are ON DELETE NO ACTION, so a referenced clone must stay. Process newest first
-    // (reverse of creation: W2 → B2 → U2) so dependent clones are removed before their targets.
-    // Before deleting, verify the row actually looks like a clone this migration created.
-    for (const entry of [...cloneEntries].reverse()) {
-      const cloneId = entry.createdActionId;
-
-      const refs = await queryRunner.query(
-        `SELECT
-           (SELECT COUNT(*)::int FROM "liquidity_management_order" WHERE "actionId" = $1) AS "orderRefs",
-           (SELECT COUNT(*)::int FROM "liquidity_management_pipeline"
-             WHERE "currentActionId" = $1 OR "previousActionId" = $1) AS "pipelineRefs",
-           (SELECT COUNT(*)::int FROM "liquidity_management_action"
-             WHERE ("onFailId" = $1 OR "onSuccessId" = $1) AND "id" <> $1) AS "actionRefs",
-           (SELECT COUNT(*)::int FROM "liquidity_management_rule"
-             WHERE "deficitStartActionId" = $1 OR "redundancyStartActionId" = $1) AS "ruleRefs"`,
-        [cloneId],
-      );
-      const orderRefs = Number(refs?.at?.(0)?.orderRefs ?? 0);
-      const pipelineRefs = Number(refs?.at?.(0)?.pipelineRefs ?? 0);
-      const actionRefs = Number(refs?.at?.(0)?.actionRefs ?? 0);
-      const ruleRefs = Number(refs?.at?.(0)?.ruleRefs ?? 0);
-
-      if (orderRefs > 0 || pipelineRefs > 0 || actionRefs > 0 || ruleRefs > 0) {
-        // Still referenced (order/pipeline history, another action edge, or a rule start);
-        // leave the orphan row so FK ON DELETE NO ACTION is not violated. Rules this migration
-        // rewired were already rewound to the source above when their value still matched `after`.
-        keptCloneIds.push(cloneId);
-        continue;
-      }
-
-      // Verify this row is actually a clone this migration created before deleting it — a tampered
-      // audit entry must not be able to point createdActionId at an arbitrary unreferenced action.
-      const [clone] = await queryRunner.query(
-        `SELECT "system", "command", "tag" FROM "liquidity_management_action" WHERE "id" = $1`,
-        [cloneId],
-      );
-      const [source] = await queryRunner.query(
-        `SELECT "system", "command", "tag" FROM "liquidity_management_action" WHERE "id" = $1`,
-        [entry.sourceActionId],
-      );
-      const looksLikeClone =
-        clone &&
-        source &&
-        clone.system === source.system &&
-        clone.command === source.command &&
-        clone.tag === this.wbtcTag(source.tag);
-      if (!looksLikeClone) {
-        throw new Error(
-          `createdActionId ${cloneId} does not look like a clone of sourceActionId ${entry.sourceActionId} for ${AUDIT_MIGRATION}`,
-        );
-      }
-
-      await queryRunner.query(`DELETE FROM "liquidity_management_action" WHERE "id" = $1`, [cloneId]);
-      deletedCloneIds.push(cloneId);
-    }
+    // Clone actions (B2/U2/W2) are intentionally left in place — down() never deletes them. A
+    // rollback leaves the clones as functionless configuration rows once no rule points at them
+    // anymore. That is deliberate, not an oversight: deleting a clone can only be authorized
+    // against data (its system/command/tag vs. the recorded source) that lives in the same
+    // application-writable "log" table as the delete order itself. Worse, after even one
+    // up → down (clone kept via an FK reference) → up cycle, an older, no-longer-referenced clone
+    // and a newer, actively-referenced one carry the exact same (system, command, tag) — wbtcTag()
+    // is a pure function of the source's unchanged tag, so no comparison drawn from that table can
+    // tell them apart anymore. Leaving the rows in place is the safe direction; cleaning them up
+    // is a deliberate, separate operational decision that this migration's down() cannot prove is
+    // correct on its own. Still validated above and recorded below for that future decision.
+    const cloneActionIds = cloneEntries.map((entry) => entry.createdActionId);
 
     // Pair this apply so a later up() can re-apply; audit history is never deleted.
     await this.writeAuditEvent(queryRunner, {
       action: ROLLBACK_ACTION,
       applyLogId: apply.id,
-      deletedCloneIds,
-      keptCloneIds,
+      cloneActionIds,
     });
   }
 };
