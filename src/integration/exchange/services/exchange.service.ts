@@ -4,6 +4,7 @@ import {
   Balance,
   Balances,
   ConstructorArgs,
+  Currencies,
   Dictionary,
   Exchange,
   Market,
@@ -15,6 +16,7 @@ import {
 } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/services/integration/pricing-provider';
@@ -25,6 +27,21 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 export enum OrderSide {
   BUY = 'buy',
   SELL = 'sell',
+}
+
+/**
+ * Amounts a venue accepts in a single withdrawal. A field is undefined when the venue publishes no such limit
+ * or the query failed — an unknown limit is never the same as a limit of zero.
+ */
+export interface WithdrawalLimits {
+  min?: number;
+  max?: number;
+}
+
+/** One entry of `currency.networks`, which ccxt types as `any`. */
+interface CurrencyNetwork {
+  id?: string;
+  limits?: { withdraw?: { min?: number; max?: number } };
 }
 
 enum OrderStatus {
@@ -46,6 +63,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   protected readonly exchange: Exchange;
 
   private markets: Market[];
+  private readonly currenciesCache = new AsyncCache<Currencies>(CacheItemResetPeriod.EVERY_HOUR);
 
   @Inject() private readonly registry: ExchangeRegistryService;
 
@@ -243,7 +261,51 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return (tokenFees?.networks?.[network] as any)?.withdraw?.fee ?? tokenFees?.withdraw?.fee ?? 0;
   }
 
+  /**
+   * Per-withdrawal limits the venue publishes for a token on a network. Read from `fetchCurrencies`, because
+   * `fetchDepositWithdrawFees` (the source of {@link getWithdrawalFee}) carries fees only, no limits.
+   *
+   * Every unknown case yields an empty result, which callers must read as "no limit known" and never as zero:
+   * capping a withdrawal to zero would turn a working payout into an endless loop of empty deliveries.
+   */
+  async getWithdrawalLimits(token: string, network?: string): Promise<WithdrawalLimits> {
+    // without a network there is nothing to look up: ccxt aggregates the token-level `limits.withdraw` as the
+    // maximum over all networks, which is above what any single network accepts and would cap nothing
+    if (!network) return {};
+
+    const currencies = await this.currenciesCache
+      .get(
+        `currencies-${this.name}`,
+        () =>
+          this.callApi((e) => e.fetchCurrencies()).catch((e) => {
+            this.logger.warn(`Failed to fetch currencies of ${this.name}:`, e);
+            throw e;
+          }),
+        undefined,
+        // serve the last known limits when the query fails: degrading to "no limit" sends the uncapped amount
+        // the venue rejects (MEXC 10255)
+        true,
+      )
+      // the limits are advisory — a failed lookup must never fail a withdrawal that is otherwise fine
+      .catch(() => undefined);
+
+    // ccxt answers with an empty dictionary when the request is unauthorized, so a missing token is unknown
+    const networks: Dictionary<CurrencyNetwork> = currencies?.[token]?.networks ?? {};
+
+    // the stored network string is the venue's own identifier, which ccxt exposes as `id` — the dictionary key
+    // is its unified network code and only sometimes the same string
+    const entry = Object.values(networks).find((n) => n?.id === network) ?? networks[network];
+
+    return { min: this.toLimit(entry?.limits?.withdraw?.min), max: this.toLimit(entry?.limits?.withdraw?.max) };
+  }
+
   // --- Helper Methods --- //
+  // withdrawal limits
+  private toLimit(value?: number): number | undefined {
+    // a limit of zero is the venue's way of saying "not published", not "nothing may be withdrawn"
+    return value > 0 ? value : undefined;
+  }
+
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
