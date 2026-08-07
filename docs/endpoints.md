@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **536 decorated route entries** across 94 controller files, of which **535 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 298 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **538 decorated route entries** across 95 controller files, of which **537 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 298 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -23,20 +23,20 @@ Two rules follow from that, and both are binding:
 1. **An endpoint counts as converted only when its tests reach `4/4`** against the four levels in [read-path-projections.md](read-path-projections.md#test-definition). A projection without them is worse than no projection: a forgotten field does not crash, it returns a wrong value with a 200, and in a service moving money that can run for weeks unnoticed. Anything short of `4/4` is unfinished work, not a partial success.
 2. **The state of every endpoint is recorded here**, in the `Tests` column, and kept in sync with the code in the same pull request that changes it. An undocumented conversion is indistinguishable from one that was never tested.
 
-Today 36 endpoints read only what they need and 410 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
+Today 36 endpoints read only what they need and 411 do not, so the column reads `not yet` almost everywhere. That is the point of recording it: the number is the distance to the target.
 
 ## What the numbers say
 
 | Data access | Endpoints | Share |
 | ----------- | --------: | ----: |
-| `whole rows` | 410 | 76 % |
+| `whole rows` | 411 | 76 % |
 | `none` | 89 | 17 % |
 | `projected` | 36 | 7 % |
 | `caller-defined` | 2 | 0 % |
 
 Of the 36 that read only what they need, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 7), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why 18 of them read `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. The nineteenth is `POST /gs/debug`, which stays `n/a` because its field list comes from the request and there is no fixed projection to test. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
-Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 73 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
+Among the 411 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 307 exceed 100, 73 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
 ### How to read this column, and how not to
 
@@ -50,7 +50,7 @@ Among the 410 that fetch whole rows, the widest query they can trigger is **308 
 
 Stated exactly, so the numbers can be checked rather than believed:
 
-- **448 of the 537 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 410 is a lower bound in that direction. In the other direction 407 of them are backed by at least one measured query; the remaining three are the entries discussed below.
+- **449 of the 538 route entries rest on a call graph that is not fully resolved** — a target chosen at runtime, a method reached through inheritance, an entity manager handed into a transaction callback. This does not weaken the `whole rows` group: an unresolved edge can only add load sites, never remove one, so 411 is a lower bound in that direction. In the other direction 408 of them are backed by at least one measured query; the remaining three are the entries discussed below.
 - All 89 endpoints marked `none` are the opposite case: their graph resolved completely, or the remaining target was read in the source (27 of them, listed below). None of them rests on an unresolved edge.
 - The 36 `projected` and 2 `caller-defined` endpoints do each carry an unresolved edge — a call through the entity manager inside a transaction callback. Their reads were read in the source, but the classification is not proven exhaustive the way the `none` group is.
 - 3 endpoints in the `whole rows` group have no measured column count and show `—`: `POST /payIn/retry`, `GET /support/issue/:id/message/:messageId/file` and `PUT /buyCrypto/:id/amlCheck/reviewReset`. They are also the ones most exposed to the upper bound described in [load-sites.md](load-sites.md#measurements): with no measured query behind them, nothing here shows that they reach a whole-row read at all.
@@ -97,7 +97,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 
 ## How the values are produced
 
-- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 530 distinct method/path pairs match, with no entry left over on either side. The 536 registered rows exceed that by the six pairs served under two versions.
+- **Endpoints** — from the routing decorators in `src/**/*.controller.ts`, each attributed to the `@Controller` scope preceding it. Decorators between the route and the method are skipped by counting parentheses, so a multi-line `@UseGuards(` cannot be mistaken for the handler. Cross-checked in both directions against the routes the framework registers at startup: all 531 distinct method/path pairs match, with no entry left over on either side. The 537 registered rows exceed that by the six pairs served under two versions.
 - **Ver** — from `@Version` on the handler, otherwise from the `@Controller` scope, otherwise the configured default. Note that the version follows the class, not the folder: the controllers under `generic/kyc/` are not uniformly v2 — `KycAdminController` carries no version decorator and is therefore served under the default.
 - **Data access** — the union over the call graph, following injected fields, locally constructed repositories and multi-line call chains. `find*` pulls in eager relations, `createQueryBuilder` does not, a bare identifier passed to `.select(...)` is the root alias and loads every column, while anything else — an array, a qualified column such as `.select('userData.id', 'id')`, or an expression such as `COUNT(*)` — narrows it, and `.update()/.delete()/.insert()` are writes that load nothing.
 - **Max cols** — the query is built from the real entity metadata and its SELECT list counted, so the number is measured rather than estimated. It is still a lower bound wherever the load site takes its `relations` tree as a parameter, or the call graph did not resolve: both can only add sites and widen queries, never the reverse.
@@ -521,6 +521,8 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/setting/infoBanner` | public | none | — | n/a |  | `SettingController.getInfoBanner` | `shared/models/setting/setting.controller.ts` |
 | POST | 1 |  | `/specialExternalAccount` | hidden | whole rows | 7 | not yet |  | `SpecialExternalAccountController.createSpecialExternalAccount` | `subdomains/supporting/payment/controllers/special-external-account.controller.ts` |
 | GET | 1 |  | `/statistic` | public | whole rows | 5 | not yet |  | `StatisticController.getAll` | `subdomains/core/statistic/statistic.controller.ts` |
+| GET | 1 |  | `/statistic/partner` | public | whole rows | 364 | not yet | yes | `PartnerStatisticController.getPartnerStatistics` | `subdomains/core/statistic/partner-statistic.controller.ts` |
+| GET | 1 |  | `/statistic/partner/timeline` | public | whole rows | 364 | not yet | yes | `PartnerStatisticController.getPartnerTimeline` | `subdomains/core/statistic/partner-statistic.controller.ts` |
 | GET | 1 |  | `/statistic/status` | public | whole rows | 5 | not yet |  | `StatisticController.getStatus` | `subdomains/core/statistic/statistic.controller.ts` |
 | GET | 1 |  | `/statistic/transactions` | public | whole rows | 416 | not yet |  | `StatisticController.getTransactions` | `subdomains/core/statistic/statistic.controller.ts` |
 | GET | 1 |  | `/support` | hidden | whole rows | 594 | not yet |  | `SupportController.searchUserByKey` | `subdomains/generic/support/support.controller.ts` |
