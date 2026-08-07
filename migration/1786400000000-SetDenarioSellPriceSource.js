@@ -30,17 +30,6 @@ const TARGET_RULES = [
 ];
 
 /**
- * Convert driver-specific values such as Date objects into the JSON representation persisted
- * in the audit event.
- *
- * @param {Record<string, unknown>} row
- * @returns {Record<string, unknown>}
- */
-function normalizeRow(row) {
-  return JSON.parse(JSON.stringify(row));
-}
-
-/**
  * Return the single apply event that has not yet been matched by a rollback event.
  * Audit rows live in the append-only "log" table; pairing is pure application logic via action and
  * applyLogId in the JSON message payload.
