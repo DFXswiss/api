@@ -1,4 +1,4 @@
-const mssql = require('mssql');
+const { Client } = require('pg');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -13,10 +13,11 @@ if (!['localhost', '127.0.0.1'].includes(dbHost)) {
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
   password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-  server: 'localhost',
-  port: parseInt(process.env.SQL_PORT) || 1433,
+  host: process.env.SQL_HOST || 'localhost',
+  port: parseInt(process.env.SQL_PORT) || 5432,
   database: process.env.SQL_DB || 'dfx',
-  options: { encrypt: false, trustServerCertificate: true }
+  // Local-only script (host is restricted above); default to no SSL, opt in via SQL_SSL=true.
+  ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };
 
 function uuid() {
@@ -139,23 +140,24 @@ async function main() {
   });
 
   console.log('\nConnecting to database...');
-  const pool = await mssql.connect(config);
+  const client = new Client(config);
+  await client.connect();
 
   // Get user_data entries
-  const userDataResult = await pool.request().query(`
-    SELECT id, mail, kycLevel, firstname, surname
+  const userDataResult = await client.query(`
+    SELECT id, mail, "kycLevel", firstname, surname
     FROM user_data
     WHERE mail LIKE '%@test.local' OR mail = 'bernd@dfx.swiss'
     ORDER BY id
   `);
 
-  if (userDataResult.recordset.length === 0) {
+  if (userDataResult.rows.length === 0) {
     console.log('No test user_data found. Please run scripts/testdata.js first.');
-    await pool.close();
+    await client.end();
     return;
   }
 
-  console.log(`\nFound ${userDataResult.recordset.length} user_data entries for KYC test data.\n`);
+  console.log(`\nFound ${userDataResult.rows.length} user_data entries for KYC test data.\n`);
 
   // KYC Step configurations for different KYC levels
   const kycStepConfigs = {
@@ -206,7 +208,7 @@ async function main() {
 
   console.log('Creating KYC Steps and Files...\n');
 
-  for (const userData of userDataResult.recordset) {
+  for (const userData of userDataResult.rows) {
     const kycLevel = userData.kycLevel || 0;
     const steps = kycStepConfigs[kycLevel];
 
@@ -221,31 +223,25 @@ async function main() {
       const step = steps[i];
 
       // Check if step already exists
-      const existingStep = await pool.request()
-        .input('userDataId', mssql.Int, userData.id)
-        .input('name', mssql.NVarChar, step.name)
-        .input('seqNum', mssql.Int, i + 1)
-        .query('SELECT id FROM kyc_step WHERE userDataId = @userDataId AND name = @name AND sequenceNumber = @seqNum');
+      const existingStep = await client.query(
+        'SELECT id FROM kyc_step WHERE "userDataId" = $1 AND name = $2 AND "sequenceNumber" = $3',
+        [userData.id, step.name, i + 1],
+      );
 
       let stepId;
-      if (existingStep.recordset.length > 0) {
-        stepId = existingStep.recordset[0].id;
+      if (existingStep.rows.length > 0) {
+        stepId = existingStep.rows[0].id;
         console.log(`    - Step ${step.name} already exists (id=${stepId})`);
       } else {
-        const stepResult = await pool.request()
-          .input('userDataId', mssql.Int, userData.id)
-          .input('name', mssql.NVarChar, step.name)
-          .input('type', mssql.NVarChar, step.type || null)
-          .input('status', mssql.NVarChar, step.status)
-          .input('sequenceNumber', mssql.Int, i + 1)
-          .input('result', mssql.NVarChar, step.result || null)
-          .input('sessionId', mssql.NVarChar, uuid())
-          .query(`
-            INSERT INTO kyc_step (userDataId, name, type, status, sequenceNumber, result, sessionId, created, updated)
-            OUTPUT INSERTED.id
-            VALUES (@userDataId, @name, @type, @status, @sequenceNumber, @result, @sessionId, GETUTCDATE(), GETUTCDATE())
-          `);
-        stepId = stepResult.recordset[0].id;
+        const stepResult = await client.query(
+          `
+            INSERT INTO kyc_step ("userDataId", name, type, status, "sequenceNumber", result, "sessionId", created, updated)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, now() at time zone 'utc', now() at time zone 'utc')
+            RETURNING id
+          `,
+          [userData.id, step.name, step.type || null, step.status, i + 1, step.result || null, uuid()],
+        );
+        stepId = stepResult.rows[0].id;
         console.log(`    - Created Step ${step.name} (id=${stepId})`);
       }
 
@@ -255,28 +251,21 @@ async function main() {
         for (const fileConfig of fileConfigsForStep) {
           const fileUid = uuid();
 
-          const existingFile = await pool.request()
-            .input('userDataId', mssql.Int, userData.id)
-            .input('name', mssql.NVarChar, fileConfig.name)
-            .input('kycStepId', mssql.Int, stepId)
-            .query('SELECT id FROM kyc_file WHERE userDataId = @userDataId AND name = @name AND kycStepId = @kycStepId');
+          const existingFile = await client.query(
+            'SELECT id FROM kyc_file WHERE "userDataId" = $1 AND name = $2 AND "kycStepId" = $3',
+            [userData.id, fileConfig.name, stepId],
+          );
 
-          if (existingFile.recordset.length > 0) {
+          if (existingFile.rows.length > 0) {
             console.log(`      - File ${fileConfig.name} already exists`);
           } else {
-            await pool.request()
-              .input('name', mssql.NVarChar, fileConfig.name)
-              .input('type', mssql.NVarChar, fileConfig.type)
-              .input('subType', mssql.NVarChar, fileConfig.subType)
-              .input('protected', mssql.Bit, fileConfig.protected)
-              .input('valid', mssql.Bit, true)
-              .input('uid', mssql.NVarChar, fileUid)
-              .input('userDataId', mssql.Int, userData.id)
-              .input('kycStepId', mssql.Int, stepId)
-              .query(`
-                INSERT INTO kyc_file (name, type, subType, protected, valid, uid, userDataId, kycStepId, created, updated)
-                VALUES (@name, @type, @subType, @protected, @valid, @uid, @userDataId, @kycStepId, GETUTCDATE(), GETUTCDATE())
-              `);
+            await client.query(
+              `
+                INSERT INTO kyc_file (name, type, "subType", protected, valid, uid, "userDataId", "kycStepId", created, updated)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() at time zone 'utc', now() at time zone 'utc')
+              `,
+              [fileConfig.name, fileConfig.type, fileConfig.subType, fileConfig.protected, true, fileUid, userData.id, stepId],
+            );
             console.log(`      - Created File ${fileConfig.name} (uid=${fileUid.substring(0, 8)}...)`);
           }
         }
@@ -287,22 +276,19 @@ async function main() {
   // Create KYC Log entries
   console.log('\nCreating KYC Log entries...');
 
-  const kycSteps = await pool.request().query('SELECT id, userDataId, name, status FROM kyc_step');
+  const kycSteps = await client.query('SELECT id, "userDataId", name, status FROM kyc_step');
 
-  for (const step of kycSteps.recordset.slice(0, 5)) {
-    const existingLog = await pool.request()
-      .input('kycStepId', mssql.Int, step.id)
-      .query('SELECT id FROM kyc_log WHERE kycStepId = @kycStepId');
+  for (const step of kycSteps.rows.slice(0, 5)) {
+    const existingLog = await client.query('SELECT id FROM kyc_log WHERE "kycStepId" = $1', [step.id]);
 
-    if (existingLog.recordset.length === 0) {
-      await pool.request()
-        .input('kycStepId', mssql.Int, step.id)
-        .input('status', mssql.NVarChar, step.status)
-        .input('result', mssql.NVarChar, 'System: KYC step processed')
-        .query(`
-          INSERT INTO kyc_log (kycStepId, status, result, created, updated)
-          VALUES (@kycStepId, @status, @result, GETUTCDATE(), GETUTCDATE())
-        `);
+    if (existingLog.rows.length === 0) {
+      await client.query(
+        `
+          INSERT INTO kyc_log ("type", "userDataId", "kycStepId", status, result, created, updated)
+          VALUES ($1, $2, $3, $4, $5, now() at time zone 'utc', now() at time zone 'utc')
+        `,
+        ['StepLog', step.userDataId, step.id, step.status, 'System: KYC step processed'],
+      );
       console.log(`  - Created log for step ${step.id} (${step.name})`);
     }
   }
@@ -312,16 +298,16 @@ async function main() {
   console.log('KYC Test Data Creation Complete!');
   console.log('========================================\n');
 
-  const stepCount = await pool.request().query('SELECT COUNT(*) as c FROM kyc_step');
-  const fileCount = await pool.request().query('SELECT COUNT(*) as c FROM kyc_file');
-  const logCount = await pool.request().query('SELECT COUNT(*) as c FROM kyc_log');
+  const stepCount = await client.query('SELECT COUNT(*) as c FROM kyc_step');
+  const fileCount = await client.query('SELECT COUNT(*) as c FROM kyc_file');
+  const logCount = await client.query('SELECT COUNT(*) as c FROM kyc_log');
 
-  console.log(`  kyc_step: ${stepCount.recordset[0].c} rows`);
-  console.log(`  kyc_file: ${fileCount.recordset[0].c} rows`);
-  console.log(`  kyc_log:  ${logCount.recordset[0].c} rows`);
+  console.log(`  kyc_step: ${stepCount.rows[0].c} rows`);
+  console.log(`  kyc_file: ${fileCount.rows[0].c} rows`);
+  console.log(`  kyc_log:  ${logCount.rows[0].c} rows`);
   console.log(`\n  Dummy files location: ${dummyDir}`);
 
-  await pool.close();
+  await client.end();
 }
 
 main().catch(e => {

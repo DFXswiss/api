@@ -5,15 +5,16 @@
  * Usage: node scripts/kyc/kyc-storage.js
  */
 
-const mssql = require('mssql');
+const { Client } = require('pg');
 
 const dbConfig = {
   user: process.env.SQL_USERNAME || 'sa',
   password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-  server: 'localhost',
-  port: parseInt(process.env.SQL_PORT) || 1433,
+  host: process.env.SQL_HOST || 'localhost',
+  port: parseInt(process.env.SQL_PORT) || 5432,
   database: process.env.SQL_DB || 'dfx',
-  options: { encrypt: false, trustServerCertificate: true }
+  // Local-only script; default to no SSL, opt in via SQL_SSL=true.
+  ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };
 
 async function main() {
@@ -24,19 +25,20 @@ async function main() {
   console.log('They need to be uploaded via the KYC flow or manually inserted.\n');
 
   // Get KYC file info from database
-  const pool = await mssql.connect(dbConfig);
+  const client = new Client(dbConfig);
+  await client.connect();
 
-  const files = await pool.request().query(`
-    SELECT kf.id, kf.uid, kf.name, kf.type, kf.userDataId, ud.mail
+  const files = await client.query(`
+    SELECT kf.id, kf.uid, kf.name, kf.type, kf."userDataId", ud.mail
     FROM kyc_file kf
-    JOIN user_data ud ON kf.userDataId = ud.id
+    JOIN user_data ud ON kf."userDataId" = ud.id
     ORDER BY kf.id
   `);
 
   console.log('KYC Files in database:');
   console.log('======================');
 
-  for (const file of files.recordset) {
+  for (const file of files.rows) {
     const ext = file.name.split('.').pop().toLowerCase();
     const contentType = ext === 'pdf' ? 'application/pdf' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
 
@@ -57,7 +59,7 @@ async function main() {
   console.log('service when the requested file is not in memory storage.');
   console.log('');
 
-  await pool.close();
+  await client.end();
 }
 
 main().catch(console.error);
