@@ -982,6 +982,10 @@ export class BuyCrypto extends IEntity {
     return this.cryptoInput != null;
   }
 
+  get isMissingLiquidity(): boolean {
+    return this.status === BuyCryptoStatus.MISSING_LIQUIDITY;
+  }
+
   // Mirrors resetAmlCheckForReview: checkout/crypto refund or forward already started on related rows.
   get checkoutRefundStarted(): boolean {
     return (

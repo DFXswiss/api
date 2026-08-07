@@ -48,16 +48,18 @@ export class BuyCryptoNotificationService {
     transactionIds: number[],
     messages: string[],
   ): Promise<void> {
-    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAssetName}&${blockchain}&${type}&TX_IDs_${transactionIds.map(
-      (id) => `${id}`,
-    )}`;
+    // The correlation id is the debounce identity, so it names the thing being reported - the unmet liquidity
+    // of one asset - and not the set of transactions that happens to be waiting for it. Carrying the ids made
+    // every arriving transaction a new identity with a fresh debounce window, which is one mail per cycle for
+    // as long as the asset is short. The ids stay visible: they are reported in the body below.
+    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAssetName}&${blockchain}&${type}`;
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
       input: {
         subject: `Buy Crypto Error - missing liquidity for ${blockchain}/${outputAssetName}.`,
-        errors: messages,
+        errors: [...messages, `Transaction ID(s): ${transactionIds}`],
         isLiqMail: true,
       },
       options: { debounce: 3600000 },
