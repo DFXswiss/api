@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **142 `@DfxCron` declarations** across 98 files and 34 areas.
+Every scheduled job this service runs: **143 `@DfxCron` declarations** across 98 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **142 `@DfxCron` declarations** across 98
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-120 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+121 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-118 of the 142 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+119 of the 143 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -80,7 +80,7 @@ New jobs should declare a flag unless there is a reason like the one above.
 | 30 seconds | 10 |
 | minute | 53 |
 | 5 minutes | 18 |
-| 10 minutes | 16 |
+| 10 minutes | 17 |
 | 15 minutes | 1 |
 | hour | 16 |
 | day at 3am | 1 |
@@ -113,7 +113,7 @@ Jobs by area:
 | `subdomains/supporting/fiat-output` | 4 | — |
 | `subdomains/supporting/support-issue` | 4 | — |
 | `subdomains/core/liquidity-management` | 3 | — |
-| `subdomains/core/referral` | 3 | — |
+| `subdomains/core/referral` | 4 | — |
 | `subdomains/core/trading` | 3 | — |
 | `subdomains/supporting/pricing` | 3 | — |
 | `integration/exchange` | 2 | 1 |
@@ -137,7 +137,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 27 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **142 = 142**, no gap. Class and
+count is asserted against a raw text count of the decorator: **143 = 143**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -161,7 +161,7 @@ the job is registered — on the provider instance, which is a different object 
 instance the request handlers use.
 
 Resolving either one is a decision about the jobs, not about this inventory, so both are recorded
-here rather than fixed in passing. Of the 142 declarations, 141 have a registration path.
+here rather than fixed in passing. Of the 143 declarations, 142 have a registration path.
 
 ## Jobs
 
@@ -270,6 +270,7 @@ here rather than fixed in passing. Of the 142 declarations, 141 have a registrat
 | 10 minutes | `PAY_IN` | `worker` | `PayInService::updateFailedPayments` | `subdomains/supporting/payin/services/payin.service.ts` |
 | 10 minutes | `MONITORING` | `worker` | `PaymentObserver::fetch` | `subdomains/core/monitoring/observers/payment.observer.ts` |
 | 10 minutes | `MONITORING` | `worker` | `RealUnitW2wGasObserver::fetch` | `subdomains/core/monitoring/observers/realunit-w2w-gas.observer.ts` |
+| 10 minutes | `REF_PAYOUT` | `worker` | `RefRewardJobService::createRefBonusRewards` | `subdomains/core/referral/reward/services/ref-reward-job.service.ts` |
 | 10 minutes | `REF_PAYOUT` | `worker` | `RefRewardJobService::processPendingRefRewards` | `subdomains/core/referral/reward/services/ref-reward-job.service.ts` |
 | 10 minutes | `MONITORING` | `worker` | `UserObserver::fetch` | `subdomains/core/monitoring/observers/user.observer.ts` |
 | 10 minutes | `ZANO_ASSET_WHITELIST` | `worker` | `ZanoService::setupAssetWhitelist` | `integration/blockchain/zano/services/zano.service.ts` |

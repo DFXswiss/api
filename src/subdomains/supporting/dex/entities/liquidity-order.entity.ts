@@ -30,6 +30,11 @@ export type TargetAmount = number;
 @Index((order: LiquidityOrder) => [order.context, order.correlationId])
 // Keyset index for the per-minute ledger content-change scan (ORDER BY updated, id).
 @Index((order: LiquidityOrder) => [order.updated, order.id])
+// Serves the 30-second standing-order read in DexService.finalizePurchaseOrders. Partial because
+// the predicate carries the whole selectivity: a purchase order is standing only between its
+// transaction being sent and its result being recorded, so the index stays small while the table
+// grows. The key is `id` because the query has no ordering of its own.
+@Index((order: LiquidityOrder) => [order.id], { where: '"isReady" = false AND "txId" IS NOT NULL' })
 export class LiquidityOrder extends IEntity {
   @Column({ length: 256 })
   type: LiquidityOrderType;

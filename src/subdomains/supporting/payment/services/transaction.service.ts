@@ -434,6 +434,32 @@ export class TransactionService {
     return { volume: volume ?? 0, credit: credit ?? 0 };
   }
 
+  async getRefBonusCandidates(usedRef: string, minTransactionId: number): Promise<Transaction[]> {
+    return this.repo
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('transaction.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyFiat.cryptoInput', 'cryptoInput')
+      .leftJoinAndSelect('cryptoInput.asset', 'cryptoInputAsset')
+      .leftJoin('transaction.targetRefReward', 'refReward')
+      .where('transaction.id > :minTransactionId', { minTransactionId })
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where(
+              'buyCrypto.usedRef = :usedRef AND buyCrypto.absoluteFeeAmount != 0 AND buyCrypto.status = :completeStatus',
+              { usedRef, completeStatus: BuyCryptoStatus.COMPLETE },
+            )
+            .orWhere(
+              'buyFiat.usedRef = :usedRef AND buyFiat.absoluteFeeAmount != 0 AND buyFiat.isComplete = :isComplete',
+              { usedRef, isComplete: true },
+            ),
+        ),
+      )
+      .andWhere('refReward.id IS NULL')
+      .getMany();
+  }
+
   async getAllTransactionsForUserData(
     userDataId: number,
     relations: FindOptionsRelations<Transaction> = {},

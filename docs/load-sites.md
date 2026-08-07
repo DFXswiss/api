@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **at most 1158 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
+Every place in the code that reads from the database: **at most 1160 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -9,7 +9,7 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
 | `find` family | 1007 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 144 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `createQueryBuilder` | 146 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 7 | not applied | whatever the statement lists |
 
 Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 4 raw `INSERT`. Each of the 7 raw reads that remain names its columns.
@@ -19,9 +19,9 @@ Among the query builders, the field list is what decides whether anything is act
 | | Sites |
 | --- | ---: |
 | `.select([...])` or `PROJECTION.apply(...)` — an explicit field list | **18** |
-| `.select('alias.column')` — names columns one by one | **90** |
+| `.select('alias.column')` — names columns one by one | **91** |
 | `.select('alias')` — selects the root alias, **loads every column** | 17 |
-| no `select` at all — loads every column | 15 |
+| no `select` at all — loads every column | 16 |
 | `getCount()` or `getExists()` — the select list is discarded, **no row is materialised** | 3 |
 | projects, but a `leftJoinAndSelect` loads a relation whole | 1 |
 
@@ -29,7 +29,7 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 796 of 1158 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 798 of 1160 sites.
 
 - **341 are exact**: the `relations` tree is written at the call site.
 - **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
@@ -444,6 +444,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data-notification.service.ts:173` | `UserDataNotificationService.blackSquadInvitation` |
 | 99 | 0 | query-builder (no select) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:148` | `UserDataService.getUserDataByUser` |
 | 99 | 0 | query-builder (alias only) | `UserData` | `subdomains/generic/user/models/user-data/user-data.service.ts:320` | `UserDataService.getUserDataByKey` |
+| 98 | 2 | query-builder (no select) | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:439` | `TransactionService.getRefBonusCandidates` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user-data/user-data.service.ts:1071` | `UserDataService.customIdentMethod` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:275` | `UserService.getRefDtoV2` |
 | 98 | 2 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:283` | `UserService.updateRef` |
