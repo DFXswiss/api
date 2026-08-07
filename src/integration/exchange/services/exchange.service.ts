@@ -38,10 +38,16 @@ export interface WithdrawalLimits {
   max?: number;
 }
 
-/** One entry of `currency.networks`, which ccxt types as `any`. */
+/**
+ * One entry of `currency.networks`, which ccxt types as `any`. The limits are typed as `unknown` on purpose:
+ * ccxt builds them per network with `safeString` and parses only the token-level aggregate into a number, so
+ * what arrives here is a string on the venues that publish per-network limits at all.
+ */
 interface CurrencyNetwork {
   id?: string;
-  limits?: { withdraw?: { min?: number; max?: number } };
+  network?: string;
+  info?: { netWork?: string; network?: string };
+  limits?: { withdraw?: { min?: unknown; max?: unknown } };
 }
 
 enum OrderStatus {
@@ -238,7 +244,16 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     key: string,
     network?: string,
   ): Promise<WithdrawalResponse> {
-    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network })).catch((e) => {
+      // a rejection for exceeding the maximum proves the cached limits stale, and the rejection carries the new
+      // number: kept, the cache would cap every retry of the next hour to the very amount just rejected
+      if (this.isWithdrawalAboveMaximumError(e)) {
+        this.logger.warn(`Withdrawal of ${token} at ${this.name} was above the venue maximum, reloading limits:`, e);
+        this.currenciesCache.invalidate();
+      }
+
+      throw e;
+    });
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
@@ -266,44 +281,111 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
    * `fetchDepositWithdrawFees` (the source of {@link getWithdrawalFee}) carries fees only, no limits.
    *
    * Every unknown case yields an empty result, which callers must read as "no limit known" and never as zero:
-   * capping a withdrawal to zero would turn a working payout into an endless loop of empty deliveries.
+   * capping a withdrawal to zero would turn a working payout into an endless loop of empty deliveries. Each of
+   * those cases is logged, because the empty result cannot tell "the venue publishes no maximum" from "the
+   * maximum could not be read" — only the second one needs a human, and only the log can name it.
    */
   async getWithdrawalLimits(token: string, network?: string): Promise<WithdrawalLimits> {
     // without a network there is nothing to look up: ccxt aggregates the token-level `limits.withdraw` as the
     // maximum over all networks, which is above what any single network accepts and would cap nothing
     if (!network) return {};
 
-    const currencies = await this.currenciesCache
-      .get(
-        `currencies-${this.name}`,
-        () =>
-          this.callApi((e) => e.fetchCurrencies()).catch((e) => {
-            this.logger.warn(`Failed to fetch currencies of ${this.name}:`, e);
-            throw e;
-          }),
-        undefined,
-        // serve the last known limits when the query fails: degrading to "no limit" sends the uncapped amount
-        // the venue rejects (MEXC 10255)
-        true,
-      )
-      // the limits are advisory — a failed lookup must never fail a withdrawal that is otherwise fine
-      .catch(() => undefined);
+    const currencies = await this.getCurrencies();
+    // a failed lookup is already logged by getCurrencies, an empty answer is not: ccxt returns an empty
+    // dictionary, and no error, when the venue serves its currency list to authenticated callers only and no
+    // credentials are configured — that lookup would otherwise leave no trace at all
+    if (!currencies) return {};
 
-    // ccxt answers with an empty dictionary when the request is unauthorized, so a missing token is unknown
-    const networks: Dictionary<CurrencyNetwork> = currencies?.[token]?.networks ?? {};
+    if (!Object.keys(currencies).length) {
+      this.logger.warn(`No withdrawal limits for ${token} at ${this.name}: the venue published no currencies`);
+      return {};
+    }
 
-    // the stored network string is the venue's own identifier, which ccxt exposes as `id` — the dictionary key
-    // is its unified network code and only sometimes the same string
-    const entry = Object.values(networks).find((n) => n?.id === network) ?? networks[network];
+    const networks: Dictionary<CurrencyNetwork> = currencies[token]?.networks ?? {};
 
-    return { min: this.toLimit(entry?.limits?.withdraw?.min), max: this.toLimit(entry?.limits?.withdraw?.max) };
+    const entry = this.findNetwork(networks, network);
+    if (!entry) {
+      this.logger.warn(
+        `No withdrawal limits for ${token} at ${this.name}: network ${network} is none of [${Object.keys(networks)}]`,
+      );
+      return {};
+    }
+
+    const limits = { min: this.toLimit(entry.limits?.withdraw?.min), max: this.toLimit(entry.limits?.withdraw?.max) };
+    if (limits.max == null)
+      this.logger.verbose(`${this.name} publishes no withdrawal maximum for ${token} on network ${network}`);
+
+    return limits;
   }
 
   // --- Helper Methods --- //
   // withdrawal limits
-  private toLimit(value?: number): number | undefined {
+  private async getCurrencies(): Promise<Currencies | undefined> {
+    return (
+      this.currenciesCache
+        .get(
+          `currencies-${this.name}`,
+          () =>
+            // the warning belongs inside the update call: AsyncCache swallows a failed update as soon as an entry
+            // for the key exists, so a caller-side catch never sees this failure and would never report it. Every
+            // request from here on goes out uncapped, which is worth a line
+            this.callApi((e) => e.fetchCurrencies()).catch((e) => {
+              this.logger.warn(`Failed to fetch currencies of ${this.name}:`, e);
+              throw e;
+            }),
+          undefined,
+          // serve the last known limits when the query fails: degrading to "no limit" sends the uncapped amount
+          // the venue rejects
+          true,
+        )
+        // the limits are advisory — a failed lookup must never fail a withdrawal that is otherwise fine
+        .catch(() => undefined)
+    );
+  }
+
+  /**
+   * The venue's network entry for the network string this repo stores. `networks` is keyed by ccxt's unified
+   * network code, but only where ccxt has a mapping for the venue — MEXC ships four of them, so for every other
+   * network the key, the `id` and the raw payload all carry the venue's own string, which is sometimes the short
+   * code ("XMR") and sometimes the long form ("Monero(XMR)"). Matching the key alone misses the long form, and
+   * the caller cannot tell that miss from "no limit published" unless this method is asked twice.
+   */
+  private findNetwork(networks: Dictionary<CurrencyNetwork>, network: string): CurrencyNetwork | undefined {
+    const candidates = Object.entries(networks).map(([key, entry]) => ({
+      entry,
+      // every spelling ccxt keeps of the venue's identifier: dictionary key, unified code, id and the raw fields
+      ids: [key, entry?.id, entry?.network, entry?.info?.netWork, entry?.info?.network]
+        .filter((i): i is string => typeof i === 'string')
+        .map((i) => i.toLowerCase()),
+    }));
+
+    const wanted = network.toLowerCase();
+
+    const exact = candidates.find((c) => c.ids.includes(wanted));
+    if (exact) return exact.entry;
+
+    // the long form embeds the short code ("Monero(XMR)"), so exactly one containing candidate identifies the
+    // network — two of them would make it a guess, and a guessed cap is worse than no cap
+    const containing = candidates.filter((c) => c.ids.some((i) => i.includes(wanted)));
+
+    return containing.length === 1 ? containing[0].entry : undefined;
+  }
+
+  private toLimit(value?: unknown): number | undefined {
+    // ccxt builds the per-network limits with `safeString`, so they arrive as strings while the token-level
+    // aggregate arrives as a number — compared as they come, "20" sorts after "100" and inverts every check
+    const limit = Number(value);
+
     // a limit of zero is the venue's way of saying "not published", not "nothing may be withdrawn"
-    return value > 0 ? value : undefined;
+    return Number.isFinite(limit) && limit > 0 ? limit : undefined;
+  }
+
+  // each venue words this rejection itself, e.g. MEXC code 10255 "Withdrawal shall not be greater than the Max
+  // amount of:<amount>"
+  private isWithdrawalAboveMaximumError(e: Error): boolean {
+    return ['greater than the max amount', 'exceeds the maximum', 'above the maximum'].some((m) =>
+      e.message?.toLowerCase().includes(m),
+    );
   }
 
   // currency pairs
