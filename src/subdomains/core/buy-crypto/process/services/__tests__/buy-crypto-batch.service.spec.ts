@@ -446,6 +446,24 @@ describe('BuyCryptoBatchService', () => {
       expect(savedBatchTransactionIds()).toEqual([11]);
     });
 
+    it('sends no notification while the rule is paused after a failed pipeline', async () => {
+      setupPartialLiquidity();
+      jest
+        .spyOn(liquidityManagementService, 'buyLiquidity')
+        .mockRejectedValue(
+          new ConflictException(
+            `Pipeline for rule 1 cannot be started (status ${LiquidityManagementRuleStatus.PAUSED})`,
+          ),
+        );
+
+      await service.batchAndOptimizeTransactions();
+
+      // Paused is the state every failed pipeline leaves behind, and it lasts for the whole reactivation
+      // window. The deferred path re-orders for its set on every cycle, so a mail here is a mail per minute
+      expect(buyCryptoNotificationService.sendMissingLiquidityError).not.toHaveBeenCalled();
+      expect(savedBatchTransactionIds()).toEqual([11]);
+    });
+
     it('does not rewrite the status of a transaction that is already in MissingLiquidity', async () => {
       setupPartialLiquidity(BuyCryptoStatus.MISSING_LIQUIDITY);
 

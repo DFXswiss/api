@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -10,7 +10,6 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
-import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -625,8 +624,15 @@ export class BuyCryptoBatchService {
     } catch (e) {
       this.logger.info(`Failed to order missing liquidity for asset ${targetAsset.uniqueName}:`, e);
 
-      // send missing liquidity message
-      if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING)) {
+      // Send the missing liquidity message, unless the rule state is what refused the order. executeRule
+      // raises ConflictException for exactly that - a rule that is Processing while its pipeline runs, or
+      // Paused for the whole reactivation window after one failed. Neither is news: a running pipeline is the
+      // throttle, and the pipeline that failed already mailed its failure. Matching on the message text
+      // (Processing only) let the Paused window through, and since the deferred path re-orders for its set on
+      // every cycle, that was a mail per minute for as long as the rule stayed paused. The transactions do not
+      // go quiet: they hold MissingLiquidity, the bc-payout-missing-liquidity ops rule reports them, and the
+      // refusal is logged above.
+      if (!(e instanceof ConflictException)) {
         const maxPurchasableTargetAmountMessage =
           maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
 
