@@ -290,6 +290,8 @@ describe('BuyCryptoPreparationService', () => {
       jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
       apiKeyBackup = Config.scorechain.apiKey;
       Config.scorechain.apiKey = 'test-key';
+      // no compliance exemption by default — the deep mock would otherwise resolve to a truthy mock
+      jest.spyOn(amlService, 'isScorechainExemptAddress').mockResolvedValue(false);
     });
 
     afterEach(() => {
@@ -309,6 +311,34 @@ describe('BuyCryptoPreparationService', () => {
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('skips the billable screening and passes for a compliance-exempted withdrawal address', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest.spyOn(amlService, 'isScorechainExemptAddress').mockResolvedValue(true);
+      jest.spyOn(scorechainScreeningService, 'screenWithdrawalAddress').mockResolvedValue({} as any);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
+      expect(amlService.isScorechainExemptAddress).toHaveBeenCalledWith('0xabc');
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('does NOT apply the address exemption to a deposit screening (swap)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(amlService, 'isScorechainExemptAddress').mockResolvedValue(true);
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
+      expect(amlService.isScorechainExemptAddress).not.toHaveBeenCalled();
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
     });
 
     it('screens the deposit tx for a swap (crypto-in)', async () => {

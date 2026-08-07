@@ -6,6 +6,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../../../buy-crypto/process/entities/buy-crypto.entity';
 import { AmlError } from '../../enums/aml-error.enum';
 import { CheckStatus } from '../../enums/check-status.enum';
@@ -17,6 +18,7 @@ import { AmlService } from '../aml.service';
 describe('AmlService — Scorechain review date', () => {
   let service: AmlService;
   let userDataService: UserDataService;
+  let specialExternalAccountService: SpecialExternalAccountService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,6 +29,7 @@ describe('AmlService — Scorechain review date', () => {
 
     service = module.get(AmlService);
     userDataService = module.get(UserDataService);
+    specialExternalAccountService = module.get(SpecialExternalAccountService);
     jest.spyOn(userDataService, 'updateUserDataInternal').mockImplementation(async (userData) => userData);
   });
 
@@ -95,5 +98,40 @@ describe('AmlService — Scorechain review date', () => {
         .mocked(userDataService.updateUserDataInternal)
         .mock.calls.some(([, update]) => update.scorechainCheckDate != null),
     ).toBe(false);
+  });
+
+  // On a fiat-funded buy the Scorechain hit was on the payout address, so the release must also
+  // register exactly that address — otherwise the next payout to it repeats the identical review.
+  it('registers the payout address of a released fiat-funded buy', async () => {
+    const entity = passedBuyCrypto(AmlError.SCORECHAIN_HIGH_RISK);
+    Object.assign(entity.user, { address: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5' });
+
+    await service.postProcessing(entity, undefined);
+
+    expect(specialExternalAccountService.registerScorechainExemptAddress).toHaveBeenCalledWith(
+      '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5',
+      expect.stringContaining('tx 7'),
+    );
+  });
+
+  // A swap's hit was on the incoming deposit tx, not on the payout address — exempting the target
+  // address there would suppress a control that never fired for it.
+  it('does not register an address for a released swap (crypto-in)', async () => {
+    const entity = passedBuyCrypto(AmlError.SCORECHAIN_HIGH_RISK);
+    Object.assign(entity, { cryptoInput: { id: 5 } });
+    Object.assign(entity.user, { address: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5' });
+
+    await service.postProcessing(entity, undefined);
+
+    expect(specialExternalAccountService.registerScorechainExemptAddress).not.toHaveBeenCalled();
+  });
+
+  it('does not register an address for a release without a Scorechain hit', async () => {
+    const entity = passedBuyCrypto(AmlError.IP_COUNTRY_MISMATCH);
+    Object.assign(entity.user, { address: '0xFA73137a652633302DEDC91A79ebdaDb81E0d2C5' });
+
+    await service.postProcessing(entity, undefined);
+
+    expect(specialExternalAccountService.registerScorechainExemptAddress).not.toHaveBeenCalled();
   });
 });

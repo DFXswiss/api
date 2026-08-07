@@ -101,7 +101,7 @@ export class BuyCryptoPreparationService {
       //
       // DEPOSITS ONLY. The withdrawal screening asks a different question — may DFX pay INTO this
       // address — which a review of the customer's funding source does not answer; a payout to a listed
-      // address must never be waved through by it. Address-scoped payout exemptions belong to #4402.
+      // address must never be waved through by it. Payouts have their own, address-scoped exemption below.
       //
       // Deliberately NOT fail-closed on a missing userData: no account means no review, so the screening
       // runs. Inside the try on purpose: like every other userData access here, a failure must become
@@ -110,6 +110,15 @@ export class BuyCryptoPreparationService {
         this.logger.info(
           `Skipping Scorechain screening for buy-crypto ${entity.id}: account ${entity.userData.id} reviewed by compliance`,
         );
+        return ScorechainOutcome.PASS;
+      }
+
+      // A compliance-exempted target address (manually reviewed high-risk verdict, e.g. third-party
+      // address poisoning against a customer wallet) skips the billable withdrawal screening — the
+      // unchanged on-chain score would otherwise re-route every payout to the same address into the
+      // same manual review. Managed via SpecialExternalAccount type ScorechainExemptAddress.
+      if (!isDeposit && (await this.amlService.isScorechainExemptAddress(objectId))) {
+        this.logger.verbose(`Scorechain screening skipped for buy-crypto ${entity.id}: target address is exempted`);
         return ScorechainOutcome.PASS;
       }
 
