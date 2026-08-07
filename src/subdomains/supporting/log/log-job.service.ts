@@ -490,7 +490,11 @@ export class LogJobService {
 
     // fixed sender and receiver data
 
-    // CHF: Kraken -> Yapeal
+    // CHF: Kraken -> Yapeal. Withdrawals to the Bank Frick CHF account are deliberately NOT matched
+    // here — CHF payout liquidity stays on Yapeal while the payout side runs on Yapeal, and Kraken
+    // records the beneficiary name, which for the Frick account has never been observed; matching on
+    // a guessed name would silently misattribute. Add the Frick lane the day that direction becomes
+    // operational, mirroring the toKraken lane.
     const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
@@ -512,7 +516,7 @@ export class LogJobService {
       (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // CHF: Yapeal -> Kraken
+    // CHF: Bank (Yapeal/Frick) -> Kraken, one lane per source bank
     const chfSenderBankTx = recentKrakenBankTx.filter(
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
@@ -522,6 +526,16 @@ export class LogJobService {
         k.status !== 'pending' &&
         k.method === 'Bank Frick (SIC) International' &&
         k.address === yapealChfBank.bic.padEnd(11, 'XXX'),
+    );
+    const chfFrickSenderBankTx = recentKrakenBankTx.filter(
+      (b) => b.accountIban === frickChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const chfFrickReceiverExchangeTx = recentKrakenExchangeTx.filter(
+      (k) =>
+        k.type === ExchangeTxType.DEPOSIT &&
+        k.status !== 'pending' &&
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === frickChfBank.bic.padEnd(11, 'XXX'),
     );
 
     // EUR: Yapeal -> Kraken
@@ -557,6 +571,10 @@ export class LogJobService {
     const { sender: recentChfYapealKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
       chfSenderBankTx,
       chfReceiverExchangeTx,
+    );
+    const { sender: recentChfFrickKrakenTx, receiver: recentChfBankTxKrakenViaFrick } = this.filterSenderPendingList(
+      chfFrickSenderBankTx,
+      chfFrickReceiverExchangeTx,
     );
     const { sender: recentEurYapealKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       eurSenderBankTx,
@@ -694,12 +712,12 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
-      // Yapeal to Kraken //
+      // Bank (Yapeal/Frick) to Kraken //
 
       // filtered lists
       const pendingYapealKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfYapealKrakenTx, ...recentEurYapealKrakenTx],
+        [...recentChfYapealKrakenTx, ...recentChfFrickKrakenTx, ...recentEurYapealKrakenTx],
         BankTxType.KRAKEN,
       );
       const pendingChfYapealKrakenMinusAmount = this.getPendingBankAmount(
@@ -708,6 +726,12 @@ export class LogJobService {
         ExchangeTxType.DEPOSIT,
         yapealChfBank.iban,
       );
+      const pendingChfFrickKrakenMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfBankTxKrakenViaFrick,
+        ExchangeTxType.DEPOSIT,
+        frickChfBank.iban,
+      );
       const pendingEurYapealKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentEurBankTxKraken,
@@ -715,11 +739,12 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // unfiltered lists
+      // unfiltered lists — Frick CHF shares the per-currency toKraken.chf watermark with Yapeal
       const pendingYapealKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         [
           ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
+          ...chfFrickSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
           ...eurSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.bankTxId),
         ],
         BankTxType.KRAKEN,
@@ -729,6 +754,12 @@ export class LogJobService {
         chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
         ExchangeTxType.DEPOSIT,
         yapealChfBank.iban,
+      );
+      const pendingChfFrickKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfFrickReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        frickChfBank.iban,
       );
       const pendingEurYapealKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
@@ -843,12 +874,16 @@ export class LogJobService {
       const toKrakenUnfiltered =
         pendingYapealKrakenPlusAmountUnfiltered +
         pendingChfYapealKrakenMinusAmountUnfiltered +
+        pendingChfFrickKrakenMinusAmountUnfiltered +
         pendingEurYapealKrakenMinusAmountUnfiltered;
 
       let fromKraken =
         pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
       let toKraken =
-        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
+        pendingYapealKrakenPlusAmount +
+        pendingChfYapealKrakenMinusAmount +
+        pendingChfFrickKrakenMinusAmount +
+        pendingEurYapealKrakenMinusAmount;
 
       let fromScrypt = pendingChfScryptBankPlusAmount + pendingEurScryptBankPlusAmount + pendingScryptBankMinusAmount;
       let toScrypt = pendingBankScryptPlusAmount + pendingChfBankScryptMinusAmount + pendingEurBankScryptMinusAmount;
@@ -908,9 +943,10 @@ export class LogJobService {
       if (fromKraken < 0) {
         if (fromKraken < -reportTolerance) {
           errors.push(`fromKraken < 0`);
-          this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-        ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
-        pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`);
+          this.logger
+            .verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
+        ${pendingChfKrakenYapealPlusAmount}, pendingEurPlusAmount: ${pendingEurKrakenYapealPlusAmount},
+        pendingMinusAmount: ${pendingKrakenYapealMinusAmount}`);
         }
         fromKraken = 0;
       }
@@ -920,6 +956,7 @@ export class LogJobService {
           this.logger.verbose(
             `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
           ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
+          pendingChfFrickMinusAmount: ${pendingChfFrickKrakenMinusAmount},
           pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`,
           );
         }

@@ -293,7 +293,9 @@ describe('BankService', () => {
     expect(result).toBe(incumbent);
   });
 
-  it('leaves CHF bank selection unaffected by the Bank Frick EUR rule', async () => {
+  it('leaves CHF bank selection unaffected when only a Bank Frick EUR row is present', async () => {
+    // EUR Frick row must not capture CHF via the fallback path: getBankInternal looks up Frick/CHF,
+    // finds nothing, and the categorical exclusion then keeps the EUR Frick row out of CHF selection.
     const frick = createCustomBank({ ...frickEUR, receive: true });
     const chf = createCustomBank({ ...yapealCHF, receive: true });
     mockFindCachedByForBanks(bankRepo, [frick, chf]);
@@ -303,7 +305,7 @@ describe('BankService', () => {
     expect(result).toBe(chf);
   });
 
-  it('does not let a Bank Frick CHF row capture a CHF request', async () => {
+  it('routes BANK CHF deposits to a receiving Bank Frick CHF row', async () => {
     const frickChf = createCustomBank({
       name: IbanBankName.FRICK,
       currency: 'CHF',
@@ -313,10 +315,66 @@ describe('BankService', () => {
     });
     const chf = createCustomBank({ ...yapealCHF, receive: true });
     mockFindCachedByForBanks(bankRepo, [frickChf, chf]);
-    mockFindCachedForBanks(bankRepo, []);
+    mockFindCachedForBanks(bankRepo, [frickChf, chf]);
 
-    const result = await service.getBank(createBankSelectorInput('CHF'));
-    expect(result).toBe(chf);
+    const result = await service.getBank(createBankSelectorInput('CHF', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(frickChf);
+  });
+
+  it('falls back to the established CHF receiver when Bank Frick CHF is not receiving', async () => {
+    const disabledFrick = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: false,
+      iban: 'LI75088110105923K0CHF',
+      bic: 'BFRILI22',
+    });
+    const incumbent = createCustomBank({ ...yapealCHF, receive: true });
+    mockFindCachedByForBanks(bankRepo, [disabledFrick, incumbent]);
+    mockFindCachedForBanks(bankRepo, [disabledFrick, incumbent]);
+
+    const result = await service.getBank(createBankSelectorInput('CHF', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(incumbent);
+  });
+
+  it('uses an instant-capable CHF bank instead of Bank Frick for INSTANT payments', async () => {
+    const frickChf = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'CHF',
+      receive: true,
+      sctInst: false,
+      iban: 'LI75088110105923K0CHF',
+      bic: 'BFRILI22',
+    });
+    const instantBank = createCustomBank({ ...yapealCHF, receive: true, sctInst: true });
+    mockFindCachedByForBanks(bankRepo, [frickChf, instantBank]);
+    mockFindCachedForBanks(bankRepo, [frickChf, instantBank]);
+
+    const result = await service.getBank(createBankSelectorInput('CHF', undefined, FiatPaymentMethod.INSTANT));
+    expect(result).toBe(instantBank);
+  });
+
+  it('does not route USD bank transfers to Bank Frick', async () => {
+    const frickUsd = createCustomBank({
+      name: IbanBankName.FRICK,
+      currency: 'USD',
+      receive: true,
+      iban: 'LI75088110105923K0USD',
+      bic: 'BFRILI22',
+    });
+    const incumbent = createCustomBank({
+      name: IbanBankName.YAPEAL,
+      currency: 'USD',
+      receive: true,
+      iban: 'CH0000000000000000USD',
+      bic: 'YAPECHZZ',
+    });
+    mockFindCachedByForBanks(bankRepo, [frickUsd, incumbent]);
+    mockFindCachedForBanks(bankRepo, [frickUsd, incumbent]);
+
+    const result = await service.getBank(createBankSelectorInput('USD', undefined, FiatPaymentMethod.BANK));
+    expect(result).toBe(incumbent);
+    expect(result).not.toBe(frickUsd);
   });
 
   it('uses an instant-capable EUR bank instead of Bank Frick for INSTANT payments', async () => {

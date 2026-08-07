@@ -146,6 +146,15 @@ asset-linked row because that link owns bank-transaction attribution. Only when 
 asset-linked does the newest row win. This is deterministic defense in depth; the production
 migration's legacy-row rename remains the primary collision removal.
 
+Deposit-side cutover (CHF): `BankService.getBank`'s BANK-payment-method rule routes both EUR and
+CHF bank transfers to their respective receiving Bank Frick row (`getBankInternal(IbanBankName.FRICK,
+currency)`), and `VirtualIbanService.getOrCreateFrickForUser` issues personal IBANs in both
+currencies through the same Frick-specific claim/recovery machinery. Existing Yapeal CHF personal
+IBANs remain active and receiving (grandfathered); only new issuance moves to Frick. Payouts are
+unaffected by this cutover: `FiatOutputService.selectPayoutBank` still excludes Bank Frick from
+automatic selection for both currencies exactly as it already did for EUR, so an operator or an
+explicit assignment remains required to send from a Frick account.
+
 ## 4. Required cryptographic configuration
 
 All values remain blank in `.env.example`. Deployment must provide:
@@ -158,8 +167,8 @@ All values remain blank in `.env.example`. Deployment must provide:
 - `FRICK_APPROVE_WITHOUT_TAN=true` only after Bank Frick confirms backend exemption
 - `FRICK_VBAN_API_URL` — base URL of Bank Frick's separate VBAN API (test
   `https://api-test.bankfrick.li/vban`, production `https://api.bankfrick.li/vban`), used to issue
-  EUR personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable and there
-  is no behaviour change
+  EUR and CHF personal IBANs; opt-in — when unset, the Frick virtual-IBAN provider is unavailable
+  and there is no behaviour change
 
 **vIBAN transport contract (bodyless GET Content-Type):** Bodyless vIBAN GET calls (list and detail)
 must **omit** the `Content-Type` request header entirely. Production evidence: Bank Frick's vIBAN
@@ -206,6 +215,11 @@ issuance events or damaged audit data can all remove that evidence. In those cas
 deployment/audit record and keep the rollback floor unless absence can be established. This is an
 irreversible deployment boundary, not a check that an older revision happens to be safe for the
 currently active subset.
+
+The floor is provider-scoped, not currency-scoped: the guard query above filters on
+`vie.provider = 'Bank Frick'` alone, so it already applies from the moment the first Bank Frick CHF
+personal IBAN is persisted, exactly as it does for EUR — the query needs no change for the CHF
+deposit cutover.
 
 ## 5. Payout and reconciliation decisions
 
@@ -304,10 +318,15 @@ The `test:frick:cov` gate compiles with full type information (`tsconfig.coverag
 ### Provider boundary: this protocol is Frick-only
 
 The durable issuance intent, issuance-event retirement markers, merge-time intent reconciliation,
-and both hourly orphan-reconciliation phases apply only to `provider = 'Bank Frick'`. Implicit CHF
-issuance through Yapeal retains its pre-feature direct create/save flow: it does not acquire a
-Frick issuance lock, create an intent/event, write a retired-reference marker, or enter the Frick
-scanner. Both phases group work by the immutable
+and both hourly orphan-reconciliation phases apply only to `provider = 'Bank Frick'`. This boundary
+is currency-agnostic by construction — every stage scopes by provider, not by currency — so it
+already covers Bank Frick CHF personal IBANs exactly as it covers EUR ones, with no separate
+currency-specific logic required. The generic Yapeal issuance path — used for currencies outside
+Frick's roster, and, since the CHF deposit cutover moved new CHF issuance to Frick, now also the
+path under which already-active grandfathered Yapeal CHF personal IBANs remain — retains its
+pre-feature direct create/save flow: it does not acquire a Frick issuance lock, create an
+intent/event, write a retired-reference marker, or enter the Frick scanner. Both phases group work
+by the immutable
 `[provider, referenceAccountIban, referenceAccountReceive]` snapshot and validate that the snapshot
 is Frick, has a non-empty reference-account IBAN and was receive-enabled before any Frick API call.
 They do not load the current `Bank` row. Renaming, reclassifying or replacing that row therefore

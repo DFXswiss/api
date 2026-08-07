@@ -22,6 +22,12 @@ export enum IbanBankName {
   YAPEAL = 'Yapeal',
 }
 
+// Product decision: the currencies Bank Frick serves for both personal-IBAN issuance and deposit
+// routing. Single source of truth - do not duplicate this list elsewhere. Frozen because the same
+// reference backs both the deposit routing and the issuance gate: an in-place mutation would
+// silently change both at runtime.
+export const FRICK_CURRENCIES: readonly string[] = Object.freeze(['EUR', 'CHF']);
+
 export enum CardBankName {
   CHECKOUT = 'Checkout',
 }

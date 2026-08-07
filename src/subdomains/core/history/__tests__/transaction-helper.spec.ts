@@ -305,13 +305,76 @@ describe('TransactionHelper', () => {
       });
     });
 
-    it('should fall back to the default bank if no deposit bank is found', async () => {
+    it('should fall back to Frick for EUR bank transfers when no deposit bank is found (deposit cutover)', async () => {
       jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
 
       await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, undefined)).resolves.toEqual({
+        bankName: IbanBankName.FRICK,
+        activeVirtualIban: undefined,
+      });
+    });
+
+    it('should fall back to Yapeal for USD bank transfers when no deposit bank is found (currency outside the cutover)', async () => {
+      const usd = createCustomFiat({ name: 'USD' });
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
+
+      await expect(txHelper['getBankIn'](usd, FiatPaymentMethod.BANK, undefined)).resolves.toEqual({
         bankName: IbanBankName.YAPEAL,
         activeVirtualIban: undefined,
       });
+    });
+  });
+
+  describe('getDefaultDepositBankByPaymentMethod', () => {
+    // TransactionHelper.getDefaultDepositBankByPaymentMethod is a pure static method - no
+    // DI/module bootstrap needed, unlike the rest of this file's txHelper-instance tests.
+    it.each([
+      ['EUR', IbanBankName.FRICK],
+      ['CHF', IbanBankName.FRICK],
+    ] as const)('returns FRICK for BANK + %s (deposit cutover currencies)', (currency, expected) => {
+      expect(TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.BANK, currency)).toBe(expected);
+    });
+
+    it('returns YAPEAL for BANK + USD (unrouted currency)', () => {
+      expect(TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.BANK, 'USD')).toBe(
+        IbanBankName.YAPEAL,
+      );
+    });
+
+    it('returns YAPEAL for BANK when currency is undefined (payout / unknown direction)', () => {
+      expect(TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.BANK, undefined)).toBe(
+        IbanBankName.YAPEAL,
+      );
+    });
+
+    it.each(['EUR', 'CHF', 'USD', undefined] as const)(
+      'returns OLKY for INSTANT regardless of currency (%s)',
+      (currency) => {
+        expect(TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.INSTANT, currency)).toBe(
+          IbanBankName.OLKY,
+        );
+      },
+    );
+
+    it.each(['EUR', 'CHF', undefined] as const)('returns CHECKOUT for CARD regardless of currency (%s)', (currency) => {
+      expect(TransactionHelper.getDefaultDepositBankByPaymentMethod(FiatPaymentMethod.CARD, currency)).toBe(
+        CardBankName.CHECKOUT,
+      );
+    });
+  });
+
+  describe('getDefaultBankByPaymentMethod', () => {
+    // Restored to its pre-cutover, direction-neutral shape - used by payout call sites only.
+    it('returns YAPEAL for BANK', () => {
+      expect(TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK)).toBe(IbanBankName.YAPEAL);
+    });
+
+    it('returns OLKY for INSTANT', () => {
+      expect(TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.INSTANT)).toBe(IbanBankName.OLKY);
+    });
+
+    it('returns CHECKOUT for CARD', () => {
+      expect(TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.CARD)).toBe(CardBankName.CHECKOUT);
     });
   });
 
