@@ -70,3 +70,16 @@ export interface LiquidityState {
   minAmount: number;
   maxAmount: number;
 }
+
+/**
+ * Payouts of one coin that are outstanding right now, counted per source that holds them.
+ *
+ * `assets` names every row the count was taken over, so a withheld sale can be read back without
+ * re-deriving which rows the coin spans.
+ */
+export interface PayoutDemand {
+  coin: string;
+  assets: string[];
+  transactions: number;
+  orders: number;
+}

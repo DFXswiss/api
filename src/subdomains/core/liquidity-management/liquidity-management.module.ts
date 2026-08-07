@@ -9,6 +9,7 @@ import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
@@ -73,6 +74,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     forwardRef(() => BuyCryptoModule),
     CheckoutModule,
     PricingModule,
+    PayoutModule,
   ],
   controllers: [
     LiquidityManagementRuleController,
