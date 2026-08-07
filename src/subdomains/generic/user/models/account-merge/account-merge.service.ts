@@ -81,11 +81,15 @@ export class AccountMergeService {
     const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);
 
+    // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+    const wallet = receiver.wallet ?? (await this.userDataService.getUserData(receiver.id, { wallet: true }))?.wallet;
+
     await this.notificationService.sendMail({
       type: MailType.USER_V2,
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
         userData: receiver,
+        wallet,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         texts: [

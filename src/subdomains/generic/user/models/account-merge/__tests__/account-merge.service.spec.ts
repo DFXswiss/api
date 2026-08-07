@@ -4,6 +4,8 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from '../../user-data/user-data.entity';
 import { UserDataService } from '../../user-data/user-data.service';
+import { createCustomWallet } from '../../wallet/__mocks__/wallet.entity.mock';
+import { Wallet } from '../../wallet/wallet.entity';
 import { AccountMerge, MergeReason } from '../account-merge.entity';
 import { AccountMergeRepository } from '../account-merge.repository';
 import { AccountMergeService } from '../account-merge.service';
@@ -14,9 +16,10 @@ describe('AccountMergeService', () => {
   let accountMergeRepo: jest.Mocked<Partial<AccountMergeRepository>>;
   let notificationService: jest.Mocked<Partial<NotificationService>>;
   let kycLogService: jest.Mocked<Partial<KycLogService>>;
+  let userDataService: jest.Mocked<Partial<UserDataService>>;
 
-  const buildUserData = (id: number, mail?: string): UserData => {
-    const userData = Object.assign(new UserData(), { id, mail, firstname: `user${id}` });
+  const buildUserData = (id: number, mail?: string, wallet?: Wallet): UserData => {
+    const userData = Object.assign(new UserData(), { id, mail, firstname: `user${id}`, wallet });
     jest.spyOn(userData, 'isMergePossibleWith').mockReturnValue(true);
     return userData;
   };
@@ -29,12 +32,13 @@ describe('AccountMergeService', () => {
     accountMergeRepo = { findOneBy: jest.fn(), findOne: jest.fn(), save: jest.fn() };
     notificationService = { sendMail: jest.fn() };
     kycLogService = { createMergeLog: jest.fn() };
+    userDataService = { getUserData: jest.fn() };
 
     service = new AccountMergeService(
       accountMergeRepo as unknown as AccountMergeRepository,
       notificationService as unknown as NotificationService,
       kycLogService as unknown as KycLogService,
-      {} as unknown as UserDataService,
+      userDataService as unknown as UserDataService,
     );
   });
 
@@ -130,6 +134,50 @@ describe('AccountMergeService', () => {
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       const [mail] = notificationService.sendMail.mock.calls[0];
       expect((mail.input as { userData: UserData }).userData).toBe(slave);
+    });
+
+    // locks in the branding fix: the mail carries the receiving account's own wallet explicitly,
+    // so resolveMailWallet's account-history override cannot rebrand it
+    it('brands the mail with the receiving (master) account wallet', async () => {
+      const dfxWallet = createCustomWallet({ name: 'DFX' });
+      const master = buildUserData(1, 'master@test.com', dfxWallet);
+      const slave = buildUserData(2, 'slave@test.com', createCustomWallet({ name: 'RealUnit' }));
+      accountMergeRepo.findOneBy.mockResolvedValue(null);
+      accountMergeRepo.save.mockResolvedValue(Object.assign(new AccountMerge(), { id: 13, code: 'code-13' }));
+
+      await service.sendMergeRequest(master, slave, MergeReason.MAIL);
+
+      const [mail] = notificationService.sendMail.mock.calls[0];
+      expect((mail.input as { wallet: Wallet }).wallet).toBe(dfxWallet);
+      expect(userDataService.getUserData).not.toHaveBeenCalled();
+    });
+
+    it('brands the mail with the slave account wallet when sent to the slave', async () => {
+      const realUnitWallet = createCustomWallet({ name: 'RealUnit' });
+      const master = buildUserData(1, 'master@test.com', createCustomWallet({ name: 'DFX' }));
+      const slave = buildUserData(2, 'slave@test.com', realUnitWallet);
+      accountMergeRepo.findOneBy.mockResolvedValue(null);
+      accountMergeRepo.save.mockResolvedValue(Object.assign(new AccountMerge(), { id: 14, code: 'code-14' }));
+
+      await service.sendMergeRequest(master, slave, MergeReason.IDENT_DOCUMENT, true);
+
+      const [mail] = notificationService.sendMail.mock.calls[0];
+      expect((mail.input as { wallet: Wallet }).wallet).toBe(realUnitWallet);
+    });
+
+    it('reloads the receiver wallet when the relation is not loaded', async () => {
+      const dfxWallet = createCustomWallet({ name: 'DFX' });
+      const master = buildUserData(1, 'master@test.com');
+      const slave = buildUserData(2, 'slave@test.com');
+      accountMergeRepo.findOneBy.mockResolvedValue(null);
+      accountMergeRepo.save.mockResolvedValue(Object.assign(new AccountMerge(), { id: 15, code: 'code-15' }));
+      userDataService.getUserData.mockResolvedValue(buildUserData(1, 'master@test.com', dfxWallet));
+
+      await service.sendMergeRequest(master, slave, MergeReason.IBAN);
+
+      expect(userDataService.getUserData).toHaveBeenCalledWith(1, { wallet: true });
+      const [mail] = notificationService.sendMail.mock.calls[0];
+      expect((mail.input as { wallet: Wallet }).wallet).toBe(dfxWallet);
     });
   });
 });

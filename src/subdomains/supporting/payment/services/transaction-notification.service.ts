@@ -137,6 +137,8 @@ export class TransactionNotificationService {
           context: MailContext.UNASSIGNED_TX,
           input: {
             userData,
+            // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+            wallet: userData.wallet,
             title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
             salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
             texts: [

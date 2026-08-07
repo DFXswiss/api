@@ -1395,7 +1395,7 @@ export class VirtualIbanService {
   async getByIban(iban: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: { iban },
-      relations: { userData: true, bank: true, buy: true },
+      relations: { userData: { wallet: true }, bank: true, buy: true },
     });
   }
 
