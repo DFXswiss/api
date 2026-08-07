@@ -36,7 +36,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     this.l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
     this.l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.l1Provider);
 
-    void this.initL2Network();
+    void this.initL2Network().catch((e) => this.logger.error('Arbitrum L2 network initialization failed:', e));
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
