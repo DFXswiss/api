@@ -47,6 +47,10 @@
     "titel": "Cron-Jobs",
     "beschreibung": "Übersicht der @DfxCron-Jobs und ihrer Intervalle."
   },
+  "docs/bank-processing-monitoring.md": {
+    "titel": "Bank-Processing-Monitoring",
+    "beschreibung": "Der BankProcessingObserver: 45 Regeln über offene Bank-Transaktionen, Toleranzmodell und das Log-Interface für Dashboards."
+  },
   "docs/bank-frick-operations.md": {
     "titel": "Bank Frick Operationen",
     "beschreibung": "Betriebsabläufe und Besonderheiten der Bank-Frick-Integration."
