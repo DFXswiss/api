@@ -465,21 +465,13 @@ describe('ExchangeService', () => {
   });
 
   it('should throw PairNotTradableException when market is missing from markets list', async () => {
-    // Marktliste enthält ein anderes Symbol → getMarket('BTC/EUR') liefert undefined
+    // Markets list has a different symbol → getTradePair finds no pair and throws PairNotTradableException.
+    // The public path (getCurrentPrice → getTradePair) is the reachable entry for an unsupported pair;
+    // the internal fetchCurrentOrderPrice guard still covers delisted symbols on checkTrade.
     Setup.MissingMarket();
-    jest.spyOn(exchange, 'fetchOrderBook').mockResolvedValue({
-      asks: [[50000, 1]],
-      bids: [[49900, 1]],
-    } as OrderBook);
 
-    // Guard sits on fetchCurrentOrderPrice (trade-price path); call it directly so getTradePair
-    // does not fail first with BadRequestException for an unsupported pair.
-    await expect(service['fetchCurrentOrderPrice']('BTC/EUR', OrderSide.BUY)).rejects.toThrow(
-      PairNotTradableException,
-    );
-    await expect(service['fetchCurrentOrderPrice']('BTC/EUR', OrderSide.BUY)).rejects.toThrow(
-      /market BTC\/EUR is not tradable/,
-    );
+    await expect(service.getCurrentPrice('POL', 'BTC')).rejects.toThrow(PairNotTradableException);
+    await expect(service.getCurrentPrice('POL', 'BTC')).rejects.toThrow(/pair with POL and BTC not supported/);
   });
 
   it('should throw PairNotTradableException when asks are empty (buy side)', async () => {
@@ -514,5 +506,19 @@ describe('ExchangeService', () => {
     } as OrderBook);
 
     await expect(service.getCurrentPrice('EUR', 'BTC')).resolves.toBe(50000);
+  });
+
+  it('should throw PairNotTradableException from getMinTradeAmount when market is missing', async () => {
+    Setup.MissingMarket();
+
+    await expect(service.getMinTradeAmount('BTC/EUR')).rejects.toThrow(PairNotTradableException);
+    await expect(service.getMinTradeAmount('BTC/EUR')).rejects.toThrow(/market BTC\/EUR is not tradable/);
+  });
+
+  it('should throw PairNotTradableException from getPrecision when market is missing', async () => {
+    Setup.MissingMarket();
+
+    await expect(service['getPrecision']('BTC/EUR')).rejects.toThrow(PairNotTradableException);
+    await expect(service['getPrecision']('BTC/EUR')).rejects.toThrow(/market BTC\/EUR is not tradable/);
   });
 });

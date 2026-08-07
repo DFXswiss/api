@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
+import { Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import {
   Balance,
@@ -454,6 +454,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   async getMinTradeAmount(pair: string): Promise<{ amount: number; cost: number }> {
     const market = await this.getMarket(pair);
+    if (!market) {
+      throw new PairNotTradableException(`${this.name}: market ${pair} is not tradable`);
+    }
     return {
       amount: market.limits.amount.min ?? 0,
       cost: market.limits.cost?.min ?? 0,
@@ -462,6 +465,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   private async getPrecision(pair: string): Promise<{ price: number; amount: number }> {
     return this.getMarket(pair).then((m) => {
+      if (!m) {
+        throw new PairNotTradableException(`${this.name}: market ${pair} is not tradable`);
+      }
       return {
         price: this.convertPrecision(m.precision.price),
         amount: this.convertPrecision(m.precision.amount),
@@ -475,7 +481,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
       : new BigNumber(10).exponentiatedBy(-precision).toNumber();
   }
 
-  private async getMarket(pair: string): Promise<Market> {
+  private async getMarket(pair: string): Promise<Market | undefined> {
     return this.getMarkets().then((m) => m.find((m) => m.symbol === pair));
   }
 
@@ -490,7 +496,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     );
 
     const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
-    if (!selectedPair) throw new BadRequestException(`${this.name}: pair with ${from} and ${to} not supported`);
+    if (!selectedPair) throw new PairNotTradableException(`${this.name}: pair with ${from} and ${to} not supported`);
 
     const selectedDirection = selectedPair.startsWith(to) ? OrderSide.BUY : OrderSide.SELL;
 
@@ -515,12 +521,15 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   private async fetchCurrentOrderPrice(pair: string, direction: string, orderBook?: OrderBook): Promise<number> {
-    orderBook ??= await this.fetchOrderBook(pair);
-
+    // Check market before fetchOrderBook: ccxt may fail on an unknown symbol, and the typed
+    // PairNotTradableException should win for missing/inactive markets (including delisted pairs
+    // that reach here via checkTrade without going through getTradePair).
     const market = await this.getMarket(pair);
     if (!market || market.active === false) {
       throw new PairNotTradableException(`${this.name}: market ${pair} is not tradable`);
     }
+
+    orderBook ??= await this.fetchOrderBook(pair);
 
     const pricePrecision = this.convertPrecision(market.precision.price);
 
