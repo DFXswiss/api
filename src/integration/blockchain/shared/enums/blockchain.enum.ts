@@ -46,3 +46,17 @@ export enum Blockchain {
   YAPEAL = 'Yapeal',
   FRICK = 'Frick',
 }
+
+/**
+ * Networks that mirror a mainnet's tickers without carrying its value: `BitcoinTestnet4/BTC`,
+ * `Sepolia/ETH`, `Sepolia/USDT` and `Sepolia/ZCHF` all share their `name` with the real thing.
+ *
+ * Deliberately not `TestBlockchains` from `blockchain.util`: that list is environment-dependent and
+ * additionally names mainnets that are merely not enabled in production. Whether a testnet coin is
+ * the same good as its mainnet namesake does not depend on the environment — it never is.
+ */
+export const TestnetBlockchains: Blockchain[] = [
+  Blockchain.SEPOLIA,
+  Blockchain.CITREA_TESTNET,
+  Blockchain.BITCOIN_TESTNET4,
+];

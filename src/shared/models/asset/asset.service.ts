@@ -115,6 +115,16 @@ export class AssetService {
     return this.assetRepo.findCachedBy(`${name}`, { name });
   }
 
+  /**
+   * Every asset row that holds the same coin as `asset`, `asset` itself included.
+   *
+   * Reads through the by-name cache, so a per-minute caller does not add a query per call. What
+   * "the same coin" means, and why it is `name`, is documented on `Asset.isSameCoinAs`.
+   */
+  async getSameCoinAssets(asset: Asset): Promise<Asset[]> {
+    return this.getAssetsByName(asset.name).then((assets) => assets.filter((a) => asset.isSameCoinAs(a)));
+  }
+
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
