@@ -31,7 +31,7 @@ import { TransactionRepository } from 'src/subdomains/supporting/payment/reposit
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Between, EntityManager, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, EntityManager, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 
 interface ServiceSetup {
   service: TransactionService;
@@ -148,21 +148,39 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
   it('records a TX_ADMIN history row when the admin update changes amlCheck', async () => {
     const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: false });
+    // A distinct saved instance, so the assertion below pins the row to the SAVED transaction rather
+    // than to the entity that happened to be passed in.
+    const saved = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PASS, highRisk: false });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
-    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+    jest.spyOn(repo, 'save').mockResolvedValue(saved);
 
     await service.update(99, Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS }));
 
     expect(transactionAmlCheckService.create).toHaveBeenCalledTimes(1);
+    expect(transactionAmlCheckService.create).toHaveBeenCalledWith({
+      transaction: saved,
+      entityType: 'Transaction',
+      entityId: 99,
+      source: AmlSourceType.TX_ADMIN,
+      previousAmlCheck: CheckStatus.PENDING,
+      amlCheck: CheckStatus.PASS,
+      highRisk: false,
+    });
+  });
+
+  it('keeps an explicit highRisk reset out of the fallback to the previous flag', async () => {
+    const entity = Object.assign(new Transaction(), { id: 99, amlCheck: CheckStatus.PENDING, highRisk: true });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
+
+    // `false` is a legitimate value, not an absent one: the fallback must be nullish, not truthy.
+    await service.update(
+      99,
+      Object.assign(new UpdateTransactionDto(), { amlCheck: CheckStatus.PASS, highRisk: false }),
+    );
+
     expect(transactionAmlCheckService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entityType: 'Transaction',
-        entityId: 99,
-        source: AmlSourceType.TX_ADMIN,
-        previousAmlCheck: CheckStatus.PENDING,
-        amlCheck: CheckStatus.PASS,
-        highRisk: false,
-      }),
+      expect.objectContaining({ amlCheck: CheckStatus.PASS, highRisk: false }),
     );
   });
 
@@ -357,6 +375,16 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
 
     await expect(service.stop(70)).rejects.toThrow(ConflictException);
     expect(buyCryptoRepo.save).not.toHaveBeenCalled();
+  });
+
+  // Exactly one row, not "at least one": a conditional update that hits several rows means the
+  // WHERE clause no longer identifies a single BuyCrypto, which is as wrong as hitting none.
+  it('rejects stop when the conditional update hits more than one row', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), { id: 7, status: BuyCryptoStatus.MISSING_LIQUIDITY });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(Object.assign(new Transaction(), { id: 70, buyCrypto }));
+    jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 2, raw: [], generatedMaps: [] });
+
+    await expect(service.stop(70)).rejects.toThrow(ConflictException);
   });
 
   it('rejects stop for an unknown transaction', async () => {
@@ -715,6 +743,19 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     mockResumeManager(buyCrypto, { affected: 0, raw: [], generatedMaps: [] });
+
+    await expect(service.resume(99)).rejects.toThrow(ConflictException);
+  });
+
+  it('resume() rejects when the conditional update hits more than one row', async () => {
+    const buyCrypto = Object.assign(new BuyCrypto(), {
+      id: 7,
+      status: BuyCryptoStatus.STOPPED,
+      amlCheck: CheckStatus.PASS,
+    });
+    const entity = Object.assign(new Transaction(), { id: 99, buyCrypto });
+    jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
+    mockResumeManager(buyCrypto, { affected: 2, raw: [], generatedMaps: [] });
 
     await expect(service.resume(99)).rejects.toThrow(ConflictException);
   });
@@ -1177,6 +1218,10 @@ describe('TransactionService (query builders)', () => {
         dateTo,
       });
       expect(innerQb.andWhere).not.toHaveBeenCalled();
+      // The bracket block must be appended, not assigned: `.where()` here would discard the
+      // `transaction.type IS NOT NULL` condition set before it.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
     });
 
     it('filters on an open creation period', async () => {
@@ -1274,6 +1319,9 @@ describe('TransactionService (query builders)', () => {
       expect(innerQb.orWhere).toHaveBeenCalledWith('buyFiat.outputDate BETWEEN :startDate AND :endDate');
       expect(innerQb.orWhere).toHaveBeenCalledWith('refReward.outputDate BETWEEN :startDate AND :endDate');
       expect(qb.groupBy).toHaveBeenCalledWith('tx.userDataId');
+      // Appended, not assigned — `.where()` here would discard all three base filters above.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1322,6 +1370,9 @@ describe('TransactionService (query builders)', () => {
       await service.getRefBonusCandidates('AAA-000', 100);
 
       expect(qb.where).toHaveBeenCalledWith('transaction.id > :minTransactionId', { minTransactionId: 100 });
+      // Appended, not assigned — `.where()` here would discard the id bound set above.
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
+      expect(qb.where).toHaveBeenCalledTimes(1);
     });
 
     it('excludes transactions that already have a ref reward', async () => {
