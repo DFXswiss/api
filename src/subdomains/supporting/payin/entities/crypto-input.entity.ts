@@ -232,13 +232,17 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  triggerReturn(returnAddress: BlockchainAddress, chargebackAmount: number): this {
-    this.status = PayInStatus.TO_RETURN;
-    this.action = PayInAction.RETURN;
-    this.destinationAddress = returnAddress;
-    this.chargebackAmount = chargebackAmount;
+  triggerReturn(returnAddress: BlockchainAddress, chargebackAmount: number): UpdateResult<CryptoInput> {
+    const update: Partial<CryptoInput> = {
+      status: PayInStatus.TO_RETURN,
+      action: PayInAction.RETURN,
+      destinationAddress: returnAddress,
+      chargebackAmount,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   preparing(prepareTxId: string | null, forwardFeeAmount: number, feeAmountChf: number): this {

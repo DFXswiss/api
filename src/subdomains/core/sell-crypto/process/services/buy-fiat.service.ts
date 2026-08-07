@@ -1,4 +1,12 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
@@ -36,7 +44,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, EntityManager, FindOptionsRelations, FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -60,6 +68,22 @@ import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 @Injectable()
 export class BuyFiatService implements OnModuleInit {
   private readonly logger = new DfxLogger(BuyFiatService);
+
+  // Build this before chargebackFillUp runs: it assigns the new state onto the entity, so a
+  // claim built afterwards would pin the post-write state and always match.
+  private static refundClaimWhere(entity: BuyFiat): FindOptionsWhere<BuyFiat> {
+    return {
+      id: entity.id,
+      amlCheck: entity.amlCheck,
+      amlReason: entity.amlReason ?? IsNull(),
+      isComplete: false,
+      outputAmount: IsNull(),
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: entity.chargebackAllowedDateUser ?? IsNull(),
+      chargebackDate: IsNull(),
+      chargebackTxId: IsNull(),
+    };
+  }
 
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
@@ -105,12 +129,15 @@ export class BuyFiatService implements OnModuleInit {
   }
 
   async checkAmlResetTx(userData: UserData): Promise<void> {
-    const entities = await this.buyFiatRepo.findBy({
-      transaction: { userData: { id: userData.id } },
-      amlCheck: CheckStatus.FAIL,
-      amlReason: In(PhoneAmlReasons),
-      isComplete: false,
-      chargebackAllowedDate: IsNull(),
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        transaction: { userData: { id: userData.id } },
+        amlCheck: CheckStatus.FAIL,
+        amlReason: In(PhoneAmlReasons),
+        isComplete: false,
+        chargebackAllowedDate: IsNull(),
+      },
+      relations: { cryptoInput: true, fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
 
     for (const entity of entities) {
@@ -313,6 +340,7 @@ export class BuyFiatService implements OnModuleInit {
     )
       return;
 
+    // Hardened returnPayIn decides on a DB-fresh row; no shared manager needed on this cron path.
     await this.returnCrypto(buyFiat, cryptoInput, chargebackAddress, chargebackAmount);
   }
 
@@ -321,8 +349,11 @@ export class BuyFiatService implements OnModuleInit {
     cryptoInput: CryptoInput,
     returnAddress: string,
     amount: number,
+    manager?: EntityManager,
   ): Promise<void> {
     if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+      // doPayout cannot join the DB transaction (PayoutService has no manager parameter) and stays
+      // guarded by the unique PayoutOrder (context, correlationId) index.
       await this.payoutService.doPayout({
         context: PayoutOrderContext.BUY_FIAT_RETURN,
         correlationId: `${buyFiat.id}`,
@@ -331,7 +362,7 @@ export class BuyFiatService implements OnModuleInit {
         destinationAddress: returnAddress,
       });
     } else if (cryptoInput.action !== PayInAction.FORWARD) {
-      await this.payInService.returnPayIn(cryptoInput, returnAddress, amount);
+      await this.payInService.returnPayIn(cryptoInput, returnAddress, amount, manager);
     }
   }
 
@@ -430,19 +461,52 @@ export class BuyFiatService implements OnModuleInit {
 
     TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
+    // External HTTP — must stay outside the DB transaction.
     let blockchainFee: number;
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount)
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
 
-      const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
-      await this.returnCrypto(buyFiat, buyFiat.cryptoInput, returnAddress, chargebackAmount);
-    }
+    let previousAmlCheck: CheckStatus;
+    let previousAmlReason: AmlReason;
+    let refundEntity: BuyFiat;
+    await this.buyFiatRepo.manager.transaction(async (manager) => {
+      const lockedBuyFiat = await manager.findOne(BuyFiat, {
+        where: { id: buyFiat.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedBuyFiat) throw new NotFoundException('BuyFiat not found');
 
-    const previousAmlCheck = buyFiat.amlCheck;
-    const previousAmlReason = buyFiat.amlReason;
+      const currentBuyFiat = await manager.findOne(BuyFiat, {
+        where: { id: buyFiat.id },
+        relations: { transaction: { userData: true } },
+      });
+      if (!currentBuyFiat) throw new NotFoundException('BuyFiat not found');
 
-    await this.buyFiatRepo.update(
-      ...buyFiat.chargebackFillUp(
+      if (!buyFiat.cryptoInput) throw new BadRequestException('BuyFiat has no crypto input');
+
+      const lockedCryptoInput = await manager.findOne(CryptoInput, {
+        where: { id: buyFiat.cryptoInput.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedCryptoInput) throw new NotFoundException('CryptoInput not found');
+
+      const cryptoInput = await manager.findOne(CryptoInput, {
+        where: { id: buyFiat.cryptoInput.id },
+        relations: { asset: true, route: { user: true }, transaction: true },
+      });
+      if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
+
+      currentBuyFiat.cryptoInput = cryptoInput;
+      TransactionUtilService.validateRefund(currentBuyFiat, { refundUser, chargebackAmount, assetMismatch: false });
+
+      const claimWhere = BuyFiatService.refundClaimWhere(currentBuyFiat);
+      previousAmlCheck = currentBuyFiat.amlCheck;
+      previousAmlReason = currentBuyFiat.amlReason;
+      const [, update] = currentBuyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
         chargebackAmount,
@@ -451,11 +515,26 @@ export class BuyFiatService implements OnModuleInit {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         blockchainFee,
-      ),
-    );
+      );
+      const claim = await manager.update(BuyFiat, claimWhere, update);
+      if (claim.affected !== 1) throw new ConflictException('BuyFiat refund state changed concurrently');
+
+      // Claim-first: a lost claim must never trigger the on-chain return; the CryptoInput claim
+      // inside returnPayIn guards the return leg itself; both writes commit or roll back together.
+      if (dto.chargebackAllowedDate && chargebackAmount)
+        await this.returnCrypto(
+          currentBuyFiat,
+          cryptoInput,
+          refundUser.address ?? buyFiat.chargebackAddress,
+          chargebackAmount,
+          manager,
+        );
+
+      refundEntity = currentBuyFiat;
+    });
 
     await this.transactionAmlCheckService.createFromEntity(
-      buyFiat,
+      refundEntity,
       'BuyFiat',
       AmlSourceType.CHARGEBACK,
       previousAmlCheck,
@@ -472,7 +551,7 @@ export class BuyFiatService implements OnModuleInit {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
+      relations: { cryptoInput: true, fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
 
@@ -505,8 +584,14 @@ export class BuyFiatService implements OnModuleInit {
   }
 
   async resetAmlCheckInternal(entity: BuyFiat, source: AmlSourceType): Promise<void> {
-    if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
-      throw new BadRequestException('BuyFiat is already complete');
+    if (!entity.cryptoInput) throw new BadRequestException('BuyFiat crypto input not loaded');
+    if (
+      entity.isComplete ||
+      entity.fiatOutput?.isComplete ||
+      entity.chargebackAllowedDate ||
+      entity.cryptoReturnStarted
+    )
+      throw new BadRequestException('BuyFiat is already complete or refund in progress');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
     const fiatOutputId = entity.fiatOutput?.id;

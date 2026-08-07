@@ -348,21 +348,23 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
 
       await service.getPendingChargebacks();
 
-      expect(findSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            chargebackAllowedDateUser: Not(IsNull()),
-            chargebackAllowedDate: IsNull(),
-            chargebackDate: IsNull(),
-            chargebackOutput: IsNull(),
-            chargebackBankTx: IsNull(),
-          }),
-          relations: expect.objectContaining({
-            chargebackBankTx: true,
-            chargebackOutput: true,
-          }),
-        }),
-      );
+      expect(findSpy).toHaveBeenCalledWith({
+        where: {
+          chargebackAllowedDateUser: Not(IsNull()),
+          chargebackAllowedDate: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackOutput: IsNull(),
+          chargebackBankTx: IsNull(),
+        },
+        relations: {
+          userData: true,
+          bankTx: true,
+          transaction: true,
+          chargebackBankTx: true,
+          chargebackOutput: true,
+        },
+        order: { chargebackAllowedDateUser: 'ASC' },
+      });
     });
   });
 });

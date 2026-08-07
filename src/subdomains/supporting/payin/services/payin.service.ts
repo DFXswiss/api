@@ -15,7 +15,7 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { EntityManager, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -274,26 +274,49 @@ export class PayInService {
     chargebackAmount: number,
     manager?: EntityManager,
   ): Promise<void> {
-    if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
-    if (CryptoInputInFlightSendStatus.includes(payIn.status))
+    const repo = manager?.getRepository(CryptoInput) ?? this.payInRepository;
+
+    // Decide on the current row, not on the caller's snapshot: the send worker advances
+    // status/returnTxId concurrently, and a stale snapshot passing the guards below must not
+    // roll that progress back (issue #4739 — reachable second broadcast).
+    const current = await repo.findOne({
+      where: { id: payIn.id },
+      relations: { route: { user: true }, transaction: true },
+    });
+    if (!current) throw new NotFoundException('CryptoInput not found');
+
+    if (current.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
+    if (CryptoInputInFlightSendStatus.includes(current.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
-    if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(payIn.status) || payIn.returnTxId)
+    if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(current.status) || current.returnTxId)
       throw new BadRequestException('CryptoInput already returned');
 
-    payIn.triggerReturn(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
+    // Built before triggerReturn assigns over the entity, so it pins the state the guards decided on.
+    // Re-triggering a genuinely idle TO_RETURN row (no concurrent change) stays allowed — compliance
+    // may amend a pending return's address/amount; the claim only rejects rows that changed between
+    // read and write.
+    const claimWhere: FindOptionsWhere<CryptoInput> = {
+      id: current.id,
+      status: current.status,
+      action: current.action ?? IsNull(),
+      returnTxId: IsNull(),
+    };
+    const [, update] = current.triggerReturn(
+      BlockchainAddress.create(returnAddress, current.asset.blockchain),
+      chargebackAmount,
+    );
+    const claim = await repo.update(claimWhere, update);
+    if (claim.affected !== 1) throw new ConflictException('CryptoInput state changed concurrently');
 
-    if (payIn.transaction)
+    if (current.transaction)
       await this.transactionService.updateInternal(
-        payIn.transaction,
+        current.transaction,
         {
           type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
-          user: payIn.route.user,
+          user: current.route.user,
         },
         manager,
       );
-
-    if (manager) await manager.save(CryptoInput, payIn);
-    else await this.payInRepository.save(payIn);
   }
 
   async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {

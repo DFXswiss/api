@@ -39,7 +39,7 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { EntityManager, IsNull } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
@@ -1210,21 +1210,28 @@ describe('BuyCryptoService', () => {
 
       await service.getPendingChargebacks();
 
-      expect(findSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            chargebackBankTx: IsNull(),
-            chargebackOutput: IsNull(),
-            chargebackCryptoTxId: IsNull(),
-            batch: IsNull(),
-            outputAmount: IsNull(),
-          }),
-          relations: expect.objectContaining({
-            chargebackBankTx: true,
-            chargebackOutput: true,
-          }),
-        }),
-      );
+      expect(findSpy).toHaveBeenCalledWith({
+        where: {
+          chargebackAllowedDateUser: Not(IsNull()),
+          chargebackAllowedDate: IsNull(),
+          chargebackDate: IsNull(),
+          isComplete: false,
+          chargebackBankTx: IsNull(),
+          chargebackOutput: IsNull(),
+          chargebackCryptoTxId: IsNull(),
+          batch: IsNull(),
+          outputAmount: IsNull(),
+        },
+        relations: {
+          transaction: { userData: true, user: true },
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+          chargebackBankTx: true,
+          chargebackOutput: true,
+        },
+        order: { chargebackAllowedDateUser: 'ASC' },
+      });
     });
   });
 

@@ -181,7 +181,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/buyCrypto/refVolumes` | hidden | projected | 2 | 0/4 |  | `BuyCryptoController.updateRefVolumes` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | PUT | 1 |  | `/buyCrypto/volumes` | hidden | whole rows | 484 | not yet |  | `BuyCryptoController.updateBuyVolumes` | `subdomains/core/buy-crypto/process/buy-crypto.controller.ts` |
 | PUT | 1 |  | `/buyFiat/:id` | hidden | whole rows | 1034 | not yet |  | `BuyFiatController.update` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
-| DELETE | 1 |  | `/buyFiat/:id/amlCheck` | hidden | whole rows | 490 | not yet |  | `BuyFiatController.resetAmlCheck` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
+| DELETE | 1 |  | `/buyFiat/:id/amlCheck` | hidden | whole rows | 577 | not yet |  | `BuyFiatController.resetAmlCheck` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
 | PUT | 1 |  | `/buyFiat/:id/amlCheck` | hidden | whole rows | 1034 | not yet |  | `BuyFiatController.manualPassAmlCheck` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
 | POST | 1 |  | `/buyFiat/:id/refund` | hidden | whole rows | 803 | not yet |  | `BuyFiatController.refundBuyFiat` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
 | POST | 1 |  | `/buyFiat/:id/scorechain` | hidden | whole rows | 517 | not yet |  | `BuyFiatController.retriggerScorechain` | `subdomains/core/sell-crypto/process/buy-fiat.controller.ts` |
