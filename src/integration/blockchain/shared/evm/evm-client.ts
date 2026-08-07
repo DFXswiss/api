@@ -27,6 +27,7 @@ import { BlockchainClient } from '../util/blockchain-client';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
+import { TransactionRevertedException } from 'src/integration/blockchain/shared/exceptions/transaction-reverted.exception';
 
 export interface EvmClientParams {
   http: HttpService;
@@ -400,7 +401,7 @@ export abstract class EvmClient extends BlockchainClient {
     if (transaction?.confirmations > confirmations) {
       if (transaction.status) return true;
 
-      throw new Error(`Transaction ${txHash} has failed`);
+      throw new TransactionRevertedException(txHash);
     }
 
     return false;
