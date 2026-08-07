@@ -17,6 +17,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
+import { isToleratedProcessError } from './shared/utils/process-error-policy';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -35,15 +36,36 @@ import { PricingService } from './subdomains/supporting/pricing/services/pricing
 process.on('uncaughtException', (error) => {
   const logger = new DfxLogger('UncaughtException');
 
-  const isSparkError =
-    error?.constructor?.name?.includes('Spark') || error?.message?.includes('Channel has been shut down');
-
-  if (isSparkError) {
+  if (isToleratedProcessError(error)) {
     logger.error('Spark SDK uncaught exception (process kept alive):', error);
     return;
   }
 
   logger.error('Uncaught exception, shutting down:', error);
+  process.exit(1);
+});
+
+function safeStringify(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable rejection reason>';
+  }
+}
+
+process.on('unhandledRejection', (reason) => {
+  const logger = new DfxLogger('UnhandledRejection');
+
+  // A rejection can carry any value, not just an Error. Normalize for the logger, but test the
+  // policy against the original value - isToleratedProcessError inspects the constructor name.
+  const error = reason instanceof Error ? reason : new Error(`Non-Error rejection: ${safeStringify(reason)}`);
+
+  if (isToleratedProcessError(reason)) {
+    logger.error('Spark SDK unhandled rejection (process kept alive):', error);
+    return;
+  }
+
+  logger.error('Unhandled rejection, shutting down:', error);
   process.exit(1);
 });
 
