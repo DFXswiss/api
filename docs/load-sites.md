@@ -53,7 +53,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 1359 | 46 | find | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:370` | `TransactionService.getTransactionsForAccount` |
 | 1282 | 50 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:565` | `BuyCryptoPreparationService.fillPaymentLinkPayments` |
 | 1231 | 38 | find | `FiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts:174` | `FiatOutputJobService.assignBankAccount` |
-| 1158 | 43 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:83` | `BuyCryptoBatchService.batchAndOptimizeTransactions` |
+| 1158 | 43 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:84` | `BuyCryptoBatchService.batchAndOptimizeTransactions` |
 | 1135 | 40 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:422` | `BuyCryptoPreparationService.In` |
 | 1088 | 40 | find | `Transaction` | `subdomains/supporting/payment/services/transaction.service.ts:431` | `TransactionService.findTransactionsForUsers` |
 | 1086 | 39 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:309` | `BuyCryptoService.update` |
@@ -75,7 +75,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 811 | 27 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:1531` | `BuyCryptoService.getAllRefTransactions` |
 | 803 | 29 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:400` | `BuyFiatService.refundBuyFiat` |
 | 790 | 26 | find | `Transaction` | `subdomains/supporting/payment/services/transaction-notification.service.ts:37` | `TransactionNotificationService.txAssigned` |
-| 785 | 24 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:269` | `BuyCryptoNotificationService.chargebackInitiated` |
+| 785 | 24 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:271` | `BuyCryptoNotificationService.chargebackInitiated` |
 | 765 | 23 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:760` | `BuyCryptoPreparationService.chargebackTx` |
 | 737 | 30 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:107` | `BuyFiatPreparationService.doAmlCheck` |
 | 727 | 23 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:176` | `BankTxReturnService.refundBankTxReturn` |
@@ -90,9 +90,9 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 639 | 24 | find | `FiatOutput` | `subdomains/supporting/fiat-output/fiat-output-job.service.ts:108` | `FiatOutputJobService.generateReports` |
 | 630 | 20 | find | `Recommendation` | `subdomains/generic/user/models/recommendation/recommendation.service.ts:284` | `RecommendationService.getUserDataRecommendation` |
 | 623 | 20 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:619` | `BuyFiatService.getAllUserTransactions` |
-| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:82` | `BuyCryptoNotificationService.paymentCompleted` |
-| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:177` | `BuyCryptoNotificationService.pendingBuyCrypto` |
-| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:352` | `BuyCryptoNotificationService.chargebackUnconfirmed` |
+| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:84` | `BuyCryptoNotificationService.paymentCompleted` |
+| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:179` | `BuyCryptoNotificationService.pendingBuyCrypto` |
+| 613 | 19 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto-notification.service.ts:354` | `BuyCryptoNotificationService.chargebackUnconfirmed` |
 | 597 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts:432` | `BuyFiatPreparationService.setOutput` |
 | 593 | 18 | find | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:951` | `BuyCryptoService.getBuyCryptosByChargebackIban` |
 | 583 | 21 | find | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat-notification.service.ts:209` | `BuyFiatNotificationService.chargebackInitiated` |
@@ -483,7 +483,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 78 | 1 | find | `User` | `subdomains/generic/user/models/user/user.service.ts:98` | `UserService.getUserByAddress` |
 | 78 | 3 | find | `Mros` | `subdomains/supporting/mros/mros.service.ts:32` | `MrosService.update` |
 | 77 | 0 | query-builder (alias only) | `BuyCrypto` | `subdomains/core/buy-crypto/process/services/buy-crypto.service.ts:925` | `BuyCryptoService.getBuyCryptoByKeys` |
-| 75 | 2 | find | `BuyCryptoBatch` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:299` | `BuyCryptoBatchService.filterOutExistingBatches` |
+| 75 | 2 | find | `BuyCryptoBatch` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:300` | `BuyCryptoBatchService.filterOutExistingBatches` |
 | 71 | 0 | query-builder (alias only) | `BuyFiat` | `subdomains/core/sell-crypto/process/services/buy-fiat.service.ts:340` | `BuyFiatService.getBuyFiatByKey` |
 | 71 | 1 | find | `Recall` | `subdomains/supporting/recall/recall.service.ts:68` | `RecallService.getByBankTxIds` |
 | 68 | 4 | find | `Swap` | `subdomains/core/buy-crypto/routes/swap/swap.service.ts:204` | `SwapService.getById` |
@@ -929,8 +929,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/core/aml/services/aml.service.ts:278` | `AmlService.getBankData` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/entities/buy-crypto.entity.ts:376` | `BuyCrypto.calculateOutputReferenceAmount` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/entities/buy-crypto.entity.ts:678` | `BuyCrypto.setFeeAndFiatReference` |
-| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:167` | `BuyCryptoBatchService.saveBatchIfTransactionsUnchanged` |
-| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:303` | `BuyCryptoBatchService.filterOutExistingBatches` |
+| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:168` | `BuyCryptoBatchService.saveBatchIfTransactionsUnchanged` |
+| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:304` | `BuyCryptoBatchService.filterOutExistingBatches` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:292` | `BuyCryptoPreparationService.postProcessAmlVerdict` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:498` | `BuyCryptoPreparationService.isFiat` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts:506` | `BuyCryptoPreparationService.isFiat` |
@@ -1208,4 +1208,4 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-issue.service.ts:92` | `SupportIssueService.getSupportIssueClerkForAccount` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:633` | `SupportIssueService.getIssueFile` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:648` | `SupportIssueService.getUserIssues` |
-| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:588` | `BuyCryptoBatchService.orderMissingLiquidity` |
+| — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:589` | `BuyCryptoBatchService.orderMissingLiquidity` |
