@@ -104,16 +104,22 @@ WHERE w."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
     // Postcondition, not decoration: without it a suppressed audit insert, a concurrent edit or a
     // renamed wallet would all leave the lenient configuration in place while the migration records
     // itself as executed.
-    const [state] = await queryRunner.query(
-      `
+    // `.at(0)` rather than array destructuring or an index access: the repo's MSSQL-syntax guard
+    // (migration-psql-check.spec.ts) rejects bracket-quoted identifiers anywhere in a migration
+    // file and cannot tell them apart from JavaScript brackets, and every other migration that
+    // reads a single row reads it this way.
+    const state = (
+      await queryRunner.query(
+        `
 SELECT
   count(*)::int AS "matchCount",
   count(*) FILTER (WHERE "amlRules" IS DISTINCT FROM $1::varchar OR "exceptAmlRules" IS NOT NULL)::int AS "driftCount"
 FROM "wallet"
 WHERE "name" = $2::varchar
 `,
-      [TARGET_AML_RULES, WALLET_NAME],
-    );
+        [TARGET_AML_RULES, WALLET_NAME],
+      )
+    ).at(0);
 
     if (state.driftCount > 0)
       throw new Error(
