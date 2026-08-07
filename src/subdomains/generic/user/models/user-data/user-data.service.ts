@@ -49,6 +49,7 @@ import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/v
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
+import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { EntityManager, Equal, FindOptionsRelations, In, IsNull, MoreThan, Not, Raw } from 'typeorm';
@@ -1226,6 +1227,34 @@ export class UserDataService {
     if (!userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
     await this.userDataRepo.update(...userData.removeFee(feeId));
+  }
+
+  async replaceFee(
+    userData: UserData,
+    previousFeeIds: number[],
+    feeId?: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager?.getRepository(UserData) ?? this.userDataRepo;
+
+    await repo.update(...userData.replaceFee(previousFeeIds, feeId));
+  }
+
+  async createOnboardingFeeLog(
+    userData: UserData,
+    previousFees: Fee[],
+    fee?: Fee,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const describe = (fees: Fee[]): string =>
+      fees.length ? fees.map((f) => `${f.fixed} CHF (fee ${f.id})`).join(', ') : 'none';
+
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.MANUAL,
+      `Onboarding fee changed from ${describe(previousFees)} to ${describe(fee ? [fee] : [])}`,
+      manager,
+    );
   }
 
   // --- VOLUMES --- //

@@ -498,7 +498,21 @@ export class UserData extends IEntity {
 
   removeFee(feeId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      individualFees: this.individualFeeList.filter((id) => id !== feeId).join(';'),
+      individualFees: (this.individualFeeList ?? []).filter((id) => id !== feeId).join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  // Swaps a set of fees for a single one (or for none) in one write. Fees outside `previousFeeIds`
+  // are kept: a caller that replaces one group of fees must not drop what another one assigned.
+  replaceFee(previousFeeIds: number[], feeId?: number): UpdateResult<UserData> {
+    const keptFeeIds = this.individualFeeList?.filter((id) => !previousFeeIds.includes(id)) ?? [];
+
+    const update: Partial<UserData> = {
+      individualFees: keptFeeIds.concat(feeId ?? []).join(';'),
     };
 
     Object.assign(this, update);
@@ -617,8 +631,10 @@ export class UserData extends IEntity {
     return this.kycType === KycType.DFX;
   }
 
+  // An empty string means "no fees": splitting it would yield [0] and put a fee id of 0 into every
+  // caller that filters or re-joins the list. Same shape as `Fee.assetList`.
   get individualFeeList(): number[] | undefined {
-    return this.individualFees?.split(';')?.map(Number);
+    return this.individualFees ? this.individualFees.split(';').map(Number) : undefined;
   }
 
   get kycClientList(): number[] {

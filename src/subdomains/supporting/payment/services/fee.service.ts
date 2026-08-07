@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   forwardRef,
   Inject,
   Injectable,
@@ -24,7 +25,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { MoreThan } from 'typeorm';
+import { And, Equal, In, IsNull, MoreThan, Not } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
@@ -68,6 +69,51 @@ export interface FeeRequestBase {
 }
 
 const FeeValidityMinutes = 30;
+
+// Plausibility guard against a typo in a manually entered amount - a mistyped fee is charged in
+// full on the customer's next transaction. Overridable through the `onboardingFeeMaxAmount` setting.
+const DefaultMaxOnboardingFee = 100000; // CHF
+const OnboardingFeeLabel = 'Onboarding Fixed';
+
+// An unconditional flat surcharge that is assigned per account.
+//
+// `specialCode` is what makes it per-account: `getValidFees` applies an `Addition` fee WITHOUT a
+// special code to every user, so reusing one of those here would assign a globally active fee to a
+// single account - and removing the assignment would not stop it from applying.
+//
+// Every filter and limit column must be empty. A fee that is restricted to an asset, a bank, a
+// payment method, a volume band or a usage count would pass `verifyForUser` on assignment and then
+// be dropped by `verifyForTx` when the customer actually transacts - the operation would report
+// success for a surcharge that never applies. The same holds for an expiry date.
+const OnboardingFeeShape = {
+  type: FeeType.ADDITION,
+  rate: 0,
+  fixed: MoreThan(0),
+  // The blockchain factors of all additive fees are summed into the network fee. A surcharge that
+  // is meant to be a flat CHF amount must not move it, and the column defaults to 1.
+  blockchainFactor: 0,
+  // Not just `Not(IsNull())`: that still matches an empty string, which every other check reads as
+  // "no code" - and a fee without a code applies to every user, so it must never be handed out to a
+  // single account.
+  specialCode: And(Not(IsNull()), Not(Equal(''))),
+  accountType: IsNull(),
+  wallet: IsNull(),
+  bank: IsNull(),
+  assets: IsNull(),
+  excludedAssets: IsNull(),
+  fiats: IsNull(),
+  excludedUserDatas: IsNull(),
+  financialTypes: IsNull(),
+  paymentMethodsIn: IsNull(),
+  paymentMethodsOut: IsNull(),
+  expiryDate: IsNull(),
+  minTxVolume: IsNull(),
+  maxTxVolume: IsNull(),
+  maxAnnualUserTxVolume: IsNull(),
+  maxUsages: IsNull(),
+  maxTxUsages: IsNull(),
+  maxUserTxUsages: IsNull(),
+};
 
 @Injectable()
 export class FeeService {
@@ -215,6 +261,157 @@ export class FeeService {
     await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, cachedFee.id);
+  }
+
+  // --- ONBOARDING FEE --- //
+
+  // An onboarding fee is an individually agreed amount a customer pays on top of the regular
+  // percentage fee: an `Addition` fee with `rate = 0` and `fixed = <amount in CHF>`.
+  //
+  // The scope of this operation is that shape, not a label: it manages *the* flat surcharge of an
+  // account and replaces whatever flat surcharge it already carries. Percentage-based additions,
+  // discounts and bank fees have a different shape and are never touched. Labels are free text and
+  // could not carry the distinction.
+  //
+  // `individualFees` is a semicolon-separated string column without row locking, exactly as the
+  // pre-existing `addFee`/`removeFee` paths use it. Concurrent writers therefore overwrite each
+  // other's list - this operation reduces its own footprint to a single write, but it cannot
+  // protect against a foreign path writing the column at the same moment.
+  async setOnboardingFee(userData: UserData, amount: number): Promise<void> {
+    // A misconfigured setting must not silently disable the guard: `Number('x')` is NaN, and every
+    // comparison against NaN is false.
+    const configuredMax = await this.settingService
+      .get('onboardingFeeMaxAmount', `${DefaultMaxOnboardingFee}`)
+      .then(Number);
+    const maxAmount = Number.isFinite(configuredMax) ? configuredMax : DefaultMaxOnboardingFee;
+    if (amount > maxAmount)
+      throw new BadRequestException(`Onboarding fee of ${amount} CHF exceeds the limit of ${maxAmount} CHF`);
+
+    // Read the account first: creating a fee for an amount and only then finding out that the
+    // account cannot be touched would leave an unused fee behind.
+    const { own: assignedFees, foreign } = await this.getFixedFees(userData);
+    // Setting a surcharge next to one this operation does not own would charge the sum of both.
+    this.assertNoForeignFixedFee(foreign);
+
+    const fee = await this.getOrCreateOnboardingFee(amount);
+    const isAlreadyAssigned = assignedFees.some((f) => f.id === fee.id);
+    // A duplicate entry in the stored list is not the state we promise, so let it be rewritten.
+    const isStoredOnce = (userData.individualFeeList ?? []).filter((id) => id === fee.id).length === 1;
+    if (assignedFees.length === 1 && isAlreadyAssigned && isStoredOnce) return;
+
+    fee.verifyForUser(userData.accountType, userData.wallet, userData.id);
+
+    // Audit, usage counter and assignment in one transaction: the audit entry is the only record of
+    // what the assignment replaced, so it must not survive a failed assignment - and vice versa.
+    await this.feeRepo.manager.transaction(async (manager) => {
+      await this.userDataService.createOnboardingFeeLog(userData, assignedFees, fee, manager);
+
+      // Only a fee that was not on the account before is a new usage.
+      if (!isAlreadyAssigned) await manager.update(Fee, ...fee.increaseUsage(userData.accountType));
+
+      // One write, not remove-then-add: a partial run would either leave the account without a fee
+      // or with two, and two additive fixed fees are charged as their sum
+      // (`combinedExtraFixedFee`).
+      await this.userDataService.replaceFee(
+        userData,
+        assignedFees.map((f) => f.id),
+        fee.id,
+        manager,
+      );
+    });
+  }
+
+  async removeOnboardingFee(userData: UserData): Promise<void> {
+    // Removal takes nothing away that this operation does not own, so a foreign fixed fee is no
+    // reason to refuse here - it stays where it is.
+    const { own: assignedFees } = await this.getFixedFees(userData);
+    if (!assignedFees.length) throw new BadRequestException('Account has no onboarding fee');
+
+    await this.feeRepo.manager.transaction(async (manager) => {
+      await this.userDataService.createOnboardingFeeLog(userData, assignedFees, undefined, manager);
+
+      await this.userDataService.replaceFee(
+        userData,
+        assignedFees.map((f) => f.id),
+        undefined,
+        manager,
+      );
+    });
+  }
+
+  // Splits the fixed fees an account carries into the ones this operation owns and the rest.
+  //
+  // Every additive fee with a fixed amount contributes to `combinedExtraFixedFee`, so leaving one
+  // in place next to a new one charges the customer the sum of both. Replacing it blindly is just
+  // as wrong: a fee that also carries a rate or a blockchain factor does more than the flat
+  // surcharge this operation owns, and a fee without a special code applies to every user anyway,
+  // so dropping it from this account changes nothing while reporting success.
+  //
+  // Restrictions (asset, bank, volume, …) do not matter here - a restricted flat fee is still this
+  // account's flat fee.
+  private async getFixedFees(userData: UserData): Promise<{ own: Fee[]; foreign: Fee[] }> {
+    const feeIds = userData.individualFeeList;
+    if (!feeIds?.length) return { own: [], foreign: [] };
+
+    const fixedFees = await this.feeRepo.findBy({ type: FeeType.ADDITION, fixed: MoreThan(0), id: In(feeIds) });
+
+    return {
+      own: fixedFees.filter((f) => f.isAccountFlatSurcharge),
+      foreign: fixedFees.filter((f) => !f.isAccountFlatSurcharge),
+    };
+  }
+
+  private assertNoForeignFixedFee(foreignFees: Fee[]): void {
+    if (foreignFees.length)
+      throw new ConflictException(
+        `Account carries a fixed fee that is not a plain flat surcharge (fee ${foreignFees
+          .map((f) => f.id)
+          .join(', ')}) - resolve it first`,
+      );
+  }
+
+  // Both branches drop the fee cache. Fee calculation reads the cached list, which is up to five
+  // minutes old: a fee created here would be invisible to it, and so would one created moments ago
+  // through another path and merely reused here - the assignment would succeed while the surcharge
+  // does not apply yet. Other instances still refresh on their own schedule.
+  private async getOrCreateOnboardingFee(amount: number): Promise<Fee> {
+    const label = `${OnboardingFeeLabel} ${amount}`;
+
+    const existingFee = await this.feeRepo.findOne({
+      where: { ...OnboardingFeeShape, fixed: amount, active: true },
+      order: { id: 'ASC' },
+    });
+    if (existingFee) {
+      this.feeRepo.invalidateCache();
+      return existingFee;
+    }
+
+    // The label is derived from the amount and `createFee` rejects a duplicate one whatever state
+    // it is in. Anything holding this label that the lookup above did not accept - deactivated, or
+    // carrying a rate, a factor or a restriction - would otherwise block the amount for good behind
+    // `createFee`'s generic error.
+    const blockingFee = await this.feeRepo.findOneBy({ label });
+    if (blockingFee)
+      throw new ConflictException(
+        `Onboarding fee of ${amount} CHF exists but cannot be used (fee ${blockingFee.id}, ${
+          blockingFee.active ? 'differs from a plain flat surcharge' : 'deactivated'
+        })`,
+      );
+
+    const fee = await this.createFee(
+      Object.assign(new CreateFeeDto(), {
+        label,
+        type: FeeType.ADDITION,
+        rate: 0,
+        fixed: amount,
+        blockchainFactor: 0,
+        createSpecialCode: true,
+      }),
+    );
+
+    this.feeRepo.invalidateCache();
+
+    return fee;
   }
 
   async increaseTxUsages(txVolume: number, feeId: number, userData: UserData): Promise<void> {
