@@ -168,6 +168,9 @@ export class PricingDenarioService extends PricingProvider implements OnModuleIn
     return price;
   }
 
+  // approxPrice* is written from the buy side, so this fallback is ask-derived for either
+  // direction. It is returned invalid, so the rule update discards it and no quote is served from
+  // it — a dual-sided rule whose bid is unavailable simply keeps its previous pair of prices.
   private async getLastKnownPrice(token: string, currency: string): Promise<{ price: number; timestamp: Date } | null> {
     const asset = await this.assetService
       ?.getAssetByQuery({ name: token, blockchain: Blockchain.POLYGON, type: AssetType.TOKEN })
