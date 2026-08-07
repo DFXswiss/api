@@ -121,9 +121,11 @@ export class CustodyJobService {
   /**
    * Decides whether a step is beyond saving, and keeps one step's failure to that step.
    *
-   * Every loop above is per step, and none of them used to be: a single throw aborted the whole
-   * cron run, so one order with a reverted transaction stopped every other order from progressing
-   * for as long as it stayed there — which was forever, per the paragraph below.
+   * Every loop above now isolates its own item — `executeOrder` per order, the other two per step —
+   * and none of them used to: a single throw aborted the whole cron run, so one order with a
+   * reverted transaction stopped every other order from progressing for as long as it stayed there,
+   * which was forever, per the paragraph below. Only the two step loops route here; a failure in
+   * `executeOrder` has no step to close out and is logged where it happens.
    *
    * A REVERT is final. The chain has decided, re-running the check cannot change the answer, and
    * without a terminal state the step is re-read every minute for the lifetime of the process while
