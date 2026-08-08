@@ -437,7 +437,7 @@ export class Configuration {
           fileTypes: [ContentType.PDF],
         },
         {
-          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
+          name: (file: KycFileBlob) => file.name.split('/').pop().split('.')[0],
           prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
           fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
           filter: (file: KycFileBlob, userData: UserData) => {
@@ -657,7 +657,7 @@ export class Configuration {
       name: 'TMER',
       files: [
         {
-          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          name: (file: KycFileBlob) => file.name.split('/').pop().split('.')[0],
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
           filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
