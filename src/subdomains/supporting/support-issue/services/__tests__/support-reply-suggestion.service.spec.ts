@@ -47,6 +47,7 @@ describe('SupportReplySuggestionService', () => {
   };
   let mockManager: {
     createQueryBuilder: jest.Mock;
+    findOne: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
@@ -73,6 +74,8 @@ describe('SupportReplySuggestionService', () => {
     };
     mockManager = {
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      // the newest message is resolved inside the transaction, under the issue lock
+      findOne: jest.fn().mockResolvedValue(message(100)),
       create: jest.fn((_entity, values) => Object.assign(new SupportReplySuggestion(), values)),
       save: jest.fn(async (entity) => Object.assign(entity, { id: 5, created: new Date('2026-08-08T12:00:00Z') })),
       update: jest.fn(),
@@ -119,6 +122,18 @@ describe('SupportReplySuggestionService', () => {
       expect(dto.messageId).toEqual(100);
     });
 
+    // The check runs against the thread as it stands inside the lock, not against what was read
+    // before it: a message arriving in between must not slip past a `messageId` that was still
+    // current when the producer sent it.
+    it('rejects a messageId the thread moved past while the submission was in flight', async () => {
+      mockManager.findOne.mockResolvedValue(message(101));
+
+      const call = service.createSuggestion(ISSUE_ID, { text: 'Answer', messageId: 100 }, AUTHOR_ID);
+
+      await expect(call).rejects.toThrow(ConflictException);
+      expect(mockManager.save).not.toHaveBeenCalled();
+    });
+
     it('rejects a messageId that the conversation has moved past', async () => {
       const call = service.createSuggestion(ISSUE_ID, { text: 'Answer', messageId: 99 }, AUTHOR_ID);
 
@@ -155,7 +170,7 @@ describe('SupportReplySuggestionService', () => {
     });
 
     it('fails when the issue has no message to answer', async () => {
-      messageRepo.findOne.mockResolvedValue(null);
+      mockManager.findOne.mockResolvedValue(null);
 
       await expect(service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID)).rejects.toThrow(
         ConflictException,

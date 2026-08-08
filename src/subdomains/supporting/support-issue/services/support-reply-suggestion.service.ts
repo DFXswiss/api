@@ -36,27 +36,35 @@ export class SupportReplySuggestionService {
     const issue = await this.supportIssueRepo.findOne({ where: { id: issueId }, loadEagerRelations: false });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    const latestMessage = await this.getLatestMessage(issueId);
-    if (!latestMessage) throw new ConflictException('Support issue has no message to answer');
-    if (dto.messageId != null && dto.messageId !== latestMessage.id)
-      throw new ConflictException(`Message ${dto.messageId} is not the newest message of the support issue`);
-
     // Superseding and inserting share one transaction, and the lock is taken on the ISSUE row rather
     // than on the suggestions: two submissions arriving together may each find nothing to supersede,
     // and a lock on rows that do not exist yet cannot order the two inserts. Without it the issue
     // ends up with two suggestions marked Pending, one of them stranded in that state forever.
-    const entity = await this.suggestionRepo.manager.transaction(async (manager) => {
+    const [entity, latestMessageId] = await this.suggestionRepo.manager.transaction(async (manager) => {
       await manager
         .createQueryBuilder(SupportIssue, 'issue')
         .where('issue.id = :issueId', { issueId })
         .setLock('pessimistic_write', undefined, ['issue'])
         .getOne();
 
+      // The newest message is resolved INSIDE the lock. Read before it, a customer message arriving
+      // in between would leave the suggestion bound to a message that is no longer the newest — and
+      // `messageId` would have been checked against a thread state that no longer holds, which is
+      // exactly the silently-wrong answer the binding exists to prevent.
+      const latestMessage = await manager.findOne(SupportMessage, {
+        where: { issue: { id: issueId } },
+        loadEagerRelations: false,
+        order: { id: 'DESC' },
+      });
+      if (!latestMessage) throw new ConflictException('Support issue has no message to answer');
+      if (dto.messageId != null && dto.messageId !== latestMessage.id)
+        throw new ConflictException(`Message ${dto.messageId} is not the newest message of the support issue`);
+
       await this.supersedePending(manager, issueId);
 
       // `state` is set here as well as on the column: the response is built from the entity in
       // memory, so leaving it to the database default would answer the submission with an empty state.
-      return manager.save(
+      const saved = await manager.save(
         manager.create(SupportReplySuggestion, {
           issue,
           message: latestMessage,
@@ -65,9 +73,11 @@ export class SupportReplySuggestionService {
           state: SupportReplySuggestionState.PENDING,
         }),
       );
+
+      return [saved, latestMessage.id] as const;
     });
 
-    return SupportReplySuggestionDtoMapper.mapSuggestion(entity, latestMessage.id);
+    return SupportReplySuggestionDtoMapper.mapSuggestion(entity, latestMessageId);
   }
 
   /** The newest suggestion still awaiting a decision, which is the only one a clerk is offered. */
