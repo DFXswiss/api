@@ -11,7 +11,7 @@ import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/use
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not, Raw } from 'typeorm';
 import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -35,8 +35,6 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
  */
 const FrickRecoveryNotFound = Symbol('FrickRecoveryNotFound');
 const MERGED_USER_DATA_PREFIX = 'Merged into ';
-/** How many of an account's oldest users are examined for a usable signup IP. */
-const SIGNUP_IP_CANDIDATES = 10;
 const MAX_OWNERSHIP_TRANSITIONS = 100;
 
 type IssuanceIntegrityDetails = {
@@ -348,16 +346,16 @@ export class VirtualIbanService {
    * layers for a single value.
    */
   private async getSignupIp(userDataId: number): Promise<string | undefined> {
-    // Oldest first, and the first row carrying an actually usable value wins: a blank IP on the
-    // oldest user must not shadow a real one on the next. The candidate set is bounded because the
-    // answer is a single value, not a listing.
-    const users = await this.dataSource.getRepository(User).find({
-      where: { userData: { id: userDataId }, ip: Not(IsNull()) },
+    // Blank values are excluded in the database, not after the fact: a client-side scan would have to
+    // bound how many rows it fetches, and any bound is a row count at which an account silently stops
+    // finding the IP it actually has. Filtering server-side keeps "oldest user with a usable IP"
+    // exact for an account of any size, and lets the query return the single row that answers it.
+    const user = await this.dataSource.getRepository(User).findOne({
+      where: { userData: { id: userDataId }, ip: Raw((alias) => `btrim(${alias}) <> ''`) },
       order: { id: 'ASC' },
       select: { id: true, ip: true },
-      take: SIGNUP_IP_CANDIDATES,
     });
-    return users.map((user) => user.ip?.trim()).find((ip) => !!ip);
+    return user?.ip?.trim();
   }
 
   /**

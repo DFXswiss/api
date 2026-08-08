@@ -194,7 +194,7 @@ describe('VirtualIbanService', () => {
   let yapealVibanProvider: YapealVibanProvider;
   let frickVibanProvider: FrickVibanProvider;
   let fiatRepublicVibanProvider: FiatRepublicVibanProvider;
-  let signupUserFind: jest.Mock;
+  let signupUserFindOne: jest.Mock;
   let dataSource: DataSource;
   let notificationService: NotificationService;
   let issuanceUserDataFindOne: jest.Mock;
@@ -341,10 +341,10 @@ describe('VirtualIbanService', () => {
       issuanceUserDataFindOne.mockResolvedValue(completeUserData);
       manager.findOne.mockImplementation(async (entity: unknown) => (entity === UserData ? completeUserData : null));
       manager.query.mockResolvedValue([]);
-      signupUserFind = jest.fn().mockResolvedValue([{ id: 1, ip: '203.0.113.1' }]);
+      signupUserFindOne = jest.fn().mockResolvedValue({ id: 1, ip: '203.0.113.1' });
       (dataSource.getRepository as jest.Mock).mockImplementation((entity: unknown) => {
-        if (entity === User) return { find: signupUserFind };
-        return { findOne: jest.fn().mockResolvedValue(null), find: jest.fn().mockResolvedValue([]) };
+        if (entity === User) return { findOne: signupUserFindOne };
+        return { findOne: jest.fn().mockResolvedValue(null) };
       });
     });
 
@@ -443,30 +443,28 @@ describe('VirtualIbanService', () => {
       expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
     });
 
-    it('takes the oldest user whose IP is actually usable, skipping a blank one', async () => {
-      signupUserFind.mockResolvedValue([
-        { id: 1, ip: '   ' },
-        { id: 2, ip: '203.0.113.9' },
-      ]);
+    it('excludes blank IPs in the database, so the oldest usable row wins at any account size', async () => {
+      signupUserFindOne.mockResolvedValue({ id: 2, ip: '203.0.113.9' });
 
       await service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR');
 
+      // Server-side filter, not a client-side scan over a bounded candidate set: any bound would be
+      // a row count at which an account whose oldest users have blank IPs silently stops finding the
+      // IP it actually has.
+      const [[options]] = signupUserFindOne.mock.calls;
+      expect(options).toMatchObject({ order: { id: 'ASC' } });
+      expect(options.where.ip).toBeDefined();
+      expect(options.take).toBeUndefined();
       expect(fiatRepublicVibanProvider.reserveVibanForUser).toHaveBeenCalledWith(
         expect.objectContaining({ ipAddress: '203.0.113.9' }),
       );
     });
 
     it.each([
-      ['no user row has an IP', []],
-      [
-        'every candidate carries a blank IP',
-        [
-          { id: 1, ip: '   ' },
-          { id: 2, ip: '' },
-        ],
-      ],
-    ])('refuses when %s', async (_name, rows) => {
-      signupUserFind.mockResolvedValue(rows);
+      ['no user row has a usable IP', null],
+      ['the matched row still trims to nothing', { id: 1, ip: '   ' }],
+    ])('refuses when %s', async (_name, row) => {
+      signupUserFindOne.mockResolvedValue(row);
 
       await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
         ServiceUnavailableException,

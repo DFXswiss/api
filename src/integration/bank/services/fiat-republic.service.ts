@@ -386,7 +386,8 @@ export class FiatRepublicService {
    * Classifies an upstream failure without carrying its payload into the message. Fiat Republic
    * echoes request data in `warnings`, and our requests contain IBANs, names and addresses — those
    * messages end up persisted on fiat_output rows and in alert mails, so only the fixed
-   * `errorCode`/HTTP status is propagated. The full body is logged once, at error level, here.
+   * `errorCode`/HTTP status is propagated. The log line here carries the same fixed classification
+   * plus the stack; the response body is deliberately not logged either.
    */
   private toDomainError(error: unknown, method: Method, url: string): Error {
     const status = error?.['response']?.status;
