@@ -72,6 +72,33 @@ const EXOTIC_LINE_BREAKS = /[\u0085\u007f\u2028\u2029]/g;
 const LOG_BUDGET_PER_MINUTE = 120;
 const BUDGET_WINDOW = 60000;
 
+// Anticipated frontend states, not bugs — matched on the message text rather than the reported
+// `type`, because the frontend sets a generic `type="HandledError"` for *any* error the affected
+// screens catch, including a real backend outage: the message text is the part that is actually
+// anticipated. Source provenance and sampling are in the PR that introduced each entry.
+//
+// A listed `type` downgrades a report regardless of its message, on an unauthenticated endpoint.
+// Accepted: a submitter only ever downgrades their *own* report, the per-client throttle caps the
+// volume, and a flood that displaces genuine reports still surfaces through the over-budget
+// notice, which stays at ERROR.
+const WARN_TYPES = ['ChunkLoadError'];
+
+// All frontend locales of each anticipated message. Pinned to NFC on both sides of the match:
+// `includes` compares code points, so an NFD-encoded report (or a re-encoded source file) would
+// otherwise miss silently and stay at ERROR.
+const WARN_MESSAGES = [
+  'Invalid link', // EN
+  'Ungültiger Link', // DE
+  'Lien invalide', // FR
+  'Link non valido', // IT
+  'Merge is already completed', // EN
+  'Zusammenführung ist bereits abgeschlossen', // DE
+  'La fusion est déjà terminée', // FR
+  'La fusione è già completata', // IT
+  // Never run through the frontend's `translate()` — English only, no locale variants.
+  'Login link expired',
+].map((m) => m.normalize('NFC'));
+
 @Injectable()
 export class ClientErrorService {
   private readonly logger = new DfxLogger(ClientErrorService);
@@ -103,7 +130,13 @@ export class ClientErrorService {
     ];
     if (stack) fields.push(`stack=${ClientErrorService.quote(stack)}`);
 
-    this.logger.error(`Client error: ${fields.join(' ')}`);
+    const line = `Client error: ${fields.join(' ')}`;
+
+    if (ClientErrorService.isAnticipated(message, type)) {
+      this.logger.warn(line);
+    } else {
+      this.logger.error(line);
+    }
   }
 
   // --- BUDGET --- //
@@ -129,6 +162,12 @@ export class ClientErrorService {
 
     this.windowCount++;
     return true;
+  }
+
+  // --- SEVERITY --- //
+
+  private static isAnticipated(message: string, type?: string): boolean {
+    return (type != null && WARN_TYPES.includes(type)) || WARN_MESSAGES.includes(message.normalize('NFC'));
   }
 
   // --- SANITIZING --- //
