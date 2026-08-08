@@ -8,10 +8,11 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
@@ -32,6 +33,7 @@ import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/
 import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
   QuoteErrorUtil,
   QuoteException,
@@ -163,8 +165,19 @@ export class BuyController {
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, BuyActiveGuard())
+  @ApiQuery({
+    name: 'collectionAccount',
+    required: false,
+    type: Boolean,
+    description:
+      'If true, issue the invoice against the collection account instead of the personal virtual IBAN stored on the request',
+  })
   @ApiOkResponse({ type: PdfDto })
-  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<PdfDto> {
+  async generateInvoicePDF(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('collectionAccount') collectionAccount?: string,
+  ): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
@@ -173,6 +186,20 @@ export class BuyController {
     const user = await this.userService.getUser(jwt.user, { wallet: true });
     const buy = await this.buyService.get(jwt.account, request.routeId);
     const currency = await this.fiatService.getFiat(request.sourceId);
+
+    // Optional switch: issue against the collection account (skip personal vIBAN). Fail closed —
+    // never silently fall back to the personal IBAN when the caller asked for the collection account.
+    // Compare against the literal 'true' only (swap/sell includeTx, asset includePrivate) — query
+    // strings are not booleans; presence-based mapping would treat "false" as on.
+    let virtualIbanId = request.virtualIbanId;
+    if (collectionAccount === 'true') {
+      if (request.virtualIbanId == null)
+        throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_PERSONAL_IBAN_MISSING);
+      if (!Config.invoice.collectionAccountCurrencies.includes(currency.name))
+        throw new BadRequestException(QuoteError.COLLECTION_ACCOUNT_INVOICE_CURRENCY_NOT_SUPPORTED);
+      virtualIbanId = undefined;
+    }
+
     const bankInfo = await this.buyService.getBankInfoForRequest(
       {
         amount: request.amount,
@@ -183,7 +210,7 @@ export class BuyController {
       buy,
       true,
       request.bankId,
-      request.virtualIbanId,
+      virtualIbanId,
       buy.asset,
       user.wallet,
     );
