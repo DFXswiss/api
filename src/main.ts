@@ -18,6 +18,7 @@ import morgan from 'morgan';
 import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
 import { isToleratedProcessError } from './shared/utils/process-error-policy';
+import { safeLogError } from './shared/utils/safe-log';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -37,11 +38,11 @@ process.on('uncaughtException', (error) => {
   const logger = new DfxLogger('UncaughtException');
 
   if (isToleratedProcessError(error)) {
-    logger.error('Spark SDK uncaught exception (process kept alive):', error);
+    safeLogError(logger, 'Spark SDK uncaught exception (process kept alive):', error);
     return;
   }
 
-  logger.error('Uncaught exception, shutting down:', error);
+  safeLogError(logger, 'Uncaught exception, shutting down:', error);
   process.exit(1);
 });
 
@@ -75,11 +76,11 @@ process.on('unhandledRejection', (reason) => {
   const error = toLoggableError(reason);
 
   if (isToleratedProcessError(reason)) {
-    logger.error('Spark SDK unhandled rejection (process kept alive):', error);
+    safeLogError(logger, 'Spark SDK unhandled rejection (process kept alive):', error);
     return;
   }
 
-  logger.error('Unhandled rejection, shutting down:', error);
+  safeLogError(logger, 'Unhandled rejection, shutting down:', error);
   process.exit(1);
 });
 

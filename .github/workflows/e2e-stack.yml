@@ -68,11 +68,16 @@ jobs:
             echo "::error::ref that contains e2e-stack/, or omit services_ref to use develop (with fallback)."
             exit 1
           else
-            if ! state="$(gh api repos/DFXswiss/services/pulls/1288 --jq .state 2>&1)"; then
+            # Capture stderr separately so a harmless gh warning cannot pollute $state
+            # and make an open PR look closed in the comparison below.
+            err_file="$(mktemp -p "${RUNNER_TEMP}")"
+            if ! state="$(gh api repos/DFXswiss/services/pulls/1288 --jq .state 2>"$err_file")"; then
               echo "::error::Could not determine the state of DFXswiss/services#1288 (gh api call failed):"
-              echo "::error::${state}"
+              echo "::error::$(cat "$err_file")"
+              rm -f "$err_file"
               exit 1
             fi
+            rm -f "$err_file"
             if [ -z "$state" ]; then
               echo "::error::Could not determine the state of DFXswiss/services#1288: gh api returned an empty state."
               exit 1
@@ -93,9 +98,13 @@ jobs:
       # Temporary bootstrap while the harness lives only on services#1288: check out
       # that PR head when develop still lacks e2e-stack/. Self-disabling — once the
       # harness lands on develop, Resolve harness location sets bootstrap=false and
-      # this step is skipped. After services#1288 is merged or closed, Resolve harness
-      # location fails loud instead of bootstrapping, so this step never runs against
-      # a spent PR ref (refs/pull/1288/head stays fetchable on GitHub forever).
+      # this step is skipped. After services#1288 is merged or closed, the next run of
+      # Resolve harness location fails loud once it sees a non-open state, instead of
+      # bootstrapping. There is a small, harmless window between that check and this
+      # checkout in which the PR could still be merged; the checkout would then fetch
+      # the same commit that was open a moment earlier, because refs/pull/1288/head
+      # continues to point at that commit after merge (and stays fetchable on GitHub
+      # forever).
       - name: Check out the harness from the pull request that introduces it
         if: steps.harness.outputs.bootstrap == 'true'
         uses: actions/checkout@v4
