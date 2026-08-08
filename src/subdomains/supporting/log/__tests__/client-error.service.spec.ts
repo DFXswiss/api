@@ -125,6 +125,7 @@ describe('ClientErrorService', () => {
 
     expect(loggedWarnLine()).toContain('message="Ungültiger Link"');
     expect(loggedWarnLine()).toContain('route="https://app.dfx.swiss/kyc"');
+    expect(error).not.toHaveBeenCalled();
   });
 
   // Guards against someone later broadening the match to `type === 'HandledError'`: anything
