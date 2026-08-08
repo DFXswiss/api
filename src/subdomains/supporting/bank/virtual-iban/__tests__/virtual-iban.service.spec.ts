@@ -18,7 +18,6 @@ import {
   DataSource,
   Entity,
   EntityManager,
-  FindOneOptions,
   FindOperator,
   IsNull,
   ManyToOne,
@@ -159,6 +158,15 @@ class ReceivingLookupBankTable {
   send: boolean;
 }
 
+@Entity({ name: 'receiving_lookup_buy' })
+class ReceivingLookupBuyTable {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 256 })
+  reference: string;
+}
+
 @Entity({ name: 'receiving_lookup_virtual_iban' })
 class ReceivingLookupVirtualIbanTable {
   @PrimaryGeneratedColumn()
@@ -181,6 +189,9 @@ class ReceivingLookupVirtualIbanTable {
 
   @ManyToOne(() => ReceivingLookupBankTable, { nullable: false })
   bank: ReceivingLookupBankTable;
+
+  @ManyToOne(() => ReceivingLookupBuyTable, { nullable: true })
+  buy?: ReceivingLookupBuyTable;
 }
 
 describe('VirtualIbanService', () => {
@@ -1793,6 +1804,7 @@ describe('VirtualIbanService', () => {
           userData: { id: 7 },
           currency: { name: 'CHF' },
           bank: { receive: true },
+          buy: IsNull(),
           active: true,
           status: VirtualIbanStatus.ACTIVE,
         },
@@ -1811,36 +1823,13 @@ describe('VirtualIbanService', () => {
           userData: { id: 7 },
           currency: { name: 'CHF' },
           bank: { send: true },
+          buy: IsNull(),
           active: true,
           status: VirtualIbanStatus.ACTIVE,
         },
         relations: { bank: true },
         order: { id: 'DESC' },
       });
-    });
-
-    it('retains merge-base behavior by reusing a buy-bound Yapeal IBAN in the generic lookup', async () => {
-      const buyBound = {
-        id: 88,
-        iban: 'CH4400762011623852959',
-        buy: { id: 55 },
-        userData: { id: 7 },
-        currency: { name: 'CHF' },
-        bank: { name: IbanBankName.YAPEAL },
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      } as VirtualIban;
-
-      jest.spyOn(virtualIbanRepo, 'findOne').mockImplementation(async (options: FindOneOptions<VirtualIban>) => {
-        if (!options.where || Array.isArray(options.where)) throw new Error('Expected one vIBAN where clause');
-        const buyWhere = options.where.buy;
-        // The regressed filter excluded this row. With merge-base semantics, no buy predicate exists.
-        if (buyWhere instanceof FindOperator && buyWhere.type === 'isNull') return null;
-        return buyBound;
-      });
-
-      await expect(service.getActiveReceivingForUserAndCurrency(userData, 'CHF')).resolves.toBe(buyBound);
-      expect(virtualIbanRepo.findOne).toHaveBeenCalled();
     });
 
     it('getActiveForBuyAndCurrency reads through to the database for issuance correctness', async () => {
@@ -1992,6 +1981,7 @@ describe('VirtualIbanService', () => {
           ReceivingLookupUserDataTable,
           ReceivingLookupFiatTable,
           ReceivingLookupBankTable,
+          ReceivingLookupBuyTable,
           ReceivingLookupVirtualIbanTable,
         ],
         synchronize: true,
@@ -2053,6 +2043,43 @@ describe('VirtualIbanService', () => {
         iban: receiving.iban,
         bank: { id: receivingBank.id, receive: true },
       });
+    });
+
+    it('excludes a buy-bound IBAN from the generic user lookup', async () => {
+      const lookupUser = await pgDataSource.getRepository(ReceivingLookupUserDataTable).save({ label: 'buy-filter' });
+      const lookupCurrency = await pgDataSource.getRepository(ReceivingLookupFiatTable).save({ name: 'USD' });
+      const receivingBank = await pgDataSource
+        .getRepository(ReceivingLookupBankTable)
+        .save({ name: IbanBankName.YAPEAL, receive: true, send: true });
+      const lookupBuy = await pgDataSource
+        .getRepository(ReceivingLookupBuyTable)
+        .save({ reference: 'buy-bound-lookup' });
+
+      // Store the generally assigned row first so it has the lower id. The newer buy-bound row would win by
+      // ordering alone, which means only the buy IS NULL predicate can make this test return the free row.
+      const free = await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000005',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: receivingBank,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+      await pgDataSource.getRepository(ReceivingLookupVirtualIbanTable).save({
+        iban: 'CH0000000000000000006',
+        userData: lookupUser,
+        currency: lookupCurrency,
+        bank: receivingBank,
+        buy: lookupBuy,
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      });
+
+      // The merge-base behavior was deliberately left unchanged in #4384 to keep that PR scoped. This
+      // standalone reversal prevents a buy-bound IBAN in the generic path from misassigning incoming funds.
+      await expect(
+        lookupService.getActiveReceivingForUserAndCurrency({ id: lookupUser.id } as UserData, 'USD'),
+      ).resolves.toMatchObject({ id: free.id, iban: free.iban });
     });
 
     it('selects the most recently created row when two active rows can receive', async () => {

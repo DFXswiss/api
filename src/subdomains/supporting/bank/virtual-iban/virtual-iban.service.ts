@@ -132,6 +132,12 @@ export class VirtualIbanService {
    * eligibility can diverge, so one shared lookup cannot serve both directions correctly. The directional
    * bank predicate excludes rows that can no longer receive, but cannot break ties between qualifying rows;
    * the explicit newest-first order makes the most recently created operational replacement win deterministically.
+   *
+   * A buy-bound row belongs to exactly one purchase, and BankTxService assigns incoming funds on that IBAN
+   * to that stored purchase. Returning it in the generic deposit path could therefore show an IBAN for purchase
+   * B while the customer is paying for purchase A, causing the funds to be assigned to B. Buy-specific callers
+   * use {@link getActiveForBuyAndCurrency}; excluding buy-bound rows here also makes all three user-related
+   * lookups consistent, because findActiveForUserCurrencyAndBank already uses `buy: IsNull()`.
    */
   async getActiveReceivingForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
@@ -144,6 +150,7 @@ export class VirtualIbanService {
         // receive", and with no collection-account fallback left the request fails outright. That is
         // what surfaced as PersonalIbanIssuanceFailed for every holder of a retired Yapeal EUR IBAN.
         bank: { receive: true },
+        buy: IsNull(),
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
@@ -156,7 +163,9 @@ export class VirtualIbanService {
    * Finds all active personal-IBAN candidates whose banks can send customer payouts. Sending and receiving
    * eligibility can diverge, so the directional bank predicate is required but cannot break ties on its own.
    * The caller applies additional entity-level eligibility rules; newest-first ordering gives it a deterministic
-   * choice among candidates that remain equally qualified after those rules.
+   * choice among candidates that remain equally qualified after those rules. Both user-level lookups must treat
+   * the same rows as generally assigned to the user; an asymmetric buy-bound condition between deposits and
+   * payouts would create the next class of inconsistent behavior.
    */
   async getActiveSendingCandidatesForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban[]> {
     return this.virtualIbanRepo.find({
@@ -164,6 +173,7 @@ export class VirtualIbanService {
         userData: { id: userData.id },
         currency: { name: currencyName },
         bank: { send: true },
+        buy: IsNull(),
         active: true,
         status: VirtualIbanStatus.ACTIVE,
       },
