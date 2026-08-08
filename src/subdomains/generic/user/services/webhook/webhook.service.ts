@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { UserRepository } from '../../models/user/user.repository';
+import { Wallet } from '../../models/wallet/wallet.entity';
 import { WalletService } from '../../models/wallet/wallet.service';
 import { CreateWebhookInput } from './dto/create-webhook.dto';
 import { WebhookType } from './dto/webhook.dto';
@@ -19,6 +21,8 @@ enum WebhookDeliveryMode {
 
 @Injectable()
 export class WebhookService {
+  private readonly logger = new DfxLogger(WebhookService);
+
   constructor(
     private readonly webhookRepo: WebhookRepository,
     private readonly userRepo: UserRepository,
@@ -112,15 +116,24 @@ export class WebhookService {
     const data = JSON.stringify(payload);
 
     // user webhooks
-    const webhooks: CreateWebhookInput[] = users
-      .filter((user) => user.wallet.isValidForWebhook(type, false))
-      .map((user) => ({ type, identifier, data, reason, userData, user, wallet: user.wallet }));
+    const webhooks: CreateWebhookInput[] = [];
+    for (const user of users) {
+      if (user.wallet.isValidForWebhook(type, false)) {
+        webhooks.push({ type, identifier, data, reason, userData, user, wallet: user.wallet });
+      } else {
+        this.warnIfPaymentWebhookSuppressed(user.wallet, type, false);
+      }
+    }
 
     // user data webhooks
     const additionalClients = userData.kycClientList.filter((w) => !webhooks.some(({ wallet }) => wallet.id === w));
     for (const walletId of additionalClients) {
       const wallet = await this.walletService.getByIdOrName(walletId);
-      if (wallet?.isValidForWebhook(type, true)) webhooks.push({ type, identifier, data, reason, userData, wallet });
+      if (wallet?.isValidForWebhook(type, true)) {
+        webhooks.push({ type, identifier, data, reason, userData, wallet });
+      } else if (wallet) {
+        this.warnIfPaymentWebhookSuppressed(wallet, type, true);
+      }
     }
 
     for (const client of webhooks) {
@@ -187,5 +200,16 @@ export class WebhookService {
         prev[key] = value;
         return prev;
       }, {});
+  }
+
+  /**
+   * Log only when PAYMENT would have been delivered on apiUrl + payment option alone, but the
+   * paymentsApiEnabled gate blocked it. Wallets without webhook config stay silent (no noise).
+   */
+  private warnIfPaymentWebhookSuppressed(wallet: Wallet, type: WebhookType, consented: boolean): void {
+    if (type !== WebhookType.PAYMENT) return;
+    if (!wallet.isPaymentWebhookSuppressedOnlyByApiGate(consented)) return;
+
+    this.logger.warn(`Payment webhook suppressed: paymentsApiEnabled is false for wallet ${wallet.id}`);
   }
 }

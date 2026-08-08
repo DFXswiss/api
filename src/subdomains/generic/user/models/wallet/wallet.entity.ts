@@ -40,6 +40,9 @@ export class Wallet extends IEntity {
   isKycClient: boolean;
 
   @Column({ default: false })
+  paymentsApiEnabled: boolean;
+
+  @Column({ default: false })
   displayFraudWarning: boolean;
 
   @Column({ default: false })
@@ -106,6 +109,11 @@ export class Wallet extends IEntity {
     );
   }
 
+  /** Fail-closed: only an explicit true opens the partner payments API. */
+  get isPaymentsApiEnabled(): boolean {
+    return this.paymentsApiEnabled === true;
+  }
+
   isValidForWebhook(type: WebhookType, consented: boolean): boolean {
     if (!this.apiUrl) return false;
 
@@ -116,8 +124,19 @@ export class Wallet extends IEntity {
         return this.isOptionValid(this.webhookConfigObject?.kyc, consented);
 
       case WebhookType.PAYMENT:
-        return this.isOptionValid(this.webhookConfigObject?.payment, consented);
+        // paymentsApiEnabled gates payment data on both pull and push; KYC types unchanged.
+        return this.isPaymentsApiEnabled && this.isOptionValid(this.webhookConfigObject?.payment, consented);
     }
+  }
+
+  /**
+   * True when a PAYMENT webhook would deliver on apiUrl + payment option alone, but
+   * paymentsApiEnabled blocks it (for warn-on-suppression; not a delivery check).
+   */
+  isPaymentWebhookSuppressedOnlyByApiGate(consented: boolean): boolean {
+    return (
+      !!this.apiUrl && !this.isPaymentsApiEnabled && this.isOptionValid(this.webhookConfigObject?.payment, consented)
+    );
   }
 
   private isOptionValid(option: WebhookConfigOption | undefined, consented: boolean): boolean {

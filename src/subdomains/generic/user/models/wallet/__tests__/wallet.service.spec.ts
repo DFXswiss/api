@@ -1,20 +1,29 @@
+import { createMock } from '@golevelup/ts-jest';
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from 'src/config/config';
+import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { WalletDto } from '../dto/wallet.dto';
 import { Wallet } from '../wallet.entity';
 import { WalletRepository } from '../wallet.repository';
 import { WalletService } from '../wallet.service';
 
 describe('WalletService', () => {
   let service: WalletService;
-  let repo: jest.Mocked<Partial<WalletRepository>>;
+  let repo: jest.Mocked<WalletRepository>;
+  let logService: jest.Mocked<LogService>;
 
   beforeAll(() => {
     new ConfigService();
   });
 
   beforeEach(() => {
-    repo = { findOneCachedBy: jest.fn(), findOneCached: jest.fn() };
-
-    service = new WalletService(repo as unknown as WalletRepository);
+    repo = createMock<WalletRepository>();
+    logService = createMock<LogService>();
+    logService.create.mockResolvedValue({} as any);
+    repo.create.mockImplementation((dto) => Object.assign(new Wallet(), dto) as Wallet);
+    repo.save.mockImplementation(async (entity) => entity as Wallet);
+    service = new WalletService(repo, logService);
   });
 
   describe('getByAddress', () => {
@@ -114,6 +123,90 @@ describe('WalletService', () => {
         expect.stringContaining('idOrName:'),
         expect.objectContaining({ where: [{ id: 7 }, { name: undefined }] }),
       );
+    });
+  });
+
+  describe('createWallet', () => {
+    it('saves the wallet and invalidates the cache', async () => {
+      const dto = { name: 'Partner' } as WalletDto;
+
+      const saved = await service.createWallet(dto);
+
+      expect(repo.create).toHaveBeenCalledWith(dto);
+      expect(repo.save).toHaveBeenCalled();
+      expect(repo.invalidateCache).toHaveBeenCalledTimes(1);
+      expect(saved.name).toBe('Partner');
+      expect(logService.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateWallet', () => {
+    it('writes a before→after audit record, then saves and invalidates the cache', async () => {
+      const existing = Object.assign(new Wallet(), { id: 7, name: 'Old', paymentsApiEnabled: true });
+      repo.findOneBy.mockResolvedValue(existing);
+
+      const saved = await service.updateWallet(7, { paymentsApiEnabled: false } as WalletDto);
+
+      expect(logService.create).toHaveBeenCalledWith({
+        system: 'Wallet',
+        subsystem: 'Update',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({
+          id: 7,
+          changes: {
+            paymentsApiEnabled: { previous: true, next: false },
+          },
+        }),
+        category: '7',
+        valid: null,
+      });
+      expect(logService.create.mock.invocationCallOrder[0]).toBeLessThan(repo.save.mock.invocationCallOrder[0]);
+      expect(repo.save).toHaveBeenCalled();
+      expect(repo.invalidateCache).toHaveBeenCalledTimes(1);
+      expect(saved.paymentsApiEnabled).toBe(false);
+    });
+
+    it('does not save when the audit write fails (fail-closed)', async () => {
+      const existing = Object.assign(new Wallet(), { id: 7, paymentsApiEnabled: true });
+      repo.findOneBy.mockResolvedValue(existing);
+      logService.create.mockRejectedValue(new Error('log write failed'));
+
+      await expect(service.updateWallet(7, { paymentsApiEnabled: false } as WalletDto)).rejects.toThrow(
+        'log write failed',
+      );
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.invalidateCache).not.toHaveBeenCalled();
+    });
+
+    it('records apiKey changes without cleartext previous/next', async () => {
+      const existing = Object.assign(new Wallet(), { id: 7, apiKey: 'secret-old' });
+      repo.findOneBy.mockResolvedValue(existing);
+
+      await service.updateWallet(7, { apiKey: 'secret-new' } as WalletDto);
+
+      const message = JSON.parse(logService.create.mock.calls[0][0].message as string);
+      expect(message.changes.apiKey).toEqual({ changed: true });
+      expect(JSON.stringify(message)).not.toContain('secret-old');
+      expect(JSON.stringify(message)).not.toContain('secret-new');
+    });
+
+    it('writes no audit record when nothing actually changes', async () => {
+      const existing = Object.assign(new Wallet(), { id: 7, name: 'Same', paymentsApiEnabled: true });
+      repo.findOneBy.mockResolvedValue(existing);
+
+      await service.updateWallet(7, { name: 'Same', paymentsApiEnabled: true } as WalletDto);
+
+      expect(logService.create).not.toHaveBeenCalled();
+      expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException and does not invalidate cache when missing', async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.updateWallet(99, {} as WalletDto)).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.invalidateCache).not.toHaveBeenCalled();
+      expect(logService.create).not.toHaveBeenCalled();
     });
   });
 });

@@ -1597,6 +1597,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'isKycClient',
       'name',
       'ownerId',
+      'paymentsApiEnabled',
       'usesDummyAddresses',
     ],
   },

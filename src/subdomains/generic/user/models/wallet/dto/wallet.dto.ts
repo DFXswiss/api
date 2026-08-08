@@ -24,6 +24,10 @@ export class WalletDto {
   isKycClient: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  paymentsApiEnabled: boolean;
+
+  @IsOptional()
   @IsEnum(KycType)
   customKyc: KycType;
 

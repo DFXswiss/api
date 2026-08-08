@@ -67,6 +67,28 @@ describe('WebhookService', () => {
     return userData;
   };
 
+  const buildPaymentUserData = (walletOverrides: Partial<Wallet>): { userData: UserData; user: User } => {
+    const wallet = Object.assign(new Wallet(), {
+      id: 9,
+      name: 'payment-partner',
+      apiUrl: 'https://partner.example.com/webhook',
+      paymentsApiEnabled: false,
+      webhookConfig: JSON.stringify({ kyc: WebhookConfigOption.TRUE, payment: WebhookConfigOption.TRUE }),
+      ...walletOverrides,
+    });
+    const userData = Object.assign(new UserData(), {
+      id: 1,
+      mail: 'pay@example.com',
+      kycStatus: KycStatus.NA,
+      kycLevel: KycLevel.LEVEL_10,
+      kycHash: 'pay-hash',
+      kycClients: null,
+    });
+    const user = Object.assign(new User(), { id: 2, address: 'ADDR_PAY', wallet, userData });
+    userData.users = [user];
+    return { userData, user };
+  };
+
   describe('kycChanged', () => {
     it('sends and persists a webhook for a circular userData graph', async () => {
       const userData = buildCircularUserData();
@@ -141,6 +163,33 @@ describe('WebhookService', () => {
       expect(webhookRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ id: 77, isComplete: false, lastTryDate: null, error: 'upstream unavailable' }),
       );
+    });
+  });
+
+  describe('payment webhook gate visibility', () => {
+    it('warns when PAYMENT is suppressed solely because paymentsApiEnabled is false', async () => {
+      const { userData, user } = buildPaymentUserData({ paymentsApiEnabled: false });
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+
+      // Drive sendWebhooks directly with a plain payload — avoids building a full BuyCrypto graph.
+      await (service as any).sendWebhooks(WebhookType.PAYMENT, { id: 1 }, userData, [user], 'BestEffort');
+
+      expect(warn).toHaveBeenCalledWith('Payment webhook suppressed: paymentsApiEnabled is false for wallet 9');
+      expect(webhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not warn when the wallet has no webhook delivery config (no noise)', async () => {
+      const { userData, user } = buildPaymentUserData({
+        paymentsApiEnabled: false,
+        apiUrl: undefined,
+        webhookConfig: undefined,
+      });
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+
+      await (service as any).sendWebhooks(WebhookType.PAYMENT, { id: 1 }, userData, [user], 'BestEffort');
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(webhookRepo.save).not.toHaveBeenCalled();
     });
   });
 });

@@ -11,6 +11,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
+import { LogModule } from 'src/subdomains/supporting/log/log.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
@@ -76,6 +77,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     ]),
     SharedModule,
     NotificationModule,
+    LogModule,
     BlockchainModule,
     forwardRef(() => ReferralModule),
     forwardRef(() => PaymentModule),
