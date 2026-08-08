@@ -7,7 +7,6 @@ import { SupportIssue } from '../entities/support-issue.entity';
 import { SupportMessage } from '../entities/support-message.entity';
 import { SupportReplySuggestion } from '../entities/support-reply-suggestion.entity';
 import { SupportReplySuggestionState } from '../enums/support-reply-suggestion.enum';
-import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { SupportReplySuggestionRepository } from '../repositories/support-reply-suggestion.repository';
 
@@ -15,7 +14,6 @@ import { SupportReplySuggestionRepository } from '../repositories/support-reply-
 export class SupportReplySuggestionService {
   constructor(
     private readonly suggestionRepo: SupportReplySuggestionRepository,
-    private readonly supportIssueRepo: SupportIssueRepository,
     private readonly messageRepo: SupportMessageRepository,
   ) {}
 
@@ -33,18 +31,13 @@ export class SupportReplySuggestionService {
     dto: CreateSupportReplySuggestionDto,
     authorId: number,
   ): Promise<SupportReplySuggestionDto> {
-    const issue = await this.supportIssueRepo.findOne({ where: { id: issueId }, loadEagerRelations: false });
-    if (!issue) throw new NotFoundException('Support issue not found');
-
     // Superseding and inserting share one transaction, and the lock is taken on the ISSUE row rather
     // than on the suggestions: two submissions arriving together may each find nothing to supersede,
     // and a lock on rows that do not exist yet cannot order the two inserts. Without it the issue
     // ends up with two suggestions marked Pending, one of them stranded in that state forever.
     const [entity, latestMessageId] = await this.suggestionRepo.manager.transaction(async (manager) => {
-      // The issue is checked again here, under the lock: the check above happens before the
-      // transaction, so only this one can still be true when the suggestion is inserted. Without it
-      // an issue that disappeared in between would surface as a foreign key violation instead of a
-      // 404.
+      // The issue is read here and nowhere else: a check before the transaction could not speak for
+      // the moment of the insert, so it would be a second read of the same row that decides nothing.
       const lockedIssue = await manager
         .createQueryBuilder(SupportIssue, 'issue')
         .where('issue.id = :issueId', { issueId })

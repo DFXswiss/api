@@ -4,7 +4,6 @@ import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/s
 import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { SupportReplySuggestion } from 'src/subdomains/supporting/support-issue/entities/support-reply-suggestion.entity';
 import { SupportReplySuggestionState } from 'src/subdomains/supporting/support-issue/enums/support-reply-suggestion.enum';
-import { SupportIssueRepository } from 'src/subdomains/supporting/support-issue/repositories/support-issue.repository';
 import { SupportMessageRepository } from 'src/subdomains/supporting/support-issue/repositories/support-message.repository';
 import { SupportReplySuggestionRepository } from 'src/subdomains/supporting/support-issue/repositories/support-reply-suggestion.repository';
 import { SupportReplySuggestionService } from 'src/subdomains/supporting/support-issue/services/support-reply-suggestion.service';
@@ -29,7 +28,6 @@ const suggestion = (values: Partial<SupportReplySuggestion>): SupportReplySugges
 describe('SupportReplySuggestionService', () => {
   let service: SupportReplySuggestionService;
   let suggestionRepo: DeepMocked<SupportReplySuggestionRepository>;
-  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
   let messageRepo: DeepMocked<SupportMessageRepository>;
 
   // The service reaches the transactional connection through `suggestionRepo.manager`; the callback
@@ -58,7 +56,6 @@ describe('SupportReplySuggestionService', () => {
 
   beforeEach(() => {
     suggestionRepo = createMock<SupportReplySuggestionRepository>();
-    supportIssueRepo = createMock<SupportIssueRepository>();
     messageRepo = createMock<SupportMessageRepository>();
 
     queryBuilder = {
@@ -88,10 +85,9 @@ describe('SupportReplySuggestionService', () => {
       },
     });
 
-    supportIssueRepo.findOne.mockResolvedValue(issue());
     messageRepo.findOne.mockResolvedValue(message(100));
 
-    service = new SupportReplySuggestionService(suggestionRepo, supportIssueRepo, messageRepo);
+    service = new SupportReplySuggestionService(suggestionRepo, messageRepo);
   });
 
   describe('createSuggestion', () => {
@@ -161,17 +157,9 @@ describe('SupportReplySuggestionService', () => {
       expect(suggestionRepo.delete).not.toHaveBeenCalled();
     });
 
+    // The issue is read under the lock and nowhere else: that read is the one that can still speak
+    // for the moment of the insert.
     it('fails when the issue does not exist', async () => {
-      supportIssueRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    // The check before the transaction cannot speak for the moment of the insert; only the one under
-    // the lock can, and it is the one that decides.
-    it('fails when the issue is gone by the time the lock is taken', async () => {
       queryBuilder.getOne.mockResolvedValue(null);
 
       await expect(service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID)).rejects.toThrow(
