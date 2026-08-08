@@ -20,6 +20,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -32,7 +33,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { EntityManager, IsNull, Not } from 'typeorm';
+import { DeepPartial, EntityManager, IsNull, Not } from 'typeorm';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -381,7 +382,12 @@ describe('BuyFiatService', () => {
     });
   });
 
-  function mockManagerTransaction(manager: { findOne?: jest.Mock; update?: jest.Mock; save?: jest.Mock }): void {
+  function mockManagerTransaction(manager: {
+    findOne?: jest.Mock;
+    update?: jest.Mock;
+    save?: jest.Mock;
+    getRepository?: jest.Mock;
+  }): void {
     Object.defineProperty(buyFiatRepo, 'manager', {
       configurable: true,
       value: {
@@ -537,7 +543,9 @@ describe('BuyFiatService', () => {
         cryptoInput,
       });
       jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
-      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest
+        .spyOn(buyFiatRepo, 'create')
+        .mockImplementation((dto: DeepPartial<BuyFiat>) => Object.assign(new BuyFiat(), dto));
       const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
       const webhookSpy = jest.spyOn(service, 'triggerWebhook').mockResolvedValue();
       const manager = {
@@ -574,6 +582,13 @@ describe('BuyFiatService', () => {
         action: PayInAction.FORWARD,
         returnTxId: null,
       });
+      const bankData = { id: 7, iban: 'CH9300762011623852957', approved: false };
+      const freshBankData = {
+        id: 7,
+        iban: 'CH9300762011623852957',
+        approved: false,
+        userData: { id: 1 },
+      };
       const entity = createCustomBuyFiat({
         id: 81,
         amlCheck: CheckStatus.FAIL,
@@ -582,17 +597,37 @@ describe('BuyFiatService', () => {
         chargebackAddress: '0x0000000000000000000000000000000000000001',
         chargebackAmount: 0.1,
         cryptoInput: pendingForward,
+        bankData: bankData as BuyFiat['bankData'],
       });
       jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
-      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest
+        .spyOn(buyFiatRepo, 'create')
+        .mockImplementation((dto: DeepPartial<BuyFiat>) => Object.assign(new BuyFiat(), dto));
+      const bankTxRepo = {
+        findOneBy: jest.fn().mockResolvedValue({ id: 99 }),
+        setNewUpdateTime: jest.fn(),
+      };
+      jest.spyOn(bankTxService, 'getBankTxRepo').mockReturnValue(bankTxRepo as never);
+      const updateBankDataInternalSpy = jest
+        .spyOn(bankDataService, 'updateBankDataInternal')
+        .mockResolvedValue(freshBankData as never);
+      const updateBankDataSpy = jest.spyOn(bankDataService, 'updateBankData');
       const webhookSpy = jest.spyOn(service, 'triggerWebhook').mockResolvedValue();
       const updateSellVolumeSpy = jest.spyOn(service, 'updateSellVolume').mockResolvedValue();
-      const updateRefVolumeSpy = jest.spyOn(service as any, 'updateRefVolume').mockResolvedValue(undefined);
+      const updateRefVolumeSpy = jest
+        .spyOn(service as unknown as { updateRefVolume: (...args: unknown[]) => Promise<void> }, 'updateRefVolume')
+        .mockResolvedValue(undefined);
+      const bankTxUpdate = jest.fn().mockResolvedValue({ affected: 1 });
+      const bankDataFindOne = jest.fn().mockResolvedValue(freshBankData);
       const manager = {
         save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
         findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
           if (type === CryptoInput) return options.select?.id ? { id: 24 } : pendingForward;
           return undefined;
+        }),
+        getRepository: jest.fn((type: unknown) => {
+          if (type === BankTx) return { update: bankTxUpdate };
+          return { findOne: bankDataFindOne };
         }),
       };
       mockManagerTransaction(manager);
@@ -605,15 +640,75 @@ describe('BuyFiatService', () => {
             chargebackDate: new Date(),
             amountInChf: 10,
             amountInEur: 10,
+            bankTxId: 99,
+            bankDataActive: true,
           }),
           AmlSourceType.MANUAL_UPDATE,
         ),
       ).rejects.toThrow(new BadRequestException('CryptoInput forward is pending confirmation - retry once confirmed'));
 
+      // In-tx mutations ran through the manager (would roll back with the failed routing).
+      expect(manager.getRepository).toHaveBeenCalledWith(BankTx);
+      expect(bankTxUpdate).toHaveBeenCalledWith(99, expect.objectContaining({ updated: expect.any(Date) }));
+      expect(bankDataFindOne).toHaveBeenCalledWith({
+        where: { id: 7 },
+        relations: { userData: true },
+      });
+      expect(updateBankDataInternalSpy).toHaveBeenCalledWith(freshBankData, { approved: true }, manager);
+      // Pre-tx paths must not escape the rollback.
+      expect(bankTxRepo.setNewUpdateTime).not.toHaveBeenCalled();
+      expect(updateBankDataSpy).not.toHaveBeenCalled();
       // Transaction mock rethrows, so nothing after the tx runs — release did not commit.
       expect(webhookSpy).not.toHaveBeenCalled();
       expect(updateSellVolumeSpy).not.toHaveBeenCalled();
       expect(updateRefVolumeSpy).not.toHaveBeenCalled();
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+
+    it('fails loud when chargebackAmount is missing so the release does not commit without a return', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 26,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+        returnTxId: null,
+      });
+      const entity = createCustomBuyFiat({
+        id: 83,
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        chargebackAllowedDate: null,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: null,
+        cryptoInput,
+      });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest
+        .spyOn(buyFiatRepo, 'create')
+        .mockImplementation((dto: DeepPartial<BuyFiat>) => Object.assign(new BuyFiat(), dto));
+      const webhookSpy = jest.spyOn(service, 'triggerWebhook').mockResolvedValue();
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined as never);
+      const manager = {
+        save: jest.fn(async (_type: unknown, e: BuyFiat) => e),
+      };
+      mockManagerTransaction(manager);
+
+      await expect(
+        service.update(
+          83,
+          Object.assign(new UpdateBuyFiatDto(), {
+            chargebackAllowedDate: new Date(),
+            chargebackDate: new Date(),
+          }),
+          AmlSourceType.MANUAL_UPDATE,
+        ),
+      ).rejects.toThrow(
+        new BadRequestException('Chargeback address, amount or asset missing - refund cannot be routed'),
+      );
+
+      expect(webhookSpy).not.toHaveBeenCalled();
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).not.toHaveBeenCalled();
       expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
 

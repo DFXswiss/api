@@ -20,13 +20,14 @@ import { CustodyOrderService } from 'src/subdomains/core/custody/services/custod
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
-import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import {
   CryptoInput,
@@ -231,7 +232,6 @@ export class BuyFiatService implements OnModuleInit {
     if (dto.bankTxId) {
       update.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!update.bankTx) throw new BadRequestException('Bank TX not found');
-      await this.bankTxService.getBankTxRepo().setNewUpdateTime(dto.bankTxId);
     }
 
     if (dto.outputReferenceAssetId) {
@@ -249,10 +249,14 @@ export class BuyFiatService implements OnModuleInit {
       if (!update.bankData) throw new NotFoundException('BankData not found');
     }
 
-    if (dto.bankDataActive != null && (update.bankData || entity.bankData))
-      await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
-        approved: dto.bankDataActive,
-      });
+    // BankData active-flag write AND the fresh read are deferred into the transaction below
+    // (updateBankDataInternal full-saves the entity and its default-branch needs the userData
+    // relation, hence the fresh read with relations; same id selection as the former
+    // updateBankData call: update.bankData?.id ?? entity.bankData.id).
+    const bankDataIdForActive =
+      dto.bankDataActive != null && (update.bankData || entity.bankData)
+        ? (update.bankData?.id ?? entity.bankData.id)
+        : undefined;
 
     if (dto.amlCheck === CheckStatus.PASS && ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
       throw new BadRequestException('Blacklisted aml error cannot set Pass');
@@ -286,6 +290,20 @@ export class BuyFiatService implements OnModuleInit {
     // Persist the admin fields and (when newly releasing a chargeback) route the return in one
     // transaction: a forward-pending throw rolls the release back so the promised retry works.
     await this.buyFiatRepo.manager.transaction(async (manager) => {
+      // A failed release routing must roll back every write of this PUT, not just the BuyFiat row.
+      if (dto.bankTxId) {
+        await manager.getRepository(BankTx).update(dto.bankTxId, { updated: new Date() });
+      }
+
+      if (bankDataIdForActive != null) {
+        const bankDataForActive = await manager.getRepository(BankData).findOne({
+          where: { id: bankDataIdForActive },
+          relations: { userData: true },
+        });
+        if (!bankDataForActive) throw new NotFoundException('Bank data not found');
+        await this.bankDataService.updateBankDataInternal(bankDataForActive, { approved: dto.bankDataActive }, manager);
+      }
+
       entity = await manager.save(BuyFiat, entity);
 
       // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
@@ -336,7 +354,10 @@ export class BuyFiatService implements OnModuleInit {
   ): Promise<void> {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
-    if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
+    // The release must never commit without a scheduled return — the case would vanish from the
+    // pending list with nothing under way.
+    if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset)
+      throw new BadRequestException('Chargeback address, amount or asset missing - refund cannot be routed');
 
     // Routing on the caller's snapshot let a FORWARDED→FORWARD_CONFIRMED flip land in neither branch
     // while the chargeback state was already persisted (#4744 review); the asset relation is eager,
