@@ -17,6 +17,10 @@ describe('ClientErrorService', () => {
     return error.mock.calls[0][0];
   }
 
+  function loggedWarnLine(): string {
+    return warn.mock.calls[0][0];
+  }
+
   beforeEach(() => {
     service = new ClientErrorService();
     error = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
@@ -97,11 +101,30 @@ describe('ClientErrorService', () => {
 
   // Guards the NFC pinning: an NFD-encoded report renders identically to the NFC literal above
   // but differs in code points, so an exact `includes` would silently keep it at ERROR.
-  it('downgrades an NFD-encoded message to WARN', () => {
-    service.logError(dto({ message: 'Ungültiger Link'.normalize('NFD') }));
+  it.each([
+    ['DE', 'Ungültiger Link'.normalize('NFD')],
+    ['FR', 'La fusion est déjà terminée'.normalize('NFD')],
+    ['IT', 'La fusione è già completata'.normalize('NFD')],
+  ])('downgrades an NFD-encoded %s message to WARN', (_locale, message) => {
+    service.logError(dto({ message }));
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
+  });
+
+  // Pins the accepted trade-off at WARN_TYPES: a listed type downgrades regardless of message.
+  it('downgrades a listed type regardless of message', () => {
+    service.logError(dto({ type: 'ChunkLoadError', message: 'Cannot read properties of undefined' }));
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('formats a WARN line the same way as an ERROR line', () => {
+    service.logError(dto({ message: 'Ungültiger Link', route: 'https://app.dfx.swiss/kyc?code=SECRET' }));
+
+    expect(loggedWarnLine()).toContain('message="Ungültiger Link"');
+    expect(loggedWarnLine()).toContain('route="https://app.dfx.swiss/kyc"');
   });
 
   // Guards against someone later broadening the match to `type === 'HandledError'`: anything
@@ -119,6 +142,18 @@ describe('ClientErrorService', () => {
     service.logError(
       dto({ type: 'NotFoundError', message: "Failed to execute 'insertBefore' on 'Node': ...", route: '/buy' }),
     );
+
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['trailing punctuation', { message: 'Invalid link.' }],
+    ['case variant', { message: 'invalid link' }],
+    ['type case variant', { type: 'chunkloaderror', message: 'Loading chunk 42 failed' }],
+    ['zero-width space', { message: 'Invalid\u200B link' }],
+  ])('keeps a non-match with %s at ERROR', (_case, values) => {
+    service.logError(dto(values));
 
     expect(error).toHaveBeenCalledTimes(1);
     expect(warn).not.toHaveBeenCalled();
@@ -353,6 +388,14 @@ describe('ClientErrorService', () => {
     expect(error).toHaveBeenCalledTimes(120);
   });
 
+  it('counts WARN-classified reports against the shared budget', () => {
+    for (let i = 0; i < 120; i++) service.logError(dto({ type: 'ChunkLoadError' }));
+    service.logError(dto({ type: 'OtherError' }));
+
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(120);
+  });
+
   it('reports how many were dropped once the window rolls over', () => {
     jest.useFakeTimers();
     try {
@@ -360,6 +403,21 @@ describe('ClientErrorService', () => {
       jest.advanceTimersByTime(60001);
 
       service.logError(dto());
+
+      const lines = error.mock.calls.map((c) => c[0] as string);
+      expect(lines).toContain('Client error reporting over budget: 10 reports dropped');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('reports the over-budget drop count at ERROR after a WARN-classified flood', () => {
+    jest.useFakeTimers();
+    try {
+      for (let i = 0; i < 130; i++) service.logError(dto({ type: 'ChunkLoadError' }));
+      jest.advanceTimersByTime(60001);
+
+      service.logError(dto({ type: 'ChunkLoadError' }));
 
       const lines = error.mock.calls.map((c) => c[0] as string);
       expect(lines).toContain('Client error reporting over budget: 10 reports dropped');
