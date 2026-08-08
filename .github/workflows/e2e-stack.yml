@@ -14,10 +14,14 @@ on:
       - develop
   workflow_dispatch:
     inputs:
+      # Deliberately without a default. An empty value means "develop, and bootstrap from the
+      # pull request that introduces the harness if develop does not have it yet"; a value the
+      # caller typed means "use exactly this ref, and fail if the harness is not on it". A
+      # default of `develop` would make those two indistinguishable and turn every manual run
+      # into the strict variant.
       services_ref:
-        description: Ref of DFXswiss/services to check out for the e2e-stack harness
+        description: Ref of DFXswiss/services holding the e2e-stack harness (empty = develop)
         required: false
-        default: develop
         type: string
 
 permissions:
@@ -45,16 +49,47 @@ jobs:
           ref: ${{ inputs.services_ref || 'develop' }}
           path: services-repo
 
-      # Fails with a sentence someone can act on instead of `up.sh: No such file or directory`.
-      # The harness lives in the frontend repository, so this job cannot pass until the pull
-      # request that adds it has merged there. That ordering is deliberate: a red check here is
-      # the reminder, and it clears itself once the other side lands.
-      - name: Check that the harness is present
+      # Resolve whether the harness is already on the checked-out ref, or whether
+      # we need the temporary bootstrap from the services PR that introduces it.
+      # An explicit services_ref that lacks the harness is a hard error (caller
+      # mistake); only the default develop path may fall through to bootstrap.
+      - name: Resolve harness location
+        id: harness
+        env:
+          SERVICES_REF: ${{ inputs.services_ref }}
+        run: |
+          if [ -x services-repo/e2e-stack/scripts/up.sh ]; then
+            echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SERVICES_REF" ]; then
+            echo "::error::The e2e-stack harness is not present in DFXswiss/services@${SERVICES_REF}."
+            echo "::error::services_ref was set explicitly, so bootstrap is not applied. Point it at a"
+            echo "::error::ref that contains e2e-stack/, or omit services_ref to use develop (with fallback)."
+            exit 1
+          else
+            echo "::warning::The e2e-stack harness is not yet on DFXswiss/services@develop."
+            echo "::warning::Bootstrapping from the pull request head that introduces it (refs/pull/1288/head)."
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Temporary bootstrap while the harness lives only on services#1288: check out
+      # that PR head when develop still lacks e2e-stack/. Self-disabling — once the
+      # harness lands on develop, Resolve harness location sets bootstrap=false and
+      # this step is skipped. refs/pull/1288/head stays valid after merge (GitHub
+      # keeps PR refs), so this is not a dead branch name.
+      - name: Check out the harness from the pull request that introduces it
+        if: steps.harness.outputs.bootstrap == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: DFXswiss/services
+          ref: refs/pull/1288/head
+          path: services-repo
+
+      - name: Verify the harness is present
         run: |
           if [ ! -x services-repo/e2e-stack/scripts/up.sh ]; then
-            echo "::error::The e2e-stack harness is not present in DFXswiss/services@${{ inputs.services_ref || 'develop' }}."
-            echo "::error::Merge the frontend pull request that adds e2e-stack/ first. To try this job"
-            echo "::error::against a branch beforehand, dispatch it manually with services_ref set."
+            echo "::error::The e2e-stack harness is still missing at services-repo/e2e-stack/scripts/up.sh"
+            echo "::error::after checkout (including the bootstrap fallback from refs/pull/1288/head)."
+            echo "::error::Confirm that DFXswiss/services#1288 still contains e2e-stack/ and is reachable."
             exit 1
           fi
 
@@ -63,7 +98,9 @@ jobs:
       # npx on the runner itself.
 
       - name: Build API image from PR head
-        run: docker build -t dfx-api:e2e --build-arg GIT_COMMIT=${{ github.sha }} api-repo
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: docker build -t dfx-api:e2e --build-arg GIT_COMMIT="$GIT_SHA" api-repo
 
       # Do not use services-repo/e2e-stack/scripts/run.sh here. That script tears the
       # whole stack down (including named volumes) via trap … EXIT before artifacts
