@@ -9,9 +9,9 @@ export interface ProcessErrorHandlerDeps {
 
 /** Decides whether an uncaught exception keeps the process alive, and logs it either way. */
 export function handleUncaughtException(error: unknown, deps: ProcessErrorHandlerDeps): void {
-  // Node's uncaughtException always delivers an Error; the parameter is typed as unknown so
-  // tests can exercise hostile and non-Error values without starting the Nest app.
-  const loggable = error as Error;
+  // `throw 'x'` is legal, so an uncaught exception is not necessarily an Error either. Normalize
+  // for the logger and test the policy against the original value, exactly as for rejections.
+  const loggable = toLoggableError(error, 'exception');
 
   if (isToleratedProcessError(error)) {
     safeLogError(deps.logger, 'Spark SDK uncaught exception (process kept alive):', loggable);
@@ -36,7 +36,7 @@ export function handleUnhandledRejection(reason: unknown, deps: ProcessErrorHand
   // prototype chain, and a Proxy with a throwing getPrototypeOf trap makes the expression itself
   // throw. Unguarded, that throw happens before the policy is ever consulted, and a rejection the
   // policy would have tolerated ends up killing the process anyway.
-  const error = toLoggableError(reason);
+  const error = toLoggableError(reason, 'rejection');
 
   if (isToleratedProcessError(reason)) {
     safeLogError(deps.logger, 'Spark SDK unhandled rejection (process kept alive):', error);
@@ -58,11 +58,11 @@ function safeStringify(value: unknown): string {
   }
 }
 
-function toLoggableError(reason: unknown): Error {
+function toLoggableError(reason: unknown, kind: 'exception' | 'rejection'): Error {
   try {
     if (reason instanceof Error) return reason;
   } catch {
     // A hostile prototype trap: fall through and wrap it like any other non-Error value.
   }
-  return new Error(`Non-Error rejection: ${safeStringify(reason)}`);
+  return new Error(`Non-Error ${kind}: ${safeStringify(reason)}`);
 }

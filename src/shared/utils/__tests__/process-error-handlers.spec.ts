@@ -123,6 +123,28 @@ describe('handleUncaughtException', () => {
     expect(exitFn).toHaveBeenCalledTimes(1);
   });
 
+  it('logs a non-Error rejection with its value, distinguishable from an exception', () => {
+    const { deps, errorFn, exitFn } = createDeps();
+
+    handleUnhandledRejection('plain failure', deps);
+
+    const logged = errorFn.mock.calls[0][1] as Error;
+    expect(logged).toBeInstanceOf(Error);
+    expect(logged.message).toBe('Non-Error rejection: plain failure');
+    expect(exitFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a non-Error exception with its value, distinguishable from a rejection', () => {
+    const { deps, errorFn, exitFn } = createDeps();
+
+    handleUncaughtException('plain failure', deps);
+
+    const logged = errorFn.mock.calls[0][1] as Error;
+    expect(logged).toBeInstanceOf(Error);
+    expect(logged.message).toBe('Non-Error exception: plain failure');
+    expect(exitFn).toHaveBeenCalledTimes(1);
+  });
+
   it('does not throw and exits for a number', () => {
     const { deps, exitFn } = createDeps();
 
