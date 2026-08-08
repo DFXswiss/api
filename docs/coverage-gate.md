@@ -1,12 +1,18 @@
 # Coverage gates
 
-This repo runs two coverage gates in CI. They answer different questions, and neither replaces
-the other.
+This repo runs three coverage gates in CI. They answer different questions, and none replaces
+the others.
 
-| Gate             | Config                         | Scope                                      | Question it answers                                      |
-| ---------------- | ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
-| Frick gate       | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 453 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
+| Gate               | Config                         | Scope                                                      | Question it answers                                      |
+| ------------------ | ------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------- |
+| Frick gate         | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only                 | Do _these specs alone_ fully cover _these files_?        |
+| Fiat Republic gate | `jest.fiat-republic.config.js` | 10 Fiat Republic files, run by 10 Fiat Republic specs only | Do _these specs alone_ fully cover _these files_?        |
+| Coverage ratchet   | `jest.coverage-gate.config.js` | 453 files, whole suite                                     | Has coverage regressed anywhere it was already complete? |
+
+The two per-rail gates share one rationale: a bank integration moves customer money, so its own
+files are held at 100% by their own specs, rather than benefiting from coverage an unrelated suite
+happens to produce. Both run under full compilation (`tsconfig.coverage.json`) so decorator-metadata
+emit does not skew the branch count.
 
 ## What the ratchet is, and what it is not
 
