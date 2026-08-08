@@ -215,12 +215,19 @@ export class KycStep extends IEntity {
   }
 
   // `cancel()` leaves `result` untouched, so a cancelled step without one never completed.
+  //
+  // Only meaningful for steps whose reachable statuses are IN_PROGRESS / COMPLETED / FAILED / CANCELED —
+  // PERSONAL_DATA today. Steps that reach a review or holding status (IDENT: ON_HOLD, MANUAL_REVIEW, and
+  // OUTDATED via the expiry sweep) would read as settled here while their verdict is still open, so do not
+  // reuse this getter for them without widening the definition first.
   get hasSettledVerdict(): boolean {
     return !this.isInProgress && !(this.isCanceled && !this.result);
   }
 
   // Status alone is not enough: `restartStep` leaves a revoked completion's `result` in place, so a restarted
-  // row can later read as a clean completion. The marker survives every subsequent write.
+  // row can later read as a clean completion. The marker survives `update()`, which appends via `addComment`;
+  // `fail()` assigns `comment` outright and would drop it, but a restarted row is already FAILED and every
+  // subsequent write goes to the freshly opened step instead.
   get isRejected(): boolean {
     return this.isFailed || (this.comment?.split(';').includes(KycError.RESTARTED_STEP) ?? false);
   }
