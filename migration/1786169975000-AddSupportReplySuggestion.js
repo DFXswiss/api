@@ -17,9 +17,7 @@ module.exports = class AddSupportReplySuggestion1786169975000 {
     await queryRunner.query(
       `CREATE TABLE "support_reply_suggestion" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "text" text NOT NULL, "state" character varying(256) NOT NULL DEFAULT 'Pending', "authorId" integer NOT NULL, "handledById" integer, "handled" TIMESTAMP, "issueId" integer NOT NULL, "messageId" integer NOT NULL, CONSTRAINT "PK_8daa417e8e4722c2b31094790e5" PRIMARY KEY ("id"))`,
     );
-    await queryRunner.query(
-      `CREATE INDEX "IDX_f3c1f23805d75014371ca66d00" ON "support_reply_suggestion" ("issueId") `,
-    );
+    await queryRunner.query(`CREATE INDEX "IDX_f3c1f23805d75014371ca66d00" ON "support_reply_suggestion" ("issueId") `);
     await queryRunner.query(
       `CREATE INDEX "IDX_f28064cba21f307c928ac6e6b5" ON "support_reply_suggestion" ("messageId") `,
     );
