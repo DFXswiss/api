@@ -30,12 +30,26 @@ Every PR must include:
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
 5. **Cron job inventory** (if a `@DfxCron` job was added, removed or re-scheduled) — [docs/cron-jobs.md](docs/cron-jobs.md)
+6. **Full coverage of every touched file** — see *Test Coverage* below
 
 Missing any of these = changes requested.
 
-Routes carry a sixth obligation: any change to the set of endpoints — added, removed, renamed or
+Routes carry a seventh obligation: any change to the set of endpoints — added, removed, renamed or
 re-scoped — must be reflected in [docs/endpoints.md](docs/endpoints.md) in the same PR, together
 with the `Tests` state of anything converted. See *Endpoint Inventory* below.
+
+### Test Coverage
+
+Every file a PR touches must reach 100% on all four metrics (branches, functions, lines,
+statements) and is pinned in the coverage ratchet in the same PR.
+
+- This applies to the **whole file**, not only the changed lines. Touching a file makes you
+  responsible for it.
+- If that is not feasible in one PR, cover the file in a preparatory PR first, then make the
+  change.
+- The ratchet only protects files already on its list, so a file that is merely edited does not
+  fail CI on its own — this rule is what puts it on the list. See
+  [docs/coverage-gate.md](docs/coverage-gate.md) for the mechanism.
 
 ### Before Merge
 
