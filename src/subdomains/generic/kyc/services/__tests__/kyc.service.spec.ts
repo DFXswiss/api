@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -17,7 +17,9 @@ import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../../user/models/user-data/user-data.service';
 import { UserStatus } from '../../../user/models/user/user.enum';
+import { IdentDocumentType } from '../../dto/ident-result-data.dto';
 import { IdentDocument } from '../../dto/ident.dto';
+import { KycManualIdentData } from '../../dto/input/kyc-data.dto';
 import { KycError } from '../../dto/kyc-error.enum';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
 import { SumSubLevelName } from '../../dto/sum-sub.dto';
@@ -1060,5 +1062,79 @@ describe('KycService completeSatisfiedPersonalDataStep', () => {
 
     expect(kycStepRepo.update).not.toHaveBeenCalled();
     expect((service as any).updateProgress).not.toHaveBeenCalled();
+  });
+});
+
+// updateIdentManual must only accept MANUAL ident steps. A Sumsub (or other non-manual) step that
+// received a manual-shaped result would later throw in resultData's Sumsub branch during the auto-
+// review cron, wedging the step in INTERNAL_REVIEW forever.
+describe('KycService updateIdentManual', () => {
+  let service: KycService;
+  let documentService: jest.Mocked<KycDocumentService>;
+  let countryService: jest.Mocked<CountryService>;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  const kycHash = 'hash';
+  const stepId = 1;
+
+  const manualIdentDto = (): KycManualIdentData =>
+    ({
+      firstName: 'A',
+      lastName: 'B',
+      birthday: new Date('2000-01-01'),
+      nationality: { id: 1 } as Country,
+      documentType: IdentDocumentType.PASSPORT,
+      documentNumber: 'X1',
+      document: {
+        fileName: 'f.pdf',
+        file: 'data:application/pdf;base64,AA==',
+      },
+    }) as KycManualIdentData;
+
+  const identStep = (type: KycStepType): KycStep =>
+    Object.assign(new KycStep(), {
+      id: stepId,
+      name: KycStepName.IDENT,
+      type,
+      status: ReviewStatus.IN_PROGRESS,
+      sequenceNumber: 0,
+    });
+
+  beforeEach(() => {
+    documentService = createMock<KycDocumentService>();
+    countryService = createMock<CountryService>();
+    kycStepRepo = createMock<KycStepRepository>();
+
+    service = Object.create(KycService.prototype);
+    (service as any).documentService = documentService;
+    (service as any).countryService = countryService;
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('rejects a non-manual ident step without uploading', async () => {
+    const step = identStep(KycStepType.SUMSUB_AUTO);
+    const user = createMock<UserData>();
+    user.getPendingStepOrThrow = jest.fn().mockReturnValue(step);
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+    await expect(service.updateIdentManual(kycHash, stepId, manualIdentDto())).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(documentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('accepts a manual ident step and uploads the document', async () => {
+    const step = identStep(KycStepType.MANUAL);
+    const user = createMock<UserData>();
+    user.getPendingStepOrThrow = jest.fn().mockReturnValue(step);
+    jest.spyOn(service as any, 'getUser').mockResolvedValue(user);
+
+    countryService.getCountry.mockResolvedValue(createCustomCountry({ id: 1, symbol: 'DE' }));
+    documentService.uploadUserFile.mockResolvedValue({ url: 'https://example.com/f.pdf' } as any);
+    jest.spyOn(service as any, 'createStepLog').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'updateProgress').mockResolvedValue(undefined as any);
+
+    await expect(service.updateIdentManual(kycHash, stepId, manualIdentDto())).resolves.toBeDefined();
+    expect(documentService.uploadUserFile).toHaveBeenCalled();
   });
 });

@@ -393,23 +393,26 @@ export class KycStep extends IEntity {
     if (this.isSumsub) {
       const identResultData = this.getResult<SumsubResult>();
 
-      const idDocIndex = Math.max(0, identResultData.data.info?.idDocs?.findIndex((doc) => doc.firstName != null) ?? 0);
+      const idDocIndex = Math.max(
+        0,
+        identResultData.data?.info?.idDocs?.findIndex((doc) => doc.firstName != null) ?? 0,
+      );
 
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstNameEn,
-        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastNameEn,
+        firstname: identResultData.data?.info?.idDocs?.[idDocIndex]?.firstNameEn,
+        lastname: identResultData.data?.info?.idDocs?.[idDocIndex]?.lastNameEn,
         birthname: null,
-        birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
+        birthday: identResultData.data?.info?.idDocs?.[idDocIndex]?.dob
           ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
           : undefined,
-        nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
-        documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
-        documentType: IdDocTypeMap[identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType],
-        kycType: identResultData.webhook.levelName,
-        success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
-        ipCountry: identResultData.data.ipCountry,
-        country: identResultData.data.fixedInfo?.country,
+        nationality: identResultData.data?.info?.idDocs?.[idDocIndex]?.country,
+        documentNumber: identResultData.data?.info?.idDocs?.[idDocIndex]?.number,
+        documentType: IdDocTypeMap[identResultData.data?.info?.idDocs?.[idDocIndex]?.idDocType],
+        kycType: identResultData.webhook?.levelName,
+        success: identResultData.webhook?.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+        ipCountry: identResultData.data?.ipCountry,
+        country: identResultData.data?.fixedInfo?.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();

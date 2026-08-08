@@ -1167,6 +1167,7 @@ export class KycService {
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.IDENT);
+    if (!kycStep.isManual) throw new BadRequestException('KYC step is not a manual ident step');
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
