@@ -6,6 +6,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { SupportEscalationService } from '../services/support-escalation.service';
 import { SupportIssueService } from '../services/support-issue.service';
+import { SupportReplySuggestionService } from '../services/support-reply-suggestion.service';
 import { SupportIssueController } from '../support-issue.controller';
 
 // SupportIssueController imports TfaService (for its inline 2FA check) from the kyc domain, which transitively
@@ -37,7 +38,12 @@ describe('SupportIssueController.createSupportMessage routing', () => {
     tfaService = { check: jest.fn() };
     moduleRef = createMock<ModuleRef>();
     moduleRef.get.mockReturnValue(tfaService);
-    controller = new SupportIssueController(service, createMock<SupportEscalationService>(), moduleRef);
+    controller = new SupportIssueController(
+      service,
+      createMock<SupportEscalationService>(),
+      createMock<SupportReplySuggestionService>(),
+      moduleRef,
+    );
   });
 
   describe.each([UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN, UserRole.SUPER_ADMIN])(

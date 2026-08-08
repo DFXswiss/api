@@ -25,6 +25,7 @@ import { SupportIssueJobService } from './services/support-issue-job.service';
 import { SupportIssueNotificationService } from './services/support-issue-notification.service';
 import { SupportIssueService } from './services/support-issue.service';
 import { SupportLogService } from './services/support-log.service';
+import { SupportReplySuggestionService } from './services/support-reply-suggestion.service';
 import { SupportIssueController } from './support-issue.controller';
 
 @Module({
@@ -58,6 +59,7 @@ import { SupportIssueController } from './support-issue.controller';
     SupportLogService,
     SupportIssueJobService,
     SupportEscalationService,
+    SupportReplySuggestionService,
   ],
   exports: [SupportIssueService, LimitRequestService, SupportLogService],
 })
