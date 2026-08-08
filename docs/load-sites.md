@@ -29,17 +29,17 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 801 of 1163 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 803 of 1168 sites.
 
-- **341 are exact**: the `relations` tree is written at the call site.
+- **343 are exact**: the `relations` tree is written at the call site.
 - **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 362 could not be measured: no resolvable target entity, or raw SQL.
+- 365 could not be measured: no resolvable target entity, or raw SQL.
 
-**That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 343 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
+**That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 346 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
 
 What that does and does not affect: the median and the counts below are computed only over the rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for — the sites that name their columns are a small fraction either way. It does reach the per-endpoint summary in [endpoints.md](endpoints.md), where the endpoints with no measured width at all are marked as the exposed cases.
 
-Median across measured sites: **98 columns**. At least 14 sites exceed 1000, 75 exceed 500 and 395 exceed 100 — "at least", because 455 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
+Median across measured sites: **98 columns**. At least 14 sites exceed 1000, 75 exceed 500 and 396 exceed 100 — "at least", because 455 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
 
 Postgres refuses a statement with more than 1664 columns. The widest measured site here sits at 1453, so a little over two hundred columns separate it from a rejected statement — and 455 of these measurements are lower bounds, so the real margin can be smaller.
 
