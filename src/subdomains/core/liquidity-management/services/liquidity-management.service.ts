@@ -1,11 +1,21 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CronScope, DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import {
   PriceCurrency,
   PriceValidity,
@@ -16,7 +26,7 @@ import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
-import { LiquidityState } from '../interfaces';
+import { LiquidityState, PayoutDemand } from '../interfaces';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
@@ -33,6 +43,10 @@ export class LiquidityManagementService {
     private readonly balanceService: LiquidityManagementBalanceService,
     private readonly settingService: SettingService,
     private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
+    @Inject(forwardRef(() => BuyCryptoService))
+    private readonly buyCryptoService: BuyCryptoService,
+    private readonly payoutService: PayoutService,
   ) {}
 
   //*** JOBS ***//
@@ -185,6 +199,8 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support ${result.action.toLowerCase()} path`);
     }
 
+    await this.checkPayoutDemand(rule, result.action);
+
     this.logRuleExecution(rule, result);
 
     const newPipeline = LiquidityManagementPipeline.create(rule, result);
@@ -194,6 +210,65 @@ export class LiquidityManagementService {
     await this.ruleRepo.save(rule);
 
     return savedPipeline;
+  }
+
+  /**
+   * A coin with payouts still owed must not be sold, wherever that coin happens to sit.
+   *
+   * The sale a rule calls redundancy is decided from one balance against that rule's own `maximal`,
+   * and the customers waiting for the coin do not enter that comparison at all. That is how the
+   * deficit path and the redundancy path of the same coin came to work against each other: the
+   * deficit path bought the coin at a venue for a transaction that was waiting, the delivery to the
+   * payout wallet failed, and the purchase — still sitting at the venue, now above `maximal` —
+   * read as surplus and was sold straight back, while the customer went on waiting and the payout
+   * wallet went on being short. It repeated on the next cycle, and would on any failure between
+   * buying a coin and delivering it. Every repetition pays the spread and the fees twice.
+   *
+   * Deliberately redundancy-only. The deficit path is what SERVES the waiting demand; blocking it
+   * on the same condition would leave the demand permanently unmet — and permanently blocking.
+   *
+   * Sits after the running-pipeline and status guards so it costs a query only where a sale would
+   * otherwise start, and throws the same `ConflictException` those guards throw: the cron path
+   * treats it as "not this minute" and retries on the next one, while the manual sell endpoint
+   * answers 409 naming the coin that is holding it up.
+   */
+  private async checkPayoutDemand(rule: LiquidityManagementRule, action: LiquidityOptimizationType): Promise<void> {
+    if (action !== LiquidityOptimizationType.REDUNDANCY) return;
+
+    const demand = await this.getPayoutDemand(rule);
+    if (!demand) return;
+
+    this.logger.info(
+      `Withholding ${rule.targetName} sale of rule ${rule.id}: ${demand.transactions} transaction(s) and ${
+        demand.orders
+      } payout order(s) are waiting for ${demand.coin} (${demand.assets.join(', ')})`,
+    );
+
+    throw new ConflictException(
+      `Pipeline for rule ${rule.id} cannot be started: payouts of ${demand.coin} are waiting`,
+    );
+  }
+
+  private async getPayoutDemand(rule: LiquidityManagementRule): Promise<PayoutDemand | undefined> {
+    // a rule holding fiat has no crypto payout to compete with
+    if (!rule.targetAsset) return undefined;
+
+    const assets = await this.assetService.getSameCoinAssets(rule.targetAsset);
+    const assetIds = assets.map((a) => a.id);
+
+    const [transactions, orders] = await Promise.all([
+      this.buyCryptoService.countAwaitingPayout(assetIds),
+      this.payoutService.countPendingPayouts(assetIds),
+    ]);
+
+    if (!transactions && !orders) return undefined;
+
+    return {
+      coin: rule.targetAsset.name,
+      assets: assets.map((a) => a.uniqueName),
+      transactions,
+      orders,
+    };
   }
 
   private findRunningPipeline(

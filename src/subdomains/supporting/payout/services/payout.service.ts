@@ -10,7 +10,12 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { RetryPayoutDto } from '../dto/retry-payout.dto';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
+import {
+  PayoutOrder,
+  PayoutOrderContext,
+  PayoutOrderStatus,
+  PendingPayoutOrderStatus,
+} from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { FeeResult, PayoutRequest } from '../interfaces';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
@@ -88,6 +93,22 @@ export class PayoutService {
       payoutAsset,
       payoutAmountBaseUnits,
     };
+  }
+
+  /**
+   * How many payouts of the given assets are still owed to their recipients.
+   *
+   * Counted, not loaded: the only caller needs the number for a decision and for the log line that
+   * records it, and the rows themselves carry destination addresses that have no business leaving
+   * this service.
+   */
+  async countPendingPayouts(assetIds: number[]): Promise<number> {
+    if (!assetIds.length) return 0;
+
+    return this.payoutOrderRepo.countBy({
+      asset: { id: In(assetIds) },
+      status: In(PendingPayoutOrderStatus),
+    });
   }
 
   async getRecentPayoutSentCorrelationIds(context: PayoutOrderContext): Promise<Set<string>> {

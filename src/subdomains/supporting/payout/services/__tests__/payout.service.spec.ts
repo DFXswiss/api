@@ -7,7 +7,12 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
+import {
+  PayoutOrder,
+  PayoutOrderContext,
+  PayoutOrderStatus,
+  PendingPayoutOrderStatus,
+} from '../../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../../factories/payout-order.factory';
 import { PayoutRequest } from '../../interfaces';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
@@ -1195,6 +1200,53 @@ describe('PayoutService', () => {
 
       expect(groups.size).toBe(0);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`for payout order ID ${orphanOrder.id}`));
+    });
+  });
+
+  describe('#countPendingPayouts(...)', () => {
+    let service: PayoutService;
+    let payoutOrderRepo: PayoutOrderRepository;
+
+    beforeEach(() => {
+      payoutOrderRepo = mock<PayoutOrderRepository>();
+
+      service = new PayoutService(
+        mock<PayoutLogService>(),
+        mock<NotificationService>(),
+        payoutOrderRepo,
+        mock<PayoutOrderFactory>(),
+        mock<PayoutStrategyRegistry>(),
+        mock<PrepareStrategyRegistry>(),
+      );
+    });
+
+    it('answers zero without querying when the coin spans no asset', async () => {
+      await expect(service.countPendingPayouts([])).resolves.toBe(0);
+
+      expect(payoutOrderRepo.countBy).not.toHaveBeenCalled();
+    });
+
+    it('counts the payouts of the given assets that have not reached their recipient', async () => {
+      jest.spyOn(payoutOrderRepo, 'countBy').mockResolvedValue(2);
+
+      await expect(service.countPendingPayouts([241, 396])).resolves.toBe(2);
+
+      expect(payoutOrderRepo.countBy).toHaveBeenCalledWith({
+        asset: { id: In([241, 396]) },
+        status: In(PendingPayoutOrderStatus),
+      });
+    });
+
+    it('selects the pending statuses by name instead of negating the finished one', async () => {
+      // legacy rows carry a status this enum no longer has; negating COMPLETE would report them as
+      // outstanding forever and, for the caller, withhold their asset forever
+      jest.spyOn(payoutOrderRepo, 'countBy').mockResolvedValue(0);
+
+      await service.countPendingPayouts([241]);
+
+      expect(jest.mocked(payoutOrderRepo.countBy).mock.calls[0][0]).toMatchObject({
+        status: In(PendingPayoutOrderStatus),
+      });
     });
   });
 

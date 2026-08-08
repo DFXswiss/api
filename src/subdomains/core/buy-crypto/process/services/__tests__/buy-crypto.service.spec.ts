@@ -39,13 +39,13 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { EntityManager, IsNull } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
 import { UpdateBuyCryptoDto } from '../../dto/update-buy-crypto.dto';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
-import { BuyCrypto, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoAwaitingPayoutStatus, BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoFee } from '../../entities/buy-crypto-fees.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
@@ -1201,6 +1201,65 @@ describe('BuyCryptoService', () => {
 
       expect(buyCryptoRepo.update).not.toHaveBeenCalled();
       expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('countAwaitingPayout', () => {
+    async function whereOfSingleCall(): Promise<FindOptionsWhere<BuyCrypto>> {
+      jest.spyOn(buyCryptoRepo, 'countBy').mockResolvedValue(0);
+
+      await service.countAwaitingPayout([241, 396]);
+
+      return jest.mocked(buyCryptoRepo.countBy).mock.calls[0][0] as FindOptionsWhere<BuyCrypto>;
+    }
+
+    it('answers zero without querying when the coin spans no asset', async () => {
+      jest.spyOn(buyCryptoRepo, 'countBy').mockResolvedValue(0);
+
+      await expect(service.countAwaitingPayout([])).resolves.toBe(0);
+
+      expect(buyCryptoRepo.countBy).not.toHaveBeenCalled();
+    });
+
+    it('counts the transactions still owed a payout of the given assets', async () => {
+      jest.spyOn(buyCryptoRepo, 'countBy').mockResolvedValue(3);
+
+      await expect(service.countAwaitingPayout([241, 396])).resolves.toBe(3);
+
+      expect(buyCryptoRepo.countBy).toHaveBeenCalledWith({
+        outputAsset: { id: In([241, 396]) },
+        status: In(BuyCryptoAwaitingPayoutStatus),
+        isComplete: false,
+        amlCheck: CheckStatus.PASS,
+        outputReferenceAsset: { id: Not(IsNull()) },
+        priceDefinitionAllowedDate: Not(IsNull()),
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: IsNull(),
+      });
+    });
+
+    it('selects the awaiting-payout statuses by name instead of negating the finished ones', async () => {
+      expect((await whereOfSingleCall()).status).toEqual(In(BuyCryptoAwaitingPayoutStatus));
+    });
+
+    it('leaves out a transaction already flagged complete', async () => {
+      expect((await whereOfSingleCall()).isComplete).toBe(false);
+    });
+
+    it('leaves out a transaction being charged back rather than paid out', async () => {
+      const where = await whereOfSingleCall();
+
+      expect(where.chargebackAllowedDate).toEqual(IsNull());
+      expect(where.chargebackAllowedDateUser).toEqual(IsNull());
+    });
+
+    it('leaves out an order abandoned before it ever passed AML or carried an amount', async () => {
+      const where = await whereOfSingleCall();
+
+      expect(where.amlCheck).toBe(CheckStatus.PASS);
+      expect(where.inputReferenceAmountMinusFee).toEqual(Not(IsNull()));
+      expect(where.priceDefinitionAllowedDate).toEqual(Not(IsNull()));
     });
   });
 
