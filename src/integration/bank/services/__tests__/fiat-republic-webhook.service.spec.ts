@@ -1,5 +1,6 @@
 import { InternalServerErrorException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { createHash } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { Config } from 'src/config/config';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -16,7 +17,7 @@ import { FiatRepublicWebhookService } from '../fiat-republic-webhook.service';
 const SECRET = 'synthetic-webhook-secret';
 
 function signatureFor(body: string, secret = SECRET, created = 1642873384): Record<string, string> {
-  const digest = Util.createHash(body, 'sha1', 'hex');
+  const digest = createHash('sha1').update(body).digest('hex');
   const params = `("digest");created=${created}`;
   const base = `"digest": "${digest}"\n@signature-params: ${params}`;
   const hmac = Util.createHmac(secret, base, 'sha256', 'hex');

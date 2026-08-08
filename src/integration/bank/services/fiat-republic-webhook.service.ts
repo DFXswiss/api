@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -39,7 +39,12 @@ export class FiatRepublicWebhookService {
     const receivedSignature = signature.slice(SIGNATURE_LABEL.length).replace(/^:|:$/g, '');
     if (!receivedSignature) return false;
 
-    const digest = Util.createHash(rawBody, 'sha1', 'hex');
+    // sha1 deliberately does not go through Util.createHash: its CryptoAlgorithm union lists the
+    // algorithms this repo picks for its own hashing, and sha1 is not one of them. Here it is not a
+    // choice but the digest Fiat Republic's signature scheme prescribes — the authentication itself
+    // is the HMAC-SHA256 over it — so it stays local to this verification instead of widening a
+    // shared type that would then offer sha1 to every future caller.
+    const digest = createHash('sha1').update(rawBody).digest('hex');
     // The header digest is optional evidence only; when present it must agree with what we computed.
     if (headers.digest && headers.digest !== digest) return false;
 
