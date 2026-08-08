@@ -1,0 +1,172 @@
+# Full-stack E2E: build this PR's API image and run the Playwright harness from
+# the public companion services repo (e2e-stack/) against it.
+#
+# Do NOT add a job-level `if:` skip condition. A skipped GitHub Actions check
+# counts as passing, which would silently defeat the merge gate. Same reasoning
+# as the coverage-gate job in api-pr.yaml.
+
+name: Full-stack E2E
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      # Deliberately without a default. An empty value means "develop, and bootstrap from the
+      # pull request that introduces the harness if develop does not have it yet"; a value the
+      # caller typed means "use exactly this ref, and fail if the harness is not on it". A
+      # default of `develop` would make those two indistinguishable and turn every manual run
+      # into the strict variant.
+      services_ref:
+        description: Ref of DFXswiss/services holding the e2e-stack harness (empty = develop)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-stack-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Full-stack E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout API (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: api-repo
+
+      - name: Checkout services (e2e-stack harness)
+        uses: actions/checkout@v4
+        with:
+          repository: DFXswiss/services
+          ref: ${{ inputs.services_ref || 'develop' }}
+          path: services-repo
+
+      # Resolve whether the harness is already on the checked-out ref, or whether
+      # we need the temporary bootstrap from the services PR that introduces it.
+      # An explicit services_ref that lacks the harness is a hard error (caller
+      # mistake); only the default develop path may fall through to bootstrap.
+      - name: Resolve harness location
+        id: harness
+        env:
+          SERVICES_REF: ${{ inputs.services_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -x services-repo/e2e-stack/scripts/up.sh ]; then
+            echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SERVICES_REF" ]; then
+            echo "::error::The e2e-stack harness is not present in DFXswiss/services@${SERVICES_REF}."
+            echo "::error::services_ref was set explicitly, so bootstrap is not applied. Point it at a"
+            echo "::error::ref that contains e2e-stack/, or omit services_ref to use develop (with fallback)."
+            exit 1
+          else
+            # Capture stderr separately so a harmless gh warning cannot pollute $state
+            # and make an open PR look closed in the comparison below.
+            err_file="$(mktemp -p "${RUNNER_TEMP}")"
+            if ! state="$(gh api repos/DFXswiss/services/pulls/1288 --jq .state 2>"$err_file")"; then
+              echo "::error::Could not determine the state of DFXswiss/services#1288 (gh api call failed):"
+              echo "::error::$(cat "$err_file")"
+              rm -f "$err_file"
+              exit 1
+            fi
+            rm -f "$err_file"
+            if [ -z "$state" ]; then
+              echo "::error::Could not determine the state of DFXswiss/services#1288: gh api returned an empty state."
+              exit 1
+            fi
+            if [ "$state" != "open" ]; then
+              echo "::error::DFXswiss/services#1288 is no longer open (state: ${state}); the bootstrap fallback is spent."
+              echo "::error::The harness is expected on DFXswiss/services@develop now. Delete this bootstrap block"
+              echo "::error::(Resolve harness location's else branch and the 'Check out the harness from the pull"
+              echo "::error::request that introduces it' step below) from this workflow."
+              exit 1
+            fi
+            echo "::warning::The e2e-stack harness is not yet on DFXswiss/services@develop."
+            echo "::warning::Bootstrapping from the pull request head that introduces it (refs/pull/1288/head)."
+            echo "::warning::Merge DFXswiss/services#1288 into develop to remove this temporary fallback."
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Temporary bootstrap while the harness lives only on services#1288: check out
+      # that PR head when develop still lacks e2e-stack/. Self-disabling — once the
+      # harness lands on develop, Resolve harness location sets bootstrap=false and
+      # this step is skipped. After services#1288 is merged or closed, the next run of
+      # Resolve harness location fails loud once it sees a non-open state, instead of
+      # bootstrapping. There is a small, harmless window between that check and this
+      # checkout in which the PR could still be merged; the checkout would then fetch
+      # the same commit that was open a moment earlier, because refs/pull/1288/head
+      # continues to point at that commit after merge (and stays fetchable on GitHub
+      # forever).
+      - name: Check out the harness from the pull request that introduces it
+        if: steps.harness.outputs.bootstrap == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: DFXswiss/services
+          ref: refs/pull/1288/head
+          path: services-repo
+
+      - name: Verify the harness is present
+        run: |
+          if [ ! -x services-repo/e2e-stack/scripts/up.sh ]; then
+            echo "::error::The e2e-stack harness is still missing at services-repo/e2e-stack/scripts/up.sh"
+            echo "::error::after checkout (including the bootstrap fallback from refs/pull/1288/head)."
+            echo "::error::Confirm that DFXswiss/services#1288 still contains e2e-stack/ and is reachable."
+            exit 1
+          fi
+
+      # No Node setup here on purpose: the harness scripts are Bash plus Docker, and every Node
+      # dependency is installed inside the images they build. Nothing in this job runs node, npm or
+      # npx on the runner itself.
+
+      - name: Build API image from PR head
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: docker build -t dfx-api:e2e --build-arg GIT_COMMIT="$GIT_SHA" api-repo
+
+      # Do not use services-repo/e2e-stack/scripts/run.sh here. That script tears the
+      # whole stack down (including named volumes) via trap … EXIT before artifacts
+      # can be copied out. Artifacts live on named volumes under /work/test-results and
+      # /work/playwright-report; bind mounts are forbidden. Instead: up.sh, then a
+      # separate compose test run, then artifact copy (always), then down.sh (always).
+      - name: Bring up e2e stack
+        run: E2E_API_IMAGE=dfx-api:e2e bash services-repo/e2e-stack/scripts/up.sh
+
+      # --env-file is not optional here: up.sh writes the values it resolved into that file, and a
+      # compose run that resolves them differently recreates the API container mid-run.
+      - name: Run Playwright tests
+        run: |
+          docker compose -p dfx-e2e-stack \
+            --env-file services-repo/e2e-stack/.env.generated \
+            -f services-repo/e2e-stack/compose.yml \
+            -f services-repo/e2e-stack/compose.tests.yml \
+            run --name dfx-e2e-stack-tests tests
+
+      - name: Collect test artifacts
+        if: always()
+        run: |
+          mkdir -p e2e-artifacts
+          # Named volumes back these paths; copy out before down.sh removes volumes.
+          # Container may be stopped (compose run without --rm keeps it for docker cp).
+          docker cp dfx-e2e-stack-tests:/work/test-results e2e-artifacts/test-results 2>/dev/null || true
+          docker cp dfx-e2e-stack-tests:/work/playwright-report e2e-artifacts/playwright-report 2>/dev/null || true
+
+      - name: Upload e2e report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-stack-report
+          path: e2e-artifacts/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Tear down e2e stack
+        if: always()
+        run: bash services-repo/e2e-stack/scripts/down.sh

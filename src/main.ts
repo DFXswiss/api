@@ -17,6 +17,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
+import { handleUncaughtException, handleUnhandledRejection } from './shared/utils/process-error-handlers';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -32,20 +33,12 @@ import {
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { PricingService } from './subdomains/supporting/pricing/services/pricing.service';
 
-process.on('uncaughtException', (error) => {
-  const logger = new DfxLogger('UncaughtException');
-
-  const isSparkError =
-    error?.constructor?.name?.includes('Spark') || error?.message?.includes('Channel has been shut down');
-
-  if (isSparkError) {
-    logger.error('Spark SDK uncaught exception (process kept alive):', error);
-    return;
-  }
-
-  logger.error('Uncaught exception, shutting down:', error);
-  process.exit(1);
-});
+process.on('uncaughtException', (error) =>
+  handleUncaughtException(error, { logger: new DfxLogger('UncaughtException'), exit: () => process.exit(1) }),
+);
+process.on('unhandledRejection', (reason) =>
+  handleUnhandledRejection(reason, { logger: new DfxLogger('UnhandledRejection'), exit: () => process.exit(1) }),
+);
 
 async function bootstrap() {
   // Observability is initialized in src/tracing.ts (imported above): the
