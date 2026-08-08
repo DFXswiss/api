@@ -103,11 +103,13 @@ describe('DashboardFinancialController', () => {
       return roleGuard?.entryRoles ?? [];
     }
 
-    // The Financial Overview screen reads exactly these two.
-    it.each(['getFinancialLog', 'getLatestBalance'] as const)('%s admits Admin and Debug', (handler) => {
-      const roles = rolesOf(handler);
-      expect(roles).toContain(UserRole.ADMIN);
-      expect(roles).toContain(UserRole.DEBUG);
+    // The Financial Overview screen reads exactly these two. Pinned as a set,
+    // not with toContain: the point of this block is the upper bound. With
+    // toContain, adding Support or Compliance later would stay green — and
+    // both sit in KycGatedRoles, so the clearance test below would not catch
+    // it either. Sorted so decorator order stays free to change.
+    it.each(['getFinancialLog', 'getLatestBalance'] as const)('%s admits exactly Admin and Debug', (handler) => {
+      expect([...rolesOf(handler)].sort()).toEqual([UserRole.ADMIN, UserRole.DEBUG].sort());
     });
 
     // Widening must not reach further than the overview. ref-recipients in
