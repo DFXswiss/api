@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
@@ -14,6 +14,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
+import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -23,14 +24,15 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { IsNull, Not } from 'typeorm';
+import { EntityManager, IsNull, Not } from 'typeorm';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -199,7 +201,13 @@ describe('BuyFiatService', () => {
         chargebackAddress: '0x0000000000000000000000000000000000000001',
         chargebackAmount: 0.1,
       });
-      const cryptoInput = createCustomCryptoInput({ status, returnTxId: null });
+      const cryptoInput = createCustomCryptoInput({ id: 23, status, returnTxId: null });
+      Object.defineProperty(buyFiatRepo, 'manager', {
+        configurable: true,
+        value: {
+          findOne: jest.fn().mockResolvedValue(cryptoInput),
+        },
+      });
 
       await expect(service['triggerBuyFiatReturn'](buyFiat, cryptoInput)).rejects.toThrow(
         new BadRequestException('CryptoInput send in flight or uncertain'),
@@ -208,6 +216,433 @@ describe('BuyFiatService', () => {
       expect(payInService.returnPayIn).not.toHaveBeenCalled();
     },
   );
+
+  describe('triggerBuyFiatReturn fresh CryptoInput read', () => {
+    it('skips the return when the fresh CryptoInput already shows TO_RETURN', async () => {
+      const buyFiat = createCustomBuyFiat({
+        id: 71,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+      });
+      // Stale pre-update snapshot: looks returnable.
+      const staleCryptoInput = createCustomCryptoInput({
+        id: 23,
+        status: PayInStatus.ACKNOWLEDGED,
+        action: PayInAction.WAITING,
+        returnTxId: null,
+      });
+      // Fresh DB stand: return already armed.
+      const freshCryptoInput = createCustomCryptoInput({
+        id: 23,
+        status: PayInStatus.TO_RETURN,
+        action: PayInAction.RETURN,
+        returnTxId: null,
+      });
+      const findOneSpy = jest.fn().mockResolvedValue(freshCryptoInput);
+      Object.defineProperty(buyFiatRepo, 'manager', {
+        configurable: true,
+        value: { findOne: findOneSpy },
+      });
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined);
+
+      await service['triggerBuyFiatReturn'](buyFiat, staleCryptoInput);
+
+      expect(findOneSpy).toHaveBeenCalledWith(CryptoInput, expect.objectContaining({ where: { id: 23 } }));
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).not.toHaveBeenCalled();
+    });
+
+    it('arms the return when the fresh CryptoInput has no return in progress', async () => {
+      const buyFiat = createCustomBuyFiat({
+        id: 71,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+      });
+      const staleCryptoInput = createCustomCryptoInput({
+        id: 23,
+        status: PayInStatus.ACKNOWLEDGED,
+        action: PayInAction.WAITING,
+        returnTxId: null,
+      });
+      const freshCryptoInput = createCustomCryptoInput({
+        id: 23,
+        status: PayInStatus.ACKNOWLEDGED,
+        action: PayInAction.WAITING,
+        returnTxId: null,
+      });
+      Object.defineProperty(buyFiatRepo, 'manager', {
+        configurable: true,
+        value: { findOne: jest.fn().mockResolvedValue(freshCryptoInput) },
+      });
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+
+      await service['triggerBuyFiatReturn'](buyFiat, staleCryptoInput);
+
+      expect(returnPayInSpy).toHaveBeenCalledWith(
+        freshCryptoInput,
+        buyFiat.chargebackAddress,
+        buyFiat.chargebackAmount,
+      );
+    });
+  });
+
+  describe('refundBuyFiatInternal atomic claim', () => {
+    function setupRefundManager(opts: {
+      buyFiat: BuyFiat;
+      currentBuyFiat: BuyFiat;
+      cryptoInput: CryptoInput;
+      updateAffected?: number;
+    }) {
+      const manager = {
+        findOne: jest.fn(async (type: unknown, options: { select?: { id?: boolean } }) => {
+          if (type === BuyFiat) return options.select?.id ? { id: opts.buyFiat.id } : opts.currentBuyFiat;
+          if (type === CryptoInput) return options.select?.id ? { id: opts.cryptoInput.id } : opts.cryptoInput;
+          return undefined;
+        }),
+        update: jest.fn().mockResolvedValue({ affected: opts.updateAffected ?? 1 }),
+      };
+      Object.defineProperty(buyFiatRepo, 'manager', {
+        configurable: true,
+        value: {
+          transaction: jest.fn(async (run: (entityManager: EntityManager) => unknown) =>
+            run(manager as unknown as EntityManager),
+          ),
+        },
+      });
+      return manager;
+    }
+
+    it('claims and schedules a crypto refund atomically before releasing the BuyFiat lock', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAddress: null,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({
+        ...buyFiat,
+        cryptoInput: undefined,
+      });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyFiat,
+        expect.objectContaining({
+          id: 7,
+          chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
+          chargebackDate: IsNull(),
+          chargebackTxId: IsNull(),
+          outputAmount: IsNull(),
+          isComplete: false,
+        }),
+        expect.objectContaining({ chargebackAllowedDate: expect.any(Date) }),
+      );
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
+      expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
+    });
+
+    // chargebackAllowedDateUser is pinned to the observed entity value (not IsNull()) because
+    // chargebackTx() auto-promotion selects rows with Not(IsNull()) on that column — a hard
+    // IsNull() pin would make every automatic chargeback claim fail with 409 forever.
+    it('pins chargebackAllowedDateUser to the observed non-null value in the claim WHERE', async () => {
+      const chargebackAllowedDateUser = new Date('2026-01-15T10:00:00.000Z');
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAddress: null,
+        chargebackAllowedDate: null,
+        chargebackAllowedDateUser,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({
+        ...buyFiat,
+        cryptoInput: undefined,
+      });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyFiat,
+        expect.objectContaining({
+          chargebackAllowedDateUser,
+        }),
+        expect.anything(),
+      );
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
+    });
+
+    it('does not schedule a crypto refund when a concurrent claim loses', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      setupRefundManager({ buyFiat, currentBuyFiat: buyFiat, cryptoInput, updateAffected: 0 });
+
+      await expect(
+        service.refundBuyFiatInternal(buyFiat, {
+          refundUserAddress: refundUser.address,
+          chargebackAllowedDate: new Date(),
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+    });
+
+    it('passes the freshly loaded CryptoInput to returnPayIn, not the call-site snapshot', async () => {
+      const staleCryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+        returnTxId: null,
+        inTxId: 'STALE_IN_TX_ID',
+      });
+      const freshCryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+        returnTxId: null,
+        inTxId: 'FRESH_IN_TX_ID',
+      });
+      // Distinct object identity so the assertion proves the fresh row is used.
+      expect(staleCryptoInput).not.toBe(freshCryptoInput);
+
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput: staleCryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [freshCryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const manager = setupRefundManager({
+        buyFiat,
+        currentBuyFiat,
+        cryptoInput: freshCryptoInput,
+      });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(returnPayInSpy).toHaveBeenCalledWith(freshCryptoInput, refundUser.address, 1, manager);
+      const passedCryptoInput = returnPayInSpy.mock.calls[0][0];
+      expect(passedCryptoInput).toBe(freshCryptoInput);
+      expect(passedCryptoInput).not.toBe(staleCryptoInput);
+    });
+
+    it('runs doPayout before the claim when CryptoInput is FORWARD_CONFIRMED', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.FORWARD,
+        status: PayInStatus.FORWARD_CONFIRMED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined);
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).toHaveBeenCalledWith({
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: '7',
+        asset: cryptoInput.asset,
+        amount: 1,
+        destinationAddress: refundUser.address,
+      });
+      // doPayout must run before the claim write, inside the same transaction — a failing
+      // doPayout must prevent the claim from being written (see the next test).
+      expect(doPayoutSpy.mock.invocationCallOrder[0]).toBeLessThan(manager.update.mock.invocationCallOrder[0]);
+    });
+
+    it('runs only doPayout, not returnPayIn, when CryptoInput is FORWARD_CONFIRMED but action is not FORWARD', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.FORWARD_CONFIRMED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined);
+      setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).toHaveBeenCalledTimes(1);
+      expect(doPayoutSpy).toHaveBeenCalledWith({
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: '7',
+        asset: cryptoInput.asset,
+        amount: 1,
+        destinationAddress: refundUser.address,
+      });
+    });
+
+    it('does not write the claim when doPayout fails, and propagates the error', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.FORWARD,
+        status: PayInStatus.FORWARD_CONFIRMED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const payoutError = new Error('payout failed');
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockRejectedValue(payoutError);
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await expect(
+        service.refundBuyFiatInternal(buyFiat, {
+          refundUserAddress: refundUser.address,
+          chargebackAllowedDate: new Date(),
+        }),
+      ).rejects.toThrow(payoutError);
+
+      expect(doPayoutSpy).toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+  });
 
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);

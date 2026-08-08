@@ -1,4 +1,12 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
@@ -36,7 +44,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, FindOptionsRelations, FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
@@ -60,6 +68,32 @@ import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 @Injectable()
 export class BuyFiatService implements OnModuleInit {
   private readonly logger = new DfxLogger(BuyFiatService);
+
+  // Compare-and-swap predicate for a refund: every progress column validateRefund /
+  // getChargebackBlockReasons rejects on, plus amlCheck/amlReason as observed (so a concurrent
+  // AML reset loses the claim instead of racing past it), plus the user-request marker.
+  //
+  // The marker is pinned to its stored value, not to IsNull(): automatic approval legs run on
+  // rows the user has already requested a refund for — chargebackTx selects
+  // chargebackAllowedDateUser as Not(IsNull()) — so pinning it null would make every automatic
+  // chargeback claim nothing and 409 forever. Pinning the observed value still detects a
+  // concurrent write.
+  //
+  // Build this before chargebackFillUp runs: it assigns the new state onto the entity, so a
+  // predicate built afterwards would pin the values this refund is about to write.
+  private static refundClaimWhere(entity: BuyFiat): FindOptionsWhere<BuyFiat> {
+    return {
+      id: entity.id,
+      amlCheck: entity.amlCheck,
+      amlReason: entity.amlReason ?? IsNull(),
+      isComplete: false,
+      outputAmount: IsNull(),
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: entity.chargebackAllowedDateUser ?? IsNull(),
+      chargebackDate: IsNull(),
+      chargebackTxId: IsNull(),
+    };
+  }
 
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
@@ -302,18 +336,34 @@ export class BuyFiatService implements OnModuleInit {
   private async triggerBuyFiatReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
-    if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
-    if (CryptoInputInFlightSendStatus.includes(cryptoInput.status))
+    // chargebackAddress/Amount live on BuyFiat and are current; cryptoInput may be a stale
+    // pre-update snapshot (callers pass cryptoInputBefore from update()). asset is re-checked
+    // on the fresh row after the re-read below.
+    if (!chargebackAddress || !chargebackAmount) return;
+
+    // Callers hand in a pre-update CryptoInput snapshot (cryptoInputBefore). Guarding on that
+    // stale state can miss an in-progress or completed return and re-arm a second send.
+    // Re-read before deciding. No lock here: a pessimistic_write would touch a broad
+    // admin-update path — larger than intended. The fresh read closes the main window (the
+    // deliberately stale snapshot); a narrow race between read and write remains intentional.
+    const freshCryptoInput = await this.buyFiatRepo.manager.findOne(CryptoInput, {
+      where: { id: cryptoInput.id },
+      relations: { asset: true, route: { user: true }, transaction: true },
+    });
+    if (!freshCryptoInput) throw new NotFoundException('CryptoInput not found');
+
+    if (!freshCryptoInput.asset) return;
+    if (CryptoInputInFlightSendStatus.includes(freshCryptoInput.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
 
     // Skip if a return is already in progress or completed.
     if (
-      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status) ||
-      cryptoInput.returnTxId
+      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(freshCryptoInput.status) ||
+      freshCryptoInput.returnTxId
     )
       return;
 
-    await this.returnCrypto(buyFiat, cryptoInput, chargebackAddress, chargebackAmount);
+    await this.returnCrypto(buyFiat, freshCryptoInput, chargebackAddress, chargebackAmount);
   }
 
   private async returnCrypto(
@@ -431,19 +481,84 @@ export class BuyFiatService implements OnModuleInit {
     TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount)
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
 
-      const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
-      await this.returnCrypto(buyFiat, buyFiat.cryptoInput, returnAddress, chargebackAmount);
-    }
+    const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
 
-    const previousAmlCheck = buyFiat.amlCheck;
-    const previousAmlReason = buyFiat.amlReason;
+    let previousAmlCheck: CheckStatus;
+    let previousAmlReason: AmlReason;
+    let refundEntity: BuyFiat;
+    // PayoutService.doPayout writes via its own repository and accepts no manager — it cannot
+    // join this transaction, so a rollback would not undo an already-created payout order.
+    // Call it before the claim anyway: if doPayout fails, the claim never lands and the case
+    // stays retryable. Running it after the claim would leave chargebackAllowedDate /
+    // chargebackDate committed with no funds moved — invisible to validateRefund and to
+    // chargebackTx (which selects chargebackAllowedDate: IsNull()). A duplicate payout order
+    // cannot arise: the unique index on PayoutOrder (context, correlationId) blocks it
+    // (correlationId = buyFiat.id). returnPayIn has no such guard, so it stays after the claim.
 
-    await this.buyFiatRepo.update(
-      ...buyFiat.chargebackFillUp(
-        refundUser.address ?? buyFiat.chargebackAddress,
+    await this.buyFiatRepo.manager.transaction(async (manager) => {
+      const lockedBuyFiat = await manager.findOne(BuyFiat, {
+        where: { id: buyFiat.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedBuyFiat) throw new NotFoundException('BuyFiat not found');
+
+      const currentBuyFiat = await manager.findOne(BuyFiat, {
+        where: { id: buyFiat.id },
+        relations: {
+          cryptoInput: { route: { user: true }, transaction: true },
+          transaction: { userData: true },
+        },
+      });
+      if (!currentBuyFiat) throw new NotFoundException('BuyFiat not found');
+
+      const lockedCryptoInput = await manager.findOne(CryptoInput, {
+        where: { id: buyFiat.cryptoInput.id },
+        select: { id: true },
+        loadEagerRelations: false,
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedCryptoInput) throw new NotFoundException('CryptoInput not found');
+
+      const cryptoInput = await manager.findOne(CryptoInput, {
+        where: { id: buyFiat.cryptoInput.id },
+        relations: { asset: true, route: { user: true }, transaction: true },
+      });
+      if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
+
+      currentBuyFiat.cryptoInput = cryptoInput;
+      TransactionUtilService.validateRefund(currentBuyFiat, { refundUser, chargebackAmount, assetMismatch: false });
+
+      const claimWhere = BuyFiatService.refundClaimWhere(currentBuyFiat);
+      previousAmlCheck = currentBuyFiat.amlCheck;
+      previousAmlReason = currentBuyFiat.amlReason;
+
+      // The doPayout and returnPayIn branches used to live in a single if/else-if chain and were
+      // therefore mutually exclusive by construction. Since they are now separated by the claim
+      // write below, exclusivity is established explicitly here instead of relying on the
+      // unenforced assumption that FORWARD_CONFIRMED always implies action === FORWARD — otherwise
+      // both refund paths could fire for the same amount.
+      const isForwardPayout =
+        Boolean(dto.chargebackAllowedDate) &&
+        Boolean(chargebackAmount) &&
+        cryptoInput.status === PayInStatus.FORWARD_CONFIRMED;
+
+      if (isForwardPayout) {
+        await this.payoutService.doPayout({
+          context: PayoutOrderContext.BUY_FIAT_RETURN,
+          correlationId: `${currentBuyFiat.id}`,
+          asset: cryptoInput.asset,
+          amount: chargebackAmount,
+          destinationAddress: returnAddress,
+        });
+      }
+
+      const [, update] = currentBuyFiat.chargebackFillUp(
+        returnAddress,
         chargebackAmount,
         chargebackAmount,
         dto.chargebackCurrency,
@@ -451,11 +566,24 @@ export class BuyFiatService implements OnModuleInit {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         blockchainFee,
-      ),
-    );
+      );
+      const claim = await manager.update(BuyFiat, claimWhere, update);
+      if (claim.affected !== 1) throw new ConflictException('BuyFiat refund state changed concurrently');
+
+      if (
+        !isForwardPayout &&
+        dto.chargebackAllowedDate &&
+        chargebackAmount &&
+        cryptoInput.action !== PayInAction.FORWARD
+      ) {
+        await this.payInService.returnPayIn(cryptoInput, returnAddress, chargebackAmount, manager);
+      }
+
+      refundEntity = currentBuyFiat;
+    });
 
     await this.transactionAmlCheckService.createFromEntity(
-      buyFiat,
+      refundEntity,
       'BuyFiat',
       AmlSourceType.CHARGEBACK,
       previousAmlCheck,
