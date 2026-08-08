@@ -2158,17 +2158,15 @@ describe('FiatOutputJobService', () => {
     });
 
     it('keeps an Olkypay amount reserved while its bank transaction is still fresh', async () => {
-      jest
-        .spyOn(fiatOutputRepo, 'find')
-        .mockResolvedValue([
-          candidate({
-            id: 4,
-            amount: 5000,
-            isReadyDate: new Date(),
-            bankTx: createCustomBankTx({ created: new Date() }),
-          }),
-          candidate({ id: 5, amount: 5000, isReadyDate: null }),
-        ]);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        candidate({
+          id: 4,
+          amount: 5000,
+          isReadyDate: new Date(),
+          bankTx: createCustomBankTx({ created: new Date() }),
+        }),
+        candidate({ id: 5, amount: 5000, isReadyDate: null }),
+      ]);
       funded();
 
       await service['setReadyDate']();
