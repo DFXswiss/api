@@ -584,8 +584,6 @@ export class KycService {
   ): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
 
-    if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('KYC not allowed for compliance accounts');
-
     await this.verifyUserDuplication(user);
 
     user = await this.updateProgress(user, true, autoStep);
@@ -1212,8 +1210,6 @@ export class KycService {
     sequence?: number,
   ): Promise<{ user: UserData; step: KycStep }> {
     user = user ?? (await this.getUser(kycHash));
-
-    if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('KYC not allowed for compliance accounts');
 
     const findStep = (u: UserData): KycStep | undefined =>
       sequence != null
