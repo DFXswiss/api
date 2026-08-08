@@ -416,12 +416,14 @@ describe('BuyFiatService', () => {
         action: PayInAction.WAITING,
         status: PayInStatus.ACKNOWLEDGED,
         returnTxId: null,
+        inTxId: 'STALE_IN_TX_ID',
       });
       const freshCryptoInput = createCustomCryptoInput({
         id: 23,
         action: PayInAction.WAITING,
         status: PayInStatus.ACKNOWLEDGED,
         returnTxId: null,
+        inTxId: 'FRESH_IN_TX_ID',
       });
       // Distinct object identity so the assertion proves the fresh row is used.
       expect(staleCryptoInput).not.toBe(freshCryptoInput);
@@ -458,7 +460,9 @@ describe('BuyFiatService', () => {
       });
 
       expect(returnPayInSpy).toHaveBeenCalledWith(freshCryptoInput, refundUser.address, 1, manager);
-      expect(returnPayInSpy).not.toHaveBeenCalledWith(staleCryptoInput, expect.anything(), expect.anything(), expect.anything());
+      const passedCryptoInput = returnPayInSpy.mock.calls[0][0];
+      expect(passedCryptoInput).toBe(freshCryptoInput);
+      expect(passedCryptoInput).not.toBe(staleCryptoInput);
     });
 
     it('runs doPayout after a successful claim when CryptoInput is FORWARD_CONFIRMED', async () => {
