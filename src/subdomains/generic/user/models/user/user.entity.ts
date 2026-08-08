@@ -28,6 +28,10 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   addressType?: UserAddressType;
 
+  // Login credential: for DeFiChain and custodial Lightning the stored value IS the secret that
+  // authenticates a sign-in (see AuthService.verifySignature). Loaded normally like any other column;
+  // `SignatureVisibilityInterceptor` (registered as a global APP_INTERCEPTOR) strips it from every HTTP
+  // response whose caller does not satisfy the ADMIN role requirement.
   @Column({ type: 'text', nullable: true })
   signature?: string;
 
