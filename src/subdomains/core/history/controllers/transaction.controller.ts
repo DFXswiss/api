@@ -330,6 +330,8 @@ export class TransactionController {
     // bank data IBAN, see getUnassignedTransactions), not to the logged-in wallet address, and
     // setTransactionTarget below accepts every buy route of the account. Narrowing this list to the
     // session's address hides routes that the write path still accepts.
+    // The write path is in fact wider still: it applies none of the active/buyable/status filters of
+    // this list — tracked in issue #4756.
     const buys = await this.buyService.getUserDataBuys(jwt.account);
 
     return buys.map((b) => ({

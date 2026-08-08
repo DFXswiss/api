@@ -197,10 +197,16 @@ describe('TransactionController', () => {
       expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1);
     });
 
-    // Regression guard for the account-wide invariant: setTransactionTarget accepts every buy
-    // route of the account, so the offered target list must not be narrower than that, even
-    // though these two buy routes belong to different wallet addresses of the same account.
-    it('offers every buy route the write path accepts', async () => {
+    // The controller passes the service list through unchanged (no re-filtering), so the result
+    // also includes buy routes that belong to a different wallet address of the same account than
+    // the logged-in JWT. That is the purpose of the account-wide list.
+    // That the controller actually calls the service account-wide (not user-wide) is already
+    // covered by the toHaveBeenCalledWith(1) tests further above in this describe group; this test
+    // only covers mapping the service response onto the DTOs, not the write path.
+    // Note: the write path (setTransactionTarget / BuyService.get) currently filters even less
+    // than this display list (no active / asset.buyable / user.status) — known and tracked under
+    // issue #4756; not fixed by this change.
+    it('maps every route the service returns, including routes of other addresses', async () => {
       const buyOne = createCustomBuy({
         id: 7,
         bankUsage: 'ABCD-EFGH-IJKL',
