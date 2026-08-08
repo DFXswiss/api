@@ -12,13 +12,11 @@ import { SupportIssueLog } from './entities/support-issue-log.entity';
 import { SupportIssue } from './entities/support-issue.entity';
 import { SupportLog } from './entities/support-log.entity';
 import { SupportMessage } from './entities/support-message.entity';
-import { SupportReplySuggestion } from './entities/support-reply-suggestion.entity';
 import { LimitRequestController } from './limit-request.controller';
 import { LimitRequestRepository } from './repositories/limit-request.repository';
 import { SupportIssueRepository } from './repositories/support-issue.repository';
 import { SupportLogRepository } from './repositories/support-log.repository';
 import { SupportMessageRepository } from './repositories/support-message.repository';
-import { SupportReplySuggestionRepository } from './repositories/support-reply-suggestion.repository';
 import { LimitRequestNotificationService } from './services/limit-request-notification.service';
 import { LimitRequestService } from './services/limit-request.service';
 import { SupportDocumentService } from './services/support-document.service';
@@ -40,7 +38,6 @@ import { SupportIssueController } from './support-issue.controller';
       SupportLog,
       SupportIssueLog,
       LimitRequestLog,
-      SupportReplySuggestion,
     ]),
     forwardRef(() => TransactionModule),
     forwardRef(() => KycModule),
@@ -62,7 +59,6 @@ import { SupportIssueController } from './support-issue.controller';
     SupportLogService,
     SupportIssueJobService,
     SupportEscalationService,
-    SupportReplySuggestionRepository,
     SupportReplySuggestionService,
   ],
   exports: [SupportIssueService, LimitRequestService, SupportLogService],

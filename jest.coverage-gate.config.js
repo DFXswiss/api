@@ -274,11 +274,10 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/recall/recall-reason.enum.ts',
   'src/subdomains/supporting/support-issue/dto/support-issue.dto.ts',
   'src/subdomains/supporting/support-issue/dto/support-reply-suggestion-dto.mapper.ts',
-  'src/subdomains/supporting/support-issue/entities/support-reply-suggestion.entity.ts',
+  'src/subdomains/supporting/support-issue/entities/support-message.entity.ts',
   'src/subdomains/supporting/support-issue/enums/department.enum.ts',
   'src/subdomains/supporting/support-issue/enums/support-issue.enum.ts',
   'src/subdomains/supporting/support-issue/enums/support-log.enum.ts',
-  'src/subdomains/supporting/support-issue/repositories/support-reply-suggestion.repository.ts',
   'src/subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts',
 ];
 

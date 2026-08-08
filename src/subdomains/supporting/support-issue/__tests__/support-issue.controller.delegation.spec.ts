@@ -254,7 +254,9 @@ describe('SupportIssueController delegation', () => {
     });
 
     it('returns the pending suggestion', async () => {
-      const suggestion = { id: 3 } as Awaited<ReturnType<SupportReplySuggestionService['getPendingSuggestion']>>;
+      const suggestion = { messageId: 100 } as Awaited<
+        ReturnType<SupportReplySuggestionService['getPendingSuggestion']>
+      >;
       suggestionService.getPendingSuggestion.mockResolvedValue(suggestion);
 
       await expect(controller.getReplySuggestion('42')).resolves.toEqual({ suggestion });
@@ -267,16 +269,16 @@ describe('SupportIssueController delegation', () => {
       await expect(controller.getReplySuggestion('42')).resolves.toEqual({ suggestion: null });
     });
 
-    it('accepts a suggestion for the deciding clerk', async () => {
-      await controller.acceptReplySuggestion(jwt(), '42', 3);
+    it('accepts the suggestion of a message for the deciding clerk', async () => {
+      await controller.acceptReplySuggestion(jwt(), '42', 100);
 
-      expect(suggestionService.acceptSuggestion).toHaveBeenCalledWith(42, 3, 7);
+      expect(suggestionService.acceptSuggestion).toHaveBeenCalledWith(42, 100, 7);
     });
 
-    it('rejects a suggestion for the deciding clerk', async () => {
-      await controller.rejectReplySuggestion(jwt(), '42', 3);
+    it('rejects the suggestion of a message for the deciding clerk', async () => {
+      await controller.rejectReplySuggestion(jwt(), '42', 100);
 
-      expect(suggestionService.rejectSuggestion).toHaveBeenCalledWith(42, 3, 7);
+      expect(suggestionService.rejectSuggestion).toHaveBeenCalledWith(42, 100, 7);
     });
   });
 });

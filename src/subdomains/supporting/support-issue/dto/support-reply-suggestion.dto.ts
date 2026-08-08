@@ -2,17 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SupportReplySuggestionState } from '../enums/support-reply-suggestion.enum';
 
 export class SupportReplySuggestionDto {
-  @ApiProperty()
-  id: number;
+  @ApiProperty({ description: 'Id of the message this suggestion answers, and the id it is addressed by' })
+  messageId: number;
 
   @ApiProperty({ description: 'Proposed answer, offered to the clerk as editable text' })
   text: string;
 
   @ApiProperty({ enum: SupportReplySuggestionState })
   state: SupportReplySuggestionState;
-
-  @ApiProperty({ description: 'Id of the message this suggestion answers' })
-  messageId: number;
 
   @ApiProperty({
     description:

@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **at most 1168 load sites** across 252 files — an upper bound, for the reason given under *Measurements*.
+Every place in the code that reads from the database: **at most 1166 load sites** across 252 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -9,7 +9,7 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
 | `find` family | 1013 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
-| `createQueryBuilder` | 148 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
+| `createQueryBuilder` | 146 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 7 | not applied | whatever the statement lists |
 
 Statements that load nothing are excluded from the count: 2 `createQueryBuilder` calls carrying `.update()`, 6 advisory locks (`SELECT pg_advisory_xact_lock(...)`, which return no rows) and 4 raw `INSERT`. Each of the 7 raw reads that remain names its columns.
@@ -29,17 +29,17 @@ Among the query builders, the field list is what decides whether anything is act
 
 ## Measurements
 
-Columns were measured against the real entity metadata by building the query and counting its SELECT list — 803 of 1168 sites.
+Columns were measured against the real entity metadata by building the query and counting its SELECT list — 804 of 1166 sites.
 
-- **343 are exact**: the `relations` tree is written at the call site.
+- **344 are exact**: the `relations` tree is written at the call site.
 - **455 are lower bounds**: the tree arrives as a parameter, so only the base query is visible here. `transaction.service.ts` is the clearest case — its callers pass trees reaching well over a thousand columns.
-- 365 could not be measured: no resolvable target entity, or raw SQL.
+- 362 could not be measured: no resolvable target entity, or raw SQL.
 
-**That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 344 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
+**That last group is also why the total is an upper bound.** The collection matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolved, the distinction is settled; where it did not, the group holds both. A sample of 30 of those rows, read in the source, came out at 21 array operations to 9 genuine repository reads. That group holds 343 rows, so on the order of 240 of them are not database reads at all, and the true count is nearer 900.
 
 What that does and does not affect: the median and the counts below are computed only over the rows that carry a measured width, and an array operation never has one, so those figures stand. Nor does it move the conclusion this table exists for — the sites that name their columns are a small fraction either way. It does reach the per-endpoint summary in [endpoints.md](endpoints.md), where the endpoints with no measured width at all are marked as the exposed cases.
 
-Median across measured sites: **98 columns**. At least 14 sites exceed 1000, 75 exceed 500 and 396 exceed 100 — "at least", because 455 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
+Median across measured sites: **98 columns**. At least 14 sites exceed 1000, 75 exceed 500 and 398 exceed 100 — "at least", because 455 of these measurements are lower bounds, and a resolved relation tree can only widen a query, never narrow it.
 
 Postgres refuses a statement with more than 1664 columns. The widest measured site here sits at 1453, so a little over two hundred columns separate it from a rejected statement — and 455 of these measurements are lower bounds, so the real margin can be smaller.
 
@@ -165,9 +165,11 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 438 | 13 | find | `BankTxReturn` | `subdomains/core/accounting/services/ledger-cutover.service.ts:610` | `LedgerCutoverService.openBankTxReturn` |
 | 438 | 13 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:54` | `BankTxReturnService.chargebackTx` |
 | 438 | 13 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:137` | `BankTxReturnService.update` |
+| 435 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:55` | `SupportReplySuggestionService.getPendingSuggestion` |
+| 435 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:82` | `SupportReplySuggestionService.decideSuggestion` |
+| 435 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:103` | `SupportReplySuggestionService.getLatestMessage` |
 | 434 | 15 | find | `LimitRequest` | `subdomains/supporting/support-issue/services/limit-request.service.ts:120` | `LimitRequestService.getUserLimitRequests` |
 | 433 | 12 | find | `BankTx` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:106` | `BankTxConsumer.processForward` |
-| 429 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:155` | `SupportReplySuggestionService.getLatestMessage` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:478` | `SupportIssueService.closeIssue` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:628` | `SupportIssueService.getIssueMessages` |
 | 427 | 13 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:281` | `CustodyOrderService.confirmOrder` |
@@ -584,7 +586,6 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:169` | `AssetService.getEvmAssetsWithoutDecimals` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:106` | `DashboardReconciliationService.getReconciliation` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:377` | `DashboardReconciliationService.getExchangeFlows` |
-| 33 | 2 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:83` | `SupportReplySuggestionService.getPendingSuggestion` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:274` | `PaymentLinkPaymentService.getPaymentByExternalId` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:280` | `PaymentLinkPaymentService.getMostRecentPayment` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:415` | `PaymentLinkPaymentService.deliverToConnectedDevices` |
@@ -1213,7 +1214,4 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-issue.service.ts:92` | `SupportIssueService.getSupportIssueClerkForAccount` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:633` | `SupportIssueService.getIssueFile` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:648` | `SupportIssueService.getUserIssues` |
-| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:42` | `SupportReplySuggestionService.createSuggestion` |
-| — | — | find | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:52` | `SupportReplySuggestionService.createSuggestion` |
-| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:125` | `SupportReplySuggestionService.handleSuggestion` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:589` | `BuyCryptoBatchService.orderMissingLiquidity` |

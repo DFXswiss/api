@@ -276,8 +276,8 @@ export class SupportIssueController {
   @ApiCreatedResponse({ type: SupportReplySuggestionDto })
   @ApiConflictResponse({
     description:
-      'The issue has no message to answer, or `messageId` is not the newest message of the thread — a ' +
-      'suggestion is always bound to the newest one.',
+      'The issue has no message to answer, `messageId` is not the newest message of the thread, or that ' +
+      'message already carries a suggestion — a message is answered once, and always the newest one.',
   })
   async createReplySuggestion(
     @GetJwt() jwt: JwtPayload,
@@ -295,27 +295,27 @@ export class SupportIssueController {
     return { suggestion: (await this.replySuggestionService.getPendingSuggestion(+id)) ?? null };
   }
 
-  @Put(':id/suggestion/:suggestionId/accept')
+  @Put(':id/suggestion/:messageId/accept')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async acceptReplySuggestion(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Param('suggestionId', ParseIntPipe) suggestionId: number,
+    @Param('messageId', ParseIntPipe) messageId: number,
   ): Promise<SupportReplySuggestionDto> {
-    return this.replySuggestionService.acceptSuggestion(+id, suggestionId, jwt.account);
+    return this.replySuggestionService.acceptSuggestion(+id, messageId, jwt.account);
   }
 
-  @Put(':id/suggestion/:suggestionId/reject')
+  @Put(':id/suggestion/:messageId/reject')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async rejectReplySuggestion(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Param('suggestionId', ParseIntPipe) suggestionId: number,
+    @Param('messageId', ParseIntPipe) messageId: number,
   ): Promise<SupportReplySuggestionDto> {
-    return this.replySuggestionService.rejectSuggestion(+id, suggestionId, jwt.account);
+    return this.replySuggestionService.rejectSuggestion(+id, messageId, jwt.account);
   }
 }
