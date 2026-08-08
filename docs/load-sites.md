@@ -1,6 +1,6 @@
 # Database load sites
 
-Every place in the code that reads from the database: **at most 1163 load sites** across 251 files — an upper bound, for the reason given under *Measurements*.
+Every place in the code that reads from the database: **at most 1168 load sites** across 252 files — an upper bound, for the reason given under *Measurements*.
 
 This is the level at which the statement is unambiguous. An endpoint reaches several load sites — a permission check, a lookup, the actual query — so asking whether *an endpoint* loads efficiently has no single answer. Asking it of a load site does. [endpoints.md](endpoints.md) carries the per-endpoint summary derived from these sites.
 
@@ -8,7 +8,7 @@ This is the level at which the statement is unambiguous. An endpoint reaches sev
 
 | Mechanism | Sites | Eager relations | Columns selected |
 | --------- | ----: | --------------- | ---------------- |
-| `find` family | 1010 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
+| `find` family | 1015 | **applied** — expanded recursively | all columns of the entity plus every eager relation |
 | `createQueryBuilder` | 146 | not applied | all columns of the root entity, unless `.select([...])` narrows it |
 | raw SQL | 7 | not applied | whatever the statement lists |
 
@@ -167,10 +167,12 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 438 | 13 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:137` | `BankTxReturnService.update` |
 | 434 | 15 | find | `LimitRequest` | `subdomains/supporting/support-issue/services/limit-request.service.ts:120` | `LimitRequestService.getUserLimitRequests` |
 | 433 | 12 | find | `BankTx` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:106` | `BankTxConsumer.processForward` |
+| 429 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:127` | `SupportReplySuggestionService.getLatestMessage` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:478` | `SupportIssueService.closeIssue` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:628` | `SupportIssueService.getIssueMessages` |
 | 427 | 13 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:281` | `CustodyOrderService.confirmOrder` |
 | 427 | 13 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:297` | `CustodyOrderService.getOrdersForSupport` |
+| 422 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:34` | `SupportReplySuggestionService.createSuggestion` |
 | 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-escalation.service.ts:214` | `SupportEscalationService.checkEscalations` |
 | 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:484` | `SupportIssueService.updateIssue` |
 | 421 | 14 | find | `SupportIssue` | `subdomains/supporting/support-issue/services/support-issue.service.ts:618` | `SupportIssueService.getIssueMessages` |
@@ -583,6 +585,8 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:169` | `AssetService.getEvmAssetsWithoutDecimals` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:106` | `DashboardReconciliationService.getReconciliation` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:377` | `DashboardReconciliationService.getExchangeFlows` |
+| 33 | 2 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:61` | `SupportReplySuggestionService.getPendingSuggestion` |
+| 33 | 2 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:97` | `SupportReplySuggestionService.handleSuggestion` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:274` | `PaymentLinkPaymentService.getPaymentByExternalId` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:280` | `PaymentLinkPaymentService.getMostRecentPayment` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:415` | `PaymentLinkPaymentService.deliverToConnectedDevices` |
@@ -702,6 +706,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:61` | `AccountMergeService.sendMergeRequest` |
 | 10 | 0 | find | `AccountMerge` | `subdomains/generic/user/models/account-merge/account-merge.service.ts:162` | `AccountMergeService.pendingMergeRequest` |
 | 10 | 0 | query-builder (field list) | `SupportIssue` | `subdomains/supporting/support-issue/repositories/support-issue.repository.ts:276` | `SupportIssueRepository.findIssueList` |
+| 10 | 0 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:113` | `SupportReplySuggestionService.supersedePending` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:57` | `SupportNoteService.search` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:76` | `SupportNoteService.search` |
 | 9 | 0 | find | `SupportNote` | `subdomains/generic/support/services/support-note.service.ts:152` | `SupportNoteService.delete` |

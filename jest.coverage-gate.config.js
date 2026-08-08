@@ -273,9 +273,13 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/realunit/repositories/realunit-legal-acceptance.repository.ts',
   'src/subdomains/supporting/recall/recall-reason.enum.ts',
   'src/subdomains/supporting/support-issue/dto/support-issue.dto.ts',
+  'src/subdomains/supporting/support-issue/dto/support-reply-suggestion-dto.mapper.ts',
+  'src/subdomains/supporting/support-issue/entities/support-reply-suggestion.entity.ts',
   'src/subdomains/supporting/support-issue/enums/department.enum.ts',
   'src/subdomains/supporting/support-issue/enums/support-issue.enum.ts',
   'src/subdomains/supporting/support-issue/enums/support-log.enum.ts',
+  'src/subdomains/supporting/support-issue/repositories/support-reply-suggestion.repository.ts',
+  'src/subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts',
 ];
 
 // --- PINNED DECLARATIVE --- //
@@ -474,9 +478,12 @@ const PINNED_DECLARATIVE = [
   'src/subdomains/supporting/realunit/dto/realunit-legal.dto.ts',
   'src/subdomains/supporting/realunit/utils/queries.ts',
   'src/subdomains/supporting/support-issue/dto/bind-escalation-chat.dto.ts',
+  'src/subdomains/supporting/support-issue/dto/create-support-reply-suggestion.dto.ts',
   'src/subdomains/supporting/support-issue/dto/limit-request.dto.ts',
   'src/subdomains/supporting/support-issue/dto/support-issue-label.ts',
+  'src/subdomains/supporting/support-issue/dto/support-reply-suggestion.dto.ts',
   'src/subdomains/supporting/support-issue/dto/update-support-issue.dto.ts',
+  'src/subdomains/supporting/support-issue/enums/support-reply-suggestion.enum.ts',
 ];
 
 module.exports = {

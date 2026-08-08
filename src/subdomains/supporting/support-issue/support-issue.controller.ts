@@ -1,7 +1,15 @@
 import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -15,6 +23,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
+import { CreateSupportReplySuggestionDto } from './dto/create-support-reply-suggestion.dto';
 import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
 import {
   SupportIssueDto,
@@ -23,6 +32,7 @@ import {
   SupportIssueStatisticsDto,
   SupportMessageDto,
 } from './dto/support-issue.dto';
+import { SupportReplySuggestionDto, SupportReplySuggestionResponseDto } from './dto/support-reply-suggestion.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
@@ -30,6 +40,7 @@ import { Department } from './enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
 import { SupportEscalationService, TelegramChat } from './services/support-escalation.service';
 import { SupportIssueService } from './services/support-issue.service';
+import { SupportReplySuggestionService } from './services/support-reply-suggestion.service';
 
 @ApiTags('Support')
 @Controller('support/issue')
@@ -37,6 +48,7 @@ export class SupportIssueController {
   constructor(
     private readonly supportIssueService: SupportIssueService,
     private readonly supportEscalationService: SupportEscalationService,
+    private readonly replySuggestionService: SupportReplySuggestionService,
     // TfaService lives deep in the KYC graph (circular deps), so resolve it lazily at request time via
     // ModuleRef instead of injecting it directly — same approach as the global TfaEnforcementInterceptor.
     private readonly moduleRef: ModuleRef,
@@ -248,5 +260,62 @@ export class SupportIssueController {
   @ApiExcludeEndpoint()
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     return this.supportIssueService.updateIssue(+id, dto);
+  }
+
+  // --- REPLY SUGGESTIONS --- //
+
+  /**
+   * The only way a proposed answer enters the system: submitted through the API by a suggestion
+   * producer, never written in the support tool. Documented rather than excluded from Swagger for
+   * exactly that reason — the producers are API clients that need the contract.
+   */
+  @Post(':id/suggestion')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @ApiOperation({ summary: 'Submit a proposed answer for a support issue (Support role or above)' })
+  @ApiCreatedResponse({ type: SupportReplySuggestionDto })
+  @ApiConflictResponse({
+    description:
+      'The issue has no message to answer, or `messageId` is not the newest message of the thread — a ' +
+      'suggestion is always bound to the newest one.',
+  })
+  async createReplySuggestion(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateSupportReplySuggestionDto,
+  ): Promise<SupportReplySuggestionDto> {
+    return this.replySuggestionService.createSuggestion(+id, dto, jwt.account);
+  }
+
+  @Get(':id/suggestion')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getReplySuggestion(@Param('id') id: string): Promise<SupportReplySuggestionResponseDto> {
+    return { suggestion: (await this.replySuggestionService.getPendingSuggestion(+id)) ?? null };
+  }
+
+  @Put(':id/suggestion/:suggestionId/accept')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async acceptReplySuggestion(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Param('suggestionId', ParseIntPipe) suggestionId: number,
+  ): Promise<SupportReplySuggestionDto> {
+    return this.replySuggestionService.acceptSuggestion(+id, suggestionId, jwt.account);
+  }
+
+  @Put(':id/suggestion/:suggestionId/reject')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async rejectReplySuggestion(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Param('suggestionId', ParseIntPipe) suggestionId: number,
+  ): Promise<SupportReplySuggestionDto> {
+    return this.replySuggestionService.rejectSuggestion(+id, suggestionId, jwt.account);
   }
 }
