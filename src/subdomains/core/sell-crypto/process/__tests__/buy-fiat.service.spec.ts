@@ -355,6 +355,7 @@ describe('BuyFiatService', () => {
         expect.objectContaining({
           id: 7,
           chargebackAllowedDate: IsNull(),
+          chargebackAllowedDateUser: IsNull(),
           chargebackDate: IsNull(),
           chargebackTxId: IsNull(),
           outputAmount: IsNull(),
@@ -364,6 +365,58 @@ describe('BuyFiatService', () => {
       );
       expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
       expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
+    });
+
+    // chargebackAllowedDateUser is pinned to the observed entity value (not IsNull()) because
+    // chargebackTx() auto-promotion selects rows with Not(IsNull()) on that column — a hard
+    // IsNull() pin would make every automatic chargeback claim fail with 409 forever.
+    it('pins chargebackAllowedDateUser to the observed non-null value in the claim WHERE', async () => {
+      const chargebackAllowedDateUser = new Date('2026-01-15T10:00:00.000Z');
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.ACKNOWLEDGED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAddress: null,
+        chargebackAllowedDate: null,
+        chargebackAllowedDateUser,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({
+        ...buyFiat,
+        cryptoInput: undefined,
+      });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(manager.update).toHaveBeenCalledWith(
+        BuyFiat,
+        expect.objectContaining({
+          chargebackAllowedDateUser,
+        }),
+        expect.anything(),
+      );
+      expect(returnPayInSpy).toHaveBeenCalledWith(cryptoInput, refundUser.address, 1, manager);
     });
 
     it('does not schedule a crypto refund when a concurrent claim loses', async () => {
