@@ -131,7 +131,6 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
 
 1. Login to VM
 1. Modify docker compose file section `monero-rpc command`
-
    - '--wallet-dir=/home/monero/.bitmonero/wallet'
    - '--rpc-bind-port=18082'
    - '--untrusted-daemon'
@@ -147,7 +146,6 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
 1. Go to directory `volumes/bitmonero`
 1. Create certificate `openssl req -config openssl.conf -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem`
 1. Modify docker compose file section `monero-rpc command`
-
    - '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
    - '--password=[WALLET_PASSWORD]'
    - '--rpc-bind-port=18082'
@@ -164,7 +162,6 @@ Detailed Update Information can be found at: `https://docs.google.com/document/d
 ### Start all container
 
 1. Execute script: `sudo ./docker-compose.sh` - all `bitcoin/lightning` and `monero` containers are started
-
    - bitcoin-lightning-bitcoind-1
    - bitcoin-lightning-lnd-1
    - bitcoin-lightning-lnbits-1

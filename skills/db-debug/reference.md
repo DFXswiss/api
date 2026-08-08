@@ -5,6 +5,7 @@ description** (`DebugQueryDto`) — never raw SQL. Derive table and column names
 the TypeORM entities in this repository.
 
 ## Endpoint & safety
+
 - The CLI posts a `DebugQueryDto` (structured JSON) to `POST /gs/debug` with a Bearer token obtained
   from `POST /auth` (DEBUG address + signature from the local `.env`, role `DEBUG`).
 - No raw SQL crosses the wire. The service (`src/subdomains/generic/gs`) emits SQL manually: every
@@ -36,6 +37,7 @@ the TypeORM entities in this repository.
   with explicit `limit` + `offset`.
 
 ## DTO shape (`DebugQueryDto`)
+
 - `table` (required): snake_case; must be a key in `DebugAllowedColumns`.
 - `select` (required, 1..100 items): each item has a `kind`:
   - `{"kind":"column","column":"name"}` — a plain column.
@@ -47,7 +49,7 @@ the TypeORM entities in this repository.
   - Filter-only columns must not appear in `select` (plain, aggregate, or jsonb).
 - `where` (optional): a tree of nodes, each with a `kind`:
   - `{"kind":"leaf","column":"x","op":"=","value":...}` — ops: `= != < <= > >= IN "NOT IN" LIKE
-    ILIKE "IS NULL" "IS NOT NULL"`. `IN` / `NOT IN` take an array value; `IS NULL` / `IS NOT NULL`
+ILIKE "IS NULL" "IS NOT NULL"`. `IN` / `NOT IN` take an array value; `IS NULL` / `IS NOT NULL`
     take no value; the rest take a scalar. On filter-only columns only `=` is allowed (not `IN`,
     not under any `NOT` node at any depth); equality is case-insensitive
     (`LOWER(col) = LOWER($n)`). Ordinary allowlisted columns keep the full operator set above.
@@ -64,6 +66,7 @@ the TypeORM entities in this repository.
   `select`, and each row is parallel to `keys`.
 
 ## FinancialDataLog / balancesTotal (used by `--balance` / `--anomalies` / `--stats`)
+
 - Stored in table `log`, `subsystem = 'FinancialDataLog'`, payload in `message`. Extract fields with
   the `jsonb` select kind, e.g. `{"kind":"jsonb","column":"message","jsonbPath":"balancesTotal.totalBalanceChf","as":"totalchf"}`.
 - `balancesTotal`: `totalBalanceChf = plusBalanceChf - minusBalanceChf`; plus = assets held,
@@ -82,21 +85,23 @@ the TypeORM entities in this repository.
   "Balance forensics".
 
 ## liquidity_balance (snapshot, one row per asset, updated in place)
+
 Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.entity.ts`
 
-| Column | Type | Meaning |
-| --- | --- | --- |
-| `id`, `created`, `updated` | — | from `IEntity`; `updated` is the last refresh |
-| `assetId` | FK → `asset` | ManyToOne |
-| `amount` | float, nullable | total balance |
-| `availableAmount` | float, nullable | available balance |
-| `isDfxOwned` | bool, default `true` | owned liquidity vs. customer holdings |
+| Column                     | Type                 | Meaning                                       |
+| -------------------------- | -------------------- | --------------------------------------------- |
+| `id`, `created`, `updated` | —                    | from `IEntity`; `updated` is the last refresh |
+| `assetId`                  | FK → `asset`         | ManyToOne                                     |
+| `amount`                   | float, nullable      | total balance                                 |
+| `availableAmount`          | float, nullable      | available balance                             |
+| `isDfxOwned`               | bool, default `true` | owned liquidity vs. customer holdings         |
 
 - Populated by the balance adapters (blockchain / bank / custom) in `liquidity-management`.
 - Rows with `isDfxOwned = false` are custom-adapter balances, named `<userDataId>-<token>`.
 - The endpoint has no JOINs; resolve asset names with a separate `asset` query.
 
 ## Other useful tables
+
 - `recommendation`: `recommenderId`, `recommendedId`, `method`, `created` (referrals).
 - `user_data`: `id`, `status`, `kycStatus`, `kycLevel`, … (used by referral-tree status lookups).
   `mail` is **filter-only** (not in `columns`): WHERE `=` only (case-insensitive; not under
