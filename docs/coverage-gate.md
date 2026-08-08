@@ -175,7 +175,7 @@ six under `subdomains/generic/admin` have no coverage at all.
 ## How the list grows
 
 Any PR may add files to `coverageThreshold` once they reach 100%.
-`jest.coverage-gate.config.js` holds the 447 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+`jest.coverage-gate.config.js` holds the 454 paths in two arrays, `PINNED_LOGIC` (logic-carrying
 files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
@@ -211,8 +211,8 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
 
-That rule stays hard for the 253 logic-carrying files. A foreseeable friction case is different:
-when one of the 194 purely declarative files (a NestJS module, a constants file) first gains
+That rule stays hard for the 257 logic-carrying files. A foreseeable friction case is different:
+when one of the 197 purely declarative files (a NestJS module, a constants file) first gains
 executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
 0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an
 allowed outcome if the PR description names and justifies it (not as a silent edit). For
