@@ -10,7 +10,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { EntityManager, In, IsNull, LessThan, Not } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, Not, Or } from 'typeorm';
 import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
 import { CryptoInput, PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
@@ -118,7 +118,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
   describe('#updatePayInAction(...)', () => {
     const exclusionWhere = {
       id: 77,
-      action: Not(PayInAction.RETURN),
+      action: Or(IsNull(), Not(PayInAction.RETURN)),
       status: Not(In([PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED])),
       returnTxId: IsNull(),
     };
@@ -127,7 +127,9 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       [CheckStatus.PASS, PayInAction.FORWARD],
       [CheckStatus.FAIL, PayInAction.WAITING],
     ])('updates action with return-exclusion where for amlCheck %s → %s', async (amlCheck, expectedAction) => {
-      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+      const updateSpy = jest
+        .spyOn(payInRepository, 'update')
+        .mockResolvedValue({ raw: [], affected: 1, generatedMaps: [] });
 
       await service.updatePayInAction(77, amlCheck);
 

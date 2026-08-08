@@ -15,7 +15,7 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { EntityManager, FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not, Or } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -271,10 +271,11 @@ export class PayInService {
     // re-arm forwarding over one; affected 0 is the designed outcome (the admin release path schedules
     // the return inside its transaction and the AML post-processing runs after commit, so without this
     // exclusion the flip would overwrite action=Return and the return cron would never pick the pay-in).
+    // New pay-ins carry a NULL action, which a bare Not would not match under SQL null semantics.
     await this.payInRepository.update(
       {
         id: payInId,
-        action: Not(PayInAction.RETURN),
+        action: Or(IsNull(), Not(PayInAction.RETURN)),
         status: Not(In([PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED])),
         returnTxId: IsNull(),
       },
