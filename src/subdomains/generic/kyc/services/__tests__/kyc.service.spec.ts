@@ -843,6 +843,36 @@ describe('KycService reviewIdentSteps file sync', () => {
     expect(kycStepRepo.save).not.toHaveBeenCalled();
     expect(savedStatus).toBeUndefined();
   });
+
+  // a Sumsub-typed row whose stored result is manual-shaped (no webhook) never ran a Sumsub
+  // transaction; the sync gate must skip it so the step can leave INTERNAL_REVIEW in this pass
+  it.each(sumsubTypes)(
+    'drains a mismatched %s ident step whose stored result carries no webhook to manual review, without touching the Sumsub file sync',
+    async (type) => {
+      const step = identStep(type);
+      step.result = JSON.stringify(identResult[KycStepType.MANUAL]);
+      kycStepRepo.find.mockResolvedValue([step]);
+
+      await service.reviewIdentSteps();
+
+      expect(syncIdentFilesInternalSpy).not.toHaveBeenCalled();
+      // the webhook condition is in-memory and must sit ahead of the database round trip
+      expect(identFileService.hasValidIdentReport).not.toHaveBeenCalled();
+      expect(savedStatus).toBe(ReviewStatus.MANUAL_REVIEW);
+    },
+  );
+
+  // resultData's Sumsub branch cannot read a birthday from a manual-shaped result, so the
+  // duplicate-user lookup must not be invoked with undefined (TypeORM would drop the filter)
+  it('does not look up duplicate users by birthday for a mismatched ident step with no birthday in its stored result', async () => {
+    const step = identStep(KycStepType.SUMSUB_AUTO);
+    step.result = JSON.stringify(identResult[KycStepType.MANUAL]);
+    kycStepRepo.find.mockResolvedValue([step]);
+
+    await service.reviewIdentSteps();
+
+    expect(userDataService.getUserDataByBirthday).not.toHaveBeenCalled();
+  });
 });
 
 // initiateStep auto-completes DFX_APPROVAL when the account already reached kycLevel LEVEL_50 (e.g.
