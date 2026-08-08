@@ -152,6 +152,11 @@ export class ScorechainScreeningService {
     return this.repo.getByObjectIds(objectIds);
   }
 
+  // Read-only lookup of a persisted screening; never re-runs or bills anything.
+  async getById(id: number): Promise<ScorechainScreening | null> {
+    return this.repo.findOneBy({ id });
+  }
+
   // --- CORE --- //
 
   private async screen(params: ScreenParams): Promise<ScorechainScreening> {

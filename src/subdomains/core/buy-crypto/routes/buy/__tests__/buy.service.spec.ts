@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { In, Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -10,6 +11,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -1844,6 +1846,45 @@ describe('BuyService', () => {
       await service.getByBankUsage('ABC-123');
 
       expect(buyRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { bankUsage: 'ABC-123' } }));
+    });
+  });
+
+  describe('getUserDataBuys', () => {
+    it('filters on the user id when a userId is given', async () => {
+      jest.spyOn(buyRepo, 'find').mockResolvedValue([]);
+
+      await service.getUserDataBuys(1, 42);
+
+      expect(buyRepo.find).toHaveBeenCalledWith({
+        where: {
+          active: true,
+          user: {
+            id: 42,
+            userData: { id: 1 },
+            status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])),
+          },
+          asset: { buyable: true },
+        },
+        relations: { user: true },
+      });
+    });
+
+    it('omits the user-id filter without a userId', async () => {
+      jest.spyOn(buyRepo, 'find').mockResolvedValue([]);
+
+      await service.getUserDataBuys(1);
+
+      expect(buyRepo.find).toHaveBeenCalledWith({
+        where: {
+          active: true,
+          user: {
+            userData: { id: 1 },
+            status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])),
+          },
+          asset: { buyable: true },
+        },
+        relations: { user: true },
+      });
     });
   });
 });

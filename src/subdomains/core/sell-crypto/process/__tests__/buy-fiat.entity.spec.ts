@@ -1,16 +1,24 @@
 import { Test } from '@nestjs/testing';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
-import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { createCustomSell } from '../../route/__mocks__/sell.entity.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 
@@ -206,6 +214,137 @@ describe('BuyFiat entity', () => {
 
       expect(update.amlPostProcessed).toBe(false);
       expect(entity.amlPostProcessed).toBe(false);
+    });
+  });
+
+  describe('#getChargebackBlockReasons()', () => {
+    function releasedUserData(overrides: Parameters<typeof createCustomUserData>[0] = {}): UserData {
+      return createCustomUserData({
+        kycStatus: KycStatus.COMPLETED,
+        status: UserDataStatus.ACTIVE,
+        riskStatus: RiskStatus.NA,
+        verifiedName: 'Max Mustermann',
+        firstname: 'Max',
+        surname: 'Mustermann',
+        ...overrides,
+      });
+    }
+
+    function pendingBuyFiat(overrides: Partial<BuyFiat> = {}): BuyFiat {
+      return createCustomBuyFiat({
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        isComplete: false,
+        chargebackTxId: undefined,
+        chargebackAmount: 100,
+        chargebackAddress: 'bc1qexample',
+        chargebackAsset: 'BTC',
+        amlCheck: CheckStatus.FAIL,
+        outputAmount: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData(),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+        ...overrides,
+      });
+    }
+
+    it('returns empty array when all auto-promotion conditions are met', () => {
+      expect(pendingBuyFiat().getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('returns MISSING_CHARGEBACK_AMOUNT when chargebackAmount is missing', () => {
+      const entity = pendingBuyFiat({ chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT]);
+    });
+
+    it('does not return MISSING_CHARGEBACK_AMOUNT when chargebackAmount is 0', () => {
+      const entity = pendingBuyFiat({ chargebackAmount: 0 });
+      expect(entity.getChargebackBlockReasons()).not.toContain(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+    });
+
+    it('returns USER_NOT_RELEASED when userData is blocked', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns USER_NOT_RELEASED when kycStatus CHECK (not allowed for BuyFiat)', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ kycStatus: KycStatus.CHECK }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns USER_NOT_RELEASED when user status is not active', () => {
+      const entity = pendingBuyFiat({
+        transaction: createCustomTransaction({
+          userData: releasedUserData(),
+          user: createCustomUser({ status: UserStatus.BLOCKED }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.USER_NOT_RELEASED]);
+    });
+
+    it('returns MISSING_CHARGEBACK_TARGET when chargebackAddress is missing', () => {
+      const entity = pendingBuyFiat({ chargebackAddress: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([ChargebackBlockReason.MISSING_CHARGEBACK_TARGET]);
+    });
+
+    it('returns multiple reasons when several conditions fail', () => {
+      const entity = pendingBuyFiat({
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([
+        ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT,
+        ChargebackBlockReason.USER_NOT_RELEASED,
+        ChargebackBlockReason.MISSING_CHARGEBACK_TARGET,
+      ]);
+    });
+
+    it('fail-closed: returns empty array when chargebackAllowedDate is set even if other reasons apply', () => {
+      const entity = pendingBuyFiat({
+        chargebackAllowedDate: new Date(),
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        transaction: createCustomTransaction({
+          userData: releasedUserData({ status: UserDataStatus.BLOCKED }),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when chargebackDate is set', () => {
+      const entity = pendingBuyFiat({ chargebackDate: new Date(), chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when isComplete is true', () => {
+      const entity = pendingBuyFiat({ isComplete: true, chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when chargebackTxId is set', () => {
+      const entity = pendingBuyFiat({ chargebackTxId: 'tx-123', chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
+    });
+
+    it('fail-closed: returns empty array when outputAmount is set', () => {
+      const entity = pendingBuyFiat({ outputAmount: 0.2, chargebackAmount: undefined });
+      expect(entity.getChargebackBlockReasons()).toEqual([]);
     });
   });
 });

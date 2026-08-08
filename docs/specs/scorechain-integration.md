@@ -3,12 +3,12 @@
 > **Status:** Draft – for review. No implementation has started.
 > This specification is reviewed and approved **before** any code is written.
 
-| | |
-|---|---|
-| **Date** | 2026-06-30 |
-| **Target repo** | `DFXswiss/api` |
-| **Provider** | Scorechain – crypto-asset analytics / AML-KYT |
-| **API docs** | https://tech-doc.api.scorechain.com/ (OpenAPI: `…/api.yaml`) |
+|                               |                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| **Date**                      | 2026-06-30                                                                         |
+| **Target repo**               | `DFXswiss/api`                                                                     |
+| **Provider**                  | Scorechain – crypto-asset analytics / AML-KYT                                      |
+| **API docs**                  | https://tech-doc.api.scorechain.com/ (OpenAPI: `…/api.yaml`)                       |
 | **Relation to existing code** | Complements the existing `src/integration/ikna` screening; does **not** replace it |
 
 ---
@@ -27,13 +27,14 @@ screening — with a human reviewer / the AML flow keeping the decision (see §8
 screening is persisted for a documented audit trail.
 
 The integration is delivered as a **complete, end-to-end integration** (not a stub): scoring
-*and* deposit/withdrawal monitoring, plus alert handling and response-signature
+_and_ deposit/withdrawal monitoring, plus alert handling and response-signature
 verification. Per the agreed process this is split into exactly **two PRs** — this
 specification, then a single implementation PR (see §11).
 
 ## 2. Goals & Non-Goals
 
 ### Goals
+
 - G1. Add a `ScorechainModule` under `src/integration/scorechain/` following the existing
   integration conventions (cf. `src/integration/ikna`).
 - G2. On-demand **risk scoring** of addresses, wallets and transactions via
@@ -50,6 +51,7 @@ specification, then a single implementation PR (see §11).
   in a non-breaking, additive way.
 
 ### Non-Goals (this integration)
+
 - N1. Replacing `ikna` screening. Scorechain runs **in parallel**; consolidation is a
   later, separate decision.
 - N2. Replacing the Scorechain web app. Operators keep using the dashboard for manual
@@ -65,24 +67,26 @@ specification, then a single implementation PR (see §11).
 > (`https://tech-doc.api.scorechain.com/api.yaml`). Endpoints outside this subset exist but
 > are out of DFX scope.
 
-| Capability | Endpoint(s) | Use in DFX |
-|---|---|---|
-| Risk scoring | `POST /scoringAnalysis`, `POST /scoringAnalysis/evmPortfolio` | Score address/wallet/tx on demand |
-| Transaction monitoring (TMS) | `POST /registerDeposit`, `POST /registerWithdrawal` | Screen crypto in-/out-flows |
-| Scenario alerts | `GET /scenarios/alerts`, `GET /scenarios/{scenarioId}/alerts`, `GET /scenarios/checks` | Retrieve TMS alerts / check status |
-| Alert push | `ScenarioAlertCallback` (webhook) | Provider pushes alert on scenario match |
-| Signature keys | `GET /publicKeys` | Fetch keys to verify response signatures |
-| Reports & audit | `GET /reports`, `GET /reports/{reportId}/files/{fileName}` | Documented evidence |
-| Health / account | `GET /status`, `GET /me` | Health check; account info / API-key validation |
+| Capability                   | Endpoint(s)                                                                            | Use in DFX                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Risk scoring                 | `POST /scoringAnalysis`, `POST /scoringAnalysis/evmPortfolio`                          | Score address/wallet/tx on demand               |
+| Transaction monitoring (TMS) | `POST /registerDeposit`, `POST /registerWithdrawal`                                    | Screen crypto in-/out-flows                     |
+| Scenario alerts              | `GET /scenarios/alerts`, `GET /scenarios/{scenarioId}/alerts`, `GET /scenarios/checks` | Retrieve TMS alerts / check status              |
+| Alert push                   | `ScenarioAlertCallback` (webhook)                                                      | Provider pushes alert on scenario match         |
+| Signature keys               | `GET /publicKeys`                                                                      | Fetch keys to verify response signatures        |
+| Reports & audit              | `GET /reports`, `GET /reports/{reportId}/files/{fileName}`                             | Documented evidence                             |
+| Health / account             | `GET /status`, `GET /me`                                                               | Health check; account info / API-key validation |
 
 ### Authentication
+
 - API key sent in the request header **`X-API-KEY`**. (`ApiKeyAuth` is only the OpenAPI
-  *security-scheme* identifier — the on-the-wire header is `X-API-KEY`, per
+  _security-scheme_ identifier — the on-the-wire header is `X-API-KEY`, per
   `components.securitySchemes.ApiKeyAuth.name`.)
 - The key is generated **once** in the Scorechain workspace (admin), shown only once →
   stored as a deployment secret (see §7). It is not sent by the provider via email.
 
 ### Proof of authenticity (response signature)
+
 - Algorithm **RSA-SHA256** (RSASSA-PKCS1-v1_5, RFC 8017). The signed message is
   `JSON.stringify({ data, timestamp })` where `data` is the parsed response body and
   `timestamp` is `X-Server-Time`; the signature is **hex**-encoded. (Confirmed against the
@@ -92,6 +96,7 @@ specification, then a single implementation PR (see §11).
 - Verified via the official **`scorechain-sdk`** `proofOfAuthenticityVerifier` (resolved §12.3).
 
 ### Base URL & score direction (confirmed via sandbox)
+
 - Base URL is **`https://api.scorechain.com/v1`** (the `/v1` prefix is required).
 - `scoringAnalysis` returns `{ id, lowestScore, analysis, request }` — the risk value is
   **`lowestScore` (1–100)** where **LOW = riskier**: `1` Critical, `2–29` High, `30–69`
@@ -100,12 +105,14 @@ specification, then a single implementation PR (see §11).
   value is provided by the deployment environment.
 
 ### Supported blockchains (relevant subset for DFX)
+
 BITCOIN, ETHEREUM, ARBITRUMONE, BASE, OPTIMISM, POLYGON, BSC, SOLANA, TRON, LITECOIN,
 BITCOINCASH, DOGECOIN, RIPPLE, … (full list via `GET /blockchains`). A mapping from the DFX
 `Blockchain` enum → Scorechain identifiers is required, e.g. `Blockchain.ARBITRUM`
 (`'Arbitrum'`) → `'ARBITRUMONE'` (see §6).
 
 ### `scoringAnalysis` parameters
+
 - `analysisType`: `ASSIGNED` (entity only) | `INCOMING` (sources) | `OUTGOING`
   (destinations) | `FULL` (complete profile).
 - `objectType`: `ADDRESS` | `TRANSACTION` (also `WALLET`; NFT object types out of scope).
@@ -113,11 +120,13 @@ BITCOINCASH, DOGECOIN, RIPPLE, … (full list via `GET /blockchains`). A mapping
   ≤6 account-based).
 
 ### `registerDeposit` parameters
+
 - Required: `blockchain`, `hash`, `depositAddress`. Optional: `customerRefId` (defaults to
   the address). Triggers configured TMS scenarios; on match an **alert** is pushed via the
   callback / retrievable via the alert endpoints.
 
 ### `registerWithdrawal` parameters
+
 - Required: `blockchain`, `withdrawAddress`, `amount`, `coinChainId` (token contract or
   `MAIN`). Optional: `identifier` (UUID; auto-generated if omitted).
 - **Asynchronous, no synchronous verdict:** the 200 response (`PendingWithdrawal`) contains
@@ -131,6 +140,7 @@ BITCOINCASH, DOGECOIN, RIPPLE, … (full list via `GET /blockchains`). A mapping
 ## 4. Architecture
 
 ### 4.1 Module placement
+
 Mirror the existing integration layout (cf. `src/integration/ikna`):
 
 ```
@@ -184,7 +194,7 @@ src/integration/scorechain/
 ```
 
 - **Deposit screening** — crypto **in** = `sell-crypto` (customer sells/swaps → `cryptoInput`,
-  fiat out), plus the buy-crypto *swap* route (also `cryptoInput`): on confirmed pay-in
+  fiat out), plus the buy-crypto _swap_ route (also `cryptoInput`): on confirmed pay-in
   (payin detects the `CryptoInput`), the **synchronous** verdict comes from
   `scoringAnalysis(objectType=TRANSACTION, analysisType=INCOMING)`. `registerDeposit` is used
   **additionally** to feed the async TMS workflow (scenario rules, alerts, audit) — it is not
@@ -205,38 +215,38 @@ src/integration/scorechain/
 
 ## 5. Functional scope (full integration, single implementation PR)
 
-| # | Feature | Endpoint | Trigger |
-|---|---|---|---|
-| F1 | Address/wallet risk score (on demand, admin) | `/scoringAnalysis` | Admin endpoint / manual AML review |
-| F2 | Deposit risk score (synchronous gate) | `/scoringAnalysis` (`objectType=TRANSACTION`, `INCOMING`) | On confirmed crypto pay-in |
-| F3 | Withdrawal risk score (synchronous pre-payout gate) | `/scoringAnalysis` (`objectType=ADDRESS`) | Before crypto payout release |
-| F4 | Async TMS workflow (additional) | `/registerDeposit`, `/registerWithdrawal` + `/scenarios/checks` | Feed scenario rules / alerts / audit |
-| F5 | Alert ingestion | `ScenarioAlertCallback` webhook + `/scenarios/{scenarioId}/alerts` | Scorechain pushes alert |
-| F6 | Response-signature verification | `/publicKeys` | Every response |
-| F7 | Screening persistence + cache | (internal) | Every screening |
-| F8 | Quota guard | internal counter | Before each billable call |
-| F9 | Health check | `/status` | Monitoring module |
-| F10 | Reports (audit evidence) | `/reports`, `/reports/{reportId}/files/{fileName}` | On demand (compliance) |
+| #   | Feature                                             | Endpoint                                                           | Trigger                              |
+| --- | --------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------ |
+| F1  | Address/wallet risk score (on demand, admin)        | `/scoringAnalysis`                                                 | Admin endpoint / manual AML review   |
+| F2  | Deposit risk score (synchronous gate)               | `/scoringAnalysis` (`objectType=TRANSACTION`, `INCOMING`)          | On confirmed crypto pay-in           |
+| F3  | Withdrawal risk score (synchronous pre-payout gate) | `/scoringAnalysis` (`objectType=ADDRESS`)                          | Before crypto payout release         |
+| F4  | Async TMS workflow (additional)                     | `/registerDeposit`, `/registerWithdrawal` + `/scenarios/checks`    | Feed scenario rules / alerts / audit |
+| F5  | Alert ingestion                                     | `ScenarioAlertCallback` webhook + `/scenarios/{scenarioId}/alerts` | Scorechain pushes alert              |
+| F6  | Response-signature verification                     | `/publicKeys`                                                      | Every response                       |
+| F7  | Screening persistence + cache                       | (internal)                                                         | Every screening                      |
+| F8  | Quota guard                                         | internal counter                                                   | Before each billable call            |
+| F9  | Health check                                        | `/status`                                                          | Monitoring module                    |
+| F10 | Reports (audit evidence)                            | `/reports`, `/reports/{reportId}/files/{fileName}`                 | On demand (compliance)               |
 
 ## 6. Data model
 
 `scorechain_screening` entity (audit trail + cache):
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | PK | |
-| `objectType` | enum | ADDRESS / WALLET / TRANSACTION |
-| `objectId` | string | address or tx hash |
-| `blockchain` | string | DFX `Blockchain` enum value |
-| `analysisType` | enum | ASSIGNED / INCOMING / OUTGOING / FULL |
-| `riskScore` | number | Scorechain score |
-| `severity` | string | provider severity level |
-| `riskIndicators` | string (JSON) | exposure breakdown / AML indicators |
-| `rawResponse` | string (JSON) | full response (signed) for audit |
-| `signatureValid` | boolean | result of X-Signature verification |
-| `scorechainRef` | string | identifier / customerRefId / alert id |
-| `context` | enum | DEPOSIT / WITHDRAWAL / MANUAL |
-| `created` / `updated` | datetime | standard DFX columns |
+| Column                | Type          | Notes                                 |
+| --------------------- | ------------- | ------------------------------------- |
+| `id`                  | PK            |                                       |
+| `objectType`          | enum          | ADDRESS / WALLET / TRANSACTION        |
+| `objectId`            | string        | address or tx hash                    |
+| `blockchain`          | string        | DFX `Blockchain` enum value           |
+| `analysisType`        | enum          | ASSIGNED / INCOMING / OUTGOING / FULL |
+| `riskScore`           | number        | Scorechain score                      |
+| `severity`            | string        | provider severity level               |
+| `riskIndicators`      | string (JSON) | exposure breakdown / AML indicators   |
+| `rawResponse`         | string (JSON) | full response (signed) for audit      |
+| `signatureValid`      | boolean       | result of X-Signature verification    |
+| `scorechainRef`       | string        | identifier / customerRefId / alert id |
+| `context`             | enum          | DEPOSIT / WITHDRAWAL / MANUAL         |
+| `created` / `updated` | datetime      | standard DFX columns                  |
 
 - **JSON columns** (`riskIndicators`, `rawResponse`) follow the DFX canonical pattern from
   CONTRIBUTING: stored as `@Column({ type: 'text', nullable: true })` **strings** with a
@@ -380,6 +390,7 @@ and consistent — no untyped failures, no silent passes:
    identically: `{ type: CRUCIAL, amlCheck: PENDING, amlReason: MANUAL_CHECK }`) covers the failure
    case. Customer-facing fail-closed behaviour is unchanged (both still route to manual review);
    only the internal classification — visible in `comment` and stats — is now accurate.
+
 2. **TMS depth:** the **synchronous `scoringAnalysis` gate is the only implemented flow**. The
    async TMS workflow (`register*` → scenarios/alerts) is a license-gated feature
    (`NotIncludedInLicense`) that DFX does **not** license. Its placeholder client methods, the

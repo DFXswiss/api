@@ -704,8 +704,8 @@ export class UserService {
     partnerVolume?: number,
     partnerCredit?: number,
   ): Promise<void> {
-    // User.ref is nullable and createManualRefReward passes it through unguarded. On the update path
-    // an absent ref binds `ref = NULL`, which matches nothing and silently discards the write.
+    // User.ref is nullable. On the update path an absent ref binds `ref = NULL`, which matches
+    // nothing and silently discards the write.
     if (!ref) return;
 
     await this.userRepo.update(

@@ -1,8 +1,11 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
@@ -106,6 +109,51 @@ export class BankTxReturn extends IEntity {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Block reasons preventing automatic chargeback promotion.
+   * Keep in sync with BankTxReturnService.chargebackTx() where / promotion conditions
+   * and BankTxReturnService.getPendingChargebacks() pending set.
+   * Empty array = auto-job can release this case.
+   */
+  getChargebackBlockReasons(): ChargebackBlockReason[] {
+    // Fail-closed first: already approved/executed must never appear as waiting.
+    // Redundant with BankTxReturnService.getPendingChargebacks() where — a lost exclusion there
+    // would show a finished refund as pending and risk double payout by Compliance.
+    // Matches refundClaimWhere() columns (no isComplete on this entity).
+    if (this.chargebackAllowedDate || this.chargebackDate || this.chargebackOutput || this.chargebackBankTx) {
+      return [];
+    }
+
+    const reasons: ChargebackBlockReason[] = [];
+
+    if (this.chargebackAmount === null || this.chargebackAmount === undefined) {
+      reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT);
+    }
+
+    if (!this.chargebackIban) {
+      reasons.push(ChargebackBlockReason.MISSING_CHARGEBACK_TARGET);
+    }
+
+    if (!this.chargebackCreditorData) {
+      reasons.push(ChargebackBlockReason.MISSING_CREDITOR_DATA);
+    } else if (
+      !Util.matchesCreditorName(this.userData.verifiedName, this.userData.completeName, this.creditorData?.name)
+    ) {
+      reasons.push(ChargebackBlockReason.NAME_MISMATCH);
+    }
+
+    const ud = this.userData;
+    if (
+      ![KycStatus.NA, KycStatus.COMPLETED].includes(ud.kycStatus) ||
+      ud.status === UserDataStatus.BLOCKED ||
+      ![RiskStatus.NA, RiskStatus.RELEASED].includes(ud.riskStatus)
+    ) {
+      reasons.push(ChargebackBlockReason.USER_NOT_RELEASED);
+    }
+
+    return reasons;
   }
 
   get paymentMethodIn(): PaymentMethod {

@@ -1,6 +1,7 @@
 import { Type } from '@nestjs/common';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { ManualLogPositionDto } from './dto/manual-log-position.dto';
+import { RefBonusAgreementDto } from './dto/ref-bonus-agreement.dto';
 import { SupportClerkAccountDto } from './dto/support-clerk-account.dto';
 
 export type PrimitiveSchema = 'string' | 'number' | 'boolean' | 'string[]';
@@ -37,6 +38,9 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // Compliance
   complianceClerks: 'string[]',
+
+  // Ref Bonus
+  refBonusAgreements: { type: 'array', items: RefBonusAgreementDto },
 };
 
 export function isArraySchema(schema: SettingSchema): schema is ArraySchema {

@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { RefBonusAgreementDto } from 'src/shared/models/setting/dto/ref-bonus-agreement.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -15,7 +17,6 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
-import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -66,6 +67,8 @@ const PayoutLimits: { [k in Blockchain]: number } = {
 
 @Injectable()
 export class RefRewardService {
+  private readonly logger = new DfxLogger(RefRewardService);
+
   constructor(
     private readonly rewardRepo: RefRewardRepository,
     private readonly userService: UserService,
@@ -74,53 +77,6 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
     private readonly settingService: SettingService,
   ) {}
-
-  async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
-    const user = await this.userService.getUser(dto.user.id, { userData: true });
-    if (!user) throw new NotFoundException('User not found');
-
-    const asset = await this.assetService.getAssetById(dto.asset.id);
-    if (!asset) throw new NotFoundException('Asset not found');
-
-    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
-    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
-    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
-      throw new BadRequestException('Source transaction already used');
-
-    const eurChfPrice = await this.pricingService.getPrice(
-      PriceCurrency.EUR,
-      PriceCurrency.CHF,
-      PriceValidity.VALID_ONLY,
-    );
-
-    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
-
-    const entity = this.rewardRepo.create({
-      user,
-      targetAddress: user.address,
-      outputAsset: asset,
-      sourceTransaction,
-      status: dto.amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
-      targetBlockchain: asset.blockchain,
-      amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
-      amountInEur: dto.amountInEur,
-    });
-
-    entity.transaction = await this.transactionService.create({
-      sourceType: TransactionSourceType.MANUAL_REF,
-      user,
-      userData: user.userData,
-    });
-
-    // update user ref balance
-    await this.userService.updateRefVolume(
-      user.ref,
-      user.refVolume + dto.amountInEur / user.refFeePercent,
-      user.refCredit + dto.amountInEur,
-    );
-
-    await this.rewardRepo.save(entity);
-  }
 
   async createPendingRefRewards(): Promise<void> {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
@@ -175,6 +131,151 @@ export class RefRewardService {
         });
 
         await this.rewardRepo.save(entity);
+      }
+    }
+  }
+
+  async createRefBonusRewards(): Promise<void> {
+    // A missing or empty configuration means "no ref bonus agreements are active" - this cron
+    // deliberately does nothing until an operator populates the setting.
+    const agreements = await this.settingService.getObj<RefBonusAgreementDto[]>('refBonusAgreements', []);
+    if (!agreements.length) return;
+
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
+
+    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
+    for (const agreement of agreements) {
+      const user = await this.userService.getUser(agreement.userId, { userData: true });
+      const asset = await this.assetService.getAssetById(agreement.outputAssetId);
+      if (!user || !asset) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: user or output asset not found`);
+        continue;
+      }
+
+      // The payout asset has to sit on the very chain createPendingRefRewards derives from the
+      // address, not merely on one the address could serve. That path groups by
+      // getDefaultBlockchainBasedOn — which resolves every EVM address to Ethereum — and its
+      // pending guard queries targetBlockchain by that same value. A reward tagged with any other
+      // EVM chain would be invisible to it, and it would grant a second one for the same credit.
+      // The call throws on an unrecognised address and runs outside the per-candidate catch, so it
+      // is guarded here: one unusable agreement must not take the whole run down.
+      let targetBlockchain: Blockchain;
+      try {
+        targetBlockchain = CryptoService.getDefaultBlockchainBasedOn(user.address);
+      } catch (e) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: unsupported address`, e);
+        continue;
+      }
+
+      if (asset.blockchain !== targetBlockchain) {
+        this.logger.error(
+          `Skipping ref bonus agreement for ref ${agreement.usedRef}: output asset is on ${asset.blockchain}, recipient address resolves to ${targetBlockchain}`,
+        );
+        continue;
+      }
+
+      // updateRefVolume is a no-op without a referral code, while the reward would still be paid
+      // out and later counted into paidRefCredit — leaving the open credit short by that amount.
+      if (!user.ref) {
+        this.logger.error(`Skipping ref bonus agreement for ref ${agreement.usedRef}: recipient has no referral code`);
+        continue;
+      }
+
+      const candidates = await this.transactionService.getRefBonusCandidates(
+        agreement.usedRef,
+        agreement.minTransactionId,
+      );
+
+      for (const candidate of candidates) {
+        try {
+          let feeInEur: number;
+
+          if (candidate.buyCrypto?.absoluteFeeAmount) {
+            // Buy side: absoluteFeeAmount is denominated in inputReferenceAsset (fiat, e.g. EUR/CHF).
+            const fee = candidate.buyCrypto.absoluteFeeAmount;
+            const feeCurrency = candidate.buyCrypto.inputReferenceAsset;
+
+            if (feeCurrency === PriceCurrency.EUR) {
+              feeInEur = fee;
+            } else {
+              const price = await this.pricingService.getPrice(
+                feeCurrency as PriceCurrency,
+                PriceCurrency.EUR,
+                PriceValidity.VALID_ONLY,
+              );
+              feeInEur = price.convert(fee, 8);
+            }
+          } else if (candidate.buyFiat?.absoluteFeeAmount) {
+            // Sell side: absoluteFeeAmount is denominated in the sold crypto asset (inputAsset).
+            const fee = candidate.buyFiat.absoluteFeeAmount;
+            const feeAsset = candidate.buyFiat.cryptoInput?.asset;
+            if (!feeAsset) {
+              this.logger.error(
+                `Skipping ref bonus reward for transaction ${candidate.id}: missing cryptoInput asset for sell-side fee`,
+              );
+              continue;
+            }
+
+            const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+            feeInEur = price.convert(fee, 8);
+          } else {
+            this.logger.error(
+              `Skipping ref bonus reward for transaction ${candidate.id}: neither buyCrypto nor buyFiat carries a fee`,
+            );
+            continue;
+          }
+
+          const amountInEur = feeInEur * agreement.feeShare;
+          if (!Number.isFinite(amountInEur) || amountInEur <= 0) {
+            this.logger.error(
+              `Skipping ref bonus reward for transaction ${candidate.id}: invalid amount ${amountInEur}`,
+            );
+            continue;
+          }
+
+          const entity = this.rewardRepo.create({
+            user,
+            targetAddress: user.address,
+            outputAsset: asset,
+            sourceTransaction: candidate,
+            status: amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+            targetBlockchain: asset.blockchain,
+            amountInChf: eurChfPrice.convert(amountInEur, 8),
+            amountInEur,
+          });
+
+          entity.transaction = await this.transactionService.create({
+            sourceType: TransactionSourceType.MANUAL_REF,
+            user,
+            userData: user.userData,
+          });
+
+          await this.rewardRepo.save(entity);
+
+          // Persist the reward first so the `refReward.id IS NULL` guard and unique constraint prevent duplicate
+          // selection and double-crediting if this update fails. A transaction spanning all writes would be cleaner
+          // but is out of scope here.
+          await this.userService.updateRefVolume(
+            user.ref,
+            user.refVolume + amountInEur / user.refFeePercent,
+            user.refCredit + amountInEur,
+          );
+
+          // Carried locally so the next candidate of this run adds to the raised total instead of
+          // recomputing from the stale snapshot. Two overlapping runs could still lose an update
+          // here, since updateRefVolume writes an absolute value and the cron lease is explicitly
+          // not a fence — that resolves itself: getManualRefVolume sums these rewards from the
+          // database, and every referred trade recomputes the total from that sum.
+          user.refVolume += amountInEur / user.refFeePercent;
+          user.refCredit += amountInEur;
+        } catch (e) {
+          this.logger.error(`Failed to create ref bonus reward for transaction ${candidate.id}:`, e);
+        }
       }
     }
   }

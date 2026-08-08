@@ -204,6 +204,16 @@ export class Util {
     return testedNameArray.some((n) => referenceArray.includes(n));
   }
 
+  // true if the account holder matches the verified or complete customer name, or if the
+  // customer has neither name on file (nothing to compare against in that case)
+  static matchesCreditorName(verifiedName: string, completeName: string, creditorName: string): boolean {
+    return (
+      this.includesSameName(verifiedName, creditorName) ||
+      this.includesSameName(completeName, creditorName) ||
+      (!verifiedName && !completeName)
+    );
+  }
+
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
@@ -609,26 +619,6 @@ export class Util {
   ): Promise<U[]> {
     const batches = await this.doInBatches(list, action, batchSize);
     return batches.reduce((prev, curr) => prev.concat(curr), []);
-  }
-
-  static async doInBatchesWithLimit<T, U>(
-    list: T[],
-    action: (batch: T[], remaining?: number) => Promise<U[]>,
-    batchSize: number,
-    limit?: number,
-  ): Promise<U[]> {
-    const results: U[] = [];
-
-    for (let i = 0; i < list.length; i += batchSize) {
-      const batch = list.slice(i, i + batchSize);
-      const remaining = limit ? limit - results.length : undefined;
-      const batchResults = await action(batch, remaining);
-      results.push(...batchResults);
-
-      if (limit && results.length >= limit) break;
-    }
-
-    return results;
   }
 
   static async doGetFulfilled<T>(tasks: Promise<T>[]): Promise<T[]> {

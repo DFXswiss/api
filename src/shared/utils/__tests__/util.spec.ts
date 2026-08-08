@@ -96,6 +96,25 @@ describe('sanitizeLogValue', () => {
   });
 });
 
+describe('matchesCreditorName', () => {
+  it('returns true when verifiedName matches creditor name', () => {
+    expect(Util.matchesCreditorName('Max Mustermann', 'Other Name', 'Max Mustermann')).toBe(true);
+  });
+
+  it('returns true when completeName matches creditor name', () => {
+    expect(Util.matchesCreditorName('Other Name', 'Max Mustermann', 'Max Mustermann')).toBe(true);
+  });
+
+  it('returns true when neither verifiedName nor completeName is set', () => {
+    expect(Util.matchesCreditorName(undefined as any, undefined as any, 'Anyone')).toBe(true);
+    expect(Util.matchesCreditorName('', '', 'Anyone')).toBe(true);
+  });
+
+  it('returns false when creditor name diverges from both customer names', () => {
+    expect(Util.matchesCreditorName('Max Mustermann', 'Max Mustermann', 'Someone Else')).toBe(false);
+  });
+});
+
 describe('toDbId', () => {
   // Regression: request params were coerced with `!isNaN(+x)` / `Number.isInteger(+x)`, both of which
   // accept values Postgres rejects as an integer. Reaching SQL, they surfaced as 500s on endpoints

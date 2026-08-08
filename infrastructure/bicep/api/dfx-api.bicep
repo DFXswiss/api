@@ -26,26 +26,13 @@ param mailUser string
 @secure()
 param mailPass string
 
-param kycGatewayHost string
-param kycCustomerAuto string
-@secure()
-param kycApiKeyAuto string
-param kycCustomerVideo string
-@secure()
-param kycApiKeyVideo string
 param kycTransactionPrefix string
-
-param kycMandator string
-@secure()
-param kycPassword string
-param kycPrefix string
-param kycWebhookIps string
 
 param kycAppToken string
 @secure()
 param kycSecretKey string
 @secure()
-param kycWebhookSecret string
+param kycWebhookKey string
 
 @secure()
 param githubToken string
@@ -618,48 +605,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: mailPass
         }
         {
-          name: 'KYC_GATEWAY_HOST'
-          value: kycGatewayHost
-        }
-        {
-          name: 'KYC_CUSTOMER_AUTO'
-          value: kycCustomerAuto
-        }
-        {
-          name: 'KYC_API_KEY_AUTO'
-          value: kycApiKeyAuto
-        }
-        {
-          name: 'KYC_CUSTOMER_VIDEO'
-          value: kycCustomerVideo
-        }
-        {
-          name: 'KYC_API_KEY_VIDEO'
-          value: kycApiKeyVideo
-        }
-        {
           name: 'KYC_TRANSACTION_PREFIX'
           value: kycTransactionPrefix
-        }
-        {
-          name: 'KYC_MANDATOR'
-          value: kycMandator
-        }
-        {
-          name: 'KYC_USER'
-          value: 'api'
-        }
-        {
-          name: 'KYC_PASSWORD'
-          value: kycPassword
-        }
-        {
-          name: 'KYC_PREFIX'
-          value: kycPrefix
-        }
-        {
-          name: 'KYC_WEBHOOK_IPS'
-          value: kycWebhookIps
         }
         {
           name: 'KYC_APP_TOKEN'
@@ -670,8 +617,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: kycSecretKey
         }
         {
-          name: 'KYC_WEBHOOK_SECRET'
-          value: kycWebhookSecret
+          name: 'KYC_WEBHOOK_KEY'
+          value: kycWebhookKey
         }
         {
           name: 'GH_TOKEN'

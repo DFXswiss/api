@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -30,6 +30,22 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+
+// Deficits are in the target asset. Required and available amounts belong to THIS order, not to the batch the
+// liquidity was checked for: on the deferred path the order covers a part of that batch only, so the
+// whole-batch figures of the liquidity result would not add up with the deficit that is ordered.
+interface MissingLiquidityOrder {
+  transactions: BuyCrypto[];
+  targetAsset: Asset;
+  referenceAsset: Asset;
+  minDeficit: number;
+  deficit: number;
+  requiredTargetAmount: number;
+  requiredReferenceAmount: number;
+  availableTargetAmount: number;
+  availableReferenceAmount: number;
+  reason: string;
+}
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -381,7 +397,16 @@ export class BuyCryptoBatchService {
         reference: { availableAmount, maxPurchasableAmount },
       } = liquidity;
 
-      const isPurchaseRequired = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+      // re-batching overwrites the batch reference amount, so the full demand has to be read before it —
+      // without it the share of the deferred transactions can no longer be derived from the liquidity result
+      const requestedReferenceAmount = batch.outputReferenceAmount;
+
+      const { isPurchaseRequired, deferredTransactions } = batch.optimizeByLiquidity(
+        availableAmount,
+        maxPurchasableAmount,
+      );
+
+      await this.handleDeferredTransactions(batch, deferredTransactions, liquidity, requestedReferenceAmount);
 
       return isPurchaseRequired ? purchaseFee : { amount: 0, asset: purchaseFee.asset };
     } catch (e) {
@@ -425,89 +450,227 @@ export class BuyCryptoBatchService {
   ): Promise<void> {
     try {
       const {
-        target: {
-          amount: targetAmount,
-          availableAmount: availableTargetAmount,
-          maxPurchasableAmount: maxPurchasableTargetAmount,
-        },
-        reference: { availableAmount: availableReferenceAmount, maxPurchasableAmount: maxPurchasableReferenceAmount },
+        target: { amount: targetAmount, availableAmount: availableTargetAmount },
+        reference: { availableAmount: availableReferenceAmount },
       } = liquidity;
 
-      const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
+      const { outputReferenceAmount, outputAsset, outputReferenceAsset, transactions } = batch;
 
       const minTargetAmount = batch.smallestTransaction.calculateOutputAmount(outputReferenceAmount, targetAmount);
 
-      const minDeficit = Util.round(minTargetAmount - availableTargetAmount, 8);
-      const deficit = Util.round(targetAmount - availableTargetAmount, 8);
-
       if (!(await this.setMissingLiquidityStatus(transactions))) return;
 
-      // order liquidity
-      try {
-        await this.buyCryptoRepo.manager.transaction(async (manager) => {
-          for (const transaction of transactions) {
-            const locked = await manager.findOne(BuyCrypto, {
-              where: {
-                id: transaction.id,
-                version: transaction.version,
-                amlCheck: CheckStatus.PASS,
-                status: BuyCryptoStatus.MISSING_LIQUIDITY,
-                batch: IsNull(),
-                isComplete: false,
-              },
-              select: { id: true },
-              loadEagerRelations: false,
-              lock: { mode: 'pessimistic_write' },
-            });
-            if (!locked) return;
-          }
+      // this order covers the whole batch, so the amounts of the liquidity result are the amounts of the order
+      await this.orderMissingLiquidity(
+        {
+          transactions,
+          targetAsset: outputAsset,
+          referenceAsset: outputReferenceAsset,
+          minDeficit: Util.round(minTargetAmount - availableTargetAmount, 8),
+          deficit: Util.round(targetAmount - availableTargetAmount, 8),
+          requiredTargetAmount: targetAmount,
+          requiredReferenceAmount: outputReferenceAmount,
+          availableTargetAmount,
+          availableReferenceAmount,
+          reason: error.message,
+        },
+        liquidity,
+      );
+    } catch (e) {
+      this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
+    }
+  }
 
-          const pipeline = await this.liquidityService.buyLiquidity(oa.id, minDeficit, deficit, true);
-          this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
+  /**
+   * Transactions the available liquidity does not cover are dropped from the batch by `optimizeByLiquidity`.
+   * Dropping alone leaves them without status, liquidity order or trace: the next cycle re-reads them and the
+   * ascending sort hands the liquidity to every smaller transaction of the same asset again, so the largest one
+   * can starve for hours while smaller batches of the same asset are paid out. Putting them into
+   * MissingLiquidity and ordering the deficit for exactly this set is what ends that.
+   *
+   * Assigning a liquidity pipeline pauses the whole output asset — the pipeline filter in
+   * `batchAndOptimizeTransactions` skips every transaction of an asset that has a pipeline still running. That
+   * pause is intended: it keeps newly arriving smaller buys from consuming the liquidity bought for the
+   * deferred set. It now starts with the first drop instead of hours later.
+   *
+   * Never throws: the sub-batch the liquidity does cover has to proceed in the same cycle.
+   */
+  private async handleDeferredTransactions(
+    batch: BuyCryptoBatch,
+    deferredTransactions: BuyCrypto[],
+    liquidity: CheckLiquidityResult,
+    requestedReferenceAmount: number,
+  ): Promise<void> {
+    if (!deferredTransactions.length) return;
 
-          const result = await manager.update(
-            BuyCrypto,
-            {
-              id: In(transactions.map((transaction) => transaction.id)),
+    try {
+      const {
+        target: { amount: requestedTargetAmount, availableAmount: availableTargetAmount },
+        reference: { availableAmount: availableReferenceAmount },
+      } = liquidity;
+
+      const { outputAsset, outputReferenceAsset } = batch;
+
+      this.logger.info(
+        `Deferring ${deferredTransactions.length} buy-crypto transaction(s) of asset ${
+          outputAsset.uniqueName
+        } to missing liquidity. Transaction ID(s): ${deferredTransactions.map((t) => t.id)}`,
+      );
+
+      // all amounts have to be read before the status is set: setMissingLiquidityStatus resets
+      // outputReferenceAmount on the transactions, and the deficit cannot be sized from reset amounts
+      //
+      // liquidity was checked for the whole batch, so target amounts are shares of the requested reference
+      // amount; the sub-batch that stays consumes its share first and only the rest is left for this set
+      const deferredReferenceAmount = Util.round(Util.sumObjValue(deferredTransactions, 'outputReferenceAmount'), 8);
+      const deferredTargetAmount = Util.round(
+        Util.sum(
+          deferredTransactions.map((t) => t.calculateOutputAmount(requestedReferenceAmount, requestedTargetAmount)),
+        ),
+        8,
+      );
+      const minTargetAmount = Util.minObj(deferredTransactions, 'outputReferenceAmount').calculateOutputAmount(
+        requestedReferenceAmount,
+        requestedTargetAmount,
+      );
+      const keptTargetAmount = Util.round(requestedTargetAmount - deferredTargetAmount, 8);
+      const residualTargetAmount = Math.max(Util.round(availableTargetAmount - keptTargetAmount, 8), 0);
+
+      // the reference side is what the notification reports the deficit in, and it has to be the residual of
+      // this set as well - the whole-batch availability belongs to a demand this order does not carry
+      const keptReferenceAmount = Util.round(requestedReferenceAmount - deferredReferenceAmount, 8);
+      const residualReferenceAmount = Math.max(Util.round(availableReferenceAmount - keptReferenceAmount, 8), 0);
+
+      const order: MissingLiquidityOrder = {
+        transactions: deferredTransactions,
+        targetAsset: outputAsset,
+        referenceAsset: outputReferenceAsset,
+        minDeficit: Util.round(minTargetAmount - residualTargetAmount, 8),
+        deficit: Util.round(deferredTargetAmount - residualTargetAmount, 8),
+        requiredTargetAmount: deferredTargetAmount,
+        requiredReferenceAmount: deferredReferenceAmount,
+        availableTargetAmount: residualTargetAmount,
+        availableReferenceAmount: residualReferenceAmount,
+        reason: `Not enough liquidity for all ${outputAsset.uniqueName} buy-crypto transactions, ${deferredTransactions.length} transaction(s) deferred.`,
+      };
+
+      if (!(await this.setMissingLiquidityStatus(deferredTransactions))) return;
+
+      await this.orderMissingLiquidity(order, liquidity);
+    } catch (e) {
+      this.logger.error(`Error in handling deferred buy-crypto transactions for ${batch.outputAsset.uniqueName}:`, e);
+    }
+  }
+
+  private async orderMissingLiquidity(order: MissingLiquidityOrder, liquidity: CheckLiquidityResult): Promise<void> {
+    const {
+      transactions,
+      targetAsset,
+      referenceAsset,
+      minDeficit,
+      deficit,
+      requiredTargetAmount,
+      requiredReferenceAmount,
+      availableTargetAmount,
+      availableReferenceAmount,
+      reason,
+    } = order;
+
+    // only the purchasable amounts come from the liquidity result: they are a property of the venue and do not
+    // belong to any one order, while required and available amounts have to describe the order that is placed
+    const {
+      target: { maxPurchasableAmount: maxPurchasableTargetAmount },
+      reference: { maxPurchasableAmount: maxPurchasableReferenceAmount },
+    } = liquidity;
+
+    try {
+      await this.buyCryptoRepo.manager.transaction(async (manager) => {
+        for (const transaction of transactions) {
+          const locked = await manager.findOne(BuyCrypto, {
+            where: {
+              id: transaction.id,
+              version: transaction.version,
               amlCheck: CheckStatus.PASS,
               status: BuyCryptoStatus.MISSING_LIQUIDITY,
               batch: IsNull(),
               isComplete: false,
             },
-            { liquidityPipeline: pipeline },
-          );
-          if (result.affected !== transactions.length) throw new Error('BuyCrypto changed before pipeline assignment');
-        });
-      } catch (e) {
-        this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
-
-        // send missing liquidity message
-        if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING)) {
-          const maxPurchasableTargetAmountMessage =
-            maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
-
-          const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
-          const maxPurchasableReferenceAmountMessage =
-            maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
-
-          const messages = [
-            `${error.message} Details:`,
-            `Target: ${deficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
-            `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
-            `Liquidity management order failed: ${e.message}`,
-          ];
-
-          await this.buyCryptoNotificationService.sendMissingLiquidityError(
-            oa.dexName,
-            oa.blockchain,
-            oa.type,
-            transactions.map((t) => t.id),
-            messages,
-          );
+            select: { id: true },
+            loadEagerRelations: false,
+            lock: { mode: 'pessimistic_write' },
+          });
+          // the claim is lost when the transaction changed between the status write and this lock: no order is
+          // placed for the set, and the next cycle picks it up again from its new state
+          if (!locked) {
+            this.logger.info(
+              `Skipping missing buy-crypto liquidity order for ${
+                targetAsset.uniqueName
+              }: transaction ${transaction.id} changed before it could be claimed. Transaction ID(s): ${transactions.map(
+                (t) => t.id,
+              )}`,
+            );
+            return;
+          }
         }
-      }
+
+        const pipeline = await this.liquidityService.buyLiquidity(targetAsset.id, minDeficit, deficit, true);
+        this.logger.info(
+          `Missing buy-crypto liquidity. Liquidity management order created: ${
+            pipeline.id
+          }. Transaction ID(s): ${transactions.map((t) => t.id)}`,
+        );
+
+        const result = await manager.update(
+          BuyCrypto,
+          {
+            id: In(transactions.map((transaction) => transaction.id)),
+            amlCheck: CheckStatus.PASS,
+            status: BuyCryptoStatus.MISSING_LIQUIDITY,
+            batch: IsNull(),
+            isComplete: false,
+          },
+          { liquidityPipeline: pipeline },
+        );
+        if (result.affected !== transactions.length) throw new Error('BuyCrypto changed before pipeline assignment');
+      });
     } catch (e) {
-      this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
+      this.logger.info(`Failed to order missing liquidity for asset ${targetAsset.uniqueName}:`, e);
+
+      // Report every refusal but one: a rule that is already Processing has the order this call wanted to place
+      // under way, so there is nothing to report - the case this path suppressed before the deferral existed.
+      // No other rule state is covered by that: Paused, Inactive and Disabled all leave the deficit unordered
+      // and reach nobody on their own. A paused rule mails its own pipeline failure only if it carries
+      // sendNotifications, Inactive and Disabled report nothing at all, and the bc-payout-missing-liquidity ops
+      // rule only counts the transactions into a monitoring snapshot, which mails nobody. The repetition the
+      // deferred path adds is handled where it belongs - by the debounce in sendMissingLiquidityError, whose
+      // correlation id names the asset, so a waiting set that grows by one transaction no longer opens a new
+      // debounce window.
+      const isOrderAlreadyRunning =
+        e instanceof ConflictException && e.message?.includes(LiquidityManagementRuleStatus.PROCESSING);
+
+      if (!isOrderAlreadyRunning) {
+        const maxPurchasableTargetAmountMessage =
+          maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
+
+        const referenceDeficit = Util.round(requiredReferenceAmount - availableReferenceAmount, 8);
+        const maxPurchasableReferenceAmountMessage =
+          maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
+
+        const messages = [
+          `${reason} Details:`,
+          `Target: ${deficit} ${targetAsset.uniqueName} (required ${requiredTargetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
+          `Reference: ${referenceDeficit} ${referenceAsset.uniqueName} (required ${requiredReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
+          `Liquidity management order failed: ${e.message}`,
+        ];
+
+        await this.buyCryptoNotificationService.sendMissingLiquidityError(
+          targetAsset.dexName,
+          targetAsset.blockchain,
+          targetAsset.type,
+          transactions.map((t) => t.id),
+          messages,
+        );
+      }
     }
   }
 
@@ -588,6 +751,10 @@ export class BuyCryptoBatchService {
 
   private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<boolean> {
     for (const tx of transactions) {
+      // write on transition only: the ops rule for stuck MissingLiquidity transactions measures their age, and
+      // re-writing the same status on every cycle keeps the row young enough to never become overdue
+      if (tx.isMissingLiquidity) continue;
+
       const previousStatus = tx.status;
       const previousVersion = tx.version;
       const [, update] = tx.setMissingLiquidityStatus();
@@ -595,7 +762,17 @@ export class BuyCryptoBatchService {
         { id: tx.id, version: previousVersion, amlCheck: CheckStatus.PASS, status: previousStatus },
         update,
       );
-      if (result.affected !== 1) return false;
+      // one lost version race abandons the whole set for this cycle: the amounts were sized against the set as
+      // a whole, so ordering for a part of it would buy the wrong deficit. It self-heals - the next cycle reads
+      // the transactions again - but it has to be readable in the log why no order followed the status writes
+      if (result.affected !== 1) {
+        this.logger.info(
+          `Skipping missing buy-crypto liquidity handling: transaction ${
+            tx.id
+          } changed before its status could be set. Transaction ID(s): ${transactions.map((t) => t.id)}`,
+        );
+        return false;
+      }
       if (previousVersion !== undefined) tx.version = previousVersion + 1;
     }
     return true;

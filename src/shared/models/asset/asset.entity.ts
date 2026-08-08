@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Blockchain, TestnetBlockchains } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
@@ -146,6 +146,36 @@ export class Asset extends IEntity {
 
   isBuyableOn(blockchains: Blockchain[]): boolean {
     return blockchains.includes(this.blockchain) || this.type === AssetType.CUSTOM;
+  }
+
+  /**
+   * Whether `other` holds the same coin as this asset — the same good, sitting somewhere else.
+   *
+   * A coin has one row per place it can be held: the payout wallet's `Monero/XMR` and a trading
+   * venue's `MEXC/XMR` or `Kraken/XMR` are three rows and one coin. `name` is the column that
+   * groups them, and the alternatives are all wrong for it:
+   * - `uniqueName` encodes the place, so it can never group two places;
+   * - `dexName` additionally pulls in wrapped representations that are NOT the same good — a
+   *   DeFiChain `dBTC` row carries `dexName = 'BTC'`, and a whole family follows that pattern;
+   * - `id` is the place, which is exactly what this method has to look past.
+   *
+   * The table's uniqueness contract is `(dexName, type, blockchain)`, so `name` is a semantic
+   * grouping and not a key — which is why it is stated here once instead of being re-derived by
+   * every query that needs it.
+   *
+   * Testnets are held apart because they reuse mainnet tickers verbatim while carrying no value;
+   * without that, something waiting on a test network would speak for its mainnet namesake.
+   *
+   * Known imprecision, accepted: `BinanceSmartChain/ETHB` carries `name = 'ETH'` and is therefore
+   * grouped with ETH. Binance-peg ETH is economically the same coin, operationally not
+   * interchangeable with it.
+   */
+  isSameCoinAs(other: Asset): boolean {
+    return this.name === other.name && this.isTestnetAsset === other.isTestnetAsset;
+  }
+
+  private get isTestnetAsset(): boolean {
+    return TestnetBlockchains.includes(this.blockchain);
   }
 
   get isActive(): boolean {

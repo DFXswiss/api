@@ -19,6 +19,7 @@ import { HealthController } from './health.controller';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { AmlObserver } from './observers/aml.observer';
+import { BankProcessingObserver } from './observers/bank-processing/bank-processing.observer';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
 import { CheckoutObserver } from './observers/checkout.observer';
@@ -61,6 +62,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     UserObserver,
     BankingBotObserver,
     BankObserver,
+    BankProcessingObserver,
     ExternalServicesObserver,
     CheckoutObserver,
     AmlObserver,

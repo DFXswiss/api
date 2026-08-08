@@ -45,6 +45,7 @@ import {
   CallQueueSummaryEntry,
   KycFileListEntry,
   KycFileYearlyStats,
+  PendingChargebackInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
@@ -116,6 +117,14 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
     return this.supportService.getPendingTransactions();
+  }
+
+  @Get('pending-chargebacks')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingChargebacks(): Promise<PendingChargebackInfo[]> {
+    return this.supportService.getPendingChargebacks();
   }
 
   @Get('pending-reviews')

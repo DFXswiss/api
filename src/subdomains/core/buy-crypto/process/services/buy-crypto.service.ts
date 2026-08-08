@@ -75,7 +75,12 @@ import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { ResetBuyCryptoAmlReviewDto } from '../dto/reset-buy-crypto-aml-review.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import {
+  BuyCrypto,
+  BuyCryptoAwaitingPayoutStatus,
+  BuyCryptoEditableAmlCheck,
+  BuyCryptoStatus,
+} from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -1364,6 +1369,37 @@ export class BuyCryptoService implements OnModuleInit {
     return sum ?? 0;
   }
 
+  /**
+   * How many transactions are committed to a payout of one of the given assets and have not
+   * delivered it yet — the demand that a sale of those assets would take the coin away from.
+   *
+   * The qualifiers beyond the status are load-bearing, not decoration. On the status alone several
+   * hundred rows stay open forever: orders that were created and then abandoned before payment.
+   * `amlCheck`, the priced-and-costed columns and `isComplete` are what separate those from a
+   * transaction genuinely owed a payout — they are the columns
+   * `BuyCryptoBatchService.batchAndOptimizeTransactions` itself selects on, so what counts as demand
+   * here is what the batch job will actually try to pay out. A row being charged back is refunded
+   * rather than paid out, and is left out for the same reason the batch job leaves it out.
+   *
+   * Counted, not loaded: the caller needs the number for a decision and for the log line recording
+   * it, and a `find` would drag in the customer-facing rows behind it.
+   */
+  async countAwaitingPayout(assetIds: number[]): Promise<number> {
+    if (!assetIds.length) return 0;
+
+    return this.buyCryptoRepo.countBy({
+      outputAsset: { id: In(assetIds) },
+      status: In(BuyCryptoAwaitingPayoutStatus),
+      isComplete: false,
+      amlCheck: CheckStatus.PASS,
+      outputReferenceAsset: { id: Not(IsNull()) },
+      priceDefinitionAllowedDate: Not(IsNull()),
+      inputReferenceAmountMinusFee: Not(IsNull()),
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: IsNull(),
+    });
+  }
+
   // --- HELPER METHODS --- //
 
   private async createEntity(
@@ -1608,6 +1644,32 @@ export class BuyCryptoService implements OnModuleInit {
       loadEagerRelations: false,
       order: { created: 'ASC' },
       take: limit,
+    });
+  }
+
+  // Keep in sync with BuyCrypto.getChargebackBlockReasons() fail-closed / pending set.
+  async getPendingChargebacks(): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: {
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        isComplete: false,
+        chargebackBankTx: IsNull(),
+        chargebackOutput: IsNull(),
+        chargebackCryptoTxId: IsNull(),
+        batch: IsNull(),
+        outputAmount: IsNull(),
+      },
+      relations: {
+        transaction: { userData: true, user: true },
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        chargebackBankTx: true,
+        chargebackOutput: true,
+      },
+      order: { chargebackAllowedDateUser: 'ASC' },
     });
   }
 

@@ -16,14 +16,14 @@ AsyncAPI). Fehlende Screenshot-Sektionen sind **kein Bug**.
 Das Assembly-Script `scripts/handbook/build.js` **findet** Artefakte selbst (kein
 handgepflegtes Mapping, kein exakter Count-Guard):
 
-| Kategorie | Schlüssel | Quelle |
-|-----------|-----------|--------|
-| Beispielbelege | `pdfs` | rekursiver `*.pdf`-Scan ab Repo-Root (mit Ausschlussliste) |
-| Mail-Vorschauen | `mails` | Generator `scripts/generate-realunit-previews.js` → `scripts/email-previews/realunit/` |
-| Dokumentation | `docs` | rekursiver `*.md`-Scan ab Repo-Root (mit Ausschlussliste) |
-| Diagramme | `diagrams` | `src/subdomains/supporting/dex/docs/DEX_Module.{jpg,drawio}` |
-| Assets | `assets` | `assets/*.png` (Open-CryptoPay-Sticker) |
-| Spezifikationen | `specs` | `src/integration/exchange/docs/scrypt-asyncapi.yaml` (+ README) |
+| Kategorie       | Schlüssel  | Quelle                                                                                 |
+| --------------- | ---------- | -------------------------------------------------------------------------------------- |
+| Beispielbelege  | `pdfs`     | rekursiver `*.pdf`-Scan ab Repo-Root (mit Ausschlussliste)                             |
+| Mail-Vorschauen | `mails`    | Generator `scripts/generate-realunit-previews.js` → `scripts/email-previews/realunit/` |
+| Dokumentation   | `docs`     | rekursiver `*.md`-Scan ab Repo-Root (mit Ausschlussliste)                              |
+| Diagramme       | `diagrams` | `src/subdomains/supporting/dex/docs/DEX_Module.{jpg,drawio}`                           |
+| Assets          | `assets`   | `assets/*.png` (Open-CryptoPay-Sticker)                                                |
+| Spezifikationen | `specs`    | `src/integration/exchange/docs/scrypt-asyncapi.yaml` (+ README)                        |
 
 Ausgabe pro Build:
 

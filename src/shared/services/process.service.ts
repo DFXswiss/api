@@ -21,6 +21,7 @@ export enum Process {
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
+  BANK_PROCESSING_MONITORING = 'BankProcessingMonitoring',
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
   MONITOR_EVENT_LOOP = 'MonitorEventLoop',

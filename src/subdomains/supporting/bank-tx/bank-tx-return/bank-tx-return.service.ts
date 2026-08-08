@@ -70,6 +70,7 @@ export class BankTxReturnService {
     await this.setFiatAmounts();
   }
 
+  // Keep in sync with BankTxReturn.getChargebackBlockReasons() promotion conditions.
   async chargebackTx(): Promise<void> {
     const baseWhere = {
       chargebackAllowedDate: IsNull(),
@@ -97,14 +98,16 @@ export class BankTxReturnService {
     for (const entity of entities) {
       try {
         if (
-          Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
-          Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
-          (!entity.userData.verifiedName && !entity.userData.completeName)
+          Util.matchesCreditorName(entity.userData.verifiedName, entity.userData.completeName, entity.creditorData.name)
         )
           await this.refundBankTx(entity, {
             chargebackAllowedDate: new Date(),
             chargebackAllowedBy: 'API',
           });
+        else
+          this.logger.warn(
+            `BankTxReturn ${entity.id} waiting for manual chargeback approval due to creditor name mismatch`,
+          );
       } catch (e) {
         this.logger.error(`Failed to chargeback bank-tx-return ${entity.id}:`, e);
       }
@@ -198,6 +201,27 @@ export class BankTxReturnService {
     return this.bankTxReturnRepo.find({
       where: { chargebackBankTx: { id: IsNull() } },
       relations: { chargebackBankTx: true, bankTx: true },
+    });
+  }
+
+  // Keep in sync with BankTxReturn.getChargebackBlockReasons() fail-closed / pending set.
+  async getPendingChargebacks(): Promise<BankTxReturn[]> {
+    return this.bankTxReturnRepo.find({
+      where: {
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAllowedDate: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackOutput: IsNull(),
+        chargebackBankTx: IsNull(),
+      },
+      relations: {
+        userData: true,
+        bankTx: true,
+        transaction: true,
+        chargebackBankTx: true,
+        chargebackOutput: true,
+      },
+      order: { chargebackAllowedDateUser: 'ASC' },
     });
   }
 

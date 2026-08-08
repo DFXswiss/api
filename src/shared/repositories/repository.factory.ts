@@ -13,6 +13,7 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
+import { BankTxReturnRepository } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
 import { LiquidityOrderRepository } from 'src/subdomains/supporting/dex/repositories/liquidity-order.repository';
 import { FiatOutputRepository } from 'src/subdomains/supporting/fiat-output/fiat-output.repository';
@@ -27,6 +28,7 @@ export class RepositoryFactory {
   public readonly user: UserRepository;
   public readonly userData: UserDataRepository;
   public readonly bankTx: BankTxRepository;
+  public readonly bankTxReturn: BankTxReturnRepository;
   public readonly payIn: PayInRepository;
   public readonly buyFiat: BuyFiatRepository;
   public readonly buyCrypto: BuyCryptoRepository;
@@ -50,6 +52,7 @@ export class RepositoryFactory {
     this.user = new UserRepository(manager);
     this.userData = new UserDataRepository(manager);
     this.bankTx = new BankTxRepository(manager);
+    this.bankTxReturn = new BankTxReturnRepository(manager);
     this.payIn = new PayInRepository(manager);
     this.buyFiat = new BuyFiatRepository(manager);
     this.buyCrypto = new BuyCryptoRepository(manager);

@@ -36,7 +36,7 @@ Today 36 endpoints read only what they need and 410 do not, so the column reads 
 
 Of the 36 that read only what they need, 17 were converted deliberately and carry tests on all four levels: `GET /user/profile` (253 columns to 41), `GET /buy/:id/history` (497 columns to 12), `GET /swap/:id/history` (509 columns to 12), `GET /sell/:id/history` (470 columns to 14), `GET /support/issue/:id/data` (951 columns to 81), `GET /support/issue` (450 columns to 11), `GET /support/issue/:id` (450 columns to 11), `GET /kyc/users` (328 columns to 7), `GET /kyc/:id/documents` (328 columns to 2), `GET /custody/order` (19 columns to 14), `GET /support/issue/list` (16 columns to 10), `GET /realunit/support/list` (16 columns to 10), `GET /dashboard/accounting/ledger/suspense` (11 columns to 10), `GET /liquidityManagement/pipeline/:id/status` (112 columns to 2), `PUT /paymentLink/:id/pos` (513 columns to 7), `POST /user/apiKey/CT` (253 columns to 3), `GET /user` (351 columns to 66). The other 19 were already projecting — mostly counts, maxima and id lookups written with a query builder, which name their columns one at a time rather than as a list. They are not covered by the tests below, which is why 18 of them read `0/4` rather than `n/a`: a projection without those tests is exactly the state this document warns about, whether it was written today or three years ago. The nineteenth is `POST /gs/debug`, which stays `n/a` because its field list comes from the request and there is no fixed projection to test. `POST /gs/db` and `POST /gs/db/custom` project only when the caller sends a field list — `request.select(query.select)` — and load the full table otherwise.
 
-Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 73 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
+Among the 410 that fetch whole rows, the widest query they can trigger is **308 columns** at the median of the recorded maxima; at least 306 exceed 100, 74 exceed 500 and 21 exceed 1000. Postgres refuses a statement with more than 1664 columns, so a query near that number is one added column away from failing outright.
 
 ### How to read this column, and how not to
 
@@ -501,7 +501,6 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/ref` | hidden | none | — | n/a |  | `RefController.createRef` | `subdomains/core/referral/process/ref.controller.ts` |
 | POST | 1 |  | `/reward/ref` | hidden | whole rows | 156 | not yet |  | `RefRewardController.createPendingRefRewards` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | 1 |  | `/reward/ref/:id` | hidden | whole rows | 234 | not yet |  | `RefRewardController.updateRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
-| POST | 1 |  | `/reward/ref/manual` | hidden | whole rows | 308 | not yet |  | `RefRewardController.createManualRefReward` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | PUT | 1 |  | `/reward/ref/volumes` | hidden | whole rows | 308 | not yet |  | `RefRewardController.updateVolumes` | `subdomains/core/referral/reward/ref-reward.controller.ts` |
 | GET | 1 |  | `/route` | hidden | whole rows | 308 | not yet |  | `RouteController.getAllRoutes` | `subdomains/core/route/route.controller.ts` |
 | PUT | 1 |  | `/route/:id` | hidden | whole rows | 170 | not yet |  | `RouteController.updateRoute` | `subdomains/core/route/route.controller.ts` |
@@ -559,6 +558,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | DELETE | 1 |  | `/support/note/:id` | hidden | whole rows | 9 | not yet |  | `SupportController.deleteNote` | `subdomains/generic/support/support.controller.ts` |
 | PUT | 1 |  | `/support/note/:id` | hidden | whole rows | 239 | not yet |  | `SupportController.updateNote` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/note/users` | hidden | projected | 5 | 0/4 |  | `SupportController.listNoteUsers` | `subdomains/generic/support/support.controller.ts` |
+| GET | 1 |  | `/support/pending-chargebacks` | hidden | whole rows | 889 | not yet |  | `SupportController.getPendingChargebacks` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews` | hidden | projected | 3 | 0/4 |  | `SupportController.getPendingReviews` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-reviews/items` | hidden | whole rows | 261 | not yet |  | `SupportController.getPendingReviewItems` | `subdomains/generic/support/support.controller.ts` |
 | GET | 1 |  | `/support/pending-transactions` | hidden | whole rows | 669 | not yet |  | `SupportController.getPendingTransactions` | `subdomains/generic/support/support.controller.ts` |
@@ -600,7 +600,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | PUT | 1 |  | `/transaction/detail/csv` | public | whole rows | 1363 | not yet |  | `TransactionController.createDetailCsv` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/detail/single` | public | whole rows | 484 | not yet | yes | `TransactionController.getSingleTransactionDetails` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/single` | public | whole rows | 484 | not yet | yes | `TransactionController.getSingleTransaction` | `subdomains/core/history/controllers/transaction.controller.ts` |
-| GET | 1 |  | `/transaction/target` | hidden | whole rows | 130 | not yet |  | `TransactionController.getTransactionTargets` | `subdomains/core/history/controllers/transaction.controller.ts` |
+| GET | 1 |  | `/transaction/target` | hidden | whole rows | 130 | not yet | yes | `TransactionController.getTransactionTargets` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | GET | 1 |  | `/transaction/unassigned` | hidden | whole rows | 357 | not yet |  | `TransactionController.getUnassignedTransactions` | `subdomains/core/history/controllers/transaction.controller.ts` |
 | DELETE | 1 | yes | `/user` | public | whole rows | 344 | not yet |  | `UserController.deleteUser` | `subdomains/generic/user/models/user/user.controller.ts` |
 | DELETE | 2 |  | `/user` | public | whole rows | 344 | not yet |  | `UserV2Controller.deleteAccount` | `subdomains/generic/user/models/user/user.controller.ts` |

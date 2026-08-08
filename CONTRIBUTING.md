@@ -1,5 +1,14 @@
 # Contributing Guidelines
 
+## Deviating From These Rules
+
+These guidelines are binding. A PR that knowingly does not meet one of them must say so
+**explicitly in its description**, naming the rule it departs from and the reason. An undeclared
+deviation is not a discussion point — the PR is rejected.
+
+A declared deviation is the reviewer's call: they may accept it or refuse it at their own
+discretion. Declaring one is not the same as being granted one.
+
 ## Build & Test
 
 ```bash
@@ -30,12 +39,26 @@ Every PR must include:
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
 5. **Cron job inventory** (if a `@DfxCron` job was added, removed or re-scheduled) — [docs/cron-jobs.md](docs/cron-jobs.md)
+6. **Full coverage of every touched file** — see _Test Coverage_ below
 
 Missing any of these = changes requested.
 
-Routes carry a sixth obligation: any change to the set of endpoints — added, removed, renamed or
+Routes carry a seventh obligation: any change to the set of endpoints — added, removed, renamed or
 re-scoped — must be reflected in [docs/endpoints.md](docs/endpoints.md) in the same PR, together
-with the `Tests` state of anything converted. See *Endpoint Inventory* below.
+with the `Tests` state of anything converted. See _Endpoint Inventory_ below.
+
+### Test Coverage
+
+Every file a PR touches must reach 100% on all four metrics (branches, functions, lines,
+statements) and is pinned in the coverage ratchet in the same PR.
+
+- This applies to the **whole file**, not only the changed lines. Touching a file makes you
+  responsible for it.
+- If that is not feasible in one PR, cover the file in a preparatory PR first, then make the
+  change.
+- The ratchet only protects files already on its list, so a file that is merely edited does not
+  fail CI on its own — this rule is what puts it on the list. See
+  [docs/coverage-gate.md](docs/coverage-gate.md) for the mechanism.
 
 ### Before Merge
 
@@ -618,7 +641,7 @@ async resyncDeniedJwtAccounts(): Promise<void> {}
 async doUpdate(): Promise<void> {}
 ```
 
-Ask: *does a request handler read state this job writes?* If both a request path and a job read
+Ask: _does a request handler read state this job writes?_ If both a request path and a job read
 it, the answer is `Both`; if only a request path does, `Api`; otherwise `Worker`. Getting it
 wrong fails silently — the state simply freezes at boot wherever the job does not run. The JWT
 denylists are the cautionary example: frozen, they fail open and a blocked account keeps its live
@@ -686,12 +709,12 @@ Overwriting a stored value is only allowed when the **previous** value remains
 it must always be clear **when** a field changed, **from which** previous value, and
 **to which** new value.
 
-| Rule | Requirement |
-|------|-------------|
-| **No silent data loss** | If an overwrite can destroy information that is not still queryable on another durable row/event, it is a **bug**. |
-| **Event before snapshot** | Write the immutable event first (e.g. registration `signedPayload`, superseded history rows, append-only log). Only then update a denormalised “current” column. |
-| **Before → after audit** | For mutable snapshot columns, record `previous` and `next` (and identity/context) **before** the column update. If the audit write fails, do **not** change the column (fail closed). |
-| **No destructive clear** | Do not set a non-null field to `null`/empty when the new business event does not itself retain that prior payload (e.g. clearing `user_data.tin` on a Swiss-only registration that omits `countryAndTINs`). |
+| Rule                      | Requirement                                                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No silent data loss**   | If an overwrite can destroy information that is not still queryable on another durable row/event, it is a **bug**.                                                                                          |
+| **Event before snapshot** | Write the immutable event first (e.g. registration `signedPayload`, superseded history rows, append-only log). Only then update a denormalised “current” column.                                            |
+| **Before → after audit**  | For mutable snapshot columns, record `previous` and `next` (and identity/context) **before** the column update. If the audit write fails, do **not** change the column (fail closed).                       |
+| **No destructive clear**  | Do not set a non-null field to `null`/empty when the new business event does not itself retain that prior payload (e.g. clearing `user_data.tin` on a Swiss-only registration that omits `countryAndTINs`). |
 
 **Allowed pattern:** dual-store current snapshot + immutable history.
 
@@ -700,7 +723,7 @@ it must always be clear **when** a field changed, **from which** previous value,
 
 **Not allowed:** in-place `UPDATE` that replaces or nulls a field when the old value exists nowhere else; “stale cleanup” that drops data without a recoverable prior record.
 
-When reviewing PRs that touch persistence, ask: *If this write runs, can an investigator still reconstruct the previous value and the change time from the DB alone?* If not, reject the change.
+When reviewing PRs that touch persistence, ask: _If this write runs, can an investigator still reconstruct the previous value and the change time from the DB alone?_ If not, reject the change.
 
 ### Entity Patterns
 
@@ -1088,20 +1111,20 @@ This does **not** cover an endpoint that starts an operation and then waits for 
 
 Endpoints that block by design:
 
-| Path                                 | Blocks until                                                                                                                                                                      | `wait` segment |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `GET /v1/lnurlp/wait/:id`            | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`); bounded at 60 s, after which it answers with the payment as it stands | yes            |
-| `GET /v1/paymentLink/payment/wait`   | the same, and under the same bound, for the authenticated payment-link flow                                                                                                       | yes            |
-| `GET /v1/lnurlp/:id`                 | a pending payment appears; bounded by `timeout` (default 10 s, caller-controllable)                                                                                               | no — exempt    |
-| `GET /v1/lnurlp/tx/:id`              | the payer's own broadcast reaches one confirmation (`tx` branch); 15 polls at 1 s. The `hex` branch broadcasts without awaiting confirmation, except on ICP, where it first waits for the payer's allowance (up to 3 attempts, 2 s apart) | no — exempt    |
-| `GET /v1/node/:node/tx/:txId`        | the transaction reaches one confirmation; bounded at 600 s                                                                                                                        | no — exempt    |
-| `GET /v1/node/:node/:mode/tx/:txId`  | the same                                                                                                                                                                          | no — exempt    |
+| Path                                | Blocks until                                                                                                                                                                                                                                                | `wait` segment |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `GET /v1/lnurlp/wait/:id`           | the payment resolves: completed, canceled, expired — or, for `MULTIPLE`-mode links, when a quote reaches the configured completion threshold (the payment itself may stay `Pending`); bounded at 60 s, after which it answers with the payment as it stands | yes            |
+| `GET /v1/paymentLink/payment/wait`  | the same, and under the same bound, for the authenticated payment-link flow                                                                                                                                                                                 | yes            |
+| `GET /v1/lnurlp/:id`                | a pending payment appears; bounded by `timeout` (default 10 s, caller-controllable)                                                                                                                                                                         | no — exempt    |
+| `GET /v1/lnurlp/tx/:id`             | the payer's own broadcast reaches one confirmation (`tx` branch); 15 polls at 1 s. The `hex` branch broadcasts without awaiting confirmation, except on ICP, where it first waits for the payer's allowance (up to 3 attempts, 2 s apart)                   | no — exempt    |
+| `GET /v1/node/:node/tx/:txId`       | the transaction reaches one confirmation; bounded at 600 s                                                                                                                                                                                                  | no — exempt    |
+| `GET /v1/node/:node/:mode/tx/:txId` | the same                                                                                                                                                                                                                                                    | no — exempt    |
 
-**The `wait` segment is the default; exemptions must be explicit.** A *passively* waiting route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A passively waiting route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented. Routes of the second kind above — those awaiting an operation they started themselves — need no entry; they are outside this rule by design.
+**The `wait` segment is the default; exemptions must be explicit.** A _passively_ waiting route without one is acceptable only if it is listed in the table above together with the reason it cannot carry the segment. A passively waiting route that is neither named `wait` nor listed here is a defect — fix it by renaming the route or by adding an entry, never by leaving it undocumented. Routes of the second kind above — those awaiting an operation they started themselves — need no entry; they are outside this rule by design.
 
 The four current exemptions keep their paths because those are fixed from outside: `/v1/lnurlp/:id` is the LNURL pay-request path encoded into LNURLs already in circulation, `/v1/lnurlp/tx/:id` is handed to the payer inside the payment request itself, and the two node routes are admin-only and `@ApiExcludeEndpoint()`. Because they carry no `wait` segment they stay visible in latency monitoring — read their duration as expected behavior, not as a regression.
 
-This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)?$` from its slowest-requests view. A long poll's duration measures how long a *customer* took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
+This is not cosmetic. Latency monitoring excludes routes matching `^.*/wait(/.*)?$` from its slowest-requests view. A long poll's duration measures how long a _customer_ took to act, not how long the API computed — leaving it in that view pushes the genuine outliers out of a list with a fixed row cap.
 
 Getting the name wrong breaks monitoring in one of two directions:
 
@@ -1114,24 +1137,24 @@ The pattern is segment-anchored, so `/waitlist`, `/waitTime`, `/awaiting` and `/
 
 The RealUnit purchase and sale flows historically lived under `/v1/realunit/brokerbot/*`. That naming is misleading: most of those endpoints never touch the on-chain Brokerbot smart contract. Treat them as two distinct subsystems:
 
-| Path                                              | What it does                                                                                                                                                                         | On-chain?                                                                         |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `GET /v1/realunit/quote/price`                    | Spot price per share                                                                                                                                                                 | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache)                  |
-| `GET /v1/realunit/quote/buyPrice?shares=N`        | `N × price` (buy direction)                                                                                                                                                          | No                                                                                |
-| `GET /v1/realunit/quote/buyShares?amount=N`       | `floor(N / price)` (buy direction)                                                                                                                                                   | No                                                                                |
-| `GET /v1/realunit/quote/sellPrice?shares=N`       | Estimated payout after user-specific fees                                                                                                                                            | No — REST price + local fee math                                                  |
-| `GET /v1/realunit/quote/sellShares?amount=N`      | Reverse of the above                                                                                                                                                                 | No                                                                                |
-| `GET /v1/realunit/quote/info`                     | Spot price + Brokerbot contract addresses (for clients that need them)                                                                                                               | No                                                                                |
-| `PUT /v1/realunit/buy` + `/buy/:id/confirm`       | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate`                                                                                        | No                                                                                |
-| `PUT /v1/realunit/sell`                           | Anchors the quote against the live on-chain sell price before returning payment-info                                                                                                 | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
-| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign                                                                                                     | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
-| `PUT /v1/realunit/sell/:id/confirm`               | Verifies the user-signed batch against the live on-chain sell price                                                                                                                  | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
-| `PUT /v1/realunit/sell/:id/broadcast`             | Submits the user-signed EIP-1559 transaction to the network                                                                                                                          | No — broadcast only, no `readContract`                                            |
-| `PUT /v1/realunit/transfer`                       | Persists a wallet-to-wallet (W2W) transfer intent and returns the EIP-7702 delegation data to sign. Limit-exempt (on-chain REALU→REALU self-custody movement).                       | No — prepares the gasless transfer                                                |
-| `PUT /v1/realunit/transfer/:id/confirm`           | Relays the user-signed EIP-7702 delegation for the stored transfer request; DFX pays gas from the dedicated W2W gas wallet (`REALUNIT_W2W_GAS_WALLET_*`), never the Sell/OTC relayer | No `readContract` — relays the user-authorized ERC20 transfer                     |
+| Path                                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | On-chain?                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /v1/realunit/quote/price`                    | Spot price per share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache)                  |
+| `GET /v1/realunit/quote/buyPrice?shares=N`        | `N × price` (buy direction)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | No                                                                                |
+| `GET /v1/realunit/quote/buyShares?amount=N`       | `floor(N / price)` (buy direction)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | No                                                                                |
+| `GET /v1/realunit/quote/sellPrice?shares=N`       | Estimated payout after user-specific fees                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | No — REST price + local fee math                                                  |
+| `GET /v1/realunit/quote/sellShares?amount=N`      | Reverse of the above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | No                                                                                |
+| `GET /v1/realunit/quote/info`                     | Spot price + Brokerbot contract addresses (for clients that need them)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | No                                                                                |
+| `PUT /v1/realunit/buy` + `/buy/:id/confirm`       | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | No                                                                                |
+| `PUT /v1/realunit/sell`                           | Anchors the quote against the live on-chain sell price before returning payment-info                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
+| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
+| `PUT /v1/realunit/sell/:id/confirm`               | Verifies the user-signed batch against the live on-chain sell price                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
+| `PUT /v1/realunit/sell/:id/broadcast`             | Submits the user-signed EIP-1559 transaction to the network                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | No — broadcast only, no `readContract`                                            |
+| `PUT /v1/realunit/transfer`                       | Persists a wallet-to-wallet (W2W) transfer intent and returns the EIP-7702 delegation data to sign. Limit-exempt (on-chain REALU→REALU self-custody movement).                                                                                                                                                                                                                                                                                                                                                                                                                | No — prepares the gasless transfer                                                |
+| `PUT /v1/realunit/transfer/:id/confirm`           | Relays the user-signed EIP-7702 delegation for the stored transfer request; DFX pays gas from the dedicated W2W gas wallet (`REALUNIT_W2W_GAS_WALLET_*`), never the Sell/OTC relayer                                                                                                                                                                                                                                                                                                                                                                                          | No `readContract` — relays the user-authorized ERC20 transfer                     |
 | `PUT /v1/realunit/swap`                           | IBAN-free REALU → ZCHF swap quote — creates a `TransactionRequestType.SWAP` request (proceeds stay in the user wallet, no fiat Sell route/payout). Gated by RealUnit registration + KYC Level 30 (who may use the feature). **Limit-exempt by design**: KYC trading limits apply at the fiat boundary (buy/sell), but this is a crypto → crypto, self-custody, on-chain swap, so the non-fiat RealUnit carve-out in `TransactionHelper.getLimits` means `QuoteError.LIMIT_EXCEEDED` never fires for this pair. Anchors the ZCHF estimate against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
-| `PUT /v1/realunit/swap/:id/unsigned-transaction`  | Builds the REALU `transferAndCall` swap tx WITHOUT the deposit sweep (ZCHF lands in the user wallet)                                                                                | No — builds calldata only                                                        |
-| `PUT /v1/realunit/swap/:id/broadcast`             | Submits the user-signed swap EIP-1559 transaction to the network                                                                                                                     | No — broadcast only, no `readContract`                                            |
+| `PUT /v1/realunit/swap/:id/unsigned-transaction`  | Builds the REALU `transferAndCall` swap tx WITHOUT the deposit sweep (ZCHF lands in the user wallet)                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | No — builds calldata only                                                         |
+| `PUT /v1/realunit/swap/:id/broadcast`             | Submits the user-signed swap EIP-1559 transaction to the network                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | No — broadcast only, no `readContract`                                            |
 
 Operational consequences:
 
@@ -1321,30 +1344,30 @@ single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
 
 ## Anti-Patterns
 
-| Anti-Pattern                               | Correct Pattern                                   |
-| ------------------------------------------ | ------------------------------------------------- | ------------- | ---- |
-| Magic booleans: `getPrice(from, to, true)` | Use enum: `getPrice(from, to, PriceValidity.ANY)` |
-| Hardcoded values: `fee = 5`                | Config object or DB setting                       |
-| `else if` after return/throw               | Separate `if` blocks with early returns           |
-| `console.log` in production code           | Use `this.logger.*` with proper levels            |
-| `parseInt(id)`                             | `+id`                                             |
-| `filter()[0]`                              | `find()`                                          |
-| `forEach` + push                           | `.map()`                                          |
-| `                                          |                                                   | ` for nullish | `??` |
-| `== null ? x : y`                          | `?? x`                                            |
-| Loading all then filtering in JS           | SQL WHERE clause                                  |
-| `any` type                                 | Proper typed interface/class                      |
-| `string` for enum values                   | Typed enum                                        |
+| Anti-Pattern                               | Correct Pattern                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------- | ------------- | ---- |
+| Magic booleans: `getPrice(from, to, true)` | Use enum: `getPrice(from, to, PriceValidity.ANY)`                    |
+| Hardcoded values: `fee = 5`                | Config object or DB setting                                          |
+| `else if` after return/throw               | Separate `if` blocks with early returns                              |
+| `console.log` in production code           | Use `this.logger.*` with proper levels                               |
+| `parseInt(id)`                             | `+id`                                                                |
+| `filter()[0]`                              | `find()`                                                             |
+| `forEach` + push                           | `.map()`                                                             |
+| `                                          |                                                                      | ` for nullish | `??` |
+| `== null ? x : y`                          | `?? x`                                                               |
+| Loading all then filtering in JS           | SQL WHERE clause                                                     |
+| `any` type                                 | Proper typed interface/class                                         |
+| `string` for enum values                   | Typed enum                                                           |
 | `@Interval(60000)`                         | `@DfxCron(CronExpression.EVERY_MINUTE, { scope: CronScope.WORKER })` |
-| `eager: true` everywhere                   | Explicit relation loading                         |
-| Providing service in multiple modules      | Single module, import from there                  |
-| `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                              |
-| Default parameters hiding intent           | Explicit parameters                               |
-| `forwardRef` when avoidable                | Restructure module dependencies                   |
-| Base64 encode then immediately decode      | Pass the buffer directly                          |
-| Parameter threading through 4+ layers      | Context/strategy object resolved once             |
-| Method-forwarding without added logic      | Call the sub-service directly                     |
-| Disabling ESLint rules without reason      | Fix the code instead                              |
+| `eager: true` everywhere                   | Explicit relation loading                                            |
+| Providing service in multiple modules      | Single module, import from there                                     |
+| `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                                                 |
+| Default parameters hiding intent           | Explicit parameters                                                  |
+| `forwardRef` when avoidable                | Restructure module dependencies                                      |
+| Base64 encode then immediately decode      | Pass the buffer directly                                             |
+| Parameter threading through 4+ layers      | Context/strategy object resolved once                                |
+| Method-forwarding without added logic      | Call the sub-service directly                                        |
+| Disabling ESLint rules without reason      | Fix the code instead                                                 |
 
 ---
 

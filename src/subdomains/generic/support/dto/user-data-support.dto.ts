@@ -1,4 +1,5 @@
 import { IsNotEmpty } from 'class-validator';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -56,6 +57,29 @@ export class PendingTransactionInfo {
   amlCheck?: CheckStatus;
   amlReason?: AmlReason;
   date: Date;
+}
+
+export class PendingChargebackInfo {
+  txId: number;
+  uid: string;
+  sourceType: 'BuyCrypto' | 'BuyFiat' | 'BankTxReturn';
+  entityId: number;
+  userDataId: number;
+  userName?: string;
+  inputAmount?: number;
+  inputAsset?: string;
+  chargebackAmount?: number;
+  chargebackAsset?: string;
+  blockReasons: ChargebackBlockReason[];
+  requestedDate: Date;
+  date: Date;
+  verifiedName?: string;
+  completeName?: string;
+  creditorName?: string;
+  // Always empty/undefined here: all three pending queries (BuyCrypto, BuyFiat, BankTxReturn)
+  // enforce chargebackDate: IsNull(). A set value would mean a where exclusion was lost and the
+  // row wrongly appears as pending — the double-payout risk this field surfaces as a UI sentinel.
+  chargebackDate?: Date;
 }
 
 export enum PendingReviewType {

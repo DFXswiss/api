@@ -326,7 +326,8 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
-    const buys = await this.buyService.getUserDataBuys(jwt.account);
+    // a mail-elevated staff token (tfaRequired) is not a wallet login — keep the account-wide list
+    const buys = await this.buyService.getUserDataBuys(jwt.account, jwt.tfaRequired ? undefined : jwt.user);
 
     return buys.map((b) => ({
       id: b.id,

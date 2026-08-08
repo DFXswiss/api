@@ -44,32 +44,8 @@
     "mailPass": {
       "value": "xxx"
     },
-    "kycGatewayHost": {
-      "value": "https://gateway.online-ident.ch"
-    },
-    "kycCustomerAuto": {
-      "value": "xxx"
-    },
-    "kycApiKeyAuto": {
-      "value": "xxx"
-    },
-    "kycCustomerVideo": {
-      "value": "xxx"
-    },
-    "kycApiKeyVideo": {
-      "value": "xxx"
-    },
     "kycTransactionPrefix": {
       "value": "xxx"
-    },
-    "kycMandator": {
-      "value": "dfx_test"
-    },
-    "kycPassword": {
-      "value": "xxx"
-    },
-    "kycWebhookIps": {
-      "value": "*"
     },
     "kycAppToken": {
       "value": "xxx"
@@ -77,11 +53,8 @@
     "kycSecretKey": {
       "value": "xxx"
     },
-    "kycWebhookSecret": {
+    "kycWebhookKey": {
       "value": "xxx"
-    },
-    "kycPrefix": {
-      "value": "test."
     },
     "githubToken": {
       "value": "xxx"

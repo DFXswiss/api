@@ -6,15 +6,26 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
+import { ChargebackBlockReason } from 'src/shared/dto/chargeback-block-reason.enum';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { createCustomUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput, PayInAction } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
@@ -79,6 +90,7 @@ describe('SupportService', () => {
   let recallService: RecallService;
   let buyCryptoService: BuyCryptoService;
   let buyFiatService: BuyFiatService;
+  let bankTxReturnService: BankTxReturnService;
   let payInService: PayInService;
   let transactionService: TransactionService;
   let scorechainScreeningService: ScorechainScreeningService;
@@ -99,6 +111,7 @@ describe('SupportService', () => {
     recallService = module.get(RecallService);
     buyCryptoService = module.get(BuyCryptoService);
     buyFiatService = module.get(BuyFiatService);
+    bankTxReturnService = module.get(BankTxReturnService);
     payInService = module.get(PayInService);
     transactionService = module.get(TransactionService);
     scorechainScreeningService = module.get(ScorechainScreeningService);
@@ -121,6 +134,172 @@ describe('SupportService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getPendingChargebacks', () => {
+    function releasedUserData(id: number, name = 'Max Mustermann'): UserData {
+      return createCustomUserData({
+        id,
+        kycStatus: KycStatus.COMPLETED,
+        status: UserDataStatus.ACTIVE,
+        riskStatus: RiskStatus.NA,
+        verifiedName: name,
+        firstname: name.split(' ')[0],
+        surname: name.split(' ')[1],
+      });
+    }
+
+    it('merges all three sources, filters empty blockReasons, sorts by requestedDate ascending', async () => {
+      const early = new Date('2026-07-17T10:00:00.000Z');
+      const mid = new Date('2026-07-20T10:00:00.000Z');
+      const late = new Date('2026-08-01T10:00:00.000Z');
+
+      const blockedBuyCrypto = createCustomBuyCrypto({
+        id: 11,
+        chargebackAmount: undefined,
+        chargebackAllowedDateUser: late,
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        isComplete: false,
+        chargebackBankTx: undefined,
+        chargebackCryptoTxId: undefined,
+        batch: undefined,
+        outputAmount: undefined,
+        amlCheck: CheckStatus.FAIL,
+        bankTx: { id: 1 } as any,
+        chargebackIban: 'CH9300762011623852957',
+        chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
+        chargebackAsset: 'EUR',
+        inputAmount: 100,
+        inputAsset: 'EUR',
+        transaction: createCustomTransaction({
+          id: 101,
+          uid: 'T_BC',
+          userData: releasedUserData(1),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+        created: new Date('2026-07-01'),
+      });
+
+      // Auto-job can release this one → blockReasons empty → filtered out
+      const autoReleasableBuyCrypto = createCustomBuyCrypto({
+        id: 12,
+        chargebackAmount: 50,
+        chargebackAllowedDateUser: mid,
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        isComplete: false,
+        chargebackBankTx: undefined,
+        chargebackCryptoTxId: undefined,
+        batch: undefined,
+        outputAmount: undefined,
+        amlCheck: CheckStatus.FAIL,
+        bankTx: { id: 2 } as any,
+        chargebackIban: 'CH9300762011623852957',
+        chargebackCreditorData: JSON.stringify({ name: 'Max Mustermann' }),
+        transaction: createCustomTransaction({
+          id: 102,
+          uid: 'T_BC_AUTO',
+          userData: releasedUserData(2),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+      });
+
+      const blockedBuyFiat = createCustomBuyFiat({
+        id: 21,
+        chargebackAmount: undefined,
+        chargebackAddress: undefined,
+        chargebackAllowedDateUser: mid,
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        isComplete: false,
+        chargebackTxId: undefined,
+        chargebackAsset: 'BTC',
+        inputAmount: 0.1,
+        amlCheck: CheckStatus.FAIL,
+        outputAmount: undefined,
+        transaction: createCustomTransaction({
+          id: 201,
+          uid: 'T_BF',
+          userData: releasedUserData(3, 'Erika Muster'),
+          user: createCustomUser({ status: UserStatus.ACTIVE }),
+        }),
+        created: new Date('2026-07-02'),
+      });
+
+      const blockedBankTxReturn = Object.assign(new BankTxReturn(), {
+        id: 31,
+        chargebackAmount: undefined,
+        chargebackIban: undefined,
+        chargebackCreditorData: undefined,
+        chargebackAllowedDateUser: early,
+        chargebackAllowedDate: undefined,
+        chargebackDate: undefined,
+        chargebackOutput: undefined,
+        chargebackBankTx: undefined,
+        chargebackAsset: 'CHF',
+        inputAmount: 52,
+        inputAsset: 'CHF',
+        userData: releasedUserData(4, 'Hans Meier'),
+        transaction: createCustomTransaction({ id: 301, uid: 'T_BTR' }),
+        created: new Date('2026-06-01'),
+      });
+
+      jest
+        .spyOn(buyCryptoService, 'getPendingChargebacks')
+        .mockResolvedValue([blockedBuyCrypto, autoReleasableBuyCrypto]);
+      jest.spyOn(buyFiatService, 'getPendingChargebacks').mockResolvedValue([blockedBuyFiat]);
+      jest.spyOn(bankTxReturnService, 'getPendingChargebacks').mockResolvedValue([blockedBankTxReturn]);
+
+      const result = await service.getPendingChargebacks();
+
+      expect(result).toHaveLength(3);
+      expect(result.map((r) => r.sourceType)).toEqual(['BankTxReturn', 'BuyFiat', 'BuyCrypto']);
+      expect(result.map((r) => r.entityId)).toEqual([31, 21, 11]);
+      expect(result.map((r) => r.requestedDate)).toEqual([early, mid, late]);
+
+      expect(result[0]).toMatchObject({
+        txId: 301,
+        uid: 'T_BTR',
+        sourceType: 'BankTxReturn',
+        entityId: 31,
+        userDataId: 4,
+        inputAmount: 52,
+        inputAsset: 'CHF',
+        chargebackAsset: 'CHF',
+        verifiedName: 'Hans Meier',
+        blockReasons: expect.arrayContaining([
+          ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT,
+          ChargebackBlockReason.MISSING_CHARGEBACK_TARGET,
+          ChargebackBlockReason.MISSING_CREDITOR_DATA,
+        ]),
+      });
+
+      expect(result[1]).toMatchObject({
+        txId: 201,
+        uid: 'T_BF',
+        sourceType: 'BuyFiat',
+        entityId: 21,
+        userDataId: 3,
+        userName: 'Erika Muster',
+        blockReasons: expect.arrayContaining([
+          ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT,
+          ChargebackBlockReason.MISSING_CHARGEBACK_TARGET,
+        ]),
+      });
+
+      expect(result[2]).toMatchObject({
+        txId: 101,
+        uid: 'T_BC',
+        sourceType: 'BuyCrypto',
+        entityId: 11,
+        userDataId: 1,
+        inputAsset: 'EUR',
+        chargebackAsset: 'EUR',
+        creditorName: 'Max Mustermann',
+        blockReasons: [ChargebackBlockReason.MISSING_CHARGEBACK_AMOUNT],
+      });
+    });
   });
 
   describe('transaction refund state', () => {

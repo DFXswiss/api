@@ -475,6 +475,13 @@ export class KycController {
 
     const result = JSON.parse(data) as SumSubWebhookResult;
 
+    if (SumsubService.isSandboxWebhookOnProd(result)) {
+      this.logger.error(
+        `Rejected sandbox sumsub webhook on production for applicant ${result.applicantId} (transaction ${result.externalUserId})`,
+      );
+      throw new ForbiddenException('Invalid environment');
+    }
+
     try {
       this.kycService.updateSumsubIdent(result);
     } catch (e) {

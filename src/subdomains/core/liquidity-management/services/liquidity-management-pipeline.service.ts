@@ -950,6 +950,8 @@ export class LiquidityManagementPipelineService {
     return isComplete;
   }
 
+  // Deliberately does NOT reset the rule's activation debounce (unlike handlePipelineFail): a deficit that the
+  // venue only accepts in installments needs the next pipeline to start immediately, not after another delay.
   private async handlePipelineCompletion(pipeline: LiquidityManagementPipeline): Promise<void> {
     const rule = pipeline.rule.reactivate();
 

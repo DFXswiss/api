@@ -4,7 +4,6 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateManualRefRewardDto } from './dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
 import { RefRewardService } from './services/ref-reward.service';
@@ -36,13 +35,5 @@ export class RefRewardController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPendingRefRewards(): Promise<void> {
     return this.refRewardService.createPendingRefRewards();
-  }
-
-  @Post('manual')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async createManualRefReward(@Body() dto: CreateManualRefRewardDto): Promise<void> {
-    return this.refRewardService.createManualRefReward(dto);
   }
 }

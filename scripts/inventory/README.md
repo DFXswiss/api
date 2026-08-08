@@ -16,7 +16,7 @@ For that reason `npm run docs:inventory` **does not touch `docs/`**. It leaves b
 bash scripts/inventory/run.sh --write-docs
 ```
 
-A fresh run does reproduce the published *classification* exactly. Run against `06226c90b`, the commit the documents were published from, all 537 endpoints match the published `Data access` and `Tests` columns — 410 `whole rows`, 36 `projected`, 89 `none`, 2 `caller-defined` — and all 18 measured field lists match column for column.
+A fresh run does reproduce the published _classification_ exactly. Run against `06226c90b`, the commit the documents were published from, all 537 endpoints match the published `Data access` and `Tests` columns — 410 `whole rows`, 36 `projected`, 89 `none`, 2 `caller-defined` — and all 18 measured field lists match column for column.
 
 Two things it does not reproduce:
 
@@ -37,13 +37,13 @@ Use `apply_drift.py` to keep the published `docs/load-sites.md` current after co
 
 Column counts already present in the published document remain unchanged. Write statements, advisory locks and raw `INSERT`s are excluded from the inserted rows, by the same rule the renderer applies — both call `classify.py`.
 
-**It rewrites the table only.** The counts in the surrounding prose ("N load sites across M files", the median figures under *Measurements*) are not updated. The script prints the new statistics and writes them to `<out_path>.stats.json`; carry them into the prose by hand.
+**It rewrites the table only.** The counts in the surrounding prose ("N load sites across M files", the median figures under _Measurements_) are not updated. The script prints the new statistics and writes them to `<out_path>.stats.json`; carry them into the prose by hand.
 
 The script requires three environment variables:
 
 - `INVENTORY_WORK`: a working directory containing the intermediate files from both runs, under `gen/old/` and `gen/new/`.
 - `INVENTORY_REPO`: the path to a clone from which the script reads the published version with `git show <ref>:<path>`.
-- `API_SRC`: the source tree of the *new* state, needed to classify newly appeared sites as read or write.
+- `API_SRC`: the source tree of the _new_ state, needed to classify newly appeared sites as read or write.
 
 Invoke it as follows:
 
@@ -112,14 +112,14 @@ These scripts were developed outside this repository and checked in here for the
 - The measurement output field is now consistently named `cols`. One backup variant wrote `columns` instead, which silently left every measurement unlinked. `measure.js` now exits non-zero when nothing measures at all, so this class of failure cannot pass as a completed run again.
 - The endpoint table is named `table.json`, while the TypeORM metadata tables are written to `meta-tables.json`. In one backup variant both used the same name and collided.
 - `apply_drift.py` filtered new sites on `write` and `rawkind`, fields that only ever existed inside `build_docs.py` and are absent from `sites-measured.json` — so the filter matched nothing and would have inserted write statements, advisory locks and raw `INSERT`s into the published document. Both callers now share `classify.py`.
-- The measurement built the default query and counted *that*, ignoring what the site actually selects. A converted read path was therefore reported at the width it was converted away from: `GET /buy/:id/history` measured 364 columns where its projection selects 12, and the document rendered "497 columns to 12" as "497 columns to 364" — presenting the conversion as a failure. `sites.py` now records the projection constant or the column count, and `measure.js` resolves the constant against `dist/` and counts `fields + guards`. `getCount()`/`getExists()` sites report no width at all, since no row is materialised. A projection that cannot be resolved reports an error rather than falling back to the default query, which would reintroduce the same wrong number silently.
+- The measurement built the default query and counted _that_, ignoring what the site actually selects. A converted read path was therefore reported at the width it was converted away from: `GET /buy/:id/history` measured 364 columns where its projection selects 12, and the document rendered "497 columns to 12" as "497 columns to 364" — presenting the conversion as a failure. `sites.py` now records the projection constant or the column count, and `measure.js` resolves the constant against `dist/` and counts `fields + guards`. `getCount()`/`getExists()` sites report no width at all, since no row is materialised. A projection that cannot be resolved reports an error rather than falling back to the default query, which would reintroduce the same wrong number silently.
 - Columns named one at a time were counted per call within the chain up to the first `;`. That undercounts a query builder held in a variable and widened by later `qb.addSelect(...)` statements, and it misses a `.select(expr, 'alias')` whose first argument is a variable. Counting is now by distinct alias across the whole method, which also avoids double-counting a column added in both branches of an if/else.
 - `endpoint_eff.py` decided "does this narrow its columns" with its own regex, recognising only a literal `.select([...])`. Every endpoint projecting through `PROJECTION.apply(...)`, naming its columns one at a time, or counting was classified as loading whole rows: a run produced 444 `whole rows` / 2 `projected` against the published 410 / 36, marked all seventeen converted endpoints `not yet`, and rendered the sentence "the other -15 were already projecting" without anything failing. It now calls `classify.select_kind`, and `build_docs.py` refuses to render if a `CONVERTED` endpoint does not come out projected.
 
 Remaining properties worth knowing:
 
 - **A query-builder chain is read for 1500 characters, and a longer one is truncated silently.** `CHAIN_WINDOW` bounds how far past `createQueryBuilder(` the chain is scanned. Every chain in the tree today resolves well inside it — the single one that exceeds it carries its `.select(...)` far earlier, so it classifies correctly. But a chain that put a `leftJoinAndSelect` past the boundary would be read as a plain field list, with nothing to signal the truncation. Widen the window or add a warning if such a chain ever appears.
-- **The load-site total is an upper bound, not a count.** The scan matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolves, the distinction is settled; where it does not, the group holds both — currently some 343 rows, of which a sample suggests around 240 are array operations. The rendered document says so, in the headline and under *Measurements*; `endpoints.md` is unaffected, because the per-endpoint walk applies `is_db_find` and drops array calls. Narrowing the scan itself would change the published figures and needs its own validation, so the honest caveat comes first.
+- **The load-site total is an upper bound, not a count.** The scan matches `find` by name, and `find` on a repository is indistinguishable by name from `find` on an array. Where the target entity resolves, the distinction is settled; where it does not, the group holds both — currently some 343 rows, of which a sample suggests around 240 are array operations. The rendered document says so, in the headline and under _Measurements_; `endpoints.md` is unaffected, because the per-endpoint walk applies `is_db_find` and drops array calls. Narrowing the scan itself would change the published figures and needs its own validation, so the honest caveat comes first.
 
 - The config stub in `measure.js`, implemented by the `config/config` branch of the `Module._load` patch, is intentional. Entities do not read the configuration in their decorators, while regular loading required roughly 300 environment variables without changing the measured metadata. Substitutions made by the generic catch branch are reported on stderr.
 - `fix_handlers.py` overlaps with `make_table.py` in handler detection. Both now go through `tsparse.py`, so they can no longer disagree, but whether the step can be dropped entirely has not been established without a differential run — so it stays in the pipeline.

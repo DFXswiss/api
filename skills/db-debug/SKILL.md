@@ -31,19 +31,19 @@ request implies a write, refuse and explain why.
 
 ## Modes
 
-| Command | Purpose |
-| --- | --- |
-| _(no args)_ | default query (recent assets) |
-| `--anomalies [N]` | FinancialDataLog rows with `valid = false` (default 20) |
-| `--balance [N]` | recent total-balance history (default 20) |
-| `--stats` | log statistics by system / subsystem / severity |
-| `--asset-history <id\|Blockchain/Name> [N]` | balance history for one asset (default 10) |
-| `--referral-chain <userDataId>` | referral chain upward |
-| `--referral-tree <userDataId>` | full referral tree with status |
-| `--user-by-mail [N]` | resolve `user_data` id(s) from a known mail on stdin (filter-only; mail never returned; not in process argv; script does not print it; errors never echo submitted values; payload echo redacts WHERE values; TTY prompt hides typed input; audit/error redaction holds when SQL query logging is off / prod `SQL_LOGGING` unset; default limit 100, integer 1..10000, trailing args rejected by count; one mail can match several rows) |
-| `--get <table> [col1,col2,...] [limit]` | ad-hoc: fetch columns (default `id,created,updated`) from any allowlisted table (default limit 100) |
-| `--query <json\|@file\|->` | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin). Inline puts the full DTO in the script's argv and shell history; for sensitive values (e.g. `user_data.mail`) use `@file` or `-` |
-| `--help` | full usage |
+| Command                                     | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(no args)_                                 | default query (recent assets)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--anomalies [N]`                           | FinancialDataLog rows with `valid = false` (default 20)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--balance [N]`                             | recent total-balance history (default 20)                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--stats`                                   | log statistics by system / subsystem / severity                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--asset-history <id\|Blockchain/Name> [N]` | balance history for one asset (default 10)                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--referral-chain <userDataId>`             | referral chain upward                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `--referral-tree <userDataId>`              | full referral tree with status                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--user-by-mail [N]`                        | resolve `user_data` id(s) from a known mail on stdin (filter-only; mail never returned; not in process argv; script does not print it; errors never echo submitted values; payload echo redacts WHERE values; TTY prompt hides typed input; audit/error redaction holds when SQL query logging is off / prod `SQL_LOGGING` unset; default limit 100, integer 1..10000, trailing args rejected by count; one mail can match several rows) |
+| `--get <table> [col1,col2,...] [limit]`     | ad-hoc: fetch columns (default `id,created,updated`) from any allowlisted table (default limit 100)                                                                                                                                                                                                                                                                                                                                      |
+| `--query <json\|@file\|->`                  | ad-hoc: POST an arbitrary structured DTO (inline JSON, `@file`, or `-` to read the DTO from stdin). Inline puts the full DTO in the script's argv and shell history; for sensitive values (e.g. `user_data.mail`) use `@file` or `-`                                                                                                                                                                                                     |
+| `--help`                                    | full usage                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ## Ad-hoc queries
 
@@ -98,10 +98,10 @@ investigating total-balance steps (see the `valid` / suspicious-step heuristic i
 `--anomalies` above. All three are read-only — they only issue structured `/gs/debug` queries (no
 writes); `sum-asset-balances.sh` also reads the `asset` table to resolve IDs.
 
-| Command | Purpose |
-| --- | --- |
-| `scripts/compare-balance-logs.sh <log_id_1> <log_id_2>` | diff two snapshots: plus / minus / total deltas plus the top asset changes ranked by CHF impact |
-| `scripts/inspect-asset-balance.sh <log_id> <asset_id>` | full plus / minus breakdown for one asset in a log entry (incl. the liquidity sub-structure) |
+| Command                                                   | Purpose                                                                                                                |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `scripts/compare-balance-logs.sh <log_id_1> <log_id_2>`   | diff two snapshots: plus / minus / total deltas plus the top asset changes ranked by CHF impact                        |
+| `scripts/inspect-asset-balance.sh <log_id> <asset_id>`    | full plus / minus breakdown for one asset in a log entry (incl. the liquidity sub-structure)                           |
 | `scripts/sum-asset-balances.sh <log_id> <financial_type>` | sum plus / minus / net CHF across assets of one `financialType` (per-asset `plusBalance.total` shown in the breakdown) |
 
 ## Composing a query
