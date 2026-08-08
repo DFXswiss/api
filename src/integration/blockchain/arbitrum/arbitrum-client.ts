@@ -36,6 +36,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     this.l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
     this.l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.l1Provider);
 
+    // initL2Network() currently handles its own failures, so this catch never fires today. It is
+    // here because a floating promise in a constructor takes the whole process down the moment
+    // that stops being true — which is exactly what happened on the Polygon side.
     void this.initL2Network().catch((e) => this.logger.error('Arbitrum L2 network initialization failed:', e));
   }
 
