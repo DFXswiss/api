@@ -385,8 +385,9 @@ export class BuyFiatService implements OnModuleInit {
     if (CryptoInputInFlightSendStatus.includes(currentPayIn.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
 
-    // Skip if a return is already in progress or completed.
+    // cryptoReturnStarted semantics: the release is valid; the return is simply already under way.
     if (
+      currentPayIn.action === PayInAction.RETURN ||
       [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(currentPayIn.status) ||
       currentPayIn.returnTxId
     )
@@ -518,6 +519,9 @@ export class BuyFiatService implements OnModuleInit {
         });
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
+    // A release must never commit without a scheduled return (same principle as the trigger path).
+    if (dto.chargebackAllowedDate && !(chargebackAmount > 0))
+      throw new BadRequestException('Chargeback amount missing - release rejected');
 
     TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
@@ -562,6 +566,9 @@ export class BuyFiatService implements OnModuleInit {
 
       currentBuyFiat.cryptoInput = cryptoInput;
       TransactionUtilService.validateRefund(currentBuyFiat, { refundUser, chargebackAmount, assetMismatch: false });
+      // Defensive: re-check the amount invariant against the values actually used for the claim.
+      if (dto.chargebackAllowedDate && !(chargebackAmount > 0))
+        throw new BadRequestException('Chargeback amount missing - release rejected');
 
       const claimWhere = {
         ...BuyFiatService.refundClaimWhere(currentBuyFiat),
@@ -591,7 +598,8 @@ export class BuyFiatService implements OnModuleInit {
 
       // Claim-first: a lost claim must never trigger the on-chain return; the CryptoInput claim
       // inside returnPayIn guards the return leg itself; both writes commit or roll back together.
-      if (dto.chargebackAllowedDate && chargebackAmount)
+      // Amount is already guaranteed when chargebackAllowedDate is set (see guards above).
+      if (dto.chargebackAllowedDate)
         await this.returnCrypto(
           currentBuyFiat,
           cryptoInput,

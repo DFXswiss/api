@@ -309,13 +309,18 @@ export class PayInService {
     if (current.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
     if (CryptoInputInFlightSendStatus.includes(current.status))
       throw new BadRequestException('CryptoInput send in flight or uncertain');
-    if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(current.status) || current.returnTxId)
-      throw new BadRequestException('CryptoInput already returned');
+    // Fail-closed: never re-arm a return that is already scheduled or executed. The send worker builds
+    // its payload from a pre-Sending snapshot, so an in-place amendment racing the worker can still
+    // send the old address/amount. An amendment must go through a fresh request + approval, never by
+    // editing a scheduled return in place.
+    if (
+      current.action === PayInAction.RETURN ||
+      [PayInStatus.TO_RETURN, PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(current.status) ||
+      current.returnTxId
+    )
+      throw new BadRequestException('CryptoInput return already scheduled or executed');
 
     // Built before triggerReturn assigns over the entity, so it pins the state the guards decided on.
-    // Re-triggering a genuinely idle TO_RETURN row (no concurrent change) stays allowed — compliance
-    // may amend a pending return's address/amount; the claim only rejects rows that changed between
-    // read and write.
     const claimWhere: FindOptionsWhere<CryptoInput> = {
       id: current.id,
       status: current.status,

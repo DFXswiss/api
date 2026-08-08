@@ -193,7 +193,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       const { txRepo, transactionSpy } = mockOwnTransaction(freshReturned);
 
       await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
-        new BadRequestException('CryptoInput already returned'),
+        new BadRequestException('CryptoInput return already scheduled or executed'),
       );
       expect(transactionSpy).toHaveBeenCalledTimes(1);
       expect(txRepo.update).not.toHaveBeenCalled();
@@ -205,7 +205,37 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       const { txRepo } = mockOwnTransaction(freshWithTx);
 
       await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
-        new BadRequestException('CryptoInput already returned'),
+        new BadRequestException('CryptoInput return already scheduled or executed'),
+      );
+      expect(txRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects re-triggering an already-scheduled TO_RETURN row', async () => {
+      const staleCaller = idlePayIn({ status: PayInStatus.ACKNOWLEDGED });
+      const freshToReturn = idlePayIn({
+        status: PayInStatus.TO_RETURN,
+        action: PayInAction.RETURN,
+        returnTxId: null,
+      });
+      const { txRepo } = mockOwnTransaction(freshToReturn);
+
+      await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
+        new BadRequestException('CryptoInput return already scheduled or executed'),
+      );
+      expect(txRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects re-triggering when action is RETURN even in PREPARING', async () => {
+      const staleCaller = idlePayIn({ status: PayInStatus.ACKNOWLEDGED });
+      const freshPreparingReturn = idlePayIn({
+        status: PayInStatus.PREPARING,
+        action: PayInAction.RETURN,
+        returnTxId: null,
+      });
+      const { txRepo } = mockOwnTransaction(freshPreparingReturn);
+
+      await expect(service.returnPayIn(staleCaller, returnAddress, chargebackAmount)).rejects.toThrow(
+        new BadRequestException('CryptoInput return already scheduled or executed'),
       );
       expect(txRepo.update).not.toHaveBeenCalled();
     });

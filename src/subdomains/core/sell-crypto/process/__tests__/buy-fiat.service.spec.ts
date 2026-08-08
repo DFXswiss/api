@@ -278,6 +278,28 @@ describe('BuyFiatService', () => {
     expect(returnPayInSpy).not.toHaveBeenCalled();
   });
 
+  it('silently skips when the fresh pay-in is already PREPARING with action RETURN', async () => {
+    const buyFiat = createCustomBuyFiat({
+      id: 74,
+      chargebackAddress: '0x0000000000000000000000000000000000000001',
+      chargebackAmount: 0.1,
+    });
+    const returnInProgress = createCustomCryptoInput({
+      id: 25,
+      status: PayInStatus.PREPARING,
+      action: PayInAction.RETURN,
+      returnTxId: null,
+    });
+    jest.spyOn(payInService, 'getPayIn').mockResolvedValue(returnInProgress);
+    const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined as never);
+    const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+
+    await expect(service['triggerBuyFiatReturn'](buyFiat, returnInProgress)).resolves.toBeUndefined();
+
+    expect(doPayoutSpy).not.toHaveBeenCalled();
+    expect(returnPayInSpy).not.toHaveBeenCalled();
+  });
+
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
 
@@ -987,6 +1009,63 @@ describe('BuyFiatService', () => {
       expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(returnPayInSpy.mock.invocationCallOrder[0]);
       expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalled();
     });
+
+    it.each([
+      { label: 'missing', amount: undefined as number | undefined },
+      { label: 'zero', amount: 0 },
+    ])(
+      'rejects the approval leg when chargeback amount is $label before fee fetch or transaction',
+      async ({ amount }) => {
+        const cryptoInput = createCustomCryptoInput({
+          id: 23,
+          action: PayInAction.WAITING,
+          status: PayInStatus.ACKNOWLEDGED,
+        });
+        const buyFiat = createCustomBuyFiat({
+          id: 8,
+          amlCheck: CheckStatus.PENDING,
+          outputAmount: null,
+          chargebackAmount: amount,
+          chargebackAddress: '0x00000000000000000000000000000000000000aa',
+          chargebackAllowedDate: null,
+          chargebackAllowedDateUser: new Date('2026-07-01T10:00:00.000Z'),
+          chargebackDate: null,
+          chargebackTxId: null,
+          cryptoInput,
+        });
+        const refundUser = {
+          address: '0x0000000000000000000000000000000000000001',
+          userData: buyFiat.userData,
+          blockchains: [cryptoInput.asset.blockchain],
+        };
+        jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as never);
+        const validateSpy = jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+        validateSpy.mockClear();
+        const getFeeSpy = jest.spyOn(transactionHelper, 'getBlockchainFee');
+        getFeeSpy.mockClear();
+        const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+        returnPayInSpy.mockClear();
+        const transactionSpy = jest.fn();
+        Object.defineProperty(buyFiatRepo, 'manager', {
+          configurable: true,
+          value: { transaction: transactionSpy },
+        });
+
+        await expect(
+          service.refundBuyFiatInternal(buyFiat, {
+            refundUserAddress: refundUser.address,
+            chargebackAllowedDate: new Date(),
+            ...(amount !== undefined ? { chargebackAmount: amount } : {}),
+          }),
+        ).rejects.toThrow(new BadRequestException('Chargeback amount missing - release rejected'));
+
+        expect(getFeeSpy).not.toHaveBeenCalled();
+        expect(transactionSpy).not.toHaveBeenCalled();
+        expect(returnPayInSpy).not.toHaveBeenCalled();
+        // Outer validation must not run either — fail before any side-effect path.
+        expect(validateSpy).not.toHaveBeenCalled();
+      },
+    );
 
     it('does not call returnPayIn or createFromEntity when the claim loses (request-version drift)', async () => {
       const cryptoInput = createCustomCryptoInput({ id: 23 });
