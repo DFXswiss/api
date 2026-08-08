@@ -144,7 +144,7 @@ jobs:
       - name: Run Playwright tests
         run: |
           docker compose -p dfx-e2e-stack \
-            --env-file services-repo/e2e-stack/.env \
+            --env-file services-repo/e2e-stack/.env.generated \
             -f services-repo/e2e-stack/compose.yml \
             -f services-repo/e2e-stack/compose.tests.yml \
             run --name dfx-e2e-stack-tests tests
