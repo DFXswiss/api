@@ -6,7 +6,7 @@ the other.
 | Gate             | Config                         | Scope                                      | Question it answers                                      |
 | ---------------- | ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
 | Frick gate       | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet | `jest.coverage-gate.config.js` | 447 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
+| Coverage ratchet | `jest.coverage-gate.config.js` | 454 files, whole suite                     | Has coverage regressed anywhere it was already complete? |
 
 ## What the ratchet is, and what it is not
 
@@ -25,8 +25,8 @@ It is a **regression gate**, not a statement about test quality:
   ratchet only protects files already on the list, and that list grows by hand (see "How the list
   grows"). That is the price of the threshold approach.
 
-Of the 447 pinned files, **253 carry real logic** (they have functions and/or branches) and
-**194 are purely declarative today** (NestJS modules, constant files with neither). The two groups
+Of the 454 pinned files, **257 carry real logic** (they have functions and/or branches) and
+**197 are purely declarative today** (NestJS modules, constant files with neither). The two groups
 are kept visibly separate in the config so the count is not mistaken for test depth.
 
 Pinning the declarative ones is deliberate and not vacuous. Istanbul reports a metric with a total
