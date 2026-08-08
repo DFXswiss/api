@@ -9,7 +9,12 @@ export function safeLogError(logger: DfxLogger, message: string, error: Error): 
   try {
     logger.error(message, error);
   } catch {
-    // Do not pass `error` again: any property access on a hostile Proxy may throw.
-    logger.error(`${message} (original error could not be logged)`);
+    try {
+      // Do not pass `error` again: any property access on a hostile Proxy may throw.
+      logger.error(`${message} (original error could not be logged)`);
+    } catch {
+      // The logger itself is broken. Losing the line is bad; throwing out of a process-level
+      // handler that has already decided to keep the process alive would be worse.
+    }
   }
 }
