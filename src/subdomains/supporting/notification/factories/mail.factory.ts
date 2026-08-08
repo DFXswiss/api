@@ -8,7 +8,7 @@ import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
-import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
+import { MailRequestUserInputV2, UserMailBrand, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 import { WalletMailConfig } from '../services/mail.service';
@@ -156,6 +156,7 @@ export class MailFactory {
       : userData.language.symbol.toLowerCase();
 
     const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
+    const hasWelcome = welcomeTexts.length > 0;
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
     // Order: welcome line (if any), then optional wallet body override, then the service-specific texts
     const merged = [...welcomeTexts, ...walletBodyTexts, ...(texts ?? [])];
@@ -167,6 +168,8 @@ export class MailFactory {
         subject: this.translate(title, lang, undefined, walletName),
         salutation: salutation && this.translate(salutation.key, lang, salutation.params, walletName),
         texts: allTexts,
+        hasWelcome,
+        brand: this.getWalletBrand(lang, walletName),
         correlationId,
         options,
       },
@@ -235,19 +238,70 @@ export class MailFactory {
 
   // Personal welcome line, prepended to every UserMailV2 / PersonalMail of wallets that opt in via centralizedWelcome (e.g. RealUnit).
   // Default DFX mails return an empty list so their existing behavior stays unchanged.
+  // Skip entirely when no usable name is available — otherwise the formatter yields a bare "Hi " / "Guten Tag ".
   private getCentralizedWelcomeTexts(
     userData: UserData,
     walletMailConfig?: Partial<WalletMailConfig>,
   ): TranslationItem[] {
     if (!walletMailConfig?.centralizedWelcome) return [];
 
+    const name = userData.organizationName ?? userData.firstname;
+    if (name == null || String(name).trim() === '') return [];
+
     return [
       {
         key: `${MailTranslationKey.GENERAL}.welcome`,
-        params: { name: userData.organizationName ?? userData.firstname },
+        params: { name },
       },
       { key: MailKey.SPACE, params: { value: '2' } },
     ];
+  }
+
+  /**
+   * Resolves optional `mail.template.*` wallet copy for footer/header branding.
+   * Uses wallet-only lookup so DFX / onchainlabs / RealUnit (no template.* keys) stay unchanged (`undefined`).
+   * Empty strings in the wallet file are treated as unset so the template can omit the block.
+   * Privacy/imprint URL fields are only set when both label and URL are present (no empty `<a href="">`).
+   */
+  private getWalletBrand(lang: string, walletName?: string): UserMailBrand | undefined {
+    if (!walletName) return undefined;
+
+    const pick = (suffix: string): string | undefined => {
+      const value = this.translateWalletOnly(`mail.template.${suffix}`, lang, walletName);
+      if (value == null || value === '') return undefined;
+      return value;
+    };
+
+    const legalAddress = pick('legal_address');
+    const privacyLabel = pick('privacy_label');
+    const privacyUrl = pick('privacy_url');
+    const imprintLabel = pick('imprint_label');
+    const imprintUrl = pick('imprint_url');
+
+    // Complete link pairs only — incomplete pairs never reach the template.
+    const hasPrivacyLink = !!(privacyLabel && privacyUrl);
+    const hasImprintLink = !!(imprintLabel && imprintUrl);
+
+    // Break before the copyright line whenever address or any complete legal link is present.
+    const hasLegalLead = !!(legalAddress || hasPrivacyLink || hasImprintLink);
+
+    const brand: UserMailBrand = {
+      closing: pick('closing'),
+      signOff: pick('sign_off'),
+      disclaimer: pick('disclaimer'),
+      legalAddress,
+      privacyLabel: hasPrivacyLink ? privacyLabel : undefined,
+      privacyUrl: hasPrivacyLink ? privacyUrl : undefined,
+      imprintLabel: hasImprintLink ? imprintLabel : undefined,
+      imprintUrl: hasImprintLink ? imprintUrl : undefined,
+      websiteUrl: pick('website_url'),
+      logoUrl: pick('logo_url'),
+      logoAlt: pick('logo_alt'),
+      hasLegalLead: hasLegalLead || undefined,
+    };
+
+    if (Object.values(brand).every((v) => v === undefined)) return undefined;
+    return brand;
   }
 
   //*** MAIL BUILDING METHODS ***//

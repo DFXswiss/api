@@ -778,6 +778,16 @@ export class Configuration {
           isPreferred: true,
         },
       }),
+      // No dedicated mailbox provided by Denario (unlike RealUnit) - falls back to the default DFX transport,
+      // only sender display name and template/branding are overridden.
+      Denario: {
+        displayName: 'Denario',
+        template: 'denario',
+        // EN + DE copy in mail-denario.json; account language decides. Languages without a Denario file
+        // (fr, it, es, …) fall back via i18n.fallbackLanguage (= en), so Denario copy is used — not DFX text.
+        centralizedWelcome: true,
+        isPreferred: true,
+      },
     },
   };
 

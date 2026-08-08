@@ -13,11 +13,35 @@ export interface MailRequestUserInputV2 {
   texts: TranslationItem[];
 }
 
+/** Optional brand/footer copy from wallet i18n (`mail.template.*`). Omitted for wallets without those keys. */
+export interface UserMailBrand {
+  closing?: string;
+  signOff?: string;
+  disclaimer?: string;
+  legalAddress?: string;
+  privacyLabel?: string;
+  privacyUrl?: string;
+  imprintLabel?: string;
+  imprintUrl?: string;
+  websiteUrl?: string;
+  logoUrl?: string;
+  logoAlt?: string;
+  /**
+   * True when a line break is required before the copyright line in the legal footer
+   * (address and/or complete privacy/imprint links above). Computed in the factory so the
+   * template does not re-encode the nested condition.
+   */
+  hasLegalLead?: boolean;
+}
+
 export interface UserMailParamsV2 {
   to: string;
   subject: string;
   salutation: string;
   texts: MailAffix[];
+  /** True when a centralized welcome line was prepended (name present). Templates use this to place the salutation. */
+  hasWelcome?: boolean;
+  brand?: UserMailBrand;
   telegramUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
