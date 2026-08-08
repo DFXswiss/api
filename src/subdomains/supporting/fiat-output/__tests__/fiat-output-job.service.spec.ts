@@ -22,13 +22,19 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { OlkypayOrderStatus } from 'src/integration/bank/dto/olkypay.dto';
 import * as processServiceModule from 'src/shared/services/process.service';
+import { Process } from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-management/__mocks__/liquidity-balance.entity.mock';
+import * as bankHolidayConfig from 'src/config/bank-holiday.config';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
@@ -79,6 +85,7 @@ describe('FiatOutputJobService', () => {
   let frickPayoutService: FiatOutputFrickService;
   let fiatRepublicService: FiatRepublicService;
   let fiatRepublicPayoutService: FiatOutputFiatRepublicService;
+  let buyFiatRepo: BuyFiatRepository;
 
   beforeEach(async () => {
     ep2UploadBlobMock.mockReset();
@@ -102,6 +109,7 @@ describe('FiatOutputJobService', () => {
     jest.spyOn(virtualIbanService, 'getActiveSendingCandidatesForUserAndCurrency').mockResolvedValue([]);
     jest.spyOn(virtualIbanService, 'getBaseAccountIban').mockResolvedValue(undefined);
     jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([]);
+    buyFiatRepo = createMock<BuyFiatRepository>();
     // Not released by default: every pre-existing expectation describes the behaviour before this
     // integration existed, and an unreleased Fiat Republic has to reproduce exactly that.
     fiatRepublicService = createMock<FiatRepublicService>();
@@ -116,7 +124,7 @@ describe('FiatOutputJobService', () => {
         // used by fee prediction instead of a hand-duplicated mock.
         FiatOutputService,
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
-        { provide: BuyFiatRepository, useValue: createMock<BuyFiatRepository>() },
+        { provide: BuyFiatRepository, useValue: buyFiatRepo },
         { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
         { provide: SellRepository, useValue: createMock<SellRepository>() },
         { provide: BankTxService, useValue: bankTxService },
@@ -1639,6 +1647,855 @@ describe('FiatOutputJobService', () => {
 
       const fileName = ep2UploadBlobMock.mock.calls[0][0];
       expect(fileName).toMatch(/^settlement_.*_555\.ep2$/);
+    });
+  });
+  describe('checkOlkypayOrderStatus', () => {
+    const order = (orderStatus: OlkypayOrderStatus) => ({ orderStatus }) as never;
+
+    it('does nothing while its own kill switch is set', async () => {
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((p) => p === Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK);
+
+      await service.checkOlkypayOrderStatus();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('does nothing while Olkypay is not configured', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(false);
+
+      await service.checkOlkypayOrderStatus();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('stamps the approval once the order left the validation queue', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([createCustomFiatOutput({ id: 5, olkyOrderId: '77' })]);
+      jest.spyOn(olkypayService, 'getPaymentOrder').mockResolvedValue(order(OlkypayOrderStatus.COMPLETED));
+
+      await service.checkOlkypayOrderStatus();
+
+      expect(olkypayService.getPaymentOrder).toHaveBeenCalledWith(77);
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isApprovedDate: expect.any(Date) });
+    });
+
+    it('leaves an order still awaiting validation untouched', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([createCustomFiatOutput({ id: 5, olkyOrderId: '77' })]);
+      jest.spyOn(olkypayService, 'getPaymentOrder').mockResolvedValue(order(OlkypayOrderStatus.TO_VALIDATE));
+
+      await service.checkOlkypayOrderStatus();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('keeps going when one lookup fails', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          createCustomFiatOutput({ id: 5, olkyOrderId: '77' }),
+          createCustomFiatOutput({ id: 6, olkyOrderId: '78' }),
+        ]);
+      jest
+        .spyOn(olkypayService, 'getPaymentOrder')
+        .mockRejectedValueOnce(new Error('gateway timeout'))
+        .mockResolvedValue(order(OlkypayOrderStatus.COMPLETED));
+
+      await service.checkOlkypayOrderStatus();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(6, { isApprovedDate: expect.any(Date) });
+    });
+  });
+
+  describe('transmitYapealPayments', () => {
+    function ready(overrides = {}) {
+      return createCustomFiatOutput({
+        id: 5,
+        amount: 100,
+        currency: 'CHF',
+        accountIban: 'CH9300762011623852957',
+        iban: 'CH1234567890123456789',
+        name: 'Synthetic Person',
+        bank: createCustomBank({ name: IbanBankName.YAPEAL }),
+        ...overrides,
+      });
+    }
+
+    beforeEach(() => {
+      jest.spyOn(yapealService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(yapealService, 'sendPayment').mockResolvedValue(undefined);
+    });
+
+    it('does nothing while its own kill switch is set', async () => {
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((p) => p === Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION);
+
+      await service['transmitYapealPayments']();
+
+      expect(yapealService.sendPayment).not.toHaveBeenCalled();
+    });
+
+    it('does nothing while Yapeal is not configured', async () => {
+      jest.spyOn(yapealService, 'isAvailable').mockReturnValue(false);
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('sends the payment and records the message it sent it under', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+
+      await service['transmitYapealPayments']();
+
+      expect(yapealService.sendPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endToEndId: 'E2E-5',
+          amount: 100,
+          currency: 'CHF',
+          remittanceInfo: 'DFX Payout 5',
+          debtor: expect.objectContaining({ iban: 'CH9300762011623852957' }),
+          creditor: expect.objectContaining({ iban: 'CH1234567890123456789' }),
+        }),
+      );
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({
+          yapealMsgId: expect.stringContaining('YAPEAL-5-'),
+          endToEndId: 'E2E-5',
+          remittanceInfo: 'DFX Payout 5',
+          isTransmittedDate: expect.any(Date),
+          isApprovedDate: expect.any(Date),
+        }),
+      );
+    });
+
+    it('keeps an end-to-end id and remittance info the business already set', async () => {
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([ready({ endToEndId: 'GIVEN-E2E', remittanceInfo: 'GIVEN-INFO' })]);
+
+      await service['transmitYapealPayments']();
+
+      expect(yapealService.sendPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ endToEndId: 'GIVEN-E2E', remittanceInfo: 'GIVEN-INFO' }),
+      );
+    });
+
+    it('clears a previous transmission error once the payment goes through', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ info: 'YAPEAL error: earlier failure' })]);
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, expect.objectContaining({ info: null }));
+    });
+
+    it('leaves an unrelated note in place', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ info: 'operator note' })]);
+
+      await service['transmitYapealPayments']();
+
+      const [[, update]] = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(update).not.toHaveProperty('info');
+    });
+
+    it('records the reason a transmission failed', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+      jest.spyOn(yapealService, 'sendPayment').mockRejectedValue(new Error('gateway timeout'));
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { info: 'YAPEAL error: gateway timeout' });
+    });
+
+    it('prefers the upstream response body when the failure carries one', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+      jest
+        .spyOn(yapealService, 'sendPayment')
+        .mockRejectedValue(Object.assign(new Error('x'), { response: { data: { code: 'REJECTED' } } }));
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, {
+        info: 'YAPEAL error: {"code":"REJECTED"}',
+      });
+    });
+
+    it('reports a failure that is not an Error at all', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+      jest.spyOn(yapealService, 'sendPayment').mockRejectedValue('not an error');
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { info: 'YAPEAL error: not an error' });
+    });
+
+    it('does not overwrite a reason that is already on the row', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ info: 'YAPEAL error: earlier failure' })]);
+      jest.spyOn(yapealService, 'sendPayment').mockRejectedValue(new Error('gateway timeout'));
+
+      await service['transmitYapealPayments']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('transmitOlkypayPayments', () => {
+    function ready(overrides = {}) {
+      return createCustomFiatOutput({
+        id: 5,
+        amount: 100.004,
+        currency: 'EUR',
+        iban: 'LU116060002000005040',
+        name: 'Synthetic Person',
+        address: 'Street',
+        houseNumber: '1',
+        zip: '0000',
+        city: 'City',
+        country: 'LU',
+        bank: createCustomBank({ name: IbanBankName.OLKY }),
+        ...overrides,
+      });
+    }
+
+    beforeEach(() => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(olkypayService, 'getOrCreateRecipient').mockResolvedValue({ olkyPayerId: '42' } as never);
+      jest.spyOn(olkypayService, 'createPaymentOrder').mockResolvedValue({ id: 4711 } as never);
+    });
+
+    it('does nothing while its own kill switch is set', async () => {
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((p) => p === Process.FIAT_OUTPUT_OLKYPAY_TRANSMISSION);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(olkypayService.createPaymentOrder).not.toHaveBeenCalled();
+    });
+
+    it('does nothing while Olkypay is not configured', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(false);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('registers the recipient and sends the order in cents', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(olkypayService.getOrCreateRecipient).toHaveBeenCalledWith(
+        expect.objectContaining({ iban: 'LU116060002000005040', address: 'Street 1' }),
+      );
+      expect(olkypayService.createPaymentOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: 42, nominalAmount: 10000, externalId: '5', packageNumber: '5' }),
+      );
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ olkyOrderId: 4711, isTransmittedDate: expect.any(Date) }),
+      );
+    });
+
+    it('sends no address at all rather than a house number without a street', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ address: undefined })]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(olkypayService.getOrCreateRecipient).toHaveBeenCalledWith(expect.objectContaining({ address: undefined }));
+    });
+
+    it('sends the street alone when there is no house number', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ houseNumber: undefined })]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(olkypayService.getOrCreateRecipient).toHaveBeenCalledWith(expect.objectContaining({ address: 'Street' }));
+    });
+
+    it('clears a previous transmission error once the order goes through', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ info: 'OLKYPAY error: earlier failure' })]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, expect.objectContaining({ info: null }));
+    });
+
+    it('records the reason a transmission failed', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready()]);
+      jest.spyOn(olkypayService, 'createPaymentOrder').mockRejectedValue(new Error('gateway timeout'));
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { info: 'OLKYPAY error: gateway timeout' });
+    });
+
+    it('does not overwrite a reason that is already on the row', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([ready({ info: 'OLKYPAY error: earlier failure' })]);
+      jest.spyOn(olkypayService, 'createPaymentOrder').mockRejectedValue(new Error('gateway timeout'));
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkTransmission', () => {
+    it('does nothing while its own kill switch is set', async () => {
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((p) => p === Process.FIAT_OUTPUT_TRANSMISSION_CHECK);
+
+      await service['checkTransmission']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('stamps a whole batch once its bank log appeared', async () => {
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          createCustomFiatOutput({ id: 5, batchId: 7 }),
+          createCustomFiatOutput({ id: 6, batchId: 7 }),
+        ]);
+      jest.spyOn(logService, 'getBankLog').mockResolvedValue({ id: 1 } as never);
+
+      await service['checkTransmission']();
+
+      expect(logService.getBankLog).toHaveBeenCalledWith('MSG-7-');
+      for (const id of [5, 6]) {
+        expect(fiatOutputRepo.update).toHaveBeenCalledWith(id, {
+          isTransmittedDate: expect.any(Date),
+          isConfirmedDate: expect.any(Date),
+          isApprovedDate: expect.any(Date),
+        });
+      }
+    });
+
+    it('leaves a batch alone until its bank log exists', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([createCustomFiatOutput({ id: 5, batchId: 7 })]);
+      jest.spyOn(logService, 'getBankLog').mockResolvedValue(null);
+
+      await service['checkTransmission']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setBankTxType', () => {
+    beforeEach(() => {
+      jest.spyOn(bankTxService, 'updateInternal').mockImplementation(async (bankTx) => bankTx as never);
+    });
+
+    it.each([
+      [FiatOutputType.BUY_CRYPTO_FAIL, BankTxType.BUY_CRYPTO_RETURN],
+      [FiatOutputType.BUY_FIAT, BankTxType.BUY_FIAT],
+      [FiatOutputType.BANK_TX_REPEAT, BankTxType.BANK_TX_REPEAT_CHARGEBACK],
+      [FiatOutputType.BANK_TX_RETURN, BankTxType.BANK_TX_RETURN_CHARGEBACK],
+    ])('classifies the bank transaction of a %s output as %s', async (outputType, bankTxType) => {
+      const bankTx = createCustomBankTx({ id: 401 });
+
+      await service['setBankTxType'](outputType, bankTx);
+
+      expect(bankTxService.updateInternal).toHaveBeenCalledWith(bankTx, { type: bankTxType });
+    });
+
+    it('asks the bank-tx service for the specific type of a liquidity movement', async () => {
+      const bankTx = createCustomBankTx({ id: 401 });
+      jest.spyOn(bankTxService, 'getType').mockResolvedValue(BankTxType.INTERNAL);
+
+      await service['setBankTxType'](FiatOutputType.LIQ_MANAGEMENT, bankTx);
+
+      expect(bankTxService.updateInternal).toHaveBeenCalledWith(bankTx, { type: BankTxType.INTERNAL });
+    });
+
+    it('leaves a liquidity movement unclassified when no specific type applies', async () => {
+      const bankTx = createCustomBankTx({ id: 401 });
+      jest.spyOn(bankTxService, 'getType').mockResolvedValue(undefined);
+
+      await expect(service['setBankTxType'](FiatOutputType.LIQ_MANAGEMENT, bankTx)).resolves.toBeUndefined();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+
+    it('leaves a type it has no rule for alone', async () => {
+      const bankTx = createCustomBankTx({ id: 401 });
+
+      await expect(service['setBankTxType'](FiatOutputType.MANUAL, bankTx)).resolves.toBeUndefined();
+      expect(bankTxService.updateInternal).not.toHaveBeenCalled();
+    });
+  });
+  describe('setReadyDate — the remaining guards', () => {
+    const bank = createCustomBank({ name: IbanBankName.OLKY, iban: 'SYNTHETIC-OLKY-ACCOUNT', currency: 'EUR' });
+
+    function candidate(overrides = {}) {
+      return createCustomFiatOutput({
+        id: 5,
+        bank,
+        iban: 'LU116060002000005040',
+        amount: 100,
+        currency: 'EUR',
+        type: FiatOutputType.BUY_FIAT,
+        buyFiats: [
+          createCustomBuyFiat({
+            cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+          }),
+        ],
+        ...overrides,
+      });
+    }
+
+    function funded() {
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          type: AssetType.CUSTODY,
+          bank,
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+    }
+
+    it('stops a payout whose customer was deleted, and fails the buy-fiat with that reason', async () => {
+      const buyFiat = createCustomBuyFiat({
+        id: 11,
+        cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+      });
+      const output = candidate({ buyFiats: [buyFiat] });
+      Object.defineProperty(output, 'user', {
+        value: { isBlockedOrDeleted: true, status: UserStatus.DELETED },
+        configurable: true,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([output]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(buyFiatRepo.update).toHaveBeenCalledWith(11, {
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlReason.USER_DELETED,
+      });
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('distinguishes a blocked customer from a deleted one', async () => {
+      const buyFiat = createCustomBuyFiat({
+        id: 11,
+        cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+      });
+      const output = candidate({ buyFiats: [buyFiat] });
+      Object.defineProperty(output, 'user', {
+        value: { isBlockedOrDeleted: true, status: UserStatus.BLOCKED },
+        configurable: true,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([output]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(buyFiatRepo.update).toHaveBeenCalledWith(11, {
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlReason.USER_BLOCKED,
+      });
+    });
+
+    it('stops a payout whose account is blocked, even with an active user', async () => {
+      const buyFiat = createCustomBuyFiat({
+        id: 11,
+        cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+      });
+      const output = candidate({ buyFiats: [buyFiat] });
+      Object.defineProperty(output, 'user', { value: undefined, configurable: true });
+      Object.defineProperty(output, 'userData', { value: { isBlocked: true }, configurable: true });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([output]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(buyFiatRepo.update).toHaveBeenCalledWith(11, {
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlReason.USER_DATA_BLOCKED,
+      });
+    });
+
+    it('waits for an origin whose reference amounts are not computed yet', async () => {
+      const output = candidate();
+      Object.defineProperty(output, 'originEntity', {
+        value: { amountInChf: undefined, amountInEur: 100 },
+        configurable: true,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([output]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('keeps a Yapeal amount reserved until it was transmitted', async () => {
+      const yapealBank = createCustomBank({ name: IbanBankName.YAPEAL, iban: 'SYNTHETIC-YAPEAL', currency: 'CHF' });
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          candidate({ id: 4, bank: yapealBank, amount: 5000, isReadyDate: new Date() }),
+          candidate({ id: 5, bank: yapealBank, amount: 5000, isReadyDate: null }),
+        ]);
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          type: AssetType.CUSTODY,
+          bank: yapealBank,
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('keeps an Olkypay amount reserved while its bank transaction is still fresh', async () => {
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          candidate({
+            id: 4,
+            amount: 5000,
+            isReadyDate: new Date(),
+            bankTx: createCustomBankTx({ created: new Date() }),
+          }),
+          candidate({ id: 5, amount: 5000, isReadyDate: null }),
+        ]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('releases an Olkypay reservation once its bank transaction has settled', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        candidate({
+          id: 4,
+          amount: 5000,
+          isReadyDate: new Date(),
+          bankTx: createCustomBankTx({ created: new Date('2020-01-01') }),
+        }),
+        candidate({ id: 5, amount: 100, isReadyDate: null }),
+      ]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('waits for a buy-fiat whose crypto input is not confirmed', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        candidate({
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: false, asset: createDefaultAsset() }),
+            }),
+          ],
+        }),
+      ]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('keeps going after one output failed', async () => {
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([candidate({ id: 5 }), candidate({ id: 6, iban: undefined })]);
+      funded();
+
+      await expect(service['setReadyDate']()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('createBatches — the batch-id switches', () => {
+    it.each([Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB, Process.FIAT_OUTPUT_BATCH_ID_UPDATE])(
+      'does nothing while %s is set',
+      async (flag) => {
+        jest.spyOn(processServiceModule, 'DisabledProcess').mockImplementation((p) => p === flag);
+
+        await service['createBatches']();
+
+        expect(fiatOutputRepo.findBy).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('searchOutgoingBankTx — the chargeback links', () => {
+    beforeEach(() => {
+      jest.spyOn(bankTxService, 'updateInternal').mockImplementation(async (bankTx) => bankTx as never);
+    });
+
+    it('links the matched bank transaction back onto the bank-tx return', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.BUY_CRYPTO });
+      const bankTxReturn = { id: 12 } as never;
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          type: FiatOutputType.BANK_TX_RETURN,
+          amount: 100,
+          isReadyDate: new Date('2026-07-01'),
+          bankTxReturn,
+        }),
+      ]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxReturnService.updateInternal).toHaveBeenCalledWith(bankTxReturn, { chargebackBankTx: bankTx });
+    });
+
+    it('links the matched bank transaction back onto the bank-tx repeat', async () => {
+      const bankTx = createCustomBankTx({ id: 401, created: new Date('2026-07-02'), type: BankTxType.BUY_CRYPTO });
+      const bankTxRepeat = { id: 13 } as never;
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          type: FiatOutputType.BANK_TX_REPEAT,
+          amount: 100,
+          isReadyDate: new Date('2026-07-01'),
+          bankTxRepeat,
+        }),
+      ]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxRepeatService.updateInternal).toHaveBeenCalledWith(bankTxRepeat, { chargebackBankTx: bankTx });
+    });
+  });
+  describe('setReadyDate — Liechtenstein bank holidays and liquidity ceiling', () => {
+    const bank = createCustomBank({ name: IbanBankName.MAERKI, iban: 'SYNTHETIC-MAERKI', currency: 'CHF' });
+
+    function liqOutput(overrides = {}) {
+      return createCustomFiatOutput({
+        id: 5,
+        bank,
+        // A Liechtenstein creditor IBAN is what puts the holiday calendar in play.
+        iban: 'LI75088110105923K000E',
+        amount: 100,
+        currency: 'CHF',
+        type: FiatOutputType.LIQ_MANAGEMENT,
+        buyFiats: [],
+        ...overrides,
+      });
+    }
+
+    function funded(amount = 9000) {
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          type: AssetType.CUSTODY,
+          bank,
+          balance: createCustomLiquidityBalance({ amount }),
+        }),
+      ]);
+    }
+
+    it('holds a Liechtenstein liquidity payout back on a bank holiday', async () => {
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([liqOutput()]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('holds it back late in the day before a bank holiday', async () => {
+      // Submitted after the cut-off, it would only reach the bank on the holiday itself.
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockImplementation((date) => date !== undefined);
+      jest.spyOn(Date.prototype, 'getHours').mockReturnValue(17);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([liqOutput()]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('lets it through early in the day before a bank holiday', async () => {
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockImplementation((date) => date !== undefined);
+      jest.spyOn(Date.prototype, 'getHours').mockReturnValue(9);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([liqOutput()]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('lets a Liechtenstein liquidity payout through on a normal day', async () => {
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockReturnValue(false);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([liqOutput()]);
+      funded();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('stops at the first output the balance cannot cover instead of skipping ahead', async () => {
+      // Within a type the cheapest goes first, so once one no longer fits, neither does anything after
+      // it — the loop breaks rather than reordering payouts by what happens to be affordable.
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockReturnValue(false);
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([liqOutput({ id: 5, amount: 8000 }), liqOutput({ id: 6, amount: 100 })]);
+      funded(500);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(6, { isReadyDate: expect.any(Date) });
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('names the outputs still holding liquidity when it releases one', async () => {
+      // The pending list is part of the decision, so the log has to say which rows it counted —
+      // otherwise a stuck reservation is invisible in hindsight.
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockReturnValue(false);
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          liqOutput({ id: 4, amount: 100, isReadyDate: new Date() }),
+          liqOutput({ id: 5, amount: 100, isReadyDate: null }),
+        ]);
+      funded(9000);
+      const info = jest.spyOn(service['logger'], 'info').mockImplementation(() => undefined);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+      expect(info).toHaveBeenCalledWith(expect.stringContaining('pendingFiatOutputs 4'));
+    });
+
+    it('reserves a Maerki amount until its bank transaction arrives', async () => {
+      jest.spyOn(bankHolidayConfig, 'isLiechtensteinBankHoliday').mockReturnValue(false);
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([
+          liqOutput({ id: 4, amount: 5000, isReadyDate: new Date() }),
+          liqOutput({ id: 5, amount: 5000, isReadyDate: null }),
+        ]);
+      funded(9000);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+  });
+
+  describe('createBatches — resilience', () => {
+    it('keeps batching after one output threw', async () => {
+      // setBatch is what the loop calls once a batch is full; a row that throws there must not take
+      // the remaining rows of the run down with it.
+      const first = createCustomFiatOutput({ id: 1, accountIban: 'DE123456789', amount: 100, isComplete: false });
+      const broken = createCustomFiatOutput({ id: 2, accountIban: 'DE123456789', amount: 1e9, isComplete: false });
+      // Once only: the closing forEach after the loop is deliberately outside the try, so a mock that
+      // kept throwing would assert something else entirely.
+      jest.spyOn(first, 'setBatch').mockImplementationOnce(() => {
+        throw new Error('synthetic failure');
+      });
+      const third = createCustomFiatOutput({ id: 3, accountIban: 'DE123456789', amount: 100, isComplete: false });
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue([first, broken, third]);
+      jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
+
+      await expect(service['createBatches']()).resolves.toBeUndefined();
+      expect(fiatOutputRepo.save).toHaveBeenCalled();
+    });
+  });
+  describe('the remaining kill switches and fall-throughs', () => {
+    it.each([
+      ['assignBankAccount', Process.FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT, 'assignBankAccount'],
+      ['setReadyDate', Process.FIAT_OUTPUT_READY_DATE, 'setReadyDate'],
+      ['searchOutgoingBankTx', Process.FIAT_OUTPUT_BANK_TX_SEARCH, 'searchOutgoingBankTx'],
+    ])('%s does nothing while its own kill switch is set', async (_name, flag, method) => {
+      jest.spyOn(processServiceModule, 'DisabledProcess').mockImplementation((p) => p === flag);
+
+      await service[method]();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('treats an output with no buy-fiats as nothing to fail when its customer is blocked', async () => {
+      const bank = createCustomBank({ name: IbanBankName.MAERKI, iban: 'SYNTHETIC-MAERKI', currency: 'CHF' });
+      const output = createCustomFiatOutput({
+        id: 5,
+        bank,
+        iban: 'CH9300762011623852957',
+        amount: 100,
+        currency: 'CHF',
+        type: FiatOutputType.BUY_FIAT,
+        buyFiats: undefined,
+      });
+      Object.defineProperty(output, 'user', {
+        value: { isBlockedOrDeleted: true, status: UserStatus.BLOCKED },
+        configurable: true,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([output]);
+      jest
+        .spyOn(assetService, 'getAssetsWith')
+        .mockResolvedValue([
+          createCustomAsset({ type: AssetType.CUSTODY, bank, balance: createCustomLiquidityBalance({ amount: 9000 }) }),
+        ]);
+
+      await expect(service['setReadyDate']()).resolves.toBeUndefined();
+      expect(buyFiatRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('reports an Olkypay failure that is not an Error at all', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(olkypayService, 'getOrCreateRecipient').mockRejectedValue('not an error');
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          amount: 100,
+          currency: 'EUR',
+          iban: 'LU116060002000005040',
+          bank: createCustomBank({ name: IbanBankName.OLKY }),
+        }),
+      ]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { info: 'OLKYPAY error: not an error' });
+    });
+
+    it('prefers the upstream response body for an Olkypay failure that carries one', async () => {
+      jest.spyOn(olkypayService, 'isAvailable').mockReturnValue(true);
+      jest
+        .spyOn(olkypayService, 'getOrCreateRecipient')
+        .mockRejectedValue(Object.assign(new Error('x'), { response: { data: { code: 'REJECTED' } } }));
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          amount: 100,
+          currency: 'EUR',
+          iban: 'LU116060002000005040',
+          bank: createCustomBank({ name: IbanBankName.OLKY }),
+        }),
+      ]);
+
+      await service['transmitOlkypayPayments']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { info: 'OLKYPAY error: {"code":"REJECTED"}' });
+    });
+
+    it('starts batch numbering at one when no batch exists yet', async () => {
+      jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(service['getLastBatchId']()).resolves.toBe(0);
     });
   });
 });

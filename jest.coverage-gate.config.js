@@ -191,6 +191,7 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/fiat-output/dto/update-fiat-output.dto.ts',
   'src/subdomains/supporting/fiat-output/fiat-output-fiat-republic.service.ts',
   'src/subdomains/supporting/fiat-output/fiat-output-frick.service.ts',
+  'src/subdomains/supporting/fiat-output/fiat-output-job.service.ts',
   'src/subdomains/supporting/fiat-output/fiat-output.entity.ts',
   'src/subdomains/supporting/fiat-output/fiat-output.service.ts',
   'src/subdomains/supporting/log/client-error.controller.ts',
