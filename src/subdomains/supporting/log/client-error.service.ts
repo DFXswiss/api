@@ -72,16 +72,20 @@ const EXOTIC_LINE_BREAKS = /[\u0085\u007f\u2028\u2029]/g;
 const LOG_BUDGET_PER_MINUTE = 120;
 const BUDGET_WINDOW = 60000;
 
-// Anticipated frontend states, not bugs — confirmed against the DFXswiss/services source rather
-// than the reported `type`: `type="HandledError"` is set by two screens (account-merge,
-// mail-login) for *any* error they catch, including a real backend outage, so it only narrows
-// down to "one of these two screens failed" and not to "this failure was expected". The message
-// text is the part that is actually anticipated.
+// Anticipated frontend states, not bugs — matched on the message text rather than the reported
+// `type`, because the frontend sets a generic `type="HandledError"` for *any* error the affected
+// screens catch, including a real backend outage: the message text is the part that is actually
+// anticipated. Source provenance and sampling are in the PR that introduced each entry.
+//
+// A listed `type` downgrades a report regardless of its message, on an unauthenticated endpoint.
+// Accepted: a submitter only ever downgrades their *own* report, the per-client throttle caps the
+// volume, and a flood that displaces genuine reports still surfaces through the over-budget
+// notice, which stays at ERROR.
 const WARN_TYPES = ['ChunkLoadError'];
 
-// `screens/error` translations of account-merge.screen.tsx's 400/409 branches, all locales.
-// Pinned to NFC on both sides of the match: `includes` compares code points, so an NFD-encoded
-// report (or a re-encoded source file) would otherwise miss silently and stay at ERROR.
+// All frontend locales of each anticipated message. Pinned to NFC on both sides of the match:
+// `includes` compares code points, so an NFD-encoded report (or a re-encoded source file) would
+// otherwise miss silently and stay at ERROR.
 const WARN_MESSAGES = [
   'Invalid link', // EN
   'Ungültiger Link', // DE
@@ -91,8 +95,7 @@ const WARN_MESSAGES = [
   'Zusammenführung ist bereits abgeschlossen', // DE
   'La fusion est déjà terminée', // FR
   'La fusione è già completata', // IT
-  // Thrown as a plain `Error` in auth.service.ts and forwarded as-is by mail-login.screen.tsx,
-  // never run through the frontend's `translate()` — English only, no locale variants.
+  // Never run through the frontend's `translate()` — English only, no locale variants.
   'Login link expired',
 ].map((m) => m.normalize('NFC'));
 
@@ -129,7 +132,7 @@ export class ClientErrorService {
 
     const line = `Client error: ${fields.join(' ')}`;
 
-    if (ClientErrorService.isAnticipated(type, message)) {
+    if (ClientErrorService.isAnticipated(message, type)) {
       this.logger.warn(line);
     } else {
       this.logger.error(line);
@@ -163,11 +166,8 @@ export class ClientErrorService {
 
   // --- SEVERITY --- //
 
-  private static isAnticipated(type?: string, message?: string): boolean {
-    return (
-      (type != null && WARN_TYPES.includes(type)) ||
-      (message != null && WARN_MESSAGES.includes(message.normalize('NFC')))
-    );
+  private static isAnticipated(message: string, type?: string): boolean {
+    return (type != null && WARN_TYPES.includes(type)) || WARN_MESSAGES.includes(message.normalize('NFC'));
   }
 
   // --- SANITIZING --- //

@@ -73,9 +73,9 @@ describe('ClientErrorService', () => {
   });
 
   // --- SEVERITY --- //
-  // 35 of 36 client error reports sampled over 6h live were anticipated frontend states, not bugs
-  // — matched on the exact message text, not the reported `type`: `type="HandledError"` is set by
-  // account-merge and mail-login for any error they catch, including a real backend outage.
+  // Anticipated frontend states downgrade to WARN, matched on the exact message text rather than
+  // the reported `type`: the frontend sets a generic `type="HandledError"` for any error the
+  // affected screens catch, including a real backend outage.
 
   it.each([
     ['ChunkLoadError', { type: 'ChunkLoadError' }],
@@ -105,7 +105,7 @@ describe('ClientErrorService', () => {
   });
 
   // Guards against someone later broadening the match to `type === 'HandledError'`: anything
-  // those two screens catch that isn't one of the whitelisted messages above must stay at ERROR.
+  // the frontend catches that isn't one of the whitelisted messages above must stay at ERROR.
   it('keeps an unlisted HandledError message at ERROR', () => {
     service.logError(dto({ type: 'HandledError', message: 'Backend unavailable' }));
 
