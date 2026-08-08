@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
@@ -25,6 +26,7 @@ import {
   yapealEUR,
   olkyEUR,
   frickEUR,
+  fiatRepublicEUR,
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
@@ -85,6 +87,7 @@ describe('BankService', () => {
   let fiatService: FiatService;
   let countryService: CountryService;
   let bankAccountService: BankAccountService;
+  let fiatRepublicService: FiatRepublicService;
 
   beforeEach(async () => {
     bankRepo = createMock<BankRepository>();
@@ -93,6 +96,10 @@ describe('BankService', () => {
     fiatService = createMock<FiatService>();
     countryService = createMock<CountryService>();
     bankAccountService = createMock<BankAccountService>();
+    // Not released by default: every pre-existing expectation describes the behaviour before this
+    // integration existed, and that is exactly what an unreleased Fiat Republic has to reproduce.
+    fiatRepublicService = createMock<FiatRepublicService>();
+    jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -105,6 +112,7 @@ describe('BankService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: fiatRepublicService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -386,6 +394,61 @@ describe('BankService', () => {
     expect(result).toBe(eurInstantBank);
   });
 
+  describe('Fiat Republic release gate', () => {
+    // Built locally rather than reusing the shared olkyEUR fixture: createDefaultDisabledBanks mutates
+    // that object's `receive` flag, so a shared instance can arrive here already disabled.
+    const incumbentEUR = createCustomBank({
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      iban: 'LU116060002000005040',
+      receive: true,
+      sctInst: true,
+    });
+
+    it('never hands out a Fiat Republic IBAN while the frontend stage is off', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, incumbentEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT });
+
+      expect(bank?.name).toBe(IbanBankName.OLKY);
+    });
+
+    it('returns nothing rather than Fiat Republic when it is the only receiver and is not released', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR]);
+
+      await expect(
+        service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('does not let Fiat Republic capture the EUR fallback of an unsupported currency while unreleased', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, incumbentEUR]);
+
+      const bank = await service.getBank({ currency: 'GBP', paymentMethod: FiatPaymentMethod.BANK });
+
+      expect(bank?.name).toBe(IbanBankName.OLKY);
+    });
+
+    it('offers Fiat Republic once the frontend stage is released', async () => {
+      jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(true);
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT });
+
+      expect(bank?.name).toBe(IbanBankName.FIAT_REPUBLIC);
+    });
+
+    it('leaves the hardcoded Bank Frick EUR bank-transfer rule untouched when Fiat Republic is released', async () => {
+      jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(true);
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, frickEUR]);
+      mockFindCachedForBanks(bankRepo, [frickEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK });
+
+      expect(bank?.name).toBe(IbanBankName.FRICK);
+    });
+  });
+
   describe('getBankByIban scoping', () => {
     // accountIban is nullable and parsed from the SEPA payload. Absent, the only condition is dropped
     // and an arbitrary Bank is returned, which then drives the chargeback fee.
@@ -412,6 +475,23 @@ describe('Bank Frick country routing', () => {
   it('uses the existing automated-bank country allowlist', () => {
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+});
+
+describe('Fiat Republic country routing', () => {
+  const bank = Object.assign(new Bank(), { name: IbanBankName.FIAT_REPUBLIC });
+
+  // The Acceptable Use Policy commits DFX to keeping customer segments outside Fiat Republic's risk
+  // appetite off the platform entirely, so it is gated like the other EU/EEA rails, not left open.
+  it('uses the same automated-bank country allowlist as the other EU rails', () => {
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+
+  it('is reconcilable like every non-Frick bank', () => {
+    expect(
+      Object.assign(new Bank(), { name: IbanBankName.FIAT_REPUBLIC, send: true, receive: false }).isReconcilable,
+    ).toBe(true);
   });
 });
 
@@ -549,9 +629,12 @@ describe('Bank.isReconcilable', () => {
 describe('Bank (name, currency) collision tie-break', () => {
   let service: BankService;
   let bankRepo: BankRepository;
+  let fiatRepublicService: FiatRepublicService;
 
   beforeEach(async () => {
     bankRepo = createMock<BankRepository>();
+    fiatRepublicService = createMock<FiatRepublicService>();
+    jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -564,6 +647,7 @@ describe('Bank (name, currency) collision tie-break', () => {
         { provide: CountryService, useValue: createMock<CountryService>() },
         { provide: BankAccountService, useValue: createMock<BankAccountService>() },
         { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: fiatRepublicService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -733,6 +817,7 @@ describe('BankService.getReceiveIbanStatus', () => {
         BankService,
         { provide: BankRepository, useValue: bankRepo },
         { provide: VirtualIbanRepository, useValue: virtualIbanRepo },
+        { provide: FiatRepublicService, useValue: createMock<FiatRepublicService>() },
         TestUtil.provideConfig(),
       ],
     }).compile();

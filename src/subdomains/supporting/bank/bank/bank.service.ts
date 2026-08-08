@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -31,6 +32,7 @@ export class BankService implements OnModuleInit {
   constructor(
     private readonly bankRepo: BankRepository,
     private readonly virtualIbanRepo: VirtualIbanRepository,
+    private readonly fiatRepublicService: FiatRepublicService,
   ) {}
 
   onModuleInit() {
@@ -127,7 +129,14 @@ export class BankService implements OnModuleInit {
     // Everything below keeps the categorical exclusion the removed bank-name filter provided: Bank
     // Frick must not win a currency it was never routed to, and must not be reachable through the
     // instant lookup or the EUR currency fallback either. Only the explicit rule above may return it.
-    const banks = receiveBanks.filter((bank) => bank.name !== IbanBankName.FRICK);
+    //
+    // Fiat Republic is excluded on the same categorical basis until its frontend stage flag is on.
+    // Its bank row can therefore exist in every environment — seeded, reconcilable, ready — without
+    // a single customer ever being handed its IBAN before the release is deliberately switched on.
+    const isFiatRepublicOffered = this.fiatRepublicService.isFrontendEnabled();
+    const banks = receiveBanks.filter(
+      (bank) => bank.name !== IbanBankName.FRICK && (isFiatRepublicOffered || bank.name !== IbanBankName.FIAT_REPUBLIC),
+    );
 
     // select the matching bank account
     let account: Bank | undefined;

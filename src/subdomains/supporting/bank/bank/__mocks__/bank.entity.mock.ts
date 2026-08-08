@@ -51,6 +51,15 @@ export const frickCHF = createCustomBank({
   receive: true,
 });
 
+export const fiatRepublicEUR = createCustomBank({
+  name: IbanBankName.FIAT_REPUBLIC,
+  currency: 'EUR',
+  iban: 'DE02120300000000202051',
+  bic: 'FRPBDEFF',
+  receive: true,
+  sctInst: true,
+});
+
 export function createDefaultBank(): Bank {
   return createCustomBank({});
 }

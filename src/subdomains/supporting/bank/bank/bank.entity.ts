@@ -43,10 +43,14 @@ export class Bank extends IEntity {
   // --- ENTITY METHODS --- //
 
   isCountryEnabled(country: Country): boolean {
+    // Fiat Republic is in this group for the same reason as the others, plus one of its own: its
+    // Acceptable Use Policy commits DFX to keeping customer segments outside its risk appetite off the
+    // platform entirely, so it must be country-gated rather than open to everyone.
     switch (this.name) {
       case IbanBankName.FRICK:
       case IbanBankName.YAPEAL:
       case IbanBankName.OLKY:
+      case IbanBankName.FIAT_REPUBLIC:
         return country.yapealEnable;
       default:
         return true;
