@@ -1850,26 +1850,7 @@ describe('BuyService', () => {
   });
 
   describe('getUserDataBuys', () => {
-    it('filters on the user id when a userId is given', async () => {
-      jest.spyOn(buyRepo, 'find').mockResolvedValue([]);
-
-      await service.getUserDataBuys(1, 42);
-
-      expect(buyRepo.find).toHaveBeenCalledWith({
-        where: {
-          active: true,
-          user: {
-            id: 42,
-            userData: { id: 1 },
-            status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])),
-          },
-          asset: { buyable: true },
-        },
-        relations: { user: true },
-      });
-    });
-
-    it('omits the user-id filter without a userId', async () => {
+    it('filters on account, active state, buyable asset and user status', async () => {
       jest.spyOn(buyRepo, 'find').mockResolvedValue([]);
 
       await service.getUserDataBuys(1);
@@ -1877,10 +1858,7 @@ describe('BuyService', () => {
       expect(buyRepo.find).toHaveBeenCalledWith({
         where: {
           active: true,
-          user: {
-            userData: { id: 1 },
-            status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])),
-          },
+          user: { userData: { id: 1 }, status: Not(In([UserStatus.BLOCKED, UserStatus.DELETED])) },
           asset: { buyable: true },
         },
         relations: { user: true },

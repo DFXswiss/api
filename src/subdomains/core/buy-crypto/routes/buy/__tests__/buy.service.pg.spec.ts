@@ -69,16 +69,18 @@ class BuyTable {
 
 interface Fixture {
   userData1: UserDataTable;
-  userA: UserTable;
-  userC: UserTable;
   buyA: BuyTable;
   buyB: BuyTable;
+  buyBlockedUser: BuyTable;
+  buyInactive: BuyTable;
+  buyNotBuyable: BuyTable;
+  buyOtherAccount: BuyTable;
+  buyDeletedUser: BuyTable;
 }
 
 // runs getUserDataBuys against a Postgres-semantics engine (pg-mem), because mocked find() calls
 // never execute SQL; this pins the real filter and join semantics for the user relation, nested
-// where conditions including Not(In([...])) on user.status, asset.buyable, active, and the optional
-// user id restriction when userId is provided
+// where conditions including Not(In([...])) on user.status, asset.buyable, and active
 describe('BuyService.getUserDataBuys (postgres semantics)', () => {
   let dataSource: DataSource;
   let repo: BuyRepository;
@@ -138,20 +140,30 @@ describe('BuyService.getUserDataBuys (postgres semantics)', () => {
       { userData: userData1, status: UserStatus.DELETED },
     ]);
     const [assetBuyable, assetNotBuyable] = await assetRepo.save([{ buyable: true }, { buyable: false }]);
-    const [buyA, buyB] = await buyRepo.save([
-      { user: userA, asset: assetBuyable, active: true },
-      { user: userB, asset: assetBuyable, active: true },
-      { user: userC, asset: assetBuyable, active: true },
-      { user: userA, asset: assetBuyable, active: false },
-      { user: userB, asset: assetNotBuyable, active: true },
-      { user: userD, asset: assetBuyable, active: true },
-      { user: userE, asset: assetBuyable, active: true },
-    ]);
+    const [buyA, buyB, buyBlockedUser, buyInactive, buyNotBuyable, buyOtherAccount, buyDeletedUser] =
+      await buyRepo.save([
+        { user: userA, asset: assetBuyable, active: true },
+        { user: userB, asset: assetBuyable, active: true },
+        { user: userC, asset: assetBuyable, active: true },
+        { user: userA, asset: assetBuyable, active: false },
+        { user: userB, asset: assetNotBuyable, active: true },
+        { user: userD, asset: assetBuyable, active: true },
+        { user: userE, asset: assetBuyable, active: true },
+      ]);
 
-    return { userData1, userA, userC, buyA, buyB };
+    return {
+      userData1,
+      buyA,
+      buyB,
+      buyBlockedUser,
+      buyInactive,
+      buyNotBuyable,
+      buyOtherAccount,
+      buyDeletedUser,
+    };
   }
 
-  it('returns every eligible buy of the account without a userId', async () => {
+  it('returns every eligible buy of the account, across all its users', async () => {
     const { userData1, buyA, buyB } = await seedFixture();
 
     const buys = await service.getUserDataBuys(userData1.id);
@@ -159,17 +171,18 @@ describe('BuyService.getUserDataBuys (postgres semantics)', () => {
     expect(buys.every((b) => b.user != null)).toBe(true);
   });
 
-  it('returns only the buys of the given user with a userId', async () => {
-    const { userData1, userA, buyA } = await seedFixture();
+  it('excludes inactive buys, non-buyable assets, blocked and deleted users and other accounts', async () => {
+    const { userData1, buyA, buyB, buyBlockedUser, buyInactive, buyNotBuyable, buyOtherAccount, buyDeletedUser } =
+      await seedFixture();
 
-    const buys = await service.getUserDataBuys(userData1.id, userA.id);
-    expect(buys.map((b) => b.id)).toEqual([buyA.id]);
-  });
+    const buys = await service.getUserDataBuys(userData1.id);
+    const returnedIds = buys.map((b) => b.id);
 
-  it('returns an empty list for a user of the account without eligible buys', async () => {
-    const { userData1, userC } = await seedFixture();
-
-    const buys = await service.getUserDataBuys(userData1.id, userC.id);
-    expect(buys).toEqual([]);
+    expect(returnedIds.sort((x, y) => x - y)).toEqual([buyA.id, buyB.id].sort((x, y) => x - y));
+    expect(returnedIds).not.toContain(buyInactive.id); // inactive
+    expect(returnedIds).not.toContain(buyNotBuyable.id); // non-buyable asset
+    expect(returnedIds).not.toContain(buyBlockedUser.id); // blocked user
+    expect(returnedIds).not.toContain(buyOtherAccount.id); // other account
+    expect(returnedIds).not.toContain(buyDeletedUser.id); // deleted user
   });
 });

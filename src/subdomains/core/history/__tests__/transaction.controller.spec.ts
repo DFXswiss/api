@@ -141,7 +141,7 @@ describe('TransactionController', () => {
   });
 
   describe('getTransactionTargets', () => {
-    it('scopes to the user for a wallet-login token', async () => {
+    it('returns the account-wide list for a wallet-login token', async () => {
       const userJwt: JwtPayload = {
         role: UserRole.USER,
         ip: '1.1.1.1',
@@ -153,15 +153,15 @@ describe('TransactionController', () => {
 
       await controller.getTransactionTargets(userJwt);
 
-      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, 42);
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1);
     });
 
-    it('stays unscoped for an account-login token', async () => {
+    it('returns the account-wide list for an account-login token', async () => {
       jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
 
       await controller.getTransactionTargets(jwt);
 
-      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1);
     });
 
     it('maps buys to transaction targets', async () => {
@@ -182,23 +182,7 @@ describe('TransactionController', () => {
       ]);
     });
 
-    it('stays unscoped for a mail-elevated staff token', async () => {
-      const staffJwt: JwtPayload = {
-        role: UserRole.SUPPORT,
-        ip: '1.1.1.1',
-        account: 1,
-        user: 42,
-        address: 'staff-address',
-        tfaRequired: true,
-      };
-      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
-
-      await controller.getTransactionTargets(staffJwt);
-
-      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
-    });
-
-    it('scopes to the user for a staff wallet login without the mail-elevation marker', async () => {
+    it('returns the account-wide list for a staff wallet login', async () => {
       const staffWalletJwt: JwtPayload = {
         role: UserRole.SUPPORT,
         ip: '1.1.1.1',
@@ -210,23 +194,53 @@ describe('TransactionController', () => {
 
       await controller.getTransactionTargets(staffWalletJwt);
 
-      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, 42);
+      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1);
     });
 
-    it('stays unscoped for a mail-origin token regardless of role', async () => {
-      const mailUserJwt: JwtPayload = {
+    // The controller passes the service list through unchanged (no re-filtering), so the result
+    // also includes buy routes that belong to a different wallet address of the same account than
+    // the logged-in JWT. That is the purpose of the account-wide list.
+    // That the controller actually calls the service account-wide (not user-wide) is already
+    // covered by the toHaveBeenCalledWith(1) tests further above in this describe group; this test
+    // only covers mapping the service response onto the DTOs, not the write path.
+    // Note: the write path (setTransactionTarget / BuyService.get) currently filters even less
+    // than this display list (no active / asset.buyable / user.status) — known and tracked under
+    // issue #4756; not fixed by this change.
+    it('maps every route the service returns, including routes of other addresses', async () => {
+      const buyOne = createCustomBuy({
+        id: 7,
+        bankUsage: 'ABCD-EFGH-IJKL',
+        user: createCustomUser({ address: 'address-a' }),
+      });
+      const buyTwo = createCustomBuy({
+        id: 8,
+        bankUsage: 'MNOP-QRST-UVWX',
+        user: createCustomUser({ address: 'address-b' }),
+      });
+      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([buyOne, buyTwo]);
+
+      const walletJwt: JwtPayload = {
         role: UserRole.USER,
         ip: '1.1.1.1',
         account: 1,
         user: 42,
-        address: 'wallet-address',
-        tfaRequired: true,
+        address: 'address-a',
       };
-      jest.spyOn(buyService, 'getUserDataBuys').mockResolvedValue([]);
 
-      await controller.getTransactionTargets(mailUserJwt);
-
-      expect(buyService.getUserDataBuys).toHaveBeenCalledWith(1, undefined);
+      await expect(controller.getTransactionTargets(walletJwt)).resolves.toEqual([
+        {
+          id: buyOne.id,
+          address: buyOne.user.address,
+          asset: AssetDtoMapper.toDto(buyOne.asset),
+          bankUsage: buyOne.bankUsage,
+        },
+        {
+          id: buyTwo.id,
+          address: buyTwo.user.address,
+          asset: AssetDtoMapper.toDto(buyTwo.asset),
+          bankUsage: buyTwo.bankUsage,
+        },
+      ]);
     });
   });
 
