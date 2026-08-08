@@ -164,6 +164,22 @@ export class AppController {
     res.redirect(303, url ?? this.homepageUrl);
   }
 
+  // Accepts the referral code as a path segment so redirects that only substitute path
+  // placeholders (e.g. Cloudflare Pages) still reach the same store-redirect logic.
+  // Path `:code` is passed through explicitly so it wins over any `?code=` query.
+  @Get('app/:app/:code')
+  @ApiExcludeEndpoint()
+  async redirectToStoreWithCode(
+    @RealIP() ip: string,
+    @Param('app') app: App,
+    @Param('code') code: string,
+    @Query('orig') origin: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    return this.redirectToStore(ip, app, code, origin, req, res);
+  }
+
   private async getRef(code: string): Promise<string | undefined> {
     const keys = await this.settingService.getObj('ref-keys', {});
 
