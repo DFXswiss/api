@@ -90,10 +90,6 @@ export class SupportMessage extends IEntity {
     return this.suggestionText != null;
   }
 
-  get isSuggestionPending(): boolean {
-    return this.suggestionState === SupportReplySuggestionState.PENDING;
-  }
-
   get userData(): UserData {
     return this.issue.userData;
   }

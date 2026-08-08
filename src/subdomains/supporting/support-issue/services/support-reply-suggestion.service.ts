@@ -25,8 +25,10 @@ export class SupportReplySuggestionService {
     dto: CreateSupportReplySuggestionDto,
     authorId: number,
   ): Promise<SupportReplySuggestionDto> {
+    // An issue is created together with its first message and messages are never deleted, so a thread
+    // without a newest message is an issue that does not exist.
     const latestMessage = await this.getLatestMessage(issueId);
-    if (!latestMessage) throw new ConflictException('Support issue has no message to answer');
+    if (!latestMessage) throw new NotFoundException('Support issue not found');
     if (dto.messageId != null && dto.messageId !== latestMessage.id)
       throw new ConflictException(`Message ${dto.messageId} is not the newest message of the support issue`);
 
@@ -52,14 +54,17 @@ export class SupportReplySuggestionService {
 
   /** The newest suggestion still awaiting a decision, which is the only one a clerk is offered. */
   async getPendingSuggestion(issueId: number): Promise<SupportReplySuggestionDto | undefined> {
-    const message = await this.messageRepo.findOne({
-      where: { issue: { id: issueId }, suggestionState: SupportReplySuggestionState.PENDING },
-      loadEagerRelations: false,
-      order: { id: 'DESC' },
-    });
+    const [message, latestMessageId] = await Promise.all([
+      this.messageRepo.findOne({
+        where: { issue: { id: issueId }, suggestionState: SupportReplySuggestionState.PENDING },
+        loadEagerRelations: false,
+        order: { id: 'DESC' },
+      }),
+      this.getLatestMessageId(issueId),
+    ]);
     if (!message) return undefined;
 
-    return SupportReplySuggestionDtoMapper.mapSuggestion(message, await this.getLatestMessageId(issueId));
+    return SupportReplySuggestionDtoMapper.mapSuggestion(message, latestMessageId);
   }
 
   /** Accepting hands the text to the clerk, who edits and sends it as their own message. */
@@ -79,10 +84,10 @@ export class SupportReplySuggestionService {
     state: SupportReplySuggestionState,
     handledById: number,
   ): Promise<SupportReplySuggestionDto> {
-    const message = await this.messageRepo.findOne({
-      where: { id: messageId, issue: { id: issueId } },
-      loadEagerRelations: false,
-    });
+    const [message, latestMessageId] = await Promise.all([
+      this.messageRepo.findOne({ where: { id: messageId, issue: { id: issueId } }, loadEagerRelations: false }),
+      this.getLatestMessageId(issueId),
+    ]);
     if (!message?.hasSuggestion) throw new NotFoundException('Support reply suggestion not found');
 
     // A decision is taken once, and the condition on the current state is what makes that true: two
@@ -92,11 +97,13 @@ export class SupportReplySuggestionService {
       { id: messageId, suggestionState: SupportReplySuggestionState.PENDING },
       { suggestionState: state, suggestionHandledById: handledById, suggestionHandled: new Date() },
     );
-    if (!result.affected) throw new ConflictException(`Suggestion is already in state ${message.suggestionState}`);
+    // The state read above is the one from before the race, so it cannot name what the suggestion
+    // became — only that this call was not the one that decided it.
+    if (!result.affected) throw new ConflictException(`Suggestion of message ${messageId} was already decided`);
 
     message.decideSuggestion(state, handledById);
 
-    return SupportReplySuggestionDtoMapper.mapSuggestion(message, await this.getLatestMessageId(issueId));
+    return SupportReplySuggestionDtoMapper.mapSuggestion(message, latestMessageId);
   }
 
   private async getLatestMessage(issueId: number): Promise<SupportMessage | null> {
@@ -108,10 +115,11 @@ export class SupportReplySuggestionService {
   }
 
   /**
-   * The newest message of a thread that is known to have one — a suggestion lives on a message, and
-   * messages are never deleted.
+   * The id of the newest message, read beside the suggestion rather than after it — the two are
+   * independent. It is undefined only for an issue that does not exist, and both callers have
+   * already left by then.
    */
-  private async getLatestMessageId(issueId: number): Promise<number> {
-    return this.getLatestMessage(issueId).then((m) => m.id);
+  private async getLatestMessageId(issueId: number): Promise<number | undefined> {
+    return this.getLatestMessage(issueId).then((m) => m?.id);
   }
 }

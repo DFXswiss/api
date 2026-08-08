@@ -86,12 +86,15 @@ describe('SupportReplySuggestionService', () => {
       await expect(call).rejects.toThrow(`Message ${MESSAGE_ID} already carries a suggestion`);
     });
 
-    it('fails when the issue has no message to answer', async () => {
+    // Every issue is created together with its first message, so a thread without a newest message
+    // is an issue that does not exist — which is a 404, not a conflict.
+    it('fails when the issue does not exist', async () => {
       messageRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID)).rejects.toThrow(
-        ConflictException,
-      );
+      const call = service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID);
+
+      await expect(call).rejects.toThrow(NotFoundException);
+      await expect(call).rejects.toThrow('Support issue not found');
     });
   });
 
@@ -176,7 +179,18 @@ describe('SupportReplySuggestionService', () => {
       const call = service[method](ISSUE_ID, MESSAGE_ID, CLERK_ID);
 
       await expect(call).rejects.toThrow(ConflictException);
-      await expect(call).rejects.toThrow('Suggestion is already in state Accepted');
+      await expect(call).rejects.toThrow(`Suggestion of message ${MESSAGE_ID} was already decided`);
+    });
+
+    // The loser of two simultaneous decisions read `Pending` before the winner wrote, so the message
+    // it was refused with must not name a state — it would name the one from before the race.
+    it('does not name a state when the decision was lost to a simultaneous one', async () => {
+      messageRepo.findOne.mockResolvedValue(withSuggestion());
+      (messageRepo.update as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      await expect(service[method](ISSUE_ID, MESSAGE_ID, CLERK_ID)).rejects.toThrow(
+        `Suggestion of message ${MESSAGE_ID} was already decided`,
+      );
     });
   });
 });

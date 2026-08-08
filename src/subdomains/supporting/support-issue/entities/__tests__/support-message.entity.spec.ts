@@ -53,17 +53,6 @@ describe('SupportMessage', () => {
     });
   });
 
-  describe('isSuggestionPending', () => {
-    it.each([
-      [undefined, false],
-      [SupportReplySuggestionState.PENDING, true],
-      [SupportReplySuggestionState.ACCEPTED, false],
-      [SupportReplySuggestionState.REJECTED, false],
-    ])('state %s -> %s', (state, expected) => {
-      expect(message({ suggestionState: state }).isSuggestionPending).toBe(expected);
-    });
-  });
-
   describe('userData', () => {
     it('is the account of the issue the message belongs to', () => {
       const userData = Object.assign(new UserData(), { id: 42 });
