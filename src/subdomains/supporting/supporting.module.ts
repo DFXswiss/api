@@ -7,6 +7,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DexModule } from './dex/dex.module';
 import { FiatOutputModule } from './fiat-output/fiat-output.module';
 import { FiatPayInModule } from './fiat-payin/fiat-payin.module';
+import { JobModule } from './job/job.module';
 import { LogModule } from './log/log.module';
 import { MrosModule } from './mros/mros.module';
 import { NotificationModule } from './notification/notification.module';
@@ -25,6 +26,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     BankTxModule,
     DashboardModule,
     DexModule,
+    JobModule,
     LogModule,
     NotificationModule,
     PayInModule,
@@ -39,6 +41,6 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
   ],
   controllers: [],
   providers: [],
-  exports: [],
+  exports: [JobModule],
 })
 export class SupportingModule {}

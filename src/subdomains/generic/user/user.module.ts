@@ -16,7 +16,9 @@ import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module'
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
+import { JobModule } from 'src/subdomains/supporting/job/job.module';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
+import { AccountMergeJobHandler } from './models/account-merge/account-merge-job.handler';
 import { AccountMergeRepository } from './models/account-merge/account-merge.repository';
 import { AccountMergeService } from './models/account-merge/account-merge.service';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
@@ -85,6 +87,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     forwardRef(() => SupportIssueModule),
     forwardRef(() => TransactionModule),
     forwardRef(() => CustodyModule),
+    JobModule,
   ],
   controllers: [
     UserV2Controller,
@@ -121,6 +124,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataNotificationService,
     UserDataRelationService,
     AccountMergeService,
+    AccountMergeJobHandler,
     CustodyProviderService,
     CustodyProviderRepository,
     OrganizationService,

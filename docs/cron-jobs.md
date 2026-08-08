@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **144 `@DfxCron` declarations** across 99 files and 34 areas.
+Every scheduled job this service runs: **146 `@DfxCron` declarations** across 101 files and 35 areas.
 
 ## Columns
 
@@ -31,7 +31,7 @@ request path loads on demand, and a job may refresh it but must not be the only 
 
 ## Flags
 
-120 of the 144 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
+122 of the 146 jobs carry a `process` flag, 24 do not. A job with a flag can be switched off
 without a deploy — `DfxCronService` skips it when the process appears in the disabled set, which
 `ProcessService` refreshes from the `disabledProcesses` setting and the `DISABLED_PROCESSES`
 environment variable every 30 seconds.
@@ -77,8 +77,8 @@ New jobs should declare a flag unless there is a reason like the one above.
 | second | 5 |
 | 10 seconds | 3 |
 | 15 seconds | 1 |
-| 30 seconds | 10 |
-| minute | 53 |
+| 30 seconds | 11 |
+| minute | 54 |
 | 5 minutes | 19 |
 | 10 minutes | 17 |
 | 15 minutes | 1 |
@@ -98,6 +98,7 @@ Jobs by area:
 | Area | Jobs | Without flag |
 | ---- | ---: | -----------: |
 | `subdomains/generic/user` | 16 | 8 |
+| `subdomains/supporting/job` | 2 | 0 |
 | `subdomains/core/monitoring` | 15 | — |
 | `subdomains/core/accounting` | 13 | — |
 | `subdomains/supporting/payin` | 12 | — |
@@ -137,7 +138,7 @@ Jobs by area:
 Every `@DfxCron(` occurrence in `src/**/*.ts`. Decorator arguments are read by a balanced-paren
 scan, so multi-line declarations are included — a line-based match misses 28 of them. Interval,
 flag and scope come from those arguments, so all three are as accurate as the source. The parsed
-count is asserted against a raw text count of the decorator: **144 = 144**, no gap. Class and
+count is asserted against a raw text count of the decorator: **146 = 146**, no gap. Class and
 method come from the enclosing `export class` (including `export abstract class`) and the
 identifier following the decorator.
 
@@ -177,6 +178,7 @@ here rather than fixed in passing. Of the 144 declarations, 143 have a registrat
 | 10 seconds | `MONITOR_EVENT_LOOP` | `both` | `MonitorEventLoopService::monitorEventLoop` | `subdomains/core/monitoring/monitor-event-loop.service.ts` |
 | 15 seconds | — | `both` | `PaymentCronService::deliverPaymentUpdates` | `subdomains/core/payment-link/services/payment-cron.service.ts` |
 | 30 seconds | `LNURL_AUTH_CACHE` | `both` | `AuthLnUrlService::processCleanupAccessToken` | `subdomains/generic/user/models/auth/auth-lnurl.service.ts` |
+| 30 seconds | `JOB_METRICS` | `both` | `JobMetricService::updateSnapshot` | `subdomains/supporting/job/services/job-metric.service.ts` |
 | 30 seconds | — | `both` | `PaymentLinkGateway::checkConnections` | `subdomains/core/payment-link/controllers/payment-link.gateway.ts` |
 | 30 seconds | `BANK_TX` | `worker` | `BankTxService::checkBankTx` | `subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts` |
 | 30 seconds | `DEX_PURCHASE_ORDER` | `worker` | `DexService::finalizePurchaseOrders` | `subdomains/supporting/dex/services/dex.service.ts` |
@@ -187,6 +189,7 @@ here rather than fixed in passing. Of the 144 declarations, 143 have a registrat
 | 30 seconds | — | `both` | `ProcessService::resyncDisabledProcesses` | `shared/services/process.service.ts` |
 | 30 seconds | — | `both` | `ProcessService::resyncStaffKycClearance` | `shared/services/process.service.ts` |
 | minute | `PAY_OUT` | `worker` | `AdminService::completeLiquidityOrders` | `subdomains/generic/admin/admin.service.ts` |
+| minute | `JOB_ACCOUNT_MERGE` | `worker` | `JobDispatcherService::sweepAccountMerge` | `subdomains/supporting/job/services/job-dispatcher.service.ts` |
 | minute | `MONITORING` | `worker` | `AmlObserver::fetch` | `subdomains/core/monitoring/observers/aml.observer.ts` |
 | minute | — | `both` | `AuthService::checkLists` | `subdomains/generic/user/models/auth/auth.service.ts` |
 | minute | `BANK_DATA_VERIFICATION` | `worker` | `BankDataService::checkAndSetActive` | `subdomains/generic/user/models/bank-data/bank-data.service.ts` |

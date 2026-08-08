@@ -124,6 +124,10 @@ export enum Process {
   REF_CLEANUP = 'RefCleanup',
   LATEST_BALANCE_CACHE = 'LatestBalanceCache',
   SPARK_TOKEN_OPTIMIZATION = 'SparkTokenOptimization',
+  // one kill-switch per job group so a single group can be paused without taking others down;
+  // JOB_METRICS toggles the observation cron
+  JOB_ACCOUNT_MERGE = 'JobAccountMerge',
+  JOB_METRICS = 'JobMetrics',
 }
 
 const safetyProcesses: Process[] = [

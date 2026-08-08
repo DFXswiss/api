@@ -115,6 +115,31 @@ export class AccountMergeService {
     return true;
   }
 
+  /**
+   * Validates a merge request without changing anything. Synchronous front door before the merge
+   * is enqueued as a job: the 404/400 below are a contract with existing clients and must come
+   * back synchronously, not as a job outcome. executeMerge() re-checks found/expired/completed
+   * on its own right before it runs, since time passes in between.
+   */
+  async validateForExecution(code: string): Promise<AccountMerge> {
+    const request = await this.accountMergeRepo.findOne({
+      where: { code },
+      relations: { master: true, slave: true },
+    });
+    if (!request) throw new NotFoundException('Account merge information not found');
+
+    if (request.isExpired) throw new BadRequestException('Merge request is expired');
+    // A running or already completed merge is not an error here: the caller decides based on the
+    // associated job (or, for pre-job legacy rows with no job, raises its own conflict).
+    return request;
+  }
+
+  // Exposes the master/slave ordering to callers outside this service instead of having them
+  // rebuild the sort themselves.
+  getMaster(request: AccountMerge): UserData {
+    return AccountMergeService.masterFirst([request.master, request.slave])[0];
+  }
+
   async executeMerge(code: string): Promise<AccountMerge> {
     // Without a code there is nothing to look up. TypeORM drops undefined where values, so the query
     // would degenerate to an unconditioned findOne and return an arbitrary merge request — and the

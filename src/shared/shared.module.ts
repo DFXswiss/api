@@ -39,6 +39,7 @@ import { RepositoryFactory } from './repositories/repository.factory';
 import { CronLeaseService } from './services/cron-lease.service';
 import { DfxCronService } from './services/dfx-cron.service';
 import { HttpService } from './services/http.service';
+import { MetricService } from './services/metric.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { ProcessService } from './services/process.service';
 
@@ -79,6 +80,7 @@ import { ProcessService } from './services/process.service';
     ProcessService,
     CronLeaseService,
     DfxCronService,
+    MetricService,
   ],
   exports: [
     RepositoryFactory,
@@ -95,6 +97,7 @@ import { ProcessService } from './services/process.service';
     PaymentInfoService,
     IpLogService,
     ProcessService,
+    MetricService,
   ],
 })
 export class SharedModule {}

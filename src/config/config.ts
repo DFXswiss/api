@@ -133,6 +133,7 @@ export class Configuration {
     paymentLinkPaymentUidPrefix: 'plp',
     paymentQuoteUidPrefix: 'plq',
     realUnitTransferUidPrefix: 'RT',
+    jobUidPrefix: 'J',
   };
 
   moderators = {
