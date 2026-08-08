@@ -17,7 +17,8 @@ import {
 // UserRole.DEBUG. Both roles sit in KycGatedRoles, so `RoleGuard.isElevated` stays true and the staff
 // KYC clearance keeps applying unchanged; this widens who may read the aggregates, not how.
 // Deliberately NOT widened: `ref-recipients` returns userDataId per recipient, which is a reference to
-// a person rather than an aggregate, and `changes`/`changes/latest` belong to other screens.
+// a person rather than an aggregate; `changes` backs the History and Expenses screens; and
+// `changes/latest` has no consumer at all today, so there is nothing asking for it to be opened.
 @ApiTags('dashboard')
 @Controller('dashboard/financial')
 export class DashboardFinancialController {
