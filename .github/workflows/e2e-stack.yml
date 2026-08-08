@@ -139,9 +139,12 @@ jobs:
       - name: Bring up e2e stack
         run: E2E_API_IMAGE=dfx-api:e2e bash services-repo/e2e-stack/scripts/up.sh
 
+      # --env-file is not optional here: up.sh writes the values it resolved into that file, and a
+      # compose run that resolves them differently recreates the API container mid-run.
       - name: Run Playwright tests
         run: |
           docker compose -p dfx-e2e-stack \
+            --env-file services-repo/e2e-stack/.env \
             -f services-repo/e2e-stack/compose.yml \
             -f services-repo/e2e-stack/compose.tests.yml \
             run --name dfx-e2e-stack-tests tests
