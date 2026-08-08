@@ -15,14 +15,14 @@ The job itself is listed in [docs/cron-jobs.md](cron-jobs.md).
 Rules are grouped into six blocks, each with a base filter and one bundled aggregation query
 (CASE sums — one statement per block, not one per rule; the two buy-crypto blocks share a base table but run as separate statements):
 
-| Block | Table | Base filter |
-| ----- | ----- | ----------- |
-| `bankTx` | `bank_tx` | type unassigned, `Pending` or `GSheet` |
-| `buyCryptoFiat` | `buy_crypto` | fiat-funded (`bankTxId` set), incomplete, excluding `Ethereum/DEPSPresale` |
-| `buyCryptoCrypto` | `buy_crypto` | crypto-funded (`cryptoInputId` set), incomplete, excluding `MinDepositNotReached` |
-| `buyFiat` | `buy_fiat` | incomplete |
-| `fiatOutput` | `fiat_output` | incomplete |
-| `bankTxReturn` | `bank_tx_return` | chargeback not booked yet |
+| Block             | Table            | Base filter                                                                       |
+| ----------------- | ---------------- | --------------------------------------------------------------------------------- |
+| `bankTx`          | `bank_tx`        | type unassigned, `Pending` or `GSheet`                                            |
+| `buyCryptoFiat`   | `buy_crypto`     | fiat-funded (`bankTxId` set), incomplete, excluding `Ethereum/DEPSPresale`        |
+| `buyCryptoCrypto` | `buy_crypto`     | crypto-funded (`cryptoInputId` set), incomplete, excluding `MinDepositNotReached` |
+| `buyFiat`         | `buy_fiat`       | incomplete                                                                        |
+| `fiatOutput`      | `fiat_output`    | incomplete                                                                        |
+| `bankTxReturn`    | `bank_tx_return` | chargeback not booked yet                                                         |
 
 Per rule the observer reports `count` and `chfSum` (current backlog) plus `overdueCount` and
 `overdueChf` (entries older than the rule's tolerance). Two kinds of rules exist, enforced at

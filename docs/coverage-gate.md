@@ -23,7 +23,8 @@ It is a **regression gate**, not a statement about test quality:
   why it stays separate.
 - A newly added production file with no coverage at all passes this gate without complaint. The
   ratchet only protects files already on the list, and that list grows by hand (see "How the list
-  grows"). That is the price of the threshold approach.
+  grows"). That is the price of the threshold approach. What closes the gap is review, not CI:
+  CONTRIBUTING requires every file a PR touches to reach 100% and to be pinned in that same PR.
 
 Of the 447 pinned files, **253 carry real logic** (they have functions and/or branches) and
 **194 are purely declarative today** (NestJS modules, constant files with neither). The two groups

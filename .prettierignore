@@ -1,0 +1,4 @@
+# Inventories written by scripts/inventory/* — the tools rewrite these files, so
+# formatting them here would be undone on the next run and drift back and forth.
+docs/load-sites.md
+docs/endpoints.md

@@ -226,7 +226,7 @@ npm run start:local    # Restart API manually
 The `npm run setup` command is an all-in-one script that:
 
 1. **Generates All Wallet Seeds**: Creates secure random seeds/keys and saves them to `.env`:
-   - Mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, ICP, SPARK, BOLTZ, PAYMENT_*)
+   - Mnemonic seeds (ADMIN, EVM*DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, ICP, SPARK, BOLTZ, PAYMENT*\*)
    - EVM private keys (shared across all EVM chains)
    - Service-specific keys (Ark hex, KuCoin Pay PKCS#8, payment-webhook PEM)
 2. **Starts API**: Launches the API in the background (logs to `api.log`, PID saved to `.api.pid`)
