@@ -24,11 +24,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
-import {
-  CryptoInput,
-  PayInAction,
-  PayInStatus,
-} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -252,10 +248,7 @@ describe('BuyFiatService', () => {
 
       await service['triggerBuyFiatReturn'](buyFiat, staleCryptoInput);
 
-      expect(findOneSpy).toHaveBeenCalledWith(
-        CryptoInput,
-        expect.objectContaining({ where: { id: 23 } }),
-      );
+      expect(findOneSpy).toHaveBeenCalledWith(CryptoInput, expect.objectContaining({ where: { id: 23 } }));
       expect(returnPayInSpy).not.toHaveBeenCalled();
       expect(doPayoutSpy).not.toHaveBeenCalled();
     });
