@@ -45,6 +45,19 @@ jobs:
           ref: ${{ inputs.services_ref || 'develop' }}
           path: services-repo
 
+      # Fails with a sentence someone can act on instead of `up.sh: No such file or directory`.
+      # The harness lives in the frontend repository, so this job cannot pass until the pull
+      # request that adds it has merged there. That ordering is deliberate: a red check here is
+      # the reminder, and it clears itself once the other side lands.
+      - name: Check that the harness is present
+        run: |
+          if [ ! -x services-repo/e2e-stack/scripts/up.sh ]; then
+            echo "::error::The e2e-stack harness is not present in DFXswiss/services@${{ inputs.services_ref || 'develop' }}."
+            echo "::error::Merge the frontend pull request that adds e2e-stack/ first. To try this job"
+            echo "::error::against a branch beforehand, dispatch it manually with services_ref set."
+            exit 1
+          fi
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
