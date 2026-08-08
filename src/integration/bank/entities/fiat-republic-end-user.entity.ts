@@ -22,7 +22,7 @@ export enum FiatRepublicEndUserState {
  * No personal data is stored here — it is only ever sent to Fiat Republic, never duplicated locally.
  */
 @Entity()
-@Index('fiatRepublicEndUserUserData', (e: FiatRepublicEndUser) => [e.userDataId], { unique: true })
+@Index((e: FiatRepublicEndUser) => [e.userDataId], { unique: true })
 export class FiatRepublicEndUser extends IEntity {
   @Column({ type: 'int' })
   userDataId: number;

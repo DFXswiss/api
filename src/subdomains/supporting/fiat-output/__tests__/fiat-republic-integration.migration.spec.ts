@@ -74,11 +74,11 @@ describe('AddFiatRepublicIntegration migration', () => {
 
     expect(sql).toContain('CREATE TABLE "fiat_republic_end_user"');
     expect(sql).toContain(
-      'CREATE UNIQUE INDEX "fiatRepublicEndUserUserData" ON "fiat_republic_end_user" ("userDataId")',
+      'CREATE UNIQUE INDEX "IDX_9acb64c3490b9a9892a870ed07" ON "fiat_republic_end_user" ("userDataId")',
     );
     expect(sql).toContain('CREATE TABLE "fiat_republic_payee"');
     expect(sql).toContain(
-      'CREATE UNIQUE INDEX "fiatRepublicPayeeIdentity" ON "fiat_republic_payee" ("endUserId", "iban", "name")',
+      'CREATE UNIQUE INDEX "IDX_f9df8f2d98c46e975e60001a83" ON "fiat_republic_payee" ("endUserId", "iban", "name")',
     );
   });
 
@@ -121,8 +121,8 @@ describe('AddFiatRepublicIntegration migration', () => {
 
     expect(sql).toContain('DROP TABLE "fiat_republic_end_user"');
     expect(sql).toContain('DROP TABLE "fiat_republic_payee"');
-    expect(sql).toContain('DROP INDEX "public"."fiatRepublicEndUserUserData"');
-    expect(sql).toContain('DROP INDEX "public"."fiatRepublicPayeeIdentity"');
+    expect(sql).toContain('DROP INDEX "public"."IDX_9acb64c3490b9a9892a870ed07"');
+    expect(sql).toContain('DROP INDEX "public"."IDX_f9df8f2d98c46e975e60001a83"');
     for (const column of [
       'fiatRepublicCustomId',
       'fiatRepublicPaymentId',

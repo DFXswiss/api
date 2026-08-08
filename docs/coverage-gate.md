@@ -16,8 +16,9 @@ emit does not skew the branch count.
 
 Per-rail gating and the ratchet are not alternatives, and both rails appear in both: the rail gate
 proves the rail's own specs suffice, the ratchet keeps the files from regressing through a change
-somewhere else. The rail's repositories are the exception — a `BaseRepository` subclass whose
-constructor no spec ever runs cannot reach 100% and is not pinned anywhere.
+somewhere else. A rail's repositories reach the ratchet too — a `BaseRepository` subclass has nothing
+but its constructor, and the repo covers those with a one-assertion spec that constructs it (see
+`aktionariat-registration.repository.spec.ts` for the shape).
 
 ## What the ratchet is, and what it is not
 

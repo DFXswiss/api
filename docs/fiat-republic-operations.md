@@ -89,10 +89,34 @@ Store its secret key as `FIAT_REPUBLIC_WEBHOOK_SECRET` — each endpoint has its
 **Backstop:** Fiat Republic retries a webhook ten times over roughly ninety minutes and then gives
 up. `BankTxFiatRepublicService.checkTransactions` re-reads the same payments from the API on the
 regular `BANK_TX` cycle and imports whatever the webhook did not. The two paths are idempotent
-against each other through the unique `accountServiceRef`.
+against each other through the unique `accountServiceRef`. The window is read to its end, page by
+page — a truncated read is never reported as complete.
 
-The watermark lives in the setting `lastBankFiatRepublicDate:<bankId>` and only advances after a
-non-empty window was fully persisted, always keeping a two-day overlap.
+### The watermark, and why it can lag
+
+The cursor lives in the setting `lastBankFiatRepublicDate:<bankId>`. It advances only after a
+non-empty window was fully persisted, and never past **the oldest payin that has not settled yet**.
+
+That clamp is the important part. Fiat Republic filters on `createdAt`, and a payin held in
+compliance review keeps that date while its status changes days later. A cursor that moved to
+wall-clock-minus-overlap would drop such a payment out of every future window before it ever reached
+`COMPLETED` — and with webhook delivery also failed, the money would arrive and never be booked.
+Otherwise the cursor keeps the usual two-day overlap.
+
+The consequence is deliberate: while a payin stays non-terminal, the polling window grows. That is
+the safe direction (re-read too much rather than skip), but it is not free.
+
+**What to watch for.** If a payin never reaches a terminal state, the window eventually exceeds the
+paging budget and `checkTransactions` logs
+
+```
+Failed to fetch Fiat Republic payments: ... Fiat Republic payment window exceeded 50 pages
+```
+
+on every cycle, with the cursor frozen. The rail keeps working through webhooks, but the backstop is
+dead until someone intervenes — so **alert on that log line**. It means a payment has been stuck at
+Fiat Republic long enough to need a support ticket; resolving it there (or having Fiat Republic
+terminate it) lets the cursor move again on its own.
 
 ---
 
@@ -122,6 +146,16 @@ If the create outcome is unknown, the status job looks the payment up by that re
 window. Found → adopt and heal. Proven absent **and** nothing was transmitted → release the claim so
 transmission retries with the same deterministic id. A lookup that could not complete propagates as
 an error: "not found" and "could not look" must never collapse into the same answer for a payout.
+
+The status job skips a row reserved within the last five minutes that has not produced a payment id
+or status yet. Such a row may have a `createPayment` call in flight right now (up to the client's
+30s timeout): looking it up would correctly find nothing, and releasing the claim on that basis
+would let the minutely transmission start a second attempt against a payment already on its way.
+A row whose transmission really did crash is picked up on the next hourly pass.
+
+The payee create carries an idempotency key derived from its claim row, so a retry after an
+ambiguous failure — and a second concurrent payout to the same beneficiary — both resolve to the
+original payee instead of creating a duplicate.
 
 ### Liquidity
 

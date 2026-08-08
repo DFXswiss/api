@@ -12,7 +12,7 @@ import { Column, Entity, Index } from 'typeorm';
  * a different payee and must not silently reuse the existing one.
  */
 @Entity()
-@Index('fiatRepublicPayeeIdentity', (p: FiatRepublicPayee) => [p.endUserId, p.iban, p.name], { unique: true })
+@Index((p: FiatRepublicPayee) => [p.endUserId, p.iban, p.name], { unique: true })
 export class FiatRepublicPayee extends IEntity {
   /** Fiat Republic end user (`eus_…`) the payee belongs to. */
   @Column({ length: 256 })

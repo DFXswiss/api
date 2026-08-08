@@ -31,6 +31,8 @@ const PINNED_LOGIC = [
   'src/integration/bank/dto/olkypay.dto.ts',
   'src/integration/bank/dto/yapeal.dto.ts',
   'src/integration/bank/entities/fiat-republic-end-user.entity.ts',
+  'src/integration/bank/repositories/fiat-republic-end-user.repository.ts',
+  'src/integration/bank/repositories/fiat-republic-payee.repository.ts',
   'src/integration/bank/services/fiat-republic-end-user.service.ts',
   'src/integration/bank/services/fiat-republic-payee.service.ts',
   'src/integration/bank/services/fiat-republic-webhook.service.ts',
