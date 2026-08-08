@@ -49,6 +49,11 @@ import { LogService } from '../../log/log.service';
 import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
 import { createCustomFiatOutput } from '../__mocks__/fiat-output.entity.mock';
 import { Ep2ReportService } from '../ep2-report.service';
+import { FiatRepublicEndUserService } from 'src/integration/bank/services/fiat-republic-end-user.service';
+import { FiatRepublicPayeeService } from 'src/integration/bank/services/fiat-republic-payee.service';
+import { FiatRepublicPaymentStatus } from 'src/integration/bank/dto/fiat-republic.dto';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
+import { FiatOutputFiatRepublicService } from '../fiat-output-fiat-republic.service';
 import { FiatOutputFrickService } from '../fiat-output-frick.service';
 import { FiatOutputJobService, SCRYPT_DEPOSIT_NAME_MARKER } from '../fiat-output-job.service';
 import { FiatOutputType } from '../fiat-output.entity';
@@ -72,6 +77,8 @@ describe('FiatOutputJobService', () => {
   let virtualIbanService: VirtualIbanService;
   let scryptService: ScryptService;
   let frickPayoutService: FiatOutputFrickService;
+  let fiatRepublicService: FiatRepublicService;
+  let fiatRepublicPayoutService: FiatOutputFiatRepublicService;
 
   beforeEach(async () => {
     ep2UploadBlobMock.mockReset();
@@ -95,6 +102,11 @@ describe('FiatOutputJobService', () => {
     jest.spyOn(virtualIbanService, 'getActiveSendingCandidatesForUserAndCurrency').mockResolvedValue([]);
     jest.spyOn(virtualIbanService, 'getBaseAccountIban').mockResolvedValue(undefined);
     jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([]);
+    // Not released by default: every pre-existing expectation describes the behaviour before this
+    // integration existed, and an unreleased Fiat Republic has to reproduce exactly that.
+    fiatRepublicService = createMock<FiatRepublicService>();
+    jest.spyOn(fiatRepublicService, 'isPayoutEnabled').mockReturnValue(false);
+    jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -121,7 +133,13 @@ describe('FiatOutputJobService', () => {
         // Real FiatOutputFrickService instance so setReadyDate's pending-liquidity filter exercises the
         // actual isFrickTerminalState logic instead of a hand-duplicated mock.
         FiatOutputFrickService,
+        // Real FiatOutputFiatRepublicService too, for the same reason: setReadyDate's pending-liquidity
+        // filter and the skip counter call into its actual isTerminalState / canCreatePayments logic.
+        FiatOutputFiatRepublicService,
         { provide: BankFrickService, useValue: createMock<BankFrickService>() },
+        { provide: FiatRepublicService, useValue: fiatRepublicService },
+        { provide: FiatRepublicPayeeService, useValue: createMock<FiatRepublicPayeeService>() },
+        { provide: FiatRepublicEndUserService, useValue: createMock<FiatRepublicEndUserService>() },
         { provide: IbanService, useValue: createMock<IbanService>() },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: ScryptService, useValue: scryptService },
@@ -133,6 +151,7 @@ describe('FiatOutputJobService', () => {
     service = module.get<FiatOutputJobService>(FiatOutputJobService);
     frickPayoutService = module.get<FiatOutputFrickService>(FiatOutputFrickService);
     jest.spyOn(frickPayoutService, 'canCreatePayments').mockReturnValue(true);
+    fiatRepublicPayoutService = module.get<FiatOutputFiatRepublicService>(FiatOutputFiatRepublicService);
   });
 
   it('should be defined', () => {
@@ -717,6 +736,122 @@ describe('FiatOutputJobService', () => {
       await service['setReadyDate']();
 
       expect(fiatOutputRepo.update).toHaveBeenCalledWith(6, { isReadyDate: expect.any(Date) });
+    });
+  });
+
+  describe('Fiat Republic rail', () => {
+    const fiatRepublicBank = createCustomBank({
+      name: IbanBankName.FIAT_REPUBLIC,
+      iban: 'SYNTHETIC-FR-ACCOUNT',
+      currency: 'EUR',
+    });
+
+    function readyCandidate(overrides = {}) {
+      return createCustomFiatOutput({
+        id: 5,
+        bank: fiatRepublicBank,
+        iban: 'SYNTHETIC-CREDITOR-ACCOUNT',
+        amount: 100,
+        currency: 'EUR',
+        type: FiatOutputType.BUY_FIAT,
+        buyFiats: [
+          createCustomBuyFiat({
+            cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+          }),
+        ],
+        ...overrides,
+      });
+    }
+
+    function fundedAccount() {
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          type: AssetType.CUSTODY,
+          bank: fiatRepublicBank,
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+    }
+
+    it('makes an assigned Fiat Republic payout ready once transmission is possible', async () => {
+      jest.spyOn(fiatRepublicPayoutService, 'canCreatePayments').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([readyCandidate()]);
+      fundedAccount();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('does not make an assigned Fiat Republic payout ready while transmission is disabled', async () => {
+      jest.spyOn(fiatRepublicPayoutService, 'canCreatePayments').mockReturnValue(false);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([readyCandidate()]);
+      fundedAccount();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('keeps liquidity reserved while a Fiat Republic payment has not reached a terminal state', async () => {
+      jest.spyOn(fiatRepublicPayoutService, 'canCreatePayments').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        readyCandidate({
+          id: 4,
+          amount: 5000,
+          isReadyDate: new Date(),
+          isTransmittedDate: new Date(),
+          fiatRepublicPaymentStatus: FiatRepublicPaymentStatus.COMPLIANCE_REVIEW,
+        }),
+        readyCandidate({ id: 5, amount: 5000, isReadyDate: null }),
+      ]);
+      fundedAccount();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('releases the reservation once the Fiat Republic payment reached a terminal state', async () => {
+      jest.spyOn(fiatRepublicPayoutService, 'canCreatePayments').mockReturnValue(true);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        readyCandidate({
+          id: 4,
+          amount: 5000,
+          isReadyDate: new Date(),
+          isTransmittedDate: new Date(),
+          fiatRepublicPaymentStatus: FiatRepublicPaymentStatus.COMPLETED,
+        }),
+        readyCandidate({ id: 5, amount: 100, isReadyDate: null }),
+      ]);
+      fundedAccount();
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('never puts a Fiat Republic payout into a manual batch file', async () => {
+      // The repository filter is bypassed by the mock, so this asserts the in-code guard: an
+      // automated rail must never end up in the manually processed batch file.
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue([readyCandidate({ id: 7, isComplete: false })]);
+      jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
+
+      await service['createBatches']();
+
+      const batched = (fiatOutputRepo.save as jest.Mock).mock.calls.flatMap(([entities]) => entities ?? []);
+      expect(batched).toHaveLength(0);
+    });
+
+    it('drives the Fiat Republic transmission from the minutely job', async () => {
+      const transmit = jest.spyOn(fiatRepublicPayoutService, 'transmitPayments').mockResolvedValue(undefined);
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue([]);
+      jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
+
+      await service.fillFiatOutput();
+
+      expect(transmit).toHaveBeenCalled();
     });
   });
 

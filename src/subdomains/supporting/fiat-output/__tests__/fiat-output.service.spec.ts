@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import {
   createCustomBank,
+  fiatRepublicEUR,
   frickCHF,
   frickEUR,
   olkyEUR,
@@ -27,12 +28,17 @@ describe('FiatOutputService', () => {
   let bankService: DeepMocked<FiatOutputServiceConstructor[6]>;
   let virtualIbanService: DeepMocked<FiatOutputServiceConstructor[8]>;
   let buyCryptoRepo: DeepMocked<FiatOutputServiceConstructor[3]>;
+  let fiatRepublicService: DeepMocked<FiatOutputServiceConstructor[9]>;
 
   beforeEach(() => {
     fiatOutputRepo = createMock<FiatOutputServiceConstructor[0]>();
     bankService = createMock<FiatOutputServiceConstructor[6]>();
     virtualIbanService = createMock<FiatOutputServiceConstructor[8]>();
     buyCryptoRepo = createMock<FiatOutputServiceConstructor[3]>();
+    fiatRepublicService = createMock<FiatOutputServiceConstructor[9]>();
+    // Not released by default: createMock's auto-mocked methods return a truthy proxy, so the flag has
+    // to be pinned off explicitly for the pre-integration behaviour to be what the tests observe.
+    jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(false);
     service = new FiatOutputService(
       fiatOutputRepo,
       createMock<FiatOutputServiceConstructor[1]>(),
@@ -43,11 +49,111 @@ describe('FiatOutputService', () => {
       bankService,
       createMock<FiatOutputServiceConstructor[7]>(),
       virtualIbanService,
+      fiatRepublicService,
     );
   });
 
   describe('selectPayoutBank', () => {
     const country = createCustomCountry({ yapealEnable: true });
+
+    describe('Fiat Republic routing gate', () => {
+      it('does not route to a Fiat Republic virtual IBAN while routing is off', async () => {
+        const userData = createMock<SelectPayoutBankUserData>();
+        virtualIbanService.getActiveSendingCandidatesForUserAndCurrency.mockResolvedValue([
+          createCustomVirtualIban({ bank: fiatRepublicEUR, iban: 'SYNTHETIC-FR-VIBAN' }),
+        ]);
+        bankService.getSenderBanks.mockResolvedValue([olkyEUR]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);
+
+        expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
+      });
+
+      it('does not route to the Fiat Republic collection account while routing is off', async () => {
+        bankService.getSenderBanks.mockResolvedValue([fiatRepublicEUR, olkyEUR]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, undefined, country);
+
+        expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
+      });
+
+      it('selects nothing rather than Fiat Republic when it is the only sender and routing is off', async () => {
+        bankService.getSenderBanks.mockResolvedValue([fiatRepublicEUR]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, undefined, country);
+
+        expect(result).toEqual({ accountIban: undefined, bank: undefined });
+      });
+
+      it('routes to the Fiat Republic virtual IBAN once routing is released', async () => {
+        jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(true);
+        const userData = createMock<SelectPayoutBankUserData>();
+        const fiatRepublicVirtualIban = createCustomVirtualIban({
+          bank: fiatRepublicEUR,
+          iban: 'SYNTHETIC-FR-VIBAN',
+        });
+        virtualIbanService.getActiveSendingCandidatesForUserAndCurrency.mockResolvedValue([fiatRepublicVirtualIban]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, userData, country);
+
+        expect(result).toEqual({ accountIban: 'SYNTHETIC-FR-VIBAN', bank: fiatRepublicEUR });
+      });
+
+      it('lets sendPriority, not the flag, decide between Fiat Republic and the incumbent', async () => {
+        jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(true);
+        const preferredFiatRepublic = createCustomBank({
+          name: IbanBankName.FIAT_REPUBLIC,
+          currency: 'EUR',
+          iban: 'SYNTHETIC-FR-IBAN',
+          send: true,
+          sendPriority: 10,
+        });
+        const laterOlky = createCustomBank({
+          name: IbanBankName.OLKY,
+          currency: 'EUR',
+          iban: 'SYNTHETIC-OLKY-IBAN',
+          send: true,
+          sendPriority: 20,
+        });
+        bankService.getSenderBanks.mockResolvedValue([laterOlky, preferredFiatRepublic]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, undefined, country);
+
+        expect(result).toEqual({ accountIban: 'SYNTHETIC-FR-IBAN', bank: preferredFiatRepublic });
+      });
+
+      it('keeps the incumbent when it has the lower sendPriority, even with routing on', async () => {
+        jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(true);
+        const preferredOlky = createCustomBank({
+          name: IbanBankName.OLKY,
+          currency: 'EUR',
+          iban: 'SYNTHETIC-OLKY-IBAN',
+          send: true,
+          sendPriority: 10,
+        });
+        const laterFiatRepublic = createCustomBank({
+          name: IbanBankName.FIAT_REPUBLIC,
+          currency: 'EUR',
+          iban: 'SYNTHETIC-FR-IBAN',
+          send: true,
+          sendPriority: 20,
+        });
+        bankService.getSenderBanks.mockResolvedValue([laterFiatRepublic, preferredOlky]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, undefined, country);
+
+        expect(result).toEqual({ accountIban: 'SYNTHETIC-OLKY-IBAN', bank: preferredOlky });
+      });
+
+      it('still excludes Bank Frick when Fiat Republic routing is on', async () => {
+        jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(true);
+        bankService.getSenderBanks.mockResolvedValue([frickEUR]);
+
+        const result = await service.selectPayoutBank('EUR', FiatOutputType.BUY_FIAT, undefined, country);
+
+        expect(result).toEqual({ accountIban: undefined, bank: undefined });
+      });
+    });
 
     it('skips a Bank Frick virtual IBAN and falls back to an incumbent sender bank', async () => {
       const userData = createMock<SelectPayoutBankUserData>();

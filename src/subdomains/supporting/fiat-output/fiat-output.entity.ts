@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatRepublicMatchLevel, FiatRepublicPaymentStatus } from 'src/integration/bank/dto/fiat-republic.dto';
 import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -174,6 +175,32 @@ export class FiatOutput extends IEntity {
   // chars). Kept separate from remittanceInfo so the customer-facing text is never overwritten.
   @Column({ length: 256, nullable: true })
   frickReference?: string;
+
+  // DFX's own deterministic id (e.g. "DFX-FO-42"), used both as the mutex that reserves this row for
+  // transmission and as the Fiat Republic idempotency key. Deterministic on purpose: a retry with the
+  // same key returns the original payment instead of creating a second transfer.
+  @Column({ length: 256, nullable: true })
+  fiatRepublicCustomId?: string;
+
+  // Fiat Republic's own payment id ("pmt_…").
+  @Column({ length: 256, nullable: true })
+  fiatRepublicPaymentId?: string;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  fiatRepublicPaymentStatus?: FiatRepublicPaymentStatus;
+
+  @Column({ length: 256, nullable: true })
+  fiatRepublicError?: string;
+
+  // The exact reference sent to Fiat Republic. Same rationale as frickReference: the customer-facing
+  // remittanceInfo is read verbatim by chain report history and must never be rewritten.
+  @Column({ length: 256, nullable: true })
+  fiatRepublicReference?: string;
+
+  // Verification of Payee outcome observed for this payout (MATCH / CLOSE_MATCH / NO_MATCH). Persisted
+  // so an automatically accepted name mismatch stays auditable on the row that caused it.
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  fiatRepublicMatchLevel?: FiatRepublicMatchLevel;
 
   // --- ENTITY METHODS --- //
 
