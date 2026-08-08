@@ -30,6 +30,15 @@ const BASELINE_WALLET_NAMES = [
 ];
 
 /**
+ * The only pre-states the name-matched rewrite may touch: `'0'` (eight wallets today), `'3;7;14'`
+ * (NBZ) and `'3;7'` (already at target — reached when only `exceptAmlRules` still deviates). Any
+ * other value — e.g. a rule set made stricter after this migration was reviewed — is NOT
+ * silently replaced: the row is skipped and the postcondition aborts the migration instead, so
+ * an unreviewed pre-state can never be downgraded to the baseline unnoticed.
+ */
+const EXPECTED_NAME_PRE_STATES = ['0', '3;7;14', '3;7'];
+
+/**
  * Two partner wallets whose `name` values are natural-person names that must not be published in
  * this repository. Matched by id instead; the pre-state guard `"amlRules" = '14'` keeps the
  * id-match from touching unrelated rows on databases where these ids belong to different wallets.
@@ -63,7 +72,10 @@ const EXCEPT_CLEAR_WALLET_NAME = 'onchainlabs';
  * Per-group semantics:
  *   - Name-matched baseline group (`BASELINE_WALLET_NAMES`): lift onto `amlRules = '3;7'` and pin
  *     `exceptAmlRules` to NULL in the same statement. RULE_3 requires KYC level 50; RULE_7 requires
- *     KYC level 50 for checkout/card payments — the set every DFX-owned wallet carries.
+ *     KYC level 50 for checkout/card payments — the set every DFX-owned wallet carries. The rewrite
+ *     only touches rows already at one of the pre-reviewed pre-states (`EXPECTED_NAME_PRE_STATES`),
+ *     so a rule set tightened after this migration was reviewed is never silently downgraded to the
+ *     baseline.
  *   - Id-matched baseline group (`BASELINE_WALLET_IDS`): same target write, but only when the row
  *     still carries the expected pre-state `'14'`. The guard prevents the id-match from rewriting
  *     unrelated wallets on non-PRD databases where these ids mean something else.
@@ -124,6 +136,7 @@ WITH "affected" AS (
   WHERE (
     "name" = ANY($2::varchar[])
     AND ("amlRules" IS DISTINCT FROM $1::varchar OR "exceptAmlRules" IS NOT NULL)
+    AND "amlRules" = ANY($5::varchar[])
   ) OR (
     "id" = ANY($3::int[])
     AND "amlRules" = $4::varchar
@@ -149,7 +162,13 @@ SET "amlRules" = $1::varchar, "exceptAmlRules" = NULL, "updated" = now()
 FROM "affected" a
 WHERE w."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
 `,
-      [TARGET_AML_RULES, BASELINE_WALLET_NAMES, BASELINE_WALLET_IDS, REQUIRED_CURRENT_AML_RULES],
+      [
+        TARGET_AML_RULES,
+        BASELINE_WALLET_NAMES,
+        BASELINE_WALLET_IDS,
+        REQUIRED_CURRENT_AML_RULES,
+        EXPECTED_NAME_PRE_STATES,
+      ],
     );
 
     // Except-clear leg: only onchainlabs; amlRules deliberately untouched.
@@ -177,10 +196,9 @@ SET "exceptAmlRules" = NULL, "updated" = now()
 FROM "affected" a
 WHERE w."id" = a."id" AND EXISTS (SELECT 1 FROM "audit");
 `,
-      // Trailing comma: a single-element array literal with one bare identifier would trip
-      // migration-psql-check's MSSQL bracket-quoting guard, which cannot tell JS arrays from
-      // MSSQL-quoted identifiers.
-      [EXCEPT_CLEAR_WALLET_NAME,],
+      // Array.of instead of an array literal: a bracketed bare identifier would trip
+      // migration-psql-check's MSSQL bracket-quoting guard (same approach as other migrations).
+      Array.of(EXCEPT_CLEAR_WALLET_NAME),
     );
 
     // Postcondition, not decoration: without it a suppressed audit insert, a concurrent edit, a

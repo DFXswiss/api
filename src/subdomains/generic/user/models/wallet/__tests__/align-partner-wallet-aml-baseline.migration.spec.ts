@@ -18,6 +18,7 @@ const BASELINE_WALLET_NAMES = [
 const BASELINE_WALLET_IDS = [24, 25];
 const REQUIRED_CURRENT_AML_RULES = '14';
 const EXCEPT_CLEAR_WALLET_NAME = 'onchainlabs';
+const EXPECTED_NAME_PRE_STATES = ['0', '3;7;14', '3;7'];
 const UNRELATED_DFX_NAME = 'DFX Bitcoin';
 const UNRELATED_DFX_RULES = '3;7;11;16';
 const UNRELATED_CAKE_NAME = 'CakeWallet';
@@ -34,16 +35,16 @@ function setEnv(name: string, value: string | undefined): void {
   else process.env[name] = value;
 }
 
-function okPostconditionState(
-  overrides: Partial<{
-    nameDriftCount: number;
-    exceptDriftCount: number;
-    namePresentCount: number;
-    idAtTargetCount: number;
-    idDriftCount: number;
-    exceptWalletPresentCount: number;
-  }> = {},
-) {
+type PostconditionState = {
+  nameDriftCount: number;
+  exceptDriftCount: number;
+  namePresentCount: number;
+  idAtTargetCount: number;
+  idDriftCount: number;
+  exceptWalletPresentCount: number;
+};
+
+function okPostconditionState(overrides: Partial<PostconditionState> = {}): PostconditionState {
   return {
     nameDriftCount: 0,
     exceptDriftCount: 0,
@@ -85,6 +86,7 @@ describe('AlignPartnerWalletAmlBaseline migration (SQL content)', () => {
       BASELINE_WALLET_NAMES,
       BASELINE_WALLET_IDS,
       REQUIRED_CURRENT_AML_RULES,
+      EXPECTED_NAME_PRE_STATES,
     ]);
     expect(baselineSql).toContain('INSERT INTO "log"');
     expect(baselineSql).toContain(`'${SUBSYSTEM}'`);
@@ -101,11 +103,14 @@ describe('AlignPartnerWalletAmlBaseline migration (SQL content)', () => {
     expect(baselineSql).toContain('"exceptAmlRules" = NULL');
     expect(baselineSql).toContain('= ANY($2::varchar[])');
     expect(baselineSql).toContain('= ANY($3::int[])');
+    expect(baselineSql).toContain('= ANY($5::varchar[])');
     // Neither input may reach the statement as a string literal — the assertion is on the quoted
     // form because the subsystem name legitimately contains no wallet name, but rule strings and
     // names must not appear as SQL literals either.
     expect(baselineSql).not.toContain(`'${TARGET_AML_RULES}'`);
     expect(baselineSql).not.toContain(`'${REQUIRED_CURRENT_AML_RULES}'`);
+    expect(baselineSql).not.toContain("'0'");
+    expect(baselineSql).not.toContain("'3;7;14'");
     for (const name of BASELINE_WALLET_NAMES) {
       expect(baselineSql).not.toContain(`'${name}'`);
     }
@@ -857,10 +862,11 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
 
   it('aligns every wallet carrying a baseline name, not just the first one', async () => {
     await seedFullPrdFixture();
+    // '0' is a whitelisted pre-state (unlike the former '3'); both Edge rows must be rewritten.
     await queryRunner.query(
       `INSERT INTO "wallet" ("name", "updated", "amlRules", "exceptAmlRules")
        VALUES ($1, TIMESTAMP '2000-01-01', $2, NULL)`,
-      ['Edge', '3'],
+      ['Edge', '0'],
     );
 
     await new AlignPartnerWalletAmlBaseline().up(queryRunner);
@@ -869,6 +875,26 @@ describeDb('AlignPartnerWalletAmlBaseline migration (real Postgres)', () => {
       amlRules: string;
     }[];
     expect(targets).toEqual([{ amlRules: TARGET_AML_RULES }, { amlRules: TARGET_AML_RULES }]);
+  });
+
+  // Proves a rule set tightened after review is never silently rewritten down to the baseline —
+  // the row is skipped by the write and the postcondition aborts the migration instead.
+  it('refuses to downgrade a name-matched wallet whose rules changed after review', async () => {
+    await seedFullPrdFixture({
+      nameRules: (name) => (name === 'Coinsnap' ? '3;7;15' : TARGET_AML_RULES),
+      idRules: { 24: TARGET_AML_RULES, 25: TARGET_AML_RULES },
+      onchainlabsExcept: null,
+    });
+
+    await expect(new AlignPartnerWalletAmlBaseline().up(queryRunner)).rejects.toThrow('did not reach amlRules');
+
+    expect(await readWalletByName('Coinsnap')).toEqual({
+      name: 'Coinsnap',
+      amlRules: '3;7;15',
+      exceptAmlRules: null,
+      wasUpdated: false,
+    });
+    expect(await readLogs()).toHaveLength(0);
   });
 
   it('clears a neutralising exceptAmlRules on a name-matched wallet already at the target', async () => {
