@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BlankChars, nonBlankPredicate } from 'src/subdomains/generic/user/models/user/staff-kyc-clearance.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -350,8 +351,13 @@ export class VirtualIbanService {
     // bound how many rows it fetches, and any bound is a row count at which an account silently stops
     // finding the IP it actually has. Filtering server-side keeps "oldest user with a usable IP"
     // exact for an account of any size, and lets the query return the single row that answers it.
+    //
+    // Reuses the clearance gate's predicate rather than inlining one: it already carries the explicit
+    // blank-character set (bare `BTRIM` strips only U+0020, so a tab would pass an ad-hoc fragment),
+    // and it is a named function whose semantics a real-Postgres suite pins — an inline arrow here
+    // would be a SQL fragment no test can execute.
     const user = await this.dataSource.getRepository(User).findOne({
-      where: { userData: { id: userDataId }, ip: Raw((alias) => `btrim(${alias}) <> ''`) },
+      where: { userData: { id: userDataId }, ip: Raw(nonBlankPredicate, { blankChars: BlankChars }) },
       order: { id: 'ASC' },
       select: { id: true, ip: true },
     });

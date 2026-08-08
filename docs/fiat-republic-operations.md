@@ -5,7 +5,7 @@ Fiat Republic is an EUR fiat rail: one Client Money Account held by DFX, with a 
 transfers.
 
 The integration ships **dark**. Every line of it is inert until an operator supplies credentials
-*and* sets release flags, one capability at a time. This document is how to switch it on and what to
+_and_ sets release flags, one capability at a time. This document is how to switch it on and what to
 check at each step.
 
 ---
@@ -14,20 +14,20 @@ check at each step.
 
 Two conditions gate everything, and both must hold before any Fiat Republic code does anything:
 
-| Condition | Where | Effect when missing |
-| --------- | ----- | ------------------- |
+| Condition            | Where                                                                 | Effect when missing                                                                          |
+| -------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Complete credentials | `FIAT_REPUBLIC_BASE_URL`, `_AUTH_URL`, `_CLIENT_ID`, `_CLIENT_SECRET` | `FiatRepublicService.isConfigured()` is false; every call throws before touching the network |
-| Master release | `FIAT_REPUBLIC_ENABLED=true` | `isAvailable()` is false; identical behaviour to no credentials at all |
+| Master release       | `FIAT_REPUBLIC_ENABLED=true`                                          | `isAvailable()` is false; identical behaviour to no credentials at all                       |
 
 On top of the master switch, each capability has its own flag. They are independent and can be
 turned on — and off again — one at a time:
 
-| Stage | Flag | What it enables | What it does NOT do |
-| ----- | ---- | --------------- | ------------------- |
-| 1 | `FIAT_REPUBLIC_BANK_TX_SYNC_ENABLED` | Payins are ingested into `bank_tx` (webhook, plus a polling backstop). The webhook endpoint additionally requires `FIAT_REPUBLIC_WEBHOOK_SECRET`; without it every delivery is rejected with 403 | Does not offer any IBAN to a customer |
-| 2 | `FIAT_REPUBLIC_FRONTEND_ENABLED` | Fiat Republic is offered to customers: its collection IBAN through the receive-IBAN path, and personal IBANs (named sub-accounts) through the virtual-IBAN provider. Requires `FIAT_REPUBLIC_MASTER_FIAT_ACCOUNT_ID` | Does not send any money |
-| 3 | `FIAT_REPUBLIC_PAYOUT_ENABLED` | Fiat outputs **already assigned** to Fiat Republic are transmitted (payee, Verification of Payee, SEPA payment, status polling) | Does not re-route anything; nothing gets assigned to Fiat Republic by itself |
-| 4 | `FIAT_REPUBLIC_PAYOUT_ROUTING_ENABLED` | The payout bank selection may pick Fiat Republic for new EUR outputs instead of Olkypay. Requires stage 3 — routing to a rail that may not transmit would strand the payout | Does not decide the order between banks; see §5 |
+| Stage | Flag                                   | What it enables                                                                                                                                                                                                      | What it does NOT do                                                          |
+| ----- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1     | `FIAT_REPUBLIC_BANK_TX_SYNC_ENABLED`   | Payins are ingested into `bank_tx` (webhook, plus a polling backstop). The webhook endpoint additionally requires `FIAT_REPUBLIC_WEBHOOK_SECRET`; without it every delivery is rejected with 403                     | Does not offer any IBAN to a customer                                        |
+| 2     | `FIAT_REPUBLIC_FRONTEND_ENABLED`       | Fiat Republic is offered to customers: its collection IBAN through the receive-IBAN path, and personal IBANs (named sub-accounts) through the virtual-IBAN provider. Requires `FIAT_REPUBLIC_MASTER_FIAT_ACCOUNT_ID` | Does not send any money                                                      |
+| 3     | `FIAT_REPUBLIC_PAYOUT_ENABLED`         | Fiat outputs **already assigned** to Fiat Republic are transmitted (payee, Verification of Payee, SEPA payment, status polling)                                                                                      | Does not re-route anything; nothing gets assigned to Fiat Republic by itself |
+| 4     | `FIAT_REPUBLIC_PAYOUT_ROUTING_ENABLED` | The payout bank selection may pick Fiat Republic for new EUR outputs instead of Olkypay. Requires stage 3 — routing to a rail that may not transmit would strand the payout                                          | Does not decide the order between banks; see §5                              |
 
 Non-secret configuration (`FIAT_REPUBLIC_BASE_URL`, `_AUTH_URL`, `_IBAN_COUNTRY`, `_MASTER_FIAT_ACCOUNT_ID`,
 and all five flags) belongs in the `services.dfx-api.environment:` block of the infrastructure repo.
@@ -46,7 +46,7 @@ a deploy (and can also be set through the `disabledProcess` database setting, ef
 - `FiatOutputFiatRepublicTransmission` — payout transmission
 - `FiatOutputFiatRepublicStatusCheck` — payout status polling
 
-These are *additional* brakes. They do not replace the environment flags and cannot enable anything.
+These are _additional_ brakes. They do not replace the environment flags and cannot enable anything.
 
 ---
 
@@ -170,7 +170,7 @@ ready: it must not consume liquidity for a rail that cannot currently send.
 
 ## 5. Routing: the flag decides participation, `sendPriority` decides order
 
-Stage 4 makes Fiat Republic *eligible* for automatic payout selection. Which of the eligible banks
+Stage 4 makes Fiat Republic _eligible_ for automatic payout selection. Which of the eligible banks
 actually wins stays an operational decision through `Bank.sendPriority` (lower wins), exactly as it
 is for every other bank. To move EUR payouts away from Olkypay:
 
@@ -210,7 +210,7 @@ Run against the sandbox before enabling any stage in production:
    `fiat_republic_end_user` row and never creates a second end user.
 3. **Virtual account** — created with `ibanCountry=DE`, reaches `ACTIVE` with an IBAN, and the IBAN
    is persisted as a `virtual_iban` row with the account id in `providerAccountRef`.
-4. **Payin** — simulate one (`POST /simulator/payment` or the dashboard's *Add Funds*), confirm the
+4. **Payin** — simulate one (`POST /simulator/payment` or the dashboard's _Add Funds_), confirm the
    webhook signature passes, and confirm exactly one `bank_tx` row appears with the payment id as
    `accountServiceRef`.
 5. **Payin deduplication** — replay the same webhook; no second `bank_tx` row.
