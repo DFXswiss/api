@@ -8,7 +8,7 @@ import { SupportIssueRepository } from 'src/subdomains/supporting/support-issue/
 import { SupportMessageRepository } from 'src/subdomains/supporting/support-issue/repositories/support-message.repository';
 import { SupportReplySuggestionRepository } from 'src/subdomains/supporting/support-issue/repositories/support-reply-suggestion.repository';
 import { SupportReplySuggestionService } from 'src/subdomains/supporting/support-issue/services/support-reply-suggestion.service';
-import { In } from 'typeorm';
+import { EntityManager } from 'typeorm';
 
 const ISSUE_ID = 42;
 const AUTHOR_ID = 7;
@@ -32,18 +32,61 @@ describe('SupportReplySuggestionService', () => {
   let supportIssueRepo: DeepMocked<SupportIssueRepository>;
   let messageRepo: DeepMocked<SupportMessageRepository>;
 
+  // The service reaches the transactional connection through `suggestionRepo.manager`; the callback
+  // runs against this manager, the same technique limit-request.service.spec.ts uses.
+  let queryBuilder: {
+    innerJoinAndSelect: jest.Mock;
+    innerJoin: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    setLock: jest.Mock;
+    getOne: jest.Mock;
+    update: jest.Mock;
+    set: jest.Mock;
+    execute: jest.Mock;
+  };
+  let mockManager: {
+    createQueryBuilder: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+  };
+
+  /** What the supersede statement was built from. */
+  const supersedeUpdate = (): Record<string, unknown> => queryBuilder.set.mock.calls[0][0];
+
   beforeEach(() => {
     suggestionRepo = createMock<SupportReplySuggestionRepository>();
     supportIssueRepo = createMock<SupportIssueRepository>();
     messageRepo = createMock<SupportMessageRepository>();
 
+    queryBuilder = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      setLock: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(issue()),
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+    mockManager = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      create: jest.fn((_entity, values) => Object.assign(new SupportReplySuggestion(), values)),
+      save: jest.fn(async (entity) => Object.assign(entity, { id: 5, created: new Date('2026-08-08T12:00:00Z') })),
+      update: jest.fn(),
+    };
+    Object.defineProperty(suggestionRepo, 'manager', {
+      value: {
+        transaction: jest.fn(async (run: (manager: EntityManager) => Promise<unknown>) =>
+          run(mockManager as unknown as EntityManager),
+        ),
+      },
+    });
+
     supportIssueRepo.findOne.mockResolvedValue(issue());
     messageRepo.findOne.mockResolvedValue(message(100));
-    suggestionRepo.find.mockResolvedValue([]);
-    (suggestionRepo.create as jest.Mock).mockImplementation((v) => Object.assign(new SupportReplySuggestion(), v));
-    (suggestionRepo.save as jest.Mock).mockImplementation(async (e) =>
-      Object.assign(e, { id: 5, created: new Date('2026-08-08T12:00:00Z') }),
-    );
 
     service = new SupportReplySuggestionService(suggestionRepo, supportIssueRepo, messageRepo);
   });
@@ -52,7 +95,7 @@ describe('SupportReplySuggestionService', () => {
     it('binds the suggestion to the newest message of the thread', async () => {
       const dto = await service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID);
 
-      expect(suggestionRepo.create).toHaveBeenCalledWith({
+      expect(mockManager.create).toHaveBeenCalledWith(SupportReplySuggestion, {
         issue: expect.objectContaining({ id: ISSUE_ID }),
         message: expect.objectContaining({ id: 100 }),
         text: 'Answer',
@@ -81,25 +124,26 @@ describe('SupportReplySuggestionService', () => {
 
       await expect(call).rejects.toThrow(ConflictException);
       await expect(call).rejects.toThrow('Message 99 is not the newest message of the support issue');
-      expect(suggestionRepo.save).not.toHaveBeenCalled();
+      expect(mockManager.save).not.toHaveBeenCalled();
     });
 
-    it('supersedes the suggestions still pending, without deleting them', async () => {
-      suggestionRepo.find.mockResolvedValue([suggestion({ id: 1 }), suggestion({ id: 2 })]);
-
+    // Two submissions arriving together must not both end up Pending: the issue row is locked for
+    // the whole supersede-and-insert, and the supersede is one conditional statement rather than a
+    // read followed by a write.
+    it('supersedes what is pending and inserts under one lock on the issue', async () => {
       await service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID);
 
-      expect(suggestionRepo.update).toHaveBeenCalledWith(
-        { id: In([1, 2]) },
-        expect.objectContaining({ state: SupportReplySuggestionState.SUPERSEDED }),
+      expect(mockManager.createQueryBuilder).toHaveBeenCalledWith(SupportIssue, 'issue');
+      expect(queryBuilder.setLock).toHaveBeenCalledWith('pessimistic_write', undefined, ['issue']);
+      expect(queryBuilder.update).toHaveBeenCalledWith(SupportReplySuggestion);
+      expect(supersedeUpdate()).toEqual(
+        expect.objectContaining({ state: SupportReplySuggestionState.SUPERSEDED, handled: expect.any(Date) }),
       );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith('state = :state', {
+        state: SupportReplySuggestionState.PENDING,
+      });
+      expect(queryBuilder.execute).toHaveBeenCalled();
       expect(suggestionRepo.delete).not.toHaveBeenCalled();
-    });
-
-    it('does not run an update when nothing is pending', async () => {
-      await service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID);
-
-      expect(suggestionRepo.update).not.toHaveBeenCalled();
     });
 
     it('fails when the issue does not exist', async () => {
@@ -156,11 +200,12 @@ describe('SupportReplySuggestionService', () => {
   ])('%s', (method, expectedState) => {
     it(`records the decision as ${expectedState}`, async () => {
       const entity = suggestion({ id: 3, message: message(100) });
-      suggestionRepo.findOne.mockResolvedValue(entity);
+      queryBuilder.getOne.mockResolvedValue(entity);
 
       const dto = await service[method](ISSUE_ID, 3, CLERK_ID);
 
-      expect(suggestionRepo.update).toHaveBeenCalledWith(
+      expect(mockManager.update).toHaveBeenCalledWith(
+        SupportReplySuggestion,
         3,
         expect.objectContaining({ state: expectedState, handledById: CLERK_ID }),
       );
@@ -168,24 +213,27 @@ describe('SupportReplySuggestionService', () => {
       expect(entity.handled).toBeInstanceOf(Date);
     });
 
-    it('looks the suggestion up within its own issue', async () => {
-      suggestionRepo.findOne.mockResolvedValue(suggestion({ id: 3, message: message(100) }));
+    // A decision is taken once. Reading, checking and writing share a transaction under a row lock,
+    // so a second call cannot slip between the check and the write and overwrite the first decision.
+    it('reads the suggestion within its own issue, under a row lock', async () => {
+      queryBuilder.getOne.mockResolvedValue(suggestion({ id: 3, message: message(100) }));
 
       await service[method](ISSUE_ID, 3, CLERK_ID);
 
-      expect(suggestionRepo.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 3, issue: { id: ISSUE_ID } } }),
-      );
+      expect(mockManager.createQueryBuilder).toHaveBeenCalledWith(SupportReplySuggestion, 'suggestion');
+      expect(queryBuilder.where).toHaveBeenCalledWith('suggestion.id = :suggestionId', { suggestionId: 3 });
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith('issue.id = :issueId', { issueId: ISSUE_ID });
+      expect(queryBuilder.setLock).toHaveBeenCalledWith('pessimistic_write', undefined, ['suggestion']);
     });
 
     it('fails when the suggestion does not exist', async () => {
-      suggestionRepo.findOne.mockResolvedValue(null);
+      queryBuilder.getOne.mockResolvedValue(null);
 
       await expect(service[method](ISSUE_ID, 3, CLERK_ID)).rejects.toThrow(NotFoundException);
     });
 
     it('fails when the suggestion was already decided', async () => {
-      suggestionRepo.findOne.mockResolvedValue(
+      queryBuilder.getOne.mockResolvedValue(
         suggestion({ id: 3, message: message(100), state: SupportReplySuggestionState.ACCEPTED }),
       );
 
@@ -193,7 +241,7 @@ describe('SupportReplySuggestionService', () => {
 
       await expect(call).rejects.toThrow(ConflictException);
       await expect(call).rejects.toThrow('Suggestion is already in state Accepted');
-      expect(suggestionRepo.update).not.toHaveBeenCalled();
+      expect(mockManager.update).not.toHaveBeenCalled();
     });
   });
 });

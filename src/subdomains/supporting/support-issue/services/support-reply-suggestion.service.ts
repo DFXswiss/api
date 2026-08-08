@@ -1,9 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { In } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import { CreateSupportReplySuggestionDto } from '../dto/create-support-reply-suggestion.dto';
 import { SupportReplySuggestionDtoMapper } from '../dto/support-reply-suggestion-dto.mapper';
 import { SupportReplySuggestionDto } from '../dto/support-reply-suggestion.dto';
+import { SupportIssue } from '../entities/support-issue.entity';
 import { SupportMessage } from '../entities/support-message.entity';
+import { SupportReplySuggestion } from '../entities/support-reply-suggestion.entity';
 import { SupportReplySuggestionState } from '../enums/support-reply-suggestion.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -39,19 +41,31 @@ export class SupportReplySuggestionService {
     if (dto.messageId != null && dto.messageId !== latestMessage.id)
       throw new ConflictException(`Message ${dto.messageId} is not the newest message of the support issue`);
 
-    await this.supersedePending(issueId);
+    // Superseding and inserting share one transaction, and the lock is taken on the ISSUE row rather
+    // than on the suggestions: two submissions arriving together may each find nothing to supersede,
+    // and a lock on rows that do not exist yet cannot order the two inserts. Without it the issue
+    // ends up with two suggestions marked Pending, one of them stranded in that state forever.
+    const entity = await this.suggestionRepo.manager.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder(SupportIssue, 'issue')
+        .where('issue.id = :issueId', { issueId })
+        .setLock('pessimistic_write', undefined, ['issue'])
+        .getOne();
 
-    // `state` is set here as well as on the column: the response is built from the entity in memory,
-    // so leaving it to the database default would answer the submission with an empty state.
-    const entity = await this.suggestionRepo.save(
-      this.suggestionRepo.create({
-        issue,
-        message: latestMessage,
-        text: dto.text,
-        authorId,
-        state: SupportReplySuggestionState.PENDING,
-      }),
-    );
+      await this.supersedePending(manager, issueId);
+
+      // `state` is set here as well as on the column: the response is built from the entity in
+      // memory, so leaving it to the database default would answer the submission with an empty state.
+      return manager.save(
+        manager.create(SupportReplySuggestion, {
+          issue,
+          message: latestMessage,
+          text: dto.text,
+          authorId,
+          state: SupportReplySuggestionState.PENDING,
+        }),
+      );
+    });
 
     return SupportReplySuggestionDtoMapper.mapSuggestion(entity, latestMessage.id);
   }
@@ -94,33 +108,39 @@ export class SupportReplySuggestionService {
     state: SupportReplySuggestionState,
     handledById: number,
   ): Promise<SupportReplySuggestionDto> {
-    const suggestion = await this.suggestionRepo.findOne({
-      where: { id: suggestionId, issue: { id: issueId } },
-      relations: { message: true },
-      loadEagerRelations: false,
-    });
-    if (!suggestion) throw new NotFoundException('Support reply suggestion not found');
-    // A decision is taken once: re-deciding would overwrite who decided what and when, and that
-    // transition is the one thing the row is there to record.
-    if (!suggestion.isPending) throw new ConflictException(`Suggestion is already in state ${suggestion.state}`);
+    // Read, check and write share one transaction under a pessimistic row lock, the same way the
+    // limit request decision does: a decision is taken once, and between "still pending" and the
+    // write there must be no window in which a second call can decide it differently. The row would
+    // otherwise carry the later decision with no trace that an earlier one ever happened.
+    const suggestion = await this.suggestionRepo.manager.transaction(async (manager) => {
+      const entity = await manager
+        .createQueryBuilder(SupportReplySuggestion, 'suggestion')
+        .innerJoinAndSelect('suggestion.message', 'message')
+        .innerJoin('suggestion.issue', 'issue')
+        .where('suggestion.id = :suggestionId', { suggestionId })
+        .andWhere('issue.id = :issueId', { issueId })
+        .setLock('pessimistic_write', undefined, ['suggestion'])
+        .getOne();
 
-    await this.suggestionRepo.update(...suggestion.setState(state, handledById));
+      if (!entity) throw new NotFoundException('Support reply suggestion not found');
+      if (!entity.isPending) throw new ConflictException(`Suggestion is already in state ${entity.state}`);
+
+      await manager.update(SupportReplySuggestion, ...entity.setState(state, handledById));
+
+      return entity;
+    });
 
     return SupportReplySuggestionDtoMapper.mapSuggestion(suggestion, await this.getLatestMessageId(issueId));
   }
 
-  private async supersedePending(issueId: number): Promise<void> {
-    const pending = await this.suggestionRepo.find({
-      where: { issue: { id: issueId }, state: SupportReplySuggestionState.PENDING },
-      select: { id: true },
-      loadEagerRelations: false,
-    });
-    if (!pending.length) return;
-
-    await this.suggestionRepo.update(
-      { id: In(pending.map((s) => s.id)) },
-      { state: SupportReplySuggestionState.SUPERSEDED, handled: new Date() },
-    );
+  private async supersedePending(manager: EntityManager, issueId: number): Promise<void> {
+    await manager
+      .createQueryBuilder()
+      .update(SupportReplySuggestion)
+      .set({ state: SupportReplySuggestionState.SUPERSEDED, handled: new Date() })
+      .where('"issueId" = :issueId', { issueId })
+      .andWhere('state = :state', { state: SupportReplySuggestionState.PENDING })
+      .execute();
   }
 
   private async getLatestMessage(issueId: number): Promise<SupportMessage | null> {
