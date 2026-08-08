@@ -17,8 +17,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
 import { getVerifiedIp } from './shared/utils/ip.util';
-import { isToleratedProcessError } from './shared/utils/process-error-policy';
-import { safeLogError } from './shared/utils/safe-log';
+import { handleUncaughtException, handleUnhandledRejection } from './shared/utils/process-error-handlers';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -34,55 +33,12 @@ import {
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { PricingService } from './subdomains/supporting/pricing/services/pricing.service';
 
-process.on('uncaughtException', (error) => {
-  const logger = new DfxLogger('UncaughtException');
-
-  if (isToleratedProcessError(error)) {
-    safeLogError(logger, 'Spark SDK uncaught exception (process kept alive):', error);
-    return;
-  }
-
-  safeLogError(logger, 'Uncaught exception, shutting down:', error);
-  process.exit(1);
-});
-
-function safeStringify(value: unknown): string {
-  try {
-    return String(value);
-  } catch {
-    return '<unstringifiable rejection reason>';
-  }
-}
-
-function toLoggableError(reason: unknown): Error {
-  try {
-    if (reason instanceof Error) return reason;
-  } catch {
-    // A hostile prototype trap: fall through and wrap it like any other non-Error value.
-  }
-  return new Error(`Non-Error rejection: ${safeStringify(reason)}`);
-}
-
-process.on('unhandledRejection', (reason) => {
-  const logger = new DfxLogger('UnhandledRejection');
-
-  // A rejection can carry any value, not just an Error. Normalize for the logger, but test the
-  // policy against the original value - isToleratedProcessError inspects the constructor name.
-  //
-  // `instanceof` is guarded because it is not safe on an arbitrary value either: it consults the
-  // prototype chain, and a Proxy with a throwing getPrototypeOf trap makes the expression itself
-  // throw. Unguarded, that throw happens before the policy is ever consulted, and a rejection the
-  // policy would have tolerated ends up killing the process anyway.
-  const error = toLoggableError(reason);
-
-  if (isToleratedProcessError(reason)) {
-    safeLogError(logger, 'Spark SDK unhandled rejection (process kept alive):', error);
-    return;
-  }
-
-  safeLogError(logger, 'Unhandled rejection, shutting down:', error);
-  process.exit(1);
-});
+process.on('uncaughtException', (error) =>
+  handleUncaughtException(error, { logger: new DfxLogger('UncaughtException'), exit: () => process.exit(1) }),
+);
+process.on('unhandledRejection', (reason) =>
+  handleUnhandledRejection(reason, { logger: new DfxLogger('UnhandledRejection'), exit: () => process.exit(1) }),
+);
 
 async function bootstrap() {
   // Observability is initialized in src/tracing.ts (imported above): the
