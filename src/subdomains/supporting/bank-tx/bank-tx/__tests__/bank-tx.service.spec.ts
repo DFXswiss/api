@@ -22,6 +22,7 @@ import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
 import { BankTx, BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFiatRepublicService } from '../services/bank-tx-fiat-republic.service';
 import { BankTxFrickService } from '../services/bank-tx-frick.service';
 import { BankTxService } from '../services/bank-tx.service';
 import { SepaParser } from '../services/sepa-parser.service';
@@ -97,6 +98,7 @@ describe('BankTxService', () => {
       createMock<SettingService>(),
       createMock<OlkypayService>(),
       createMock<BankTxFrickService>(),
+      createMock<BankTxFiatRepublicService>(),
       createMock<BankTxReturnService>(),
       createMock<BankTxRepeatService>(),
       createMock<BuyService>(),
