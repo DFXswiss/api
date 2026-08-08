@@ -1,5 +1,14 @@
 # Contributing Guidelines
 
+## Deviating From These Rules
+
+These guidelines are binding. A PR that knowingly does not meet one of them must say so
+**explicitly in its description**, naming the rule it departs from and the reason. An undeclared
+deviation is not a discussion point — the PR is rejected.
+
+A declared deviation is the reviewer's call: they may accept it or refuse it at their own
+discretion. Declaring one is not the same as being granted one.
+
 ## Build & Test
 
 ```bash
