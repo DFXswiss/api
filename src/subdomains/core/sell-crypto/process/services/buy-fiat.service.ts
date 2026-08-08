@@ -11,7 +11,6 @@ import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechai
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -491,19 +490,13 @@ export class BuyFiatService implements OnModuleInit {
     let previousAmlReason: AmlReason;
     let refundEntity: BuyFiat;
     // PayoutService.doPayout writes via its own repository and accepts no manager — it cannot
-    // join this transaction, so a rollback would not undo a created payout order. Defer it
-    // until after the claim commits. Remaining window: crash between commit and doPayout
-    // leaves the case claimed (chargebackAllowedDate set) but without a payout order — the
-    // safer failure mode (no funds in flight, case still visible). PayoutOrder unique index
-    // on (context, correlationId) also prevents a duplicate order on retry.
-    let pendingDoPayout:
-      | {
-          asset: Asset;
-          amount: number;
-          destinationAddress: string;
-          correlationId: string;
-        }
-      | undefined;
+    // join this transaction, so a rollback would not undo an already-created payout order.
+    // Call it before the claim anyway: if doPayout fails, the claim never lands and the case
+    // stays retryable. Running it after the claim would leave chargebackAllowedDate /
+    // chargebackDate committed with no funds moved — invisible to validateRefund and to
+    // chargebackTx (which selects chargebackAllowedDate: IsNull()). A duplicate payout order
+    // cannot arise: the unique index on PayoutOrder (context, correlationId) blocks it
+    // (correlationId = buyFiat.id). returnPayIn has no such guard, so it stays after the claim.
 
     await this.buyFiatRepo.manager.transaction(async (manager) => {
       const lockedBuyFiat = await manager.findOne(BuyFiat, {
@@ -543,6 +536,27 @@ export class BuyFiatService implements OnModuleInit {
       const claimWhere = BuyFiatService.refundClaimWhere(currentBuyFiat);
       previousAmlCheck = currentBuyFiat.amlCheck;
       previousAmlReason = currentBuyFiat.amlReason;
+
+      // The doPayout and returnPayIn branches used to live in a single if/else-if chain and were
+      // therefore mutually exclusive by construction. Since they are now separated by the claim
+      // write below, exclusivity is established explicitly here instead of relying on the
+      // unenforced assumption that FORWARD_CONFIRMED always implies action === FORWARD — otherwise
+      // both refund paths could fire for the same amount.
+      const isForwardPayout =
+        Boolean(dto.chargebackAllowedDate) &&
+        Boolean(chargebackAmount) &&
+        cryptoInput.status === PayInStatus.FORWARD_CONFIRMED;
+
+      if (isForwardPayout) {
+        await this.payoutService.doPayout({
+          context: PayoutOrderContext.BUY_FIAT_RETURN,
+          correlationId: `${currentBuyFiat.id}`,
+          asset: cryptoInput.asset,
+          amount: chargebackAmount,
+          destinationAddress: returnAddress,
+        });
+      }
+
       const [, update] = currentBuyFiat.chargebackFillUp(
         returnAddress,
         chargebackAmount,
@@ -556,31 +570,17 @@ export class BuyFiatService implements OnModuleInit {
       const claim = await manager.update(BuyFiat, claimWhere, update);
       if (claim.affected !== 1) throw new ConflictException('BuyFiat refund state changed concurrently');
 
-      if (dto.chargebackAllowedDate && chargebackAmount) {
-        if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
-          pendingDoPayout = {
-            asset: cryptoInput.asset,
-            amount: chargebackAmount,
-            destinationAddress: returnAddress,
-            correlationId: `${currentBuyFiat.id}`,
-          };
-        } else if (cryptoInput.action !== PayInAction.FORWARD) {
-          await this.payInService.returnPayIn(cryptoInput, returnAddress, chargebackAmount, manager);
-        }
+      if (
+        !isForwardPayout &&
+        dto.chargebackAllowedDate &&
+        chargebackAmount &&
+        cryptoInput.action !== PayInAction.FORWARD
+      ) {
+        await this.payInService.returnPayIn(cryptoInput, returnAddress, chargebackAmount, manager);
       }
 
       refundEntity = currentBuyFiat;
     });
-
-    if (pendingDoPayout) {
-      await this.payoutService.doPayout({
-        context: PayoutOrderContext.BUY_FIAT_RETURN,
-        correlationId: pendingDoPayout.correlationId,
-        asset: pendingDoPayout.asset,
-        amount: pendingDoPayout.amount,
-        destinationAddress: pendingDoPayout.destinationAddress,
-      });
-    }
 
     await this.transactionAmlCheckService.createFromEntity(
       refundEntity,

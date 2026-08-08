@@ -511,7 +511,7 @@ describe('BuyFiatService', () => {
       expect(passedCryptoInput).not.toBe(staleCryptoInput);
     });
 
-    it('runs doPayout after a successful claim when CryptoInput is FORWARD_CONFIRMED', async () => {
+    it('runs doPayout before the claim when CryptoInput is FORWARD_CONFIRMED', async () => {
       const cryptoInput = createCustomCryptoInput({
         id: 23,
         action: PayInAction.FORWARD,
@@ -553,12 +553,57 @@ describe('BuyFiatService', () => {
         amount: 1,
         destinationAddress: refundUser.address,
       });
-      // doPayout must run after the claim write (and therefore after the transaction commits,
-      // since the mock runs the transaction callback synchronously before returning).
-      expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(doPayoutSpy.mock.invocationCallOrder[0]);
+      // doPayout must run before the claim write, inside the same transaction — a failing
+      // doPayout must prevent the claim from being written (see the next test).
+      expect(doPayoutSpy.mock.invocationCallOrder[0]).toBeLessThan(manager.update.mock.invocationCallOrder[0]);
     });
 
-    it('does not call doPayout when the claim loses concurrently on FORWARD_CONFIRMED', async () => {
+    it('runs only doPayout, not returnPayIn, when CryptoInput is FORWARD_CONFIRMED but action is not FORWARD', async () => {
+      const cryptoInput = createCustomCryptoInput({
+        id: 23,
+        action: PayInAction.WAITING,
+        status: PayInStatus.FORWARD_CONFIRMED,
+      });
+      const buyFiat = createCustomBuyFiat({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        outputAmount: null,
+        chargebackAmount: 1,
+        chargebackAllowedDate: null,
+        chargebackDate: null,
+        chargebackTxId: null,
+        cryptoInput,
+      });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
+      const refundUser = {
+        address: '0x0000000000000000000000000000000000000001',
+        userData: buyFiat.userData,
+        blockchains: [cryptoInput.asset.blockchain],
+      };
+      jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
+      jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
+      jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
+      const returnPayInSpy = jest.spyOn(payInService, 'returnPayIn').mockResolvedValue();
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined);
+      setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
+
+      await service.refundBuyFiatInternal(buyFiat, {
+        refundUserAddress: refundUser.address,
+        chargebackAllowedDate: new Date(),
+      });
+
+      expect(returnPayInSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).toHaveBeenCalledTimes(1);
+      expect(doPayoutSpy).toHaveBeenCalledWith({
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: '7',
+        asset: cryptoInput.asset,
+        amount: 1,
+        destinationAddress: refundUser.address,
+      });
+    });
+
+    it('does not write the claim when doPayout fails, and propagates the error', async () => {
       const cryptoInput = createCustomCryptoInput({
         id: 23,
         action: PayInAction.FORWARD,
@@ -574,6 +619,7 @@ describe('BuyFiatService', () => {
         chargebackTxId: null,
         cryptoInput,
       });
+      const currentBuyFiat = createCustomBuyFiat({ ...buyFiat, cryptoInput: undefined });
       const refundUser = {
         address: '0x0000000000000000000000000000000000000001',
         userData: buyFiat.userData,
@@ -582,17 +628,19 @@ describe('BuyFiatService', () => {
       jest.spyOn(userService, 'getUserByAddress').mockResolvedValue(refundUser as any);
       jest.spyOn(TransactionUtilService, 'validateRefund').mockImplementation();
       jest.spyOn(transactionHelper, 'getBlockchainFee').mockResolvedValue(0.01);
-      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockResolvedValue(undefined);
-      setupRefundManager({ buyFiat, currentBuyFiat: buyFiat, cryptoInput, updateAffected: 0 });
+      const payoutError = new Error('payout failed');
+      const doPayoutSpy = jest.spyOn(payoutService, 'doPayout').mockRejectedValue(payoutError);
+      const manager = setupRefundManager({ buyFiat, currentBuyFiat, cryptoInput });
 
       await expect(
         service.refundBuyFiatInternal(buyFiat, {
           refundUserAddress: refundUser.address,
           chargebackAllowedDate: new Date(),
         }),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(payoutError);
 
-      expect(doPayoutSpy).not.toHaveBeenCalled();
+      expect(doPayoutSpy).toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
     });
   });
 
