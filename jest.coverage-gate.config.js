@@ -23,6 +23,7 @@ const FULL_COVERAGE = { branches: 100, functions: 100, lines: 100, statements: 1
 // Files carrying real logic: they have functions and/or branches, so the threshold asserts
 // that executable code stays covered.
 const PINNED_LOGIC = [
+  'src/config/config.ts',
   'src/config/fiat-republic.config.ts',
   'src/config/frick.config.ts',
   'src/integration/bank/controllers/fiat-republic-webhook.controller.ts',
@@ -68,6 +69,7 @@ const PINNED_LOGIC = [
   'src/integration/scorechain/entities/scorechain-screening.entity.ts',
   'src/integration/scorechain/exceptions/scorechain-object-not-found.exception.ts',
   'src/integration/sift/dto/sift.dto.ts',
+  'src/main.ts',
   'src/polyfills.ts',
   'src/shared/auth/allow-tfa-pending.decorator.ts',
   'src/shared/auth/exceptions/staff-kyc-required.exception.ts',
@@ -170,6 +172,7 @@ const PINNED_LOGIC = [
   'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-fiat-republic.service.ts',
   'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-frick.service.ts',
   'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts',
+  'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts',
   'src/subdomains/supporting/bank/bank/bank.entity.ts',
   'src/subdomains/supporting/bank/bank/bank.service.ts',
   'src/subdomains/supporting/bank/bank/dto/bank.dto.ts',

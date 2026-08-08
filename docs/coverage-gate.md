@@ -7,7 +7,7 @@ the others.
 | ------------------ | ------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------- |
 | Frick gate         | `jest.frick.config.js`         | 10 Frick files, run by 10 Frick specs only                 | Do _these specs alone_ fully cover _these files_?        |
 | Fiat Republic gate | `jest.fiat-republic.config.js` | 10 Fiat Republic files, run by 10 Fiat Republic specs only | Do _these specs alone_ fully cover _these files_?        |
-| Coverage ratchet   | `jest.coverage-gate.config.js` | 453 files, whole suite                                     | Has coverage regressed anywhere it was already complete? |
+| Coverage ratchet   | `jest.coverage-gate.config.js` | 480 files, whole suite                                     | Has coverage regressed anywhere it was already complete? |
 
 The two per-rail gates share one rationale: a bank integration moves customer money, so its own
 files are held at 100% by their own specs, rather than benefiting from coverage an unrelated suite
@@ -38,8 +38,8 @@ It is a **regression gate**, not a statement about test quality:
   grows"). That is the price of the threshold approach. What closes the gap is review, not CI:
   CONTRIBUTING requires every file a PR touches to reach 100% and to be pinned in that same PR.
 
-Of the 453 pinned files, **256 carry real logic** (they have functions and/or branches) and
-**197 are purely declarative today** (NestJS modules, constant files with neither). The two groups
+Of the 480 pinned files, **278 carry real logic** (they have functions and/or branches) and
+**202 are purely declarative today** (NestJS modules, constant files with neither). The two groups
 are kept visibly separate in the config so the count is not mistaken for test depth.
 
 Pinning the declarative ones is deliberate and not vacuous. Istanbul reports a metric with a total
@@ -188,7 +188,7 @@ six under `subdomains/generic/admin` have no coverage at all.
 ## How the list grows
 
 Any PR may add files to `coverageThreshold` once they reach 100%.
-`jest.coverage-gate.config.js` holds the 453 paths in two arrays, `PINNED_LOGIC` (logic-carrying
+`jest.coverage-gate.config.js` holds the 480 paths in two arrays, `PINNED_LOGIC` (logic-carrying
 files) and `PINNED_DECLARATIVE` (purely declarative files), from which `coverageThreshold` is
 generated. Adding a file means appending its path to the matching array, not writing out a
 `coverageThreshold` object entry by hand.
@@ -224,8 +224,8 @@ To regenerate the full picture, run the gate and read `coverage-gate/coverage-su
 below 100, the expected response is to extend the tests. Unpinning is an explicit decision that
 belongs in the PR description, not a silent edit.
 
-That rule stays hard for the 256 logic-carrying files. A foreseeable friction case is different:
-when one of the 197 purely declarative files (a NestJS module, a constants file) first gains
+That rule stays hard for the 278 logic-carrying files. A foreseeable friction case is different:
+when one of the 202 purely declarative files (a NestJS module, a constants file) first gains
 executable logic — for example a `useFactory` on a module — the function metric jumps from 0/0 to
 0/N and the gate turns red. Tests remain the preferred fix, but unpinning that one file is an
 allowed outcome if the PR description names and justifies it (not as a silent edit). For
