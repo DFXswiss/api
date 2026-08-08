@@ -220,9 +220,11 @@ export class KycService {
 
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const suspectedDuplicateUser = await this.userDataService
-          .getUserDataByBirthday(result.birthday)
-          .then((u) => u.filter((u) => u.id !== entity.userData.id));
+        const suspectedDuplicateUser = result.birthday
+          ? await this.userDataService
+              .getUserDataByBirthday(result.birthday)
+              .then((u) => u.filter((u) => u.id !== entity.userData.id))
+          : [];
 
         const errors = this.getIdentCheckErrors(
           entity,
@@ -295,10 +297,17 @@ export class KycService {
         // valid report says the documents of THIS ident were fetched.
         //
         // Asked last, after the two in-memory conditions: it is a database round trip, and the
-        // conditions in front of it leave only the steps that are about to advance.
+        // conditions in front of it leave only the steps that are about to advance. A Sumsub-typed
+        // step whose stored result carries no webhook at all never actually ran a Sumsub transaction,
+        // so there is nothing on Sumsub's side to fetch, and the step must still be allowed to advance
+        // past this gate — otherwise it wedges in INTERNAL_REVIEW again, repeating the exact crash
+        // this condition exists to prevent; a step whose webhook is present but merely lacks an
+        // applicantId is a different, pre-existing case that the sync attempt and its surrounding
+        // catch-and-retry net already handle.
         if (
           entity.isSumsub &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW) &&
+          entity.getResult<SumsubResult>()?.webhook != null &&
           !(await this.kycFileService.hasValidIdentReport(entity.id))
         )
           await this.syncIdentFilesInternal(entity);
@@ -1167,6 +1176,7 @@ export class KycService {
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.IDENT);
+    if (!kycStep.isManual) throw new BadRequestException('KYC step is not a manual ident step');
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
