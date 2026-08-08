@@ -1,5 +1,6 @@
 import { InsufficientFunds, Order } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PairNotTradableException } from 'src/integration/exchange/exceptions/pair-not-tradable.exception';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { ExchangeService, OrderSide } from 'src/integration/exchange/services/exchange.service';
@@ -153,7 +154,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       );
     }
 
-    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
+    let price: number;
+    try {
+      price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
+    } catch (e) {
+      if (e instanceof PairNotTradableException) throw new OrderNotProcessableException(e.message);
+      throw e;
+    }
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     const maxSellAmount = Util.floor(maxAmount * price, 6);
@@ -176,7 +183,6 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     const amount = effectiveMax;
-
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
     order.outputAsset = targetAssetEntity.name;
@@ -184,6 +190,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     try {
       return await this.exchangeService.sell(tradeAsset, targetAssetEntity.name, amount);
     } catch (e) {
+      if (e instanceof PairNotTradableException) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(
           `${e.message} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
@@ -206,7 +216,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
-    await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity, maxPriceDeviation);
+
+    try {
+      await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity, maxPriceDeviation);
+    } catch (e) {
+      if (e instanceof PairNotTradableException) throw new OrderNotProcessableException(e.message);
+      throw e;
+    }
 
     const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
     let effectiveMax = Math.min(order.maxAmount, availableBalance);
@@ -223,7 +239,6 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     const amount = effectiveMax;
-
     order.inputAmount = amount;
     order.inputAsset = asset;
     order.outputAsset = tradeAsset;
@@ -231,6 +246,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     try {
       return await this.exchangeService.sell(asset, tradeAsset, amount);
     } catch (e) {
+      if (e instanceof PairNotTradableException) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(
           `${e.message} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
@@ -262,7 +281,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private async getAvailableTradeBalance(from: string, to: string): Promise<number> {
     const availableBalance = await this.exchangeService.getAvailableBalance(from);
 
-    const { direction } = await this.exchangeService.getTradePair(from, to);
+    let direction: OrderSide;
+    try {
+      ({ direction } = await this.exchangeService.getTradePair(from, to));
+    } catch (e) {
+      if (e instanceof PairNotTradableException) throw new OrderNotProcessableException(e.message);
+      throw e;
+    }
     return direction === OrderSide.BUY ? availableBalance * 0.99 : availableBalance;
   }
 
