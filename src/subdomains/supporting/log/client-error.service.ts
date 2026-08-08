@@ -80,6 +80,8 @@ const BUDGET_WINDOW = 60000;
 const WARN_TYPES = ['ChunkLoadError'];
 
 // `screens/error` translations of account-merge.screen.tsx's 400/409 branches, all locales.
+// Pinned to NFC on both sides of the match: `includes` compares code points, so an NFD-encoded
+// report (or a re-encoded source file) would otherwise miss silently and stay at ERROR.
 const WARN_MESSAGES = [
   'Invalid link', // EN
   'Ungültiger Link', // DE
@@ -92,7 +94,7 @@ const WARN_MESSAGES = [
   // Thrown as a plain `Error` in auth.service.ts and forwarded as-is by mail-login.screen.tsx,
   // never run through the frontend's `translate()` — English only, no locale variants.
   'Login link expired',
-];
+].map((m) => m.normalize('NFC'));
 
 @Injectable()
 export class ClientErrorService {
@@ -162,7 +164,10 @@ export class ClientErrorService {
   // --- SEVERITY --- //
 
   private static isAnticipated(type?: string, message?: string): boolean {
-    return (type != null && WARN_TYPES.includes(type)) || (message != null && WARN_MESSAGES.includes(message));
+    return (
+      (type != null && WARN_TYPES.includes(type)) ||
+      (message != null && WARN_MESSAGES.includes(message.normalize('NFC')))
+    );
   }
 
   // --- SANITIZING --- //

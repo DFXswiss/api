@@ -95,6 +95,15 @@ describe('ClientErrorService', () => {
     expect(error).not.toHaveBeenCalled();
   });
 
+  // Guards the NFC pinning: an NFD-encoded report renders identically to the NFC literal above
+  // but differs in code points, so an exact `includes` would silently keep it at ERROR.
+  it('downgrades an NFD-encoded message to WARN', () => {
+    service.logError(dto({ message: 'Ungültiger Link'.normalize('NFD') }));
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(error).not.toHaveBeenCalled();
+  });
+
   // Guards against someone later broadening the match to `type === 'HandledError'`: anything
   // those two screens catch that isn't one of the whitelisted messages above must stay at ERROR.
   it('keeps an unlisted HandledError message at ERROR', () => {

@@ -15,7 +15,8 @@ export class ClientErrorController {
   @ApiOperation({
     summary: 'Report a frontend error',
     description:
-      'Records a client-side error as an ERROR log line so it becomes visible in log monitoring. ' +
+      'Records a client-side error as an ERROR log line, or as WARN for anticipated frontend states, ' +
+      'so it becomes visible in log monitoring. ' +
       'Unauthenticated on purpose: the errors worth catching happen before or without a session.',
   })
   // RateLimitGuard buckets by /24 (IPv4) or /64 (IPv6), so customers sharing a NAT share this
