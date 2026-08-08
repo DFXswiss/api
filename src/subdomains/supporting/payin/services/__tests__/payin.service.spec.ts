@@ -5,6 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -112,6 +113,37 @@ describe('PayInService designate-before-broadcast safeguards', () => {
 
     expect(updateSpy).not.toHaveBeenCalled();
     expect(sendMailSpy).not.toHaveBeenCalled();
+  });
+
+  describe('#updatePayInAction(...)', () => {
+    const exclusionWhere = {
+      id: 77,
+      action: Not(PayInAction.RETURN),
+      status: Not(In([PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED])),
+      returnTxId: IsNull(),
+    };
+
+    it.each([
+      [CheckStatus.PASS, PayInAction.FORWARD],
+      [CheckStatus.FAIL, PayInAction.WAITING],
+    ])('updates action with return-exclusion where for amlCheck %s → %s', async (amlCheck, expectedAction) => {
+      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.updatePayInAction(77, amlCheck);
+
+      expect(updateSpy).toHaveBeenCalledWith(exclusionWhere, { action: expectedAction });
+    });
+
+    it.each([CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.UNNECESSARY])(
+      'returns early without update for non-PASS/FAIL amlCheck %s',
+      async (amlCheck) => {
+        const updateSpy = jest.spyOn(payInRepository, 'update');
+
+        await service.updatePayInAction(77, amlCheck);
+
+        expect(updateSpy).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('#returnPayIn(...)', () => {

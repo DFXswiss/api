@@ -267,9 +267,19 @@ export class PayInService {
   async updatePayInAction(payInId: number, amlCheck: CheckStatus): Promise<void> {
     if (![CheckStatus.FAIL, CheckStatus.PASS].includes(amlCheck)) return;
 
-    await this.payInRepository.update(payInId, {
-      action: amlCheck === CheckStatus.PASS ? PayInAction.FORWARD : PayInAction.WAITING,
-    });
+    // A scheduled or executed return owns the action — the AML flip must neither clear a return nor
+    // re-arm forwarding over one; affected 0 is the designed outcome (the admin release path schedules
+    // the return inside its transaction and the AML post-processing runs after commit, so without this
+    // exclusion the flip would overwrite action=Return and the return cron would never pick the pay-in).
+    await this.payInRepository.update(
+      {
+        id: payInId,
+        action: Not(PayInAction.RETURN),
+        status: Not(In([PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED])),
+        returnTxId: IsNull(),
+      },
+      { action: amlCheck === CheckStatus.PASS ? PayInAction.FORWARD : PayInAction.WAITING },
+    );
   }
 
   async returnPayIn(
