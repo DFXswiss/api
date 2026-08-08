@@ -58,12 +58,9 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: services-repo/package-lock.json
+      # No Node setup here on purpose: the harness scripts are Bash plus Docker, and every Node
+      # dependency is installed inside the images they build. Nothing in this job runs node, npm or
+      # npx on the runner itself.
 
       - name: Build API image from PR head
         run: docker build -t dfx-api:e2e --build-arg GIT_COMMIT=${{ github.sha }} api-repo
