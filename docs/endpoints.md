@@ -1,6 +1,6 @@
 # HTTP endpoints
 
-Every HTTP endpoint this service exposes: **541 decorated route entries** across 94 controller files, of which **540 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 302 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
+Every HTTP endpoint this service exposes: **542 decorated route entries** across 95 controller files, of which **541 are registered at runtime** — one handler carries two `@Post` decorators and only one of them takes effect, see *Known discrepancy*. 303 are marked `@ApiExcludeEndpoint` and do not appear in the public Swagger schema.
 
 ## Columns
 
@@ -29,8 +29,8 @@ Today 36 endpoints read only what they need and 414 do not, so the column reads 
 
 | Data access | Endpoints | Share |
 | ----------- | --------: | ----: |
-| `whole rows` | 414 | 77 % |
-| `none` | 89 | 16 % |
+| `whole rows` | 414 | 76 % |
+| `none` | 90 | 17 % |
 | `projected` | 36 | 7 % |
 | `caller-defined` | 2 | 0 % |
 
@@ -68,6 +68,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | `POST /alchemy/addressWebhook` | HMAC check against a key held in memory |
 | `GET /alchemy/addresses/:webhookId` | third-party SDK (`alchemy.notify`), no table of ours |
 | `GET /auth/alby` | builds an OAuth URL; the pending state lives in memory |
+| `POST /bank/fiatRepublic/webhook` | verifies an HMAC over the raw body against a key held in memory, then hands off through an rxjs subject — the loading happens in the subscriber, not in the request path |
 | `POST /bank/yapeal/webhook` | hands off through an rxjs subject — the loading happens in the subscriber, not in the request path |
 | `GET /dex/check-liquidity` | strategy registry; no strategy under `dex/strategies/{check,purchase,sell}-liquidity` contains a load site |
 | `POST /dex/purchase-liquidity` | same registry as `GET /dex/check-liquidity` |
@@ -144,6 +145,7 @@ For 27 endpoints the call graph ends at a target chosen at runtime. Each was rea
 | GET | 1 |  | `/balance/pdf/blockchains` | public | none | — | n/a |  | `BalanceController.getSupportedBlockchains` | `subdomains/supporting/balance/controllers/balance.controller.ts` |
 | GET | 1 |  | `/bank` | public | whole rows | 46 | not yet |  | `BankController.getAllBanks` | `subdomains/supporting/bank/bank/bank.controller.ts` |
 | PUT | 1 |  | `/bank/receiveIban` | public | whole rows | 97 | not yet | yes | `BankController.checkReceiveIban` | `subdomains/supporting/bank/bank/bank.controller.ts` |
+| POST | 1 |  | `/bank/fiatRepublic/webhook` | hidden | none | — | n/a | yes | `FiatRepublicWebhookController.handleFiatRepublicWebhook` | `integration/bank/controllers/fiat-republic-webhook.controller.ts` |
 | POST | 1 |  | `/bank/yapeal/webhook` | hidden | none | — | n/a |  | `YapealWebhookController.handleYapealWebhook` | `integration/bank/controllers/yapeal-webhook.controller.ts` |
 | GET | 1 |  | `/bankAccount` | public | whole rows | 261 | not yet |  | `BankAccountController.getAllUserBankAccount` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |
 | POST | 1 |  | `/bankAccount` | public | whole rows | 261 | not yet |  | `BankAccountController.createBankAccount` | `subdomains/supporting/bank/bank-account/bank-account.controller.ts` |

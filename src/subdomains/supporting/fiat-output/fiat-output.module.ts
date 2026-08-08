@@ -15,6 +15,7 @@ import { FiatOutputRepository } from '../fiat-output/fiat-output.repository';
 import { FiatOutputService } from '../fiat-output/fiat-output.service';
 import { LogModule } from '../log/log.module';
 import { Ep2ReportService } from './ep2-report.service';
+import { FiatOutputFiatRepublicService } from './fiat-output-fiat-republic.service';
 import { FiatOutputFrickService } from './fiat-output-frick.service';
 import { FiatOutputJobService } from './fiat-output-job.service';
 
@@ -39,6 +40,7 @@ import { FiatOutputJobService } from './fiat-output-job.service';
     FiatOutputService,
     Ep2ReportService,
     FiatOutputFrickService,
+    FiatOutputFiatRepublicService,
     FiatOutputJobService,
   ],
   exports: [FiatOutputService],

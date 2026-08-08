@@ -14,6 +14,7 @@ import { BankController } from './bank/bank.controller';
 import { Bank } from './bank/bank.entity';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
+import { FiatRepublicVibanProvider } from './virtual-iban/providers/fiat-republic-viban.provider';
 import { FrickVibanProvider } from './virtual-iban/providers/frick-viban.provider';
 import { YapealVibanProvider } from './virtual-iban/providers/yapeal-viban.provider';
 import { VirtualIbanFrickIssuanceReconciliationService } from './virtual-iban/virtual-iban-frick-issuance-reconciliation.service';
@@ -50,6 +51,7 @@ import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
     BankService,
     FrickVibanProvider,
     YapealVibanProvider,
+    FiatRepublicVibanProvider,
     VirtualIbanService,
     VirtualIbanFrickIssuanceReconciliationService,
     IsDfxIbanValidator,

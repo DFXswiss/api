@@ -6,14 +6,18 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BlankChars, nonBlankPredicate } from 'src/subdomains/generic/user/models/user/staff-kyc-clearance.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not, Raw } from 'typeorm';
 import { Bank } from '../bank/bank.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
+import { FiatRepublicPersonMapper } from './dto/fiat-republic-person.mapper';
+import { FiatRepublicVibanProvider } from './providers/fiat-republic-viban.provider';
 import { FrickVibanProvider } from './providers/frick-viban.provider';
 import { VibanAccountHolder } from './providers/viban-account-holder.enum';
 import { ReservedViban, VibanNotCreatedError, VibanProvider } from './providers/viban-provider.interface';
@@ -102,10 +106,11 @@ export class VirtualIbanService {
     private readonly fiatService: FiatService,
     private readonly yapealVibanProvider: YapealVibanProvider,
     private readonly frickVibanProvider: FrickVibanProvider,
+    private readonly fiatRepublicVibanProvider: FiatRepublicVibanProvider,
     private readonly dataSource: DataSource,
     private readonly notificationService: NotificationService,
   ) {
-    this.genericProviders = [this.yapealVibanProvider, this.frickVibanProvider];
+    this.genericProviders = [this.yapealVibanProvider, this.frickVibanProvider, this.fiatRepublicVibanProvider];
   }
 
   isUserEligible(currencyName: string, userData: UserData): boolean {
@@ -122,7 +127,7 @@ export class VirtualIbanService {
    * wrong recipient name on a real bank transfer.
    */
   getAccountHolder(bankName: IbanBankName): VibanAccountHolder {
-    const provider = [this.yapealVibanProvider, this.frickVibanProvider].find((p) => p.bankName === bankName);
+    const provider = this.genericProviders.find((p) => p.bankName === bankName);
     if (!provider) throw new Error(`No viban provider registered for bank ${bankName}`);
     return provider.accountHolder;
   }
@@ -186,6 +191,16 @@ export class VirtualIbanService {
     const existing = await this.getActiveReceivingForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
+    // Fiat Republic takes precedence over Bank Frick for the currencies it serves, but only once it is
+    // actually released: isAvailable() folds in the credentials, the master switch and the frontend
+    // stage flag, so an unreleased environment falls straight through to the incumbent Frick path and
+    // behaves exactly as it did before this integration existed.
+    if (
+      this.fiatRepublicVibanProvider.isAvailable() &&
+      this.fiatRepublicVibanProvider.currencies.includes(currencyName)
+    )
+      return this.getOrCreateFiatRepublicForUser(userData, currencyName);
+
     // createVirtualIban calls reserveViban without a description, which the Frick provider rejects
     // outright - and it carries none of the claim/recovery protocol Frick issuance needs. Route the
     // Frick currencies to their own entry point instead of letting them reach the generic path.
@@ -204,6 +219,11 @@ export class VirtualIbanService {
     // step for Frick currencies, so this guards direct callers. Checked after the conflict lookup so
     // an already-issued IBAN still reports a conflict, as it did before Frick joined the providers.
     if (this.frickVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
+
+    // Same for Fiat Republic: its virtual accounts are named sub-accounts bound to an end user, which
+    // is a user-level identity — there is no buy-level equivalent, and reserveViban refuses outright.
+    if (this.fiatRepublicVibanProvider.currencies.includes(currencyName))
       throw new BadRequestException('Buy-specific personal IBANs are not available for this currency');
 
     return this.createVirtualIban(userData, currencyName, buy);
@@ -240,6 +260,108 @@ export class VirtualIbanService {
     const saved = await this.virtualIbanRepo.save(virtualIban);
     this.virtualIbanRepo.invalidateCache();
     return saved;
+  }
+
+  /**
+   * Fiat Republic issuance: a named sub-account (virtual account) under DFX's client money account,
+   * held in the customer's own name.
+   *
+   * It needs none of the Frick intent machinery, because both external steps are idempotent by
+   * construction: the end user through its own claim protocol (`FiatRepublicEndUserService`) and the
+   * virtual account through a customer-derived idempotency key plus a recovery listing. What is left
+   * for this method is the local invariant — at most one active row per (customer, currency, bank) —
+   * and that is what the advisory lock provides. No database connection is held across HTTP calls:
+   * the lookup and the persist are two separate locked transactions with the provider call between.
+   */
+  async getOrCreateFiatRepublicForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
+    if (!this.fiatRepublicVibanProvider.currencies.includes(currencyName))
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_CURRENCY_NOT_SUPPORTED);
+
+    if (!this.fiatRepublicVibanProvider.isAvailable()) {
+      this.logger.error('Fiat Republic virtual IBAN service is not available');
+      throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    }
+
+    const context = await this.withUserLevelIssuanceLock(
+      userData.id,
+      currencyName,
+      this.fiatRepublicVibanProvider.bankName,
+      async (manager, currentUserData) => {
+        if (currentUserData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException(QuoteError.KYC_REQUIRED);
+
+        const currency = await this.fiatService.getFiatByName(currencyName, manager);
+        if (!currency) throw new BadRequestException(QuoteError.CURRENCY_UNSUPPORTED);
+
+        const bank = await this.bankService.getBankInternal(
+          this.fiatRepublicVibanProvider.bankName,
+          currencyName,
+          manager,
+        );
+        if (!bank?.receive) throw new BadRequestException(QuoteError.NO_BANK_AVAILABLE_FOR_THIS_CURRENCY);
+
+        const existing = await this.findActiveForUserCurrencyAndBank(manager, currentUserData.id, currency.id, bank.id);
+        return { userData: currentUserData, currency, bank, existing };
+      },
+    );
+    if (context.existing) return context.existing;
+
+    const missingFields = FiatRepublicPersonMapper.missingFields(context.userData);
+    if (missingFields.length) {
+      // Named locally, never sent upstream: a profile gap is a DFX-side data problem the customer or
+      // support can fix, and it must be visible as such instead of as an opaque upstream rejection.
+      this.logger.info(
+        `Fiat Republic personal IBAN blocked by an incomplete profile ` +
+          `(userDataId=${context.userData.id}, missing=${missingFields.join(',')})`,
+      );
+      throw new BadRequestException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    }
+
+    const ipAddress = await this.getSignupIp(context.userData.id);
+    if (!ipAddress) {
+      this.logger.error(`Fiat Republic personal IBAN has no signup IP to report (userDataId=${context.userData.id})`);
+      throw new ServiceUnavailableException(QuoteError.PERSONAL_IBAN_ISSUANCE_FAILED);
+    }
+
+    const reserved = await this.fiatRepublicVibanProvider.reserveVibanForUser({
+      userDataId: context.userData.id,
+      person: FiatRepublicPersonMapper.toPerson(context.userData),
+      ipAddress,
+      label: `DFX ${currencyName} ${context.userData.id}`,
+    });
+
+    const persisted = await this.withUserLevelIssuanceLock(
+      context.userData.id,
+      currencyName,
+      this.fiatRepublicVibanProvider.bankName,
+      (manager, lockedOwner) =>
+        this.persistUserLevelIfMissing(manager, lockedOwner, context.bank, context.currency, reserved),
+    );
+    this.virtualIbanRepo.invalidateCache();
+    return persisted;
+  }
+
+  /**
+   * The IP Fiat Republic requires on an end user ("where the user signed up on your platform"). Read
+   * as a projection off the oldest user of this account rather than by loading the users relation:
+   * only one column of one row is needed, and threading it down from the controller would cross four
+   * layers for a single value.
+   */
+  private async getSignupIp(userDataId: number): Promise<string | undefined> {
+    // Blank values are excluded in the database, not after the fact: a client-side scan would have to
+    // bound how many rows it fetches, and any bound is a row count at which an account silently stops
+    // finding the IP it actually has. Filtering server-side keeps "oldest user with a usable IP"
+    // exact for an account of any size, and lets the query return the single row that answers it.
+    //
+    // Reuses the clearance gate's predicate rather than inlining one: it already carries the explicit
+    // blank-character set (bare `BTRIM` strips only U+0020, so a tab would pass an ad-hoc fragment),
+    // and it is a named function whose semantics a real-Postgres suite pins — an inline arrow here
+    // would be a SQL fragment no test can execute.
+    const user = await this.dataSource.getRepository(User).findOne({
+      where: { userData: { id: userDataId }, ip: Raw(nonBlankPredicate, { blankChars: BlankChars }) },
+      order: { id: 'ASC' },
+      select: { id: true, ip: true },
+    });
+    return user?.ip?.trim();
   }
 
   /**
@@ -1395,6 +1517,18 @@ export class VirtualIbanService {
   async getByIban(iban: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOne({
       where: { iban },
+      relations: { userData: true, bank: true, buy: true },
+    });
+  }
+
+  /**
+   * Looks a personal IBAN up by the provider's own account reference. Fiat Republic payin events name
+   * the virtual account by its id (`vac_…`), never by IBAN, so this is the seam that turns an incoming
+   * payment into the customer IBAN downstream attribution matches on.
+   */
+  async getByProviderAccountRef(providerAccountRef: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOne({
+      where: { providerAccountRef },
       relations: { userData: true, bank: true, buy: true },
     });
   }

@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
@@ -7,6 +8,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -16,7 +18,7 @@ import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-
 import { VirtualIban, VirtualIbanStatus } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanRepository } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.repository';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { FindOneOptions, FindOptionsWhere } from 'typeorm';
+import { EntityManager, FindOneOptions, FindOptionsWhere } from 'typeorm';
 import {
   createCustomBank,
   createDefaultBanks,
@@ -24,7 +26,9 @@ import {
   yapealCHF,
   yapealEUR,
   olkyEUR,
+  frickCHF,
   frickEUR,
+  fiatRepublicEUR,
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
@@ -85,6 +89,7 @@ describe('BankService', () => {
   let fiatService: FiatService;
   let countryService: CountryService;
   let bankAccountService: BankAccountService;
+  let fiatRepublicService: FiatRepublicService;
 
   beforeEach(async () => {
     bankRepo = createMock<BankRepository>();
@@ -93,6 +98,10 @@ describe('BankService', () => {
     fiatService = createMock<FiatService>();
     countryService = createMock<CountryService>();
     bankAccountService = createMock<BankAccountService>();
+    // Not released by default: every pre-existing expectation describes the behaviour before this
+    // integration existed, and that is exactly what an unreleased Fiat Republic has to reproduce.
+    fiatRepublicService = createMock<FiatRepublicService>();
+    jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -105,6 +114,7 @@ describe('BankService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: fiatRepublicService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -386,6 +396,61 @@ describe('BankService', () => {
     expect(result).toBe(eurInstantBank);
   });
 
+  describe('Fiat Republic release gate', () => {
+    // Built locally rather than reusing the shared olkyEUR fixture: createDefaultDisabledBanks mutates
+    // that object's `receive` flag, so a shared instance can arrive here already disabled.
+    const incumbentEUR = createCustomBank({
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      iban: 'LU116060002000005040',
+      receive: true,
+      sctInst: true,
+    });
+
+    it('never hands out a Fiat Republic IBAN while the frontend stage is off', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, incumbentEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT });
+
+      expect(bank?.name).toBe(IbanBankName.OLKY);
+    });
+
+    it('returns nothing rather than Fiat Republic when it is the only receiver and is not released', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR]);
+
+      await expect(
+        service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('does not let Fiat Republic capture the EUR fallback of an unsupported currency while unreleased', async () => {
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, incumbentEUR]);
+
+      const bank = await service.getBank({ currency: 'GBP', paymentMethod: FiatPaymentMethod.BANK });
+
+      expect(bank?.name).toBe(IbanBankName.OLKY);
+    });
+
+    it('offers Fiat Republic once the frontend stage is released', async () => {
+      jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(true);
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.INSTANT });
+
+      expect(bank?.name).toBe(IbanBankName.FIAT_REPUBLIC);
+    });
+
+    it('leaves the hardcoded Bank Frick EUR bank-transfer rule untouched when Fiat Republic is released', async () => {
+      jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(true);
+      mockFindCachedByForBanks(bankRepo, [fiatRepublicEUR, frickEUR]);
+      mockFindCachedForBanks(bankRepo, [frickEUR]);
+
+      const bank = await service.getBank({ currency: 'EUR', paymentMethod: FiatPaymentMethod.BANK });
+
+      expect(bank?.name).toBe(IbanBankName.FRICK);
+    });
+  });
+
   describe('getBankByIban scoping', () => {
     // accountIban is nullable and parsed from the SEPA payload. Absent, the only condition is dropped
     // and an arbitrary Bank is returned, which then drives the chargeback fee.
@@ -412,6 +477,23 @@ describe('Bank Frick country routing', () => {
   it('uses the existing automated-bank country allowlist', () => {
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+});
+
+describe('Fiat Republic country routing', () => {
+  const bank = Object.assign(new Bank(), { name: IbanBankName.FIAT_REPUBLIC });
+
+  // The Acceptable Use Policy commits DFX to keeping customer segments outside Fiat Republic's risk
+  // appetite off the platform entirely, so it is gated like the other EU/EEA rails, not left open.
+  it('uses the same automated-bank country allowlist as the other EU rails', () => {
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+
+  it('is reconcilable like every non-Frick bank', () => {
+    expect(
+      Object.assign(new Bank(), { name: IbanBankName.FIAT_REPUBLIC, send: true, receive: false }).isReconcilable,
+    ).toBe(true);
   });
 });
 
@@ -549,9 +631,12 @@ describe('Bank.isReconcilable', () => {
 describe('Bank (name, currency) collision tie-break', () => {
   let service: BankService;
   let bankRepo: BankRepository;
+  let fiatRepublicService: FiatRepublicService;
 
   beforeEach(async () => {
     bankRepo = createMock<BankRepository>();
+    fiatRepublicService = createMock<FiatRepublicService>();
+    jest.spyOn(fiatRepublicService, 'isFrontendEnabled').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -564,6 +649,7 @@ describe('Bank (name, currency) collision tie-break', () => {
         { provide: CountryService, useValue: createMock<CountryService>() },
         { provide: BankAccountService, useValue: createMock<BankAccountService>() },
         { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: fiatRepublicService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -733,6 +819,7 @@ describe('BankService.getReceiveIbanStatus', () => {
         BankService,
         { provide: BankRepository, useValue: bankRepo },
         { provide: VirtualIbanRepository, useValue: virtualIbanRepo },
+        { provide: FiatRepublicService, useValue: createMock<FiatRepublicService>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -938,5 +1025,256 @@ describe('BankService.getReceiveIbanStatus', () => {
     await expect(service.getReceiveIbanStatus(foreignPersonalIban, accountId)).resolves.toBe(
       ReceiveIbanStatus.NOT_MATCHED,
     );
+  });
+});
+
+describe('BankService plain repository reads', () => {
+  let service: BankService;
+  let bankRepo: BankRepository;
+
+  beforeEach(async () => {
+    bankRepo = createMock<BankRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: UserService, useValue: createMock<UserService>() },
+        { provide: BuyCryptoService, useValue: createMock<BuyCryptoService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: CountryService, useValue: createMock<CountryService>() },
+        { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: createMock<FiatRepublicService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<BankService>(BankService);
+  });
+
+  it('loads every bank with its asset relation for the balance path', async () => {
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([olkyEUR]);
+
+    await expect(service.getBanksWithAsset()).resolves.toEqual([olkyEUR]);
+    expect(bankRepo.find).toHaveBeenCalledWith({ relations: { asset: true } });
+  });
+
+  it('loads all rows of one bank name, cached under that name', async () => {
+    jest.spyOn(bankRepo, 'findCachedBy').mockResolvedValue([frickEUR, frickCHF]);
+
+    await expect(service.getBanksByName(IbanBankName.FRICK)).resolves.toEqual([frickEUR, frickCHF]);
+    expect(bankRepo.findCachedBy).toHaveBeenCalledWith(IbanBankName.FRICK, { name: IbanBankName.FRICK });
+  });
+
+  it('loads a bank by id from the repository cache', async () => {
+    jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(olkyEUR);
+
+    await expect(service.getBankById(19)).resolves.toBe(olkyEUR);
+    expect(bankRepo.findOneCachedBy).toHaveBeenCalledWith('19', { id: 19 });
+  });
+
+  it('loads the sending banks of one currency, cached per currency', async () => {
+    jest.spyOn(bankRepo, 'findCachedBy').mockResolvedValue([olkyEUR]);
+
+    await expect(service.getSenderBanks('EUR')).resolves.toEqual([olkyEUR]);
+    expect(bankRepo.findCachedBy).toHaveBeenCalledWith('send-EUR', { currency: 'EUR', send: true });
+  });
+});
+
+describe('BankService blockchainToBankName (remaining rails)', () => {
+  it.each([
+    [Blockchain.MAERKI_BAUMANN, IbanBankName.MAERKI],
+    [Blockchain.OLKYPAY, IbanBankName.OLKY],
+    [Blockchain.YAPEAL, IbanBankName.YAPEAL],
+  ])('maps %s to %s', (blockchain, expected) => {
+    expect(BankService['blockchainToBankName'](blockchain)).toBe(expected);
+  });
+
+  it('maps a blockchain that is not a bank to undefined', () => {
+    // The undefined is what stops isBankMatching from attributing a crypto asset to a bank IBAN.
+    expect(BankService['blockchainToBankName'](Blockchain.ETHEREUM)).toBeUndefined();
+  });
+});
+
+describe('BankService unbound IBAN cache', () => {
+  let service: BankService;
+  let bankRepo: BankRepository;
+
+  beforeEach(async () => {
+    bankRepo = createMock<BankRepository>();
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache.clear();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: UserService, useValue: createMock<UserService>() },
+        { provide: BuyCryptoService, useValue: createMock<BuyCryptoService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: CountryService, useValue: createMock<CountryService>() },
+        { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: createMock<FiatRepublicService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<BankService>(BankService);
+  });
+
+  const unboundCache = () =>
+    (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache;
+
+  it('records an IBAN whose rows carry no asset link', async () => {
+    // Only IBANs with no asset-bound row belong in this cache: it is what lets an internal transfer
+    // match an asset that has no bank row of its own.
+    const unbound = createCustomBank({ name: IbanBankName.OLKY, currency: 'EUR', iban: 'LU00', asset: null });
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([unbound]);
+
+    await service.areKnownBankIbans('LU00');
+
+    expect(unboundCache().get('LU00')).toEqual(new Set([`${IbanBankName.OLKY}-EUR`]));
+  });
+
+  it('leaves an IBAN out of the cache when any of its rows is asset-bound', async () => {
+    const bound = createCustomBank({
+      name: IbanBankName.OLKY,
+      currency: 'EUR',
+      iban: 'LU00',
+      asset: createCustomAsset({}),
+    });
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([bound]);
+
+    await service.areKnownBankIbans('LU00');
+
+    expect(unboundCache().has('LU00')).toBe(false);
+  });
+
+  it('skips a row with no IBAN at all rather than caching an empty key', async () => {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([createCustomBank({ iban: undefined, asset: null })]);
+
+    await service.areKnownBankIbans('LU00');
+
+    expect(unboundCache().has('')).toBe(false);
+  });
+
+  it.each([
+    ['no IBAN is given', []],
+    ['one of the IBANs is empty', ['LU00', '']],
+  ])('reports unknown without querying when %s', async (_name, ibans) => {
+    jest.spyOn(bankRepo, 'findCached').mockResolvedValue([]);
+
+    await expect(service.areKnownBankIbans(...ibans)).resolves.toBe(false);
+    expect(bankRepo.findCached).not.toHaveBeenCalled();
+  });
+
+  it('warns when one (name, currency) key holds rows with different IBANs', async () => {
+    // Two IBANs under one key means attribution silently picks one — the operator has to hear about it.
+    const older = createCustomBank({ id: 1, name: IbanBankName.OLKY, currency: 'EUR', iban: 'LU00', asset: null });
+    const newer = createCustomBank({ id: 2, name: IbanBankName.OLKY, currency: 'EUR', iban: 'LU11', asset: null });
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([newer, older]);
+    const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+    await service['loadIbanCache']();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Multiple bank rows for key Olkypay-EUR'));
+  });
+
+  it('does not warn when the rows of one key share their IBAN', async () => {
+    const first = createCustomBank({ id: 1, name: IbanBankName.OLKY, currency: 'EUR', iban: 'LU00', asset: null });
+    const second = createCustomBank({ id: 2, name: IbanBankName.OLKY, currency: 'EUR', iban: 'LU00', asset: null });
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([second, first]);
+    const warn = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+    await service['loadIbanCache']();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('caches nothing for a key whose group is empty', async () => {
+    // Defensive branch: groupByAccessor never yields an empty group, so it is forced here rather than
+    // left as the one path in this file no test describes. It exists so a future grouping change
+    // cannot turn "no row for this key" into a crash on `selected.iban`.
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([olkyEUR]);
+    jest.spyOn(Util, 'groupByAccessor').mockReturnValue(new Map([['Olkypay-EUR', []]]));
+
+    await expect(service['loadIbanCache']()).resolves.toBeUndefined();
+    expect((BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.has('Olkypay-EUR')).toBe(false);
+  });
+});
+
+describe('BankService bank matching fall-through', () => {
+  beforeEach(() => {
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    (BankService as unknown as { unboundIbanCache: Map<string, Set<string>> }).unboundIbanCache.clear();
+  });
+
+  it('does not match a crypto asset whose blockchain is no bank', () => {
+    const asset = createCustomAsset({ blockchain: Blockchain.ETHEREUM, dexName: 'ETH' });
+
+    expect(BankService.isBankMatching(asset, olkyEUR.iban)).toBe(false);
+    expect(BankService.isInternalBankMatching(asset, olkyEUR.iban)).toBe(false);
+  });
+
+  it('does not match when the cache holds no IBAN for the asset key', () => {
+    const asset = createCustomAsset({ blockchain: Blockchain.OLKYPAY, dexName: 'EUR' });
+
+    expect(BankService.isBankMatching(asset, olkyEUR.iban)).toBe(false);
+  });
+
+  it('matches an internal transfer directly against the related bank IBAN', () => {
+    const asset = createCustomAsset({ bank: olkyEUR });
+
+    expect(BankService.isInternalBankMatching(asset, olkyEUR.iban.toLowerCase())).toBe(true);
+  });
+
+  it.each([
+    ['an unusable IBAN', '---'],
+    ['no IBAN', undefined],
+  ])('does not match %s in either direction', (_name, iban) => {
+    const asset = createCustomAsset({ bank: olkyEUR });
+
+    expect(BankService.isBankMatching(asset, iban as unknown as string)).toBe(false);
+    expect(BankService.isInternalBankMatching(asset, iban as unknown as string)).toBe(false);
+  });
+
+  it('does not match an internal transfer whose IBAN is not in the unbound cache', () => {
+    const asset = createCustomAsset({ blockchain: Blockchain.OLKYPAY, dexName: 'EUR' });
+
+    expect(BankService.isInternalBankMatching(asset, olkyEUR.iban)).toBe(false);
+  });
+});
+
+describe('BankService getBankInternal with an explicit manager', () => {
+  it('reads through the supplied entity manager instead of the repository cache', async () => {
+    const bankRepo = createMock<BankRepository>();
+    const manager = createMock<EntityManager>();
+    manager.find.mockResolvedValue([olkyEUR]);
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: UserService, useValue: createMock<UserService>() },
+        { provide: BuyCryptoService, useValue: createMock<BuyCryptoService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: CountryService, useValue: createMock<CountryService>() },
+        { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        { provide: VirtualIbanRepository, useValue: createMock<VirtualIbanRepository>() },
+        { provide: FiatRepublicService, useValue: createMock<FiatRepublicService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+    const service = module.get<BankService>(BankService);
+
+    // A caller inside a transaction has to see its own uncommitted rows — the repository cache cannot.
+    await expect(service.getBankInternal(IbanBankName.OLKY, 'EUR', manager)).resolves.toBe(olkyEUR);
+    expect(manager.find).toHaveBeenCalled();
+    expect(bankRepo.findCached).not.toHaveBeenCalled();
   });
 });

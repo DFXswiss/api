@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -43,6 +44,7 @@ export class FiatOutputService {
     private readonly bankService: BankService,
     private readonly sellRepo: SellRepository,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly fiatRepublicService: FiatRepublicService,
   ) {}
 
   /**
@@ -50,6 +52,13 @@ export class FiatOutputService {
    * an explicit per-output assignment at creation or in the database, never through automatic selection.
    * All send-enabled personal-IBAN candidates are considered so an excluded candidate cannot hide an
    * eligible one.
+   *
+   * Fiat Republic joins automatic selection only once its own routing flag is on (stage 4 of the
+   * rollout — see `fiat-republic.config.ts`). Until then it is excluded here exactly like Bank Frick:
+   * outputs can still be assigned to it explicitly and transmitted under the payout flag, but nothing
+   * is routed away from the incumbent Olkypay rail. Which of the participating banks then wins stays
+   * an operational decision through `Bank.sendPriority` — the flag decides participation, not order,
+   * so the deterministic tie-breaker below is never overridden by a hardcoded bank-name preference.
    */
   async selectPayoutBank(
     currency: string,
@@ -57,11 +66,15 @@ export class FiatOutputService {
     userData: UserData | undefined,
     country: Country,
   ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
+    const isFiatRepublicRoutingEnabled = this.fiatRepublicService.isPayoutRoutingEnabled();
+    const isSelectable = (bank: Bank): boolean =>
+      bank.name !== IbanBankName.FRICK && (isFiatRepublicRoutingEnabled || bank.name !== IbanBankName.FIAT_REPUBLIC);
+
     // use virtual IBAN if existing
     if (userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(type)) {
       const candidates = await this.virtualIbanService.getActiveSendingCandidatesForUserAndCurrency(userData, currency);
       const virtualIban = candidates.find(
-        (candidate) => candidate.bank.name !== IbanBankName.FRICK && candidate.bank.isCountryEnabled(country),
+        (candidate) => isSelectable(candidate.bank) && candidate.bank.isCountryEnabled(country),
       );
       if (virtualIban) return { accountIban: virtualIban.iban, bank: virtualIban.bank };
     }
@@ -70,9 +83,7 @@ export class FiatOutputService {
     // explicit per-output assignment (accountIban at creation or manual database assignment). This is
     // independent of the customer-facing deposit direction: BankService.getBank() deliberately routes
     // EUR deposits to Bank Frick. The payout exclusion and deposit routing therefore do not conflict.
-    const banks = (await this.bankService.getSenderBanks(currency)).filter(
-      (candidate) => candidate.name !== IbanBankName.FRICK,
-    );
+    const banks = (await this.bankService.getSenderBanks(currency)).filter(isSelectable);
     const eligibleBanks = banks.filter((candidate) => candidate.isCountryEnabled(country));
 
     // Sender priority (lower wins) is the deterministic tie-breaker between multiple eligible senders for

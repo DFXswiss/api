@@ -7,6 +7,8 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { Country } from 'src/shared/models/country/country.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -28,6 +30,7 @@ import {
 import { Bank } from '../../bank/bank.entity';
 import { BankService } from '../../bank/bank.service';
 import { IbanBankName } from '../../bank/dto/bank.dto';
+import { FiatRepublicVibanProvider } from '../providers/fiat-republic-viban.provider';
 import { FrickVibanProvider } from '../providers/frick-viban.provider';
 import { VibanAccountHolder } from '../providers/viban-account-holder.enum';
 import { ReservedViban, VibanNotCreatedError } from '../providers/viban-provider.interface';
@@ -190,6 +193,8 @@ describe('VirtualIbanService', () => {
   let fiatService: FiatService;
   let yapealVibanProvider: YapealVibanProvider;
   let frickVibanProvider: FrickVibanProvider;
+  let fiatRepublicVibanProvider: FiatRepublicVibanProvider;
+  let signupUserFindOne: jest.Mock;
   let dataSource: DataSource;
   let notificationService: NotificationService;
   let issuanceUserDataFindOne: jest.Mock;
@@ -223,6 +228,14 @@ describe('VirtualIbanService', () => {
       currencies: ['EUR'],
       accountHolder: VibanAccountHolder.DFX,
     });
+    // Released only where a test explicitly says so: with isAvailable() false, Fiat Republic is
+    // invisible and every existing expectation keeps describing the pre-integration behaviour.
+    fiatRepublicVibanProvider = createMock<FiatRepublicVibanProvider>({
+      bankName: IbanBankName.FIAT_REPUBLIC,
+      currencies: ['EUR'],
+      accountHolder: VibanAccountHolder.CUSTOMER,
+    });
+    jest.spyOn(fiatRepublicVibanProvider, 'isAvailable').mockReturnValue(false);
     notificationService = createMock<NotificationService>();
     jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
     issuanceUserDataFindOne = jest.fn().mockResolvedValue(userData);
@@ -263,6 +276,7 @@ describe('VirtualIbanService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: YapealVibanProvider, useValue: yapealVibanProvider },
         { provide: FrickVibanProvider, useValue: frickVibanProvider },
+        { provide: FiatRepublicVibanProvider, useValue: fiatRepublicVibanProvider },
         { provide: DataSource, useValue: dataSource },
         { provide: NotificationService, useValue: notificationService },
       ],
@@ -280,9 +294,204 @@ describe('VirtualIbanService', () => {
       expect(service.getAccountHolder(IbanBankName.FRICK)).toBe(VibanAccountHolder.DFX);
     });
 
+    it('returns CUSTOMER for Fiat Republic', () => {
+      expect(service.getAccountHolder(IbanBankName.FIAT_REPUBLIC)).toBe(VibanAccountHolder.CUSTOMER);
+    });
+
     it('throws for a bank name with no registered viban provider', () => {
       expect(() => service.getAccountHolder(IbanBankName.OLKY)).toThrow(
         `No viban provider registered for bank ${IbanBankName.OLKY}`,
+      );
+    });
+  });
+
+  describe('Fiat Republic issuance', () => {
+    const eurCurrency = { id: 3, name: 'EUR' } as Fiat;
+    const fiatRepublicBank = {
+      id: 9,
+      iban: 'DE02120300000000202051',
+      receive: true,
+      name: IbanBankName.FIAT_REPUBLIC,
+    } as Bank;
+    const completeUserData = Object.assign(new UserData(), {
+      id: 7,
+      kycLevel: KycLevel.LEVEL_50,
+      firstname: 'Synthetic',
+      surname: 'Person',
+      mail: 'synthetic@example.com',
+      birthday: new Date('1990-01-15T00:00:00.000Z'),
+      street: 'Bahnhofstrasse',
+      houseNumber: '7',
+      zip: '6300',
+      location: 'Zug',
+      country: Object.assign(new Country(), { symbol: 'CH' }),
+    });
+
+    beforeEach(() => {
+      jest.spyOn(fiatRepublicVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(null);
+      jest.spyOn(virtualIbanRepo, 'invalidateCache').mockImplementation(() => undefined);
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(eurCurrency);
+      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(fiatRepublicBank);
+      jest.spyOn(fiatRepublicVibanProvider, 'reserveVibanForUser').mockImplementation(async () => {
+        // No database connection may be held across the provider call.
+        expect(transactionActive).toBe(false);
+        return { iban: 'DE89370400440532013000', providerAccountRef: 'vac_synthetic' };
+      });
+      issuanceUserDataFindOne.mockResolvedValue(completeUserData);
+      manager.findOne.mockImplementation(async (entity: unknown) => (entity === UserData ? completeUserData : null));
+      manager.query.mockResolvedValue([]);
+      signupUserFindOne = jest.fn().mockResolvedValue({ id: 1, ip: '203.0.113.1' });
+      (dataSource.getRepository as jest.Mock).mockImplementation((entity: unknown) => {
+        if (entity === User) return { findOne: signupUserFindOne };
+        return { findOne: jest.fn().mockResolvedValue(null) };
+      });
+    });
+
+    it('routes an EUR request to Fiat Republic instead of Bank Frick once it is released', async () => {
+      await service.createForUser(completeUserData, 'EUR');
+
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).toHaveBeenCalledWith({
+        userDataId: 7,
+        person: expect.objectContaining({ firstName: 'Synthetic', lastName: 'Person' }),
+        ipAddress: '203.0.113.1',
+        label: 'DFX EUR 7',
+      });
+      expect(frickVibanProvider.reserveViban).not.toHaveBeenCalled();
+    });
+
+    it('leaves the EUR request with Bank Frick while Fiat Republic is not released', async () => {
+      jest.spyOn(fiatRepublicVibanProvider, 'isAvailable').mockReturnValue(false);
+      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(service, 'getOrCreateFrickForUser').mockResolvedValue({ id: 1 } as VirtualIban);
+
+      await service.createForUser(completeUserData, 'EUR');
+
+      expect(service.getOrCreateFrickForUser).toHaveBeenCalledWith(completeUserData, 'EUR');
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
+    });
+
+    it('persists the issued personal IBAN and invalidates the cache', async () => {
+      manager.save.mockImplementation(async (entity: unknown) => entity);
+
+      const result = await service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR');
+
+      expect(result).toMatchObject({ iban: 'DE89370400440532013000', providerAccountRef: 'vac_synthetic' });
+      expect(virtualIbanRepo.invalidateCache).toHaveBeenCalled();
+    });
+
+    it('returns an existing active row without calling the provider', async () => {
+      const existing = { id: 42, iban: 'DE89370400440532013000' } as VirtualIban;
+      manager.findOne.mockImplementation(async (entity: unknown) => {
+        if (entity === UserData) return completeUserData;
+        if (entity === VirtualIban) return existing;
+        return null;
+      });
+
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).resolves.toBe(existing);
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses a currency Fiat Republic does not serve', async () => {
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'CHF')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('refuses while the provider is not available', async () => {
+      jest.spyOn(fiatRepublicVibanProvider, 'isAvailable').mockReturnValue(false);
+
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('requires KYC level 50', async () => {
+      const lowKyc = Object.assign(new UserData(), { ...completeUserData, kycLevel: KycLevel.LEVEL_30 });
+      issuanceUserDataFindOne.mockResolvedValue(lowKyc);
+      manager.findOne.mockImplementation(async (entity: unknown) => (entity === UserData ? lowKyc : null));
+
+      await expect(service.getOrCreateFiatRepublicForUser(lowKyc, 'EUR')).rejects.toThrow(BadRequestException);
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the currency is unknown', async () => {
+      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(null);
+
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it.each([
+      ['no bank row exists', null],
+      ['the bank row cannot receive', { ...fiatRepublicBank, receive: false } as Bank],
+    ])('refuses when %s', async (_name, resolved) => {
+      jest.spyOn(bankService, 'getBankInternal').mockResolvedValue(resolved);
+
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('refuses an incomplete customer profile before any data leaves DFX', async () => {
+      const incomplete = Object.assign(new UserData(), { ...completeUserData, zip: undefined });
+      issuanceUserDataFindOne.mockResolvedValue(incomplete);
+      manager.findOne.mockImplementation(async (entity: unknown) => (entity === UserData ? incomplete : null));
+
+      await expect(service.getOrCreateFiatRepublicForUser(incomplete, 'EUR')).rejects.toThrow(BadRequestException);
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
+    });
+
+    it('excludes blank IPs in the database, so the oldest usable row wins at any account size', async () => {
+      signupUserFindOne.mockResolvedValue({ id: 2, ip: '203.0.113.9' });
+
+      await service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR');
+
+      // Server-side filter, not a client-side scan over a bounded candidate set: any bound would be
+      // a row count at which an account whose oldest users have blank IPs silently stops finding the
+      // IP it actually has.
+      const [[options]] = signupUserFindOne.mock.calls;
+      expect(options).toMatchObject({ order: { id: 'ASC' } });
+      expect(options.where.ip).toBeDefined();
+      expect(options.take).toBeUndefined();
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).toHaveBeenCalledWith(
+        expect.objectContaining({ ipAddress: '203.0.113.9' }),
+      );
+    });
+
+    it.each([
+      ['no user row has a usable IP', null],
+      ['the matched row still trims to nothing', { id: 1, ip: '   ' }],
+    ])('refuses when %s', async (_name, row) => {
+      signupUserFindOne.mockResolvedValue(row);
+
+      await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      expect(fiatRepublicVibanProvider.reserveVibanForUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses a buy-bound personal IBAN for a Fiat Republic currency', async () => {
+      jest.spyOn(frickVibanProvider, 'isAvailable').mockReturnValue(false);
+      Object.defineProperty(frickVibanProvider, 'currencies', { value: [], configurable: true });
+      jest.spyOn(service, 'getActiveForBuyAndCurrency').mockResolvedValue(null);
+
+      await expect(service.createForBuy(completeUserData, { id: 1 } as Buy, 'EUR')).rejects.toThrow(
+        BadRequestException,
+      );
+      Object.defineProperty(frickVibanProvider, 'currencies', { value: ['EUR'], configurable: true });
+    });
+  });
+
+  describe('getByProviderAccountRef', () => {
+    it('looks the personal IBAN up by the provider account reference', async () => {
+      const row = { id: 5, iban: 'DE89370400440532013000' } as VirtualIban;
+      jest.spyOn(virtualIbanRepo, 'findOne').mockResolvedValue(row);
+
+      await expect(service.getByProviderAccountRef('vac_synthetic')).resolves.toBe(row);
+      expect(virtualIbanRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { providerAccountRef: 'vac_synthetic' } }),
       );
     });
   });
@@ -2012,6 +2221,7 @@ describe('VirtualIbanService', () => {
         fiatService,
         yapealVibanProvider,
         frickVibanProvider,
+        fiatRepublicVibanProvider,
         pgDataSource,
         notificationService,
       );

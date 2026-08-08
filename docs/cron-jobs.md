@@ -1,6 +1,6 @@
 # Cron jobs
 
-Every scheduled job this service runs: **144 `@DfxCron` declarations** across 99 files and 34 areas.
+Every scheduled job this service runs: **145 `@DfxCron` declarations** across 100 files and 34 areas.
 
 ## Columns
 
@@ -15,7 +15,7 @@ Every scheduled job this service runs: **144 `@DfxCron` declarations** across 99
 ## Scopes
 
 `scope` is a mandatory parameter of `@DfxCron` and says which process registers the job:
-122 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
+123 are `worker`, 5 are `api`, 17 are `both`. `CRON_ROLE` decides what a process is
 (`worker`, `api`, or `all` for a single-process setup); a process runs its own scope plus `both`.
 
 `worker` is the normal case — anything writing to the database or driving business forward belongs
@@ -281,6 +281,7 @@ here rather than fixed in passing. Of the 144 declarations, 143 have a registrat
 | hour                         | `BINANCE_PAY_CERTIFICATES_UPDATE`            | `worker` | `BinancePayService::updateCertificates`                                             | `integration/binance-pay/services/binance-pay.service.ts`                                       |
 | hour                         | `BUY_CRYPTO_AGGREGATION`                     | `worker` | `BuyCryptoJobService::checkAggregatingTransactions`                                 | `subdomains/core/buy-crypto/process/services/buy-crypto-job.service.ts`                         |
 | hour                         | `ASSET_DECIMALS`                             | `worker` | `EvmDecimalsService::setDecimals`                                                   | `integration/blockchain/shared/evm/evm-decimals.service.ts`                                     |
+| hour                         | `FIAT_OUTPUT`                                | `worker` | `FiatOutputFiatRepublicService::checkFiatRepublicPaymentStatus`                     | `subdomains/supporting/fiat-output/fiat-output-fiat-republic.service.ts`                        |
 | hour                         | `FIAT_OUTPUT`                                | `worker` | `FiatOutputFrickService::checkFrickOrderStatus`                                     | `subdomains/supporting/fiat-output/fiat-output-frick.service.ts`                                |
 | hour                         | `FIAT_OUTPUT`                                | `worker` | `FiatOutputJobService::checkOlkypayOrderStatus`                                     | `subdomains/supporting/fiat-output/fiat-output-job.service.ts`                                  |
 | hour                         | `FIAT_OUTPUT`                                | `worker` | `FiatOutputJobService::generateReports`                                             | `subdomains/supporting/fiat-output/fiat-output-job.service.ts`                                  |

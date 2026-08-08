@@ -74,6 +74,9 @@ async function bootstrap() {
   app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/tatum/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
+  // Fiat Republic signs the exact bytes it sends (HTTP Message Signatures over a sha1 body digest),
+  // so the webhook endpoint must see the raw body, not a re-serialised object.
+  app.use('/v1/bank/fiatRepublic/webhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('*', json({ type: 'application/json', limit: '20mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 

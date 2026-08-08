@@ -86,6 +86,12 @@ jobs:
       - name: Run coverage
         run: npm run test:frick:cov
 
+      # Same mechanics for the Fiat Republic rail: the money path of a bank integration is pinned at
+      # 100%, so an uncovered branch in payin ingestion, payout transmission or the release gates
+      # fails the PR.
+      - name: Run Fiat Republic coverage
+        run: npm run test:fiat-republic:cov
+
       # Same mechanics for the staff KYC gate: the files deciding who reaches an elevated endpoint are
       # pinned at 100%, so an uncovered branch in the authorization path fails the PR.
       - name: Run staff gate coverage

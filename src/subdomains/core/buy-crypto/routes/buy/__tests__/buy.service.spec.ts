@@ -15,6 +15,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankRepository } from 'src/subdomains/supporting/bank/bank/bank.repository';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -604,7 +605,11 @@ describe('BuyService', () => {
       const bankRepo = createMock<BankRepository>();
       jest.spyOn(bankRepo, 'findOneCachedBy').mockResolvedValue(frickBank as any);
       jest.spyOn(bankRepo, 'findOneBy').mockResolvedValue(nonReceiveBank as any);
-      const readThroughBankService = new BankService(bankRepo, createMock<VirtualIbanRepository>());
+      const readThroughBankService = new BankService(
+        bankRepo,
+        createMock<VirtualIbanRepository>(),
+        createMock<FiatRepublicService>(),
+      );
       (service as unknown as { bankService: BankService }).bankService = readThroughBankService;
       jest.spyOn(virtualIbanService, 'getByIdForUser').mockResolvedValue(virtualIban);
 

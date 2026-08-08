@@ -26,6 +26,7 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/realunit-legal-agreement.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
+import { buildFiatRepublicConfig } from './fiat-republic.config';
 import { buildFrickConfig } from './frick.config';
 
 export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
@@ -436,7 +437,7 @@ export class Configuration {
           fileTypes: [ContentType.PDF],
         },
         {
-          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
+          name: (file: KycFileBlob) => file.name.split('/').pop().split('.')[0],
           prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
           fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
           filter: (file: KycFileBlob, userData: UserData) => {
@@ -656,7 +657,7 @@ export class Configuration {
       name: 'TMER',
       files: [
         {
-          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          name: (file: KycFileBlob) => file.name.split('/').pop().split('.')[0],
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
           filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
@@ -1325,6 +1326,7 @@ export class Configuration {
       },
     },
     frick: buildFrickConfig(process.env),
+    fiatRepublic: buildFiatRepublicConfig(process.env),
     raiffeisen: {
       credentials: {
         url: process.env.RAIFFEISEN_EBICS_URL,

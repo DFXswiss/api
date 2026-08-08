@@ -71,6 +71,7 @@ import {
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFiatRepublicService } from './bank-tx-fiat-republic.service';
 import { BankTxFrickService } from './bank-tx-frick.service';
 import { SepaParser } from './sepa-parser.service';
 
@@ -114,6 +115,7 @@ export class BankTxService implements OnModuleInit {
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
     private readonly frickTxService: BankTxFrickService,
+    private readonly fiatRepublicTxService: BankTxFiatRepublicService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
@@ -149,6 +151,16 @@ export class BankTxService implements OnModuleInit {
       await this.frickTxService.checkTransactions(this.create.bind(this));
     } catch (error) {
       this.logger.error('Failed to check Bank Frick transactions:', error);
+    }
+    try {
+      // Backstop for the Fiat Republic webhook path: Fiat Republic gives up retrying after ten
+      // attempts, so a longer delivery outage would otherwise lose payins for good.
+      await this.fiatRepublicTxService.checkTransactions(
+        this.create.bind(this),
+        await this.specialAccountService.getMultiAccounts(),
+      );
+    } catch (error) {
+      this.logger.error('Failed to check Fiat Republic transactions:', error);
     }
     await this.assignTransactions();
     await this.fillBankTx();

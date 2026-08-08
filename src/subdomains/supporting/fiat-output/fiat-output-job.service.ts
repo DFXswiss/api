@@ -32,6 +32,7 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
+import { FiatOutputFiatRepublicService } from './fiat-output-fiat-republic.service';
 import { FiatOutputFrickService } from './fiat-output-frick.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
@@ -59,6 +60,7 @@ export class FiatOutputJobService {
     private readonly yapealService: YapealService,
     private readonly olkypayService: OlkypayService,
     private readonly frickPayoutService: FiatOutputFrickService,
+    private readonly fiatRepublicPayoutService: FiatOutputFiatRepublicService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly scryptService: ScryptService,
     private readonly bankService: BankService,
@@ -73,6 +75,7 @@ export class FiatOutputJobService {
     await this.transmitYapealPayments();
     await this.transmitOlkypayPayments();
     await this.frickPayoutService.transmitPayments();
+    await this.fiatRepublicPayoutService.transmitPayments();
     await this.searchOutgoingBankTx();
     await this.notifyScryptDeposits();
   }
@@ -245,6 +248,7 @@ export class FiatOutputJobService {
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
 
     let skippedFrickFiatOutputs = 0;
+    let skippedFiatRepublicFiatOutputs = 0;
 
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
@@ -264,6 +268,11 @@ export class FiatOutputJobService {
             // A PREPARED Frick order can wait for manual approval for days. Keep its amount reserved until
             // reconciliation or a terminal failure state, otherwise later payouts can overdraw the account.
             return !this.frickPayoutService.isFrickTerminalState(tx.frickOrderStatus);
+          case IbanBankName.FIAT_REPUBLIC:
+            // A Fiat Republic payment can sit in COMPLIANCE_REVIEW or AWAITING_APPROVAL for a while.
+            // Keep its amount reserved until it reaches a terminal state, otherwise a later payout can
+            // overdraw the account.
+            return !this.fiatRepublicPayoutService.isTerminalState(tx.fiatRepublicPaymentStatus);
           case IbanBankName.OLKY:
             return !tx.bankTx || tx.bankTx.created > Util.minutesBefore(5);
           default:
@@ -276,6 +285,10 @@ export class FiatOutputJobService {
         try {
           if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) {
             skippedFrickFiatOutputs++;
+            continue;
+          }
+          if (entity.bank?.name === IbanBankName.FIAT_REPUBLIC && !this.fiatRepublicPayoutService.canCreatePayments()) {
+            skippedFiatRepublicFiatOutputs++;
             continue;
           }
           if (
@@ -303,7 +316,10 @@ export class FiatOutputJobService {
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
           // EUR is only automated through the dedicated REST payout rails.
-          if (entity.currency === 'EUR' && ![IbanBankName.OLKY, IbanBankName.FRICK].includes(entity.bank?.name))
+          if (
+            entity.currency === 'EUR' &&
+            ![IbanBankName.OLKY, IbanBankName.FRICK, IbanBankName.FIAT_REPUBLIC].includes(entity.bank?.name)
+          )
             continue;
 
           if (availableBalance > entity.bankAmount) {
@@ -348,6 +364,10 @@ export class FiatOutputJobService {
 
     if (skippedFrickFiatOutputs)
       this.logger.verbose(`Skipped ${skippedFrickFiatOutputs} Frick fiat outputs: payout creation disabled`);
+    if (skippedFiatRepublicFiatOutputs)
+      this.logger.verbose(
+        `Skipped ${skippedFiatRepublicFiatOutputs} Fiat Republic fiat outputs: payout creation disabled`,
+      );
   }
 
   private async createBatches(): Promise<void> {
@@ -357,7 +377,7 @@ export class FiatOutputJobService {
     )
       return;
 
-    const automatedBanks = [IbanBankName.YAPEAL, IbanBankName.OLKY, IbanBankName.FRICK];
+    const automatedBanks = [IbanBankName.YAPEAL, IbanBankName.OLKY, IbanBankName.FRICK, IbanBankName.FIAT_REPUBLIC];
     const entities = (
       await this.fiatOutputRepo.findBy({
         amount: Not(IsNull()),
