@@ -53,12 +53,26 @@ function safeStringify(value: unknown): string {
   }
 }
 
+function toLoggableError(reason: unknown): Error {
+  try {
+    if (reason instanceof Error) return reason;
+  } catch {
+    // A hostile prototype trap: fall through and wrap it like any other non-Error value.
+  }
+  return new Error(`Non-Error rejection: ${safeStringify(reason)}`);
+}
+
 process.on('unhandledRejection', (reason) => {
   const logger = new DfxLogger('UnhandledRejection');
 
   // A rejection can carry any value, not just an Error. Normalize for the logger, but test the
   // policy against the original value - isToleratedProcessError inspects the constructor name.
-  const error = reason instanceof Error ? reason : new Error(`Non-Error rejection: ${safeStringify(reason)}`);
+  //
+  // `instanceof` is guarded because it is not safe on an arbitrary value either: it consults the
+  // prototype chain, and a Proxy with a throwing getPrototypeOf trap makes the expression itself
+  // throw. Unguarded, that throw happens before the policy is ever consulted, and a rejection the
+  // policy would have tolerated ends up killing the process anyway.
+  const error = toLoggableError(reason);
 
   if (isToleratedProcessError(reason)) {
     logger.error('Spark SDK unhandled rejection (process kept alive):', error);
