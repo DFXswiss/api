@@ -11,8 +11,8 @@ in [endpoints.md](endpoints.md) is the work list, and its `Tests` column is the 
 we have got.
 
 **Every converted endpoint must reach 100% coverage under the four levels defined below.** An
-endpoint is not converted at `3/4`; it is unfinished. The reason is in *The risk this must guard
-against*: a projection that drops a field does not fail loudly, it answers 200 with a wrong value.
+endpoint is not converted at `3/4`; it is unfinished. The reason is in _The risk this must guard
+against_: a projection that drops a field does not fail loudly, it answers 200 with a wrong value.
 Converting without the tests replaces a slow query with a silent defect, which is the worse of the
 two.
 
@@ -82,22 +82,22 @@ Neither changes the picture either, and both are now part of the classification.
 
 ## Vocabulary
 
-| Term | Meaning here |
-| ---- | ------------ |
-| **Overfetching** | Loading or transferring more data than the result needs. The umbrella term for this whole topic. |
-| **Eager loading** | Automatically loading related entities, recursively. The opposite is lazy loading. |
-| **Projection** | Selecting only the columns the result needs. The countermeasure. |
-| **Read path** | A load site whose result is only read and rendered, never persisted. Stated per load site, not per endpoint: an endpoint may write one entity and read another, and the criteria below are applied to each of its load sites separately. |
-| **Write path** | An endpoint that persists a loaded entity — it needs the complete object. |
-| **Read model** | A separate model optimised for reading. Introducing projections for read paths is a small step towards one. |
+| Term              | Meaning here                                                                                                                                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overfetching**  | Loading or transferring more data than the result needs. The umbrella term for this whole topic.                                                                                                                                         |
+| **Eager loading** | Automatically loading related entities, recursively. The opposite is lazy loading.                                                                                                                                                       |
+| **Projection**    | Selecting only the columns the result needs. The countermeasure.                                                                                                                                                                         |
+| **Read path**     | A load site whose result is only read and rendered, never persisted. Stated per load site, not per endpoint: an endpoint may write one entity and read another, and the criteria below are applied to each of its load sites separately. |
+| **Write path**    | An endpoint that persists a loaded entity — it needs the complete object.                                                                                                                                                                |
+| **Read model**    | A separate model optimised for reading. Introducing projections for read paths is a small step towards one.                                                                                                                              |
 
 Note that eager relations apply to the `find*` family, **not** to `createQueryBuilder` and not to
 raw SQL. [load-sites.md](load-sites.md) records that mechanism for each load site,
 together with the measured column count.
 
 [endpoints.md](endpoints.md) summarises this per endpoint, as the union over every load site the
-endpoint can reach. That column answers one question only — *does this endpoint load more than it
-needs* — and any single offending site is enough to answer yes. It deliberately says nothing about
+endpoint can reach. That column answers one question only — _does this endpoint load more than it
+needs_ — and any single offending site is enough to answer yes. It deliberately says nothing about
 where the bulk of the work happens: an endpoint whose own query is raw SQL is still marked when a
 permission check on the way loads a full row. For that question the load site is the level at
 which the statement is unambiguous, which is why both documents exist.
@@ -118,7 +118,7 @@ selects 3 over none.
 All of the following must hold:
 
 1. **No write to the entity in question** anywhere in the call chain — no `save`, `update`,
-   `delete` or `remove` on its repository or on the entity manager. The endpoint may write *other*
+   `delete` or `remove` on its repository or on the entity manager. The endpoint may write _other_
    entities; the criterion applies per load site.
    The hazard is saving a partially loaded row back, where the unselected columns are undefined and
    would be written as null. A column-scoped `update(id, …)` cannot do that — it sends only the
@@ -143,12 +143,12 @@ The first four are pre-filters; the fifth decides.
 The pre-filters above are stated as criteria; this is what they select when applied to the
 inventory. Every step is mechanical except the last two, which were read in the source.
 
-| | before | now |
-| --- | ---: | ---: |
-| fetch whole rows | 415 | 398 |
-| … every load site they reach can be narrowed at all | 37 | 29 |
-| … no write to the loaded entity, and the response is a structured value | 16 | 8 |
-| … and no DTO field passes an entity through | **9** | **1** |
+|                                                                         | before |   now |
+| ----------------------------------------------------------------------- | -----: | ----: |
+| fetch whole rows                                                        |    415 |   398 |
+| … every load site they reach can be narrowed at all                     |     37 |    29 |
+| … no write to the loaded entity, and the response is a structured value |     16 |     8 |
+| … and no DTO field passes an entity through                             |  **9** | **1** |
 
 The step that decides the size of this work is the first one, and it has a single cause: at 321 of
 the 484 load sites involved, **the loaded entity leaves the loading method**.
@@ -169,7 +169,7 @@ behind it — to the notification service. What that code reads is not determina
 so a field list here would be guessed.
 
 The filters are deliberately conservative and reject endpoints that can in fact be converted: an
-endpoint fails the first step if *any* load site it reaches leaks, including one on a branch that
+endpoint fails the first step if _any_ load site it reaches leaks, including one on a branch that
 has nothing to do with the response. Nine of the seventeen conversions recorded in
 [endpoints.md](endpoints.md) were found that way — by reading the endpoint after the filter had
 rejected it. The counts above are therefore a lower bound on what is possible, not a ceiling.
@@ -180,7 +180,7 @@ it names is saving a partially loaded row back — the unselected columns are un
 and would be written as null.
 `PUT /paymentLink/:id/pos` and `POST /user/apiKey/CT` write through `update(id, …)`, which sends
 only the columns named in the call, so a projected read cannot blank anything. What the criterion
-does have to keep excluding is a value the write *derives* from what was read: the point-of-sale
+does have to keep excluding is a value the write _derives_ from what was read: the point-of-sale
 write merges into the existing configuration, so `config` is part of that projection and is
 asserted directly.
 
@@ -236,7 +236,7 @@ The consequences are worth stating plainly:
 - It is installed once for the whole configuration (`jest-projection.setup.ts`), not per spec, so a
   spec written later cannot lose the protection quietly.
 - It reports **where the column was needed**, not where the wrong value surfaced. A getter keeps
-  running — reading *through* a getter is how the missing column is reached — and the failure names
+  running — reading _through_ a getter is how the missing column is reached — and the failure names
   the column the getter wanted.
 - It enforces a stricter rule than "the response is correct": it requires the projection to cover
   what the code **reads**, not what the response happens to depend on. That difference is not
@@ -259,10 +259,10 @@ it needs. This section is what that route costs, measured rather than estimated,
 measurement changes the answer.
 
 **How it was measured.** Which relations are declared is an AST question — a text search counts
-comments and misses modifiers. Where each one is *read* is a type question: `.userData` occurs on
+comments and misses modifiers. Where each one is _read_ is a type question: `.userData` occurs on
 dozens of unrelated receivers, so the reads were resolved with the TypeScript compiler, including
 reads through a base class, which is how single-table inheritance is reached. What a response
-*contains* is neither: it comes from the TypeORM metadata, whose eager closure is what a query
+_contains_ is neither: it comes from the TypeORM metadata, whose eager closure is what a query
 actually joins.
 
 The two counts in this document are not the same count, and the difference is not a discrepancy.
@@ -327,14 +327,14 @@ not covered by these levels either, which is what their endpoints' `0/4` in
 are covered on all four. Sites a conversion adds are recorded there too, where only
 `4/4` counts as done.
 
-| Site | Form | Runs in a test | Column list asserted | Real database |
-| ---- | ---- | -------------- | -------------------- | ------------- |
-| `log.repository.ts:699` — `getFinancialLogValidityChangeSet` | `.select(['log.id', 'log.valid'])` | **no** | no | no |
-| `log.repository.ts:341` — `getFinancialLogAssetPrices` | raw SQL, columns listed | **no** | no | no |
-| `log.repository.ts:511` — `getFinancialLogSummariesFull` | raw SQL, columns listed | yes | yes | no |
-| `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed | yes | yes | no |
-| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath` | raw SQL, columns listed | **no** | no | no |
-| `gs.service.ts:337` — `executeDebugQuery` | raw SQL, list supplied by the caller | yes | yes | no |
+| Site                                                          | Form                                 | Runs in a test | Column list asserted | Real database |
+| ------------------------------------------------------------- | ------------------------------------ | -------------- | -------------------- | ------------- |
+| `log.repository.ts:699` — `getFinancialLogValidityChangeSet`  | `.select(['log.id', 'log.valid'])`   | **no**         | no                   | no            |
+| `log.repository.ts:341` — `getFinancialLogAssetPrices`        | raw SQL, columns listed              | **no**         | no                   | no            |
+| `log.repository.ts:511` — `getFinancialLogSummariesFull`      | raw SQL, columns listed              | yes            | yes                  | no            |
+| `log.repository.ts:664` — `getFinancialLogSummariesChartOnly` | raw SQL, columns listed              | yes            | yes                  | no            |
+| `virtual-iban.service.ts:769` — `hasOrderedOwnershipPath`     | raw SQL, columns listed              | **no**         | no                   | no            |
+| `gs.service.ts:337` — `executeDebugQuery`                     | raw SQL, list supplied by the caller | yes            | yes                  | no            |
 
 Read that column by column, because the three answers mean different things.
 
@@ -421,7 +421,7 @@ a separate CI job with its own Postgres service.
 ### What a converted endpoint looks like
 
 The field list is a value, not a chain of calls at the query site: `ReadProjection` in
-`src/shared/models/read-projection.ts`. That is what lets level 3 re-run the *production* query with
+`src/shared/models/read-projection.ts`. That is what lets level 3 re-run the _production_ query with
 one field removed. A query rebuilt inside the spec could be wrong in exactly the way the projection
 is wrong, and would prove nothing.
 
@@ -469,7 +469,7 @@ depends on a status field.
 
 **Remove each field of the projection individually; the response must change every time.**
 
-Since the guard, this level no longer protects against a *missing* field — a dropped field now
+Since the guard, this level no longer protects against a _missing_ field — a dropped field now
 throws before it can produce a wrong value, and `expectEveryFieldRequired` counts that throw as the
 field carrying weight. What it still does is the opposite direction: it shows that a field in the
 list is **needed**, so a projection cannot quietly grow past what the endpoint uses. That is a cost
@@ -502,7 +502,7 @@ out of the projection and the sum is `NaN` — not absent, so an `undefined` che
 and the endpoint answers 200 with a number that is not a number. `NaN` therefore counts as empty.
 
 **It needs a baseline, or it is itself merely green.** If the response is already incomplete with
-the *full* field list, every reduced run fails too, and "every field is required" comes out true
+the _full_ field list, every reduced run fails too, and "every field is required" comes out true
 without a single field having been shown to matter. That happened while the first conversions were
 written — a fixture had left an enum at a value the mapper did not know — and the level reported
 success. `expectEveryFieldRequired` therefore runs the query unreduced first and refuses to continue
@@ -514,14 +514,14 @@ unless that response is complete.
 
 For a conversion the second source is always available: **the unprojected load.** Run the endpoint's
 mapper over a full `find` of the same fixture, and the two responses must be identical, per variant.
-The full load fetches every column, so the *field set* it produces is by construction the one the
+The full load fetches every column, so the _field set_ it produces is by construction the one the
 endpoint answered from before the conversion — the mapper is the same function in both runs, so a
 difference can only come from the columns.
 
 What the level does not verify is the query around them: each spec restates the filter and the
 joins, so a spec that restates them wrongly compares two things neither of which is the endpoint.
 The endpoint specs do exercise the filter, because they run it against seeded rows, but no level requires that — level 2 is about branches that change the required field set. It is also the only
-level that catches a projection loading the *wrong* field rather than too few: level 1 sees a field
+level that catches a projection loading the _wrong_ field rather than too few: level 1 sees a field
 that went empty, level 4 sees any field that changed.
 
 It applies separately wherever a value was materialised into its own column while the original
