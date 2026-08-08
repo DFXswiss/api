@@ -5,11 +5,15 @@ import { SupportReplySuggestionDtoMapper } from '../dto/support-reply-suggestion
 import { SupportReplySuggestionDto } from '../dto/support-reply-suggestion.dto';
 import { SupportMessage } from '../entities/support-message.entity';
 import { SupportReplySuggestionState } from '../enums/support-reply-suggestion.enum';
+import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 
 @Injectable()
 export class SupportReplySuggestionService {
-  constructor(private readonly messageRepo: SupportMessageRepository) {}
+  constructor(
+    private readonly messageRepo: SupportMessageRepository,
+    private readonly issueRepo: SupportIssueRepository,
+  ) {}
 
   /**
    * Submits a proposed answer for an issue. Suggestions come in through the API only — there is no
@@ -25,10 +29,14 @@ export class SupportReplySuggestionService {
     dto: CreateSupportReplySuggestionDto,
     authorId: number,
   ): Promise<SupportReplySuggestionDto> {
-    // An issue is created together with its first message and messages are never deleted, so a thread
-    // without a newest message is an issue that does not exist.
     const latestMessage = await this.getLatestMessage(issueId);
-    if (!latestMessage) throw new NotFoundException('Support issue not found');
+    // An issue is created together with its first message, but the two are written one after the
+    // other and the message may be refused, so an issue without one is rare rather than impossible.
+    // Which of the two it is decides the answer, and is only asked when there is nothing to answer.
+    if (!latestMessage)
+      throw (await this.issueRepo.existsBy({ id: issueId }))
+        ? new ConflictException('Support issue has no message to answer')
+        : new NotFoundException('Support issue not found');
     if (dto.messageId != null && dto.messageId !== latestMessage.id)
       throw new ConflictException(`Message ${dto.messageId} is not the newest message of the support issue`);
 
@@ -116,8 +124,8 @@ export class SupportReplySuggestionService {
 
   /**
    * The id of the newest message, read beside the suggestion rather than after it — the two are
-   * independent. It is undefined only for an issue that does not exist, and both callers have
-   * already left by then.
+   * independent. It is undefined only for a thread without messages, and both callers have already
+   * left by then.
    */
   private async getLatestMessageId(issueId: number): Promise<number | undefined> {
     return this.getLatestMessage(issueId).then((m) => m?.id);

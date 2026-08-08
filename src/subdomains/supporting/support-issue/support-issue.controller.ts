@@ -7,6 +7,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -274,6 +275,7 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   @ApiOperation({ summary: 'Submit a proposed answer for a support issue (Support role or above)' })
   @ApiCreatedResponse({ type: SupportReplySuggestionDto })
+  @ApiNotFoundResponse({ description: 'The support issue does not exist.' })
   @ApiConflictResponse({
     description:
       'The issue has no message to answer, `messageId` is not the newest message of the thread, or that ' +
