@@ -29,8 +29,10 @@ export class SupportReplySuggestionDto {
 }
 
 export class SupportReplySuggestionResponseDto {
-  @ApiPropertyOptional({
+  // Always present, and null when there is none — not an optional field the response may omit.
+  @ApiProperty({
     type: SupportReplySuggestionDto,
+    nullable: true,
     description: 'The newest suggestion still awaiting a decision, or null when there is none',
   })
   suggestion: SupportReplySuggestionDto | null;
