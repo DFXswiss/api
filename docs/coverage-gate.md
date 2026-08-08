@@ -14,6 +14,11 @@ files are held at 100% by their own specs, rather than benefiting from coverage 
 happens to produce. Both run under full compilation (`tsconfig.coverage.json`) so decorator-metadata
 emit does not skew the branch count.
 
+Per-rail gating and the ratchet are not alternatives, and both rails appear in both: the rail gate
+proves the rail's own specs suffice, the ratchet keeps the files from regressing through a change
+somewhere else. The rail's repositories are the exception — a `BaseRepository` subclass whose
+constructor no spec ever runs cannot reach 100% and is not pinned anywhere.
+
 ## What the ratchet is, and what it is not
 
 The ratchet pins every production file that **already** reaches 100% on all four metrics

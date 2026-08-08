@@ -8,6 +8,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { Country } from 'src/shared/models/country/country.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -193,6 +194,7 @@ describe('VirtualIbanService', () => {
   let yapealVibanProvider: YapealVibanProvider;
   let frickVibanProvider: FrickVibanProvider;
   let fiatRepublicVibanProvider: FiatRepublicVibanProvider;
+  let signupUserFindOne: jest.Mock;
   let dataSource: DataSource;
   let notificationService: NotificationService;
   let issuanceUserDataFindOne: jest.Mock;
@@ -338,8 +340,12 @@ describe('VirtualIbanService', () => {
       });
       issuanceUserDataFindOne.mockResolvedValue(completeUserData);
       manager.findOne.mockImplementation(async (entity: unknown) => (entity === UserData ? completeUserData : null));
-      manager.query.mockResolvedValue([{ ip: '203.0.113.1' }]);
-      (dataSource.query as jest.Mock).mockResolvedValue([{ ip: '203.0.113.1' }]);
+      manager.query.mockResolvedValue([]);
+      signupUserFindOne = jest.fn().mockResolvedValue({ id: 1, ip: '203.0.113.1' });
+      (dataSource.getRepository as jest.Mock).mockImplementation((entity: unknown) => {
+        if (entity === User) return { findOne: signupUserFindOne };
+        return { findOne: jest.fn().mockResolvedValue(null) };
+      });
     });
 
     it('routes an EUR request to Fiat Republic instead of Bank Frick once it is released', async () => {
@@ -438,10 +444,10 @@ describe('VirtualIbanService', () => {
     });
 
     it.each([
-      ['no user row has an IP', []],
-      ['the query returns nothing at all', undefined],
-    ])('refuses when %s', async (_name, rows) => {
-      (dataSource.query as jest.Mock).mockResolvedValue(rows);
+      ['no user row has an IP', null],
+      ['the only user row carries a blank IP', { id: 1, ip: '   ' }],
+    ])('refuses when %s', async (_name, row) => {
+      signupUserFindOne.mockResolvedValue(row);
 
       await expect(service.getOrCreateFiatRepublicForUser(completeUserData, 'EUR')).rejects.toThrow(
         ServiceUnavailableException,

@@ -1,8 +1,10 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import {
+  FIAT_REPUBLIC_PAYMENT_TERMINAL_STATES,
   FiatRepublicPaymentDirection,
   FiatRepublicPaymentResponse,
   FiatRepublicPaymentStatus,
+  FiatRepublicPayerResponse,
 } from 'src/integration/bank/dto/fiat-republic.dto';
 import { FiatRepublicService } from 'src/integration/bank/services/fiat-republic.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -23,6 +25,9 @@ import { BankTx, BankTxIndicator } from '../entities/bank-tx.entity';
 const MICROSECOND_THRESHOLD = 1e14;
 /** Overlap the polling window so a payment that only becomes visible later is not skipped. */
 const WATERMARK_OVERLAP_DAYS = 2;
+/** Page size and budget for reading a whole polling window; the budget only binds if it is exceeded. */
+const WINDOW_PAGE_SIZE = 100;
+const MAX_WINDOW_PAGES = 50;
 
 @Injectable()
 export class BankTxFiatRepublicService {
@@ -66,20 +71,16 @@ export class BankTxFiatRepublicService {
 
     let payments: FiatRepublicPaymentResponse[];
     try {
-      payments = await this.fiatRepublicService.listPayments(lastModificationTime, now);
+      payments = await this.fetchWindow(lastModificationTime, now);
     } catch (error) {
       this.logger.error('Failed to fetch Fiat Republic payments:', error);
       return;
     }
 
-    const payins = (payments ?? []).filter(
-      (payment) =>
-        payment.direction === FiatRepublicPaymentDirection.PAYIN &&
-        payment.status === FiatRepublicPaymentStatus.COMPLETED,
-    );
+    const payins = payments.filter((payment) => payment.direction === FiatRepublicPaymentDirection.PAYIN);
 
     let fullyProcessed = true;
-    for (const payment of payins) {
+    for (const payment of payins.filter((payment) => payment.status === FiatRepublicPaymentStatus.COMPLETED)) {
       try {
         await createTx(await this.toBankTx(payment, bank), multiAccounts);
       } catch (error) {
@@ -92,9 +93,57 @@ export class BankTxFiatRepublicService {
     // Same contract as the Bank Frick importer: the cursor only advances after a non-empty window was
     // fully persisted, and always keeps a fixed overlap. SettingService performs a monotonic update,
     // so a stale concurrent worker cannot move it backwards.
-    if (fullyProcessed && payments?.length) {
-      await this.settingService.setDateMax(settingKey, Util.daysBefore(WATERMARK_OVERLAP_DAYS, now));
+    if (fullyProcessed && payments.length) {
+      await this.settingService.setDateMax(settingKey, this.nextWatermark(payins, now));
     }
+  }
+
+  /**
+   * Reads the whole window rather than its first page. A frozen cursor (see {@link nextWatermark})
+   * makes the window grow, and a single page would then silently drop everything past its limit
+   * while still reporting the window as fully processed.
+   */
+  private async fetchWindow(fromDate: Date, toDate: Date): Promise<FiatRepublicPaymentResponse[]> {
+    const all: FiatRepublicPaymentResponse[] = [];
+
+    for (let page = 0; page < MAX_WINDOW_PAGES; page++) {
+      const batch = await this.fiatRepublicService.listPayments(
+        fromDate,
+        toDate,
+        WINDOW_PAGE_SIZE,
+        page * WINDOW_PAGE_SIZE,
+      );
+      if (!batch?.length) return all;
+
+      all.push(...batch);
+      if (batch.length < WINDOW_PAGE_SIZE) return all;
+    }
+
+    // Never report a truncated window as complete — the caller would advance the cursor past
+    // payments it never saw.
+    throw new Error(`Fiat Republic payment window exceeded ${MAX_WINDOW_PAGES} pages`);
+  }
+
+  /**
+   * The cursor must not move past a payin that has not settled yet.
+   *
+   * Fiat Republic filters on `createdAt`, and a payin held in compliance review keeps that date
+   * while its status changes days later. Advancing to wall-clock-minus-overlap would drop such a
+   * payment out of the window before it ever reaches COMPLETED — and if webhook delivery also
+   * failed (Fiat Republic gives up after ten retries), the money would arrive and never be booked.
+   * So the candidate is clamped to the oldest payin still in flight, mirroring the Bank Frick
+   * importer's rule that the watermark never skips a window containing an unresolved entry.
+   */
+  private nextWatermark(payins: FiatRepublicPaymentResponse[], now: Date): Date {
+    const candidate = Util.daysBefore(WATERMARK_OVERLAP_DAYS, now);
+
+    const openCreatedAt = payins
+      .filter((payment) => !FIAT_REPUBLIC_PAYMENT_TERMINAL_STATES.includes(payment.status))
+      .map((payment) => this.toDate(payment.createdAt)?.getTime())
+      .filter((time): time is number => Number.isFinite(time));
+    if (!openCreatedAt.length) return candidate;
+
+    return new Date(Math.min(candidate.getTime(), Math.min(...openCreatedAt)));
   }
 
   /**
@@ -159,7 +208,7 @@ export class BankTxFiatRepublicService {
     }
   }
 
-  private async resolvePayer(payment: FiatRepublicPaymentResponse) {
+  private async resolvePayer(payment: FiatRepublicPaymentResponse): Promise<FiatRepublicPayerResponse | undefined> {
     const source = payment.from;
     if (source?.type !== 'PAYER' || !source.id) return undefined;
 

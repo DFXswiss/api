@@ -61,21 +61,29 @@ export class FiatRepublicPayeeService {
 
     let created: FiatRepublicPayeeResponse;
     try {
-      created = await this.fiatRepublicService.createPayee({
-        endUserId: request.endUserId,
-        type: request.type ?? FiatRepublicPayeeType.PERSON,
-        name,
-        currency: 'EUR',
-        address: request.address,
-        bankDetails: { iban, ...(request.bic && { bic: request.bic }) },
-      });
+      created = await this.fiatRepublicService.createPayee(
+        {
+          endUserId: request.endUserId,
+          type: request.type ?? FiatRepublicPayeeType.PERSON,
+          name,
+          currency: 'EUR',
+          address: request.address,
+          bankDetails: { iban, ...(request.bic && { bic: request.bic }) },
+        },
+        // Derived from the claim row, which the unique index binds to exactly this
+        // (end user, IBAN, name). A retry after an ambiguous failure, and a second concurrent
+        // payout to the same beneficiary, therefore both reach the original payee instead of
+        // creating a duplicate — the local claim row alone cannot prevent that, because it
+        // carries no in-flight marker for a payee whose id never landed.
+        `dfx-fr-payee-${claim.id}`,
+      );
     } catch (error) {
       if (error instanceof FiatRepublicNotCreatedError) {
         await this.payeeRepo.delete(claim.id);
         throw new ServiceUnavailableException('Fiat Republic payee create rejected');
       }
-      // Ambiguous — the payee may exist. Leave the claim row so the next attempt reuses it rather
-      // than creating a duplicate, and surface the failure.
+      // Ambiguous — the payee may exist. Keep the claim row: the next attempt reuses it, and with it
+      // the same idempotency key, so a repeated create resolves to the original payee.
       this.logger.error('Fiat Republic payee creation is unresolved', error instanceof Error ? error : undefined);
       throw new ServiceUnavailableException('Fiat Republic payee creation failed');
     }

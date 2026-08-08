@@ -141,13 +141,62 @@ describe('BankTxFiatRepublicService', () => {
       ['payouts', payment({ direction: FiatRepublicPaymentDirection.PAYOUT })],
       ['payins still under compliance review', payment({ status: FiatRepublicPaymentStatus.COMPLIANCE_REVIEW })],
       ['failed payins', payment({ status: FiatRepublicPaymentStatus.FAILED })],
-    ])('skips %s', async (_name, entry) => {
+    ])('does not book %s', async (_name, entry) => {
       fiatRepublicService.listPayments.mockResolvedValue([entry] as never);
 
       await service.checkTransactions(createTx, []);
 
       expect(createTx).not.toHaveBeenCalled();
-      // The window was still answered, so the cursor may advance past it.
+    });
+
+    it('holds the cursor at a payin that has not settled yet', async () => {
+      // A payin can sit in compliance review for days while keeping its createdAt. Advancing past it
+      // would drop it out of every future window — and if the webhook also failed, the money would
+      // arrive and never be booked.
+      const createdAt = new Date('2026-08-01T10:00:00.000Z').getTime();
+      fiatRepublicService.listPayments.mockResolvedValue([
+        payment({ status: FiatRepublicPaymentStatus.COMPLIANCE_REVIEW, createdAt }),
+      ] as never);
+
+      await service.checkTransactions(createTx, []);
+
+      expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFiatRepublicDate:11', new Date(createdAt));
+    });
+
+    it('holds the cursor at the oldest unsettled payin, not the newest', async () => {
+      const oldest = new Date('2026-08-01T10:00:00.000Z').getTime();
+      fiatRepublicService.listPayments.mockResolvedValue([
+        payment({ id: 'pmt_b', status: FiatRepublicPaymentStatus.PROCESSING, createdAt: oldest + 86_400_000 }),
+        payment({ id: 'pmt_a', status: FiatRepublicPaymentStatus.COMPLIANCE_REVIEW, createdAt: oldest }),
+      ] as never);
+
+      await service.checkTransactions(createTx, []);
+
+      expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFiatRepublicDate:11', new Date(oldest));
+    });
+
+    it('is not held back by an unsettled payout', async () => {
+      fiatRepublicService.listPayments.mockResolvedValue([
+        payment({
+          direction: FiatRepublicPaymentDirection.PAYOUT,
+          status: FiatRepublicPaymentStatus.PROCESSING,
+          createdAt: new Date('2026-08-01T10:00:00.000Z').getTime(),
+        }),
+      ] as never);
+
+      await service.checkTransactions(createTx, []);
+
+      const [[, watermark]] = settingService.setDateMax.mock.calls;
+      expect(watermark.getTime()).toBeGreaterThan(new Date('2026-08-01T10:00:00.000Z').getTime());
+    });
+
+    it('ignores an unsettled payin whose timestamp is unusable', async () => {
+      fiatRepublicService.listPayments.mockResolvedValue([
+        payment({ status: FiatRepublicPaymentStatus.PROCESSING, createdAt: undefined }),
+      ] as never);
+
+      await service.checkTransactions(createTx, []);
+
       expect(settingService.setDateMax).toHaveBeenCalled();
     });
 
@@ -194,6 +243,38 @@ describe('BankTxFiatRepublicService', () => {
       expect(settingService.setDateMax).not.toHaveBeenCalled();
     });
 
+    it('reads the whole window, not just its first page', async () => {
+      const first = Array.from({ length: 100 }, (_, i) => payment({ id: `pmt_${i}` }));
+      fiatRepublicService.listPayments
+        .mockResolvedValueOnce(first as never)
+        .mockResolvedValueOnce([payment({ id: 'pmt_last' })] as never);
+
+      await service.checkTransactions(createTx, []);
+
+      expect(fiatRepublicService.listPayments).toHaveBeenCalledTimes(2);
+      expect(fiatRepublicService.listPayments).toHaveBeenLastCalledWith(expect.any(Date), expect.any(Date), 100, 100);
+      expect(createTx).toHaveBeenCalledTimes(101);
+    });
+
+    it('stops paging on an empty page', async () => {
+      const first = Array.from({ length: 100 }, (_, i) => payment({ id: `pmt_${i}` }));
+      fiatRepublicService.listPayments.mockResolvedValueOnce(first as never).mockResolvedValueOnce([] as never);
+
+      await service.checkTransactions(createTx, []);
+
+      expect(createTx).toHaveBeenCalledTimes(100);
+      expect(settingService.setDateMax).toHaveBeenCalled();
+    });
+
+    it('never reports a truncated window as complete', async () => {
+      const full = Array.from({ length: 100 }, (_, i) => payment({ id: `pmt_${i}` }));
+      fiatRepublicService.listPayments.mockResolvedValue(full as never);
+
+      await service.checkTransactions(createTx, []);
+
+      expect(settingService.setDateMax).not.toHaveBeenCalled();
+    });
+
     it('reads the persisted watermark for the bank row', async () => {
       fiatRepublicService.listPayments.mockResolvedValue([] as never);
       settingService.get.mockResolvedValue('2026-08-01T00:00:00.000Z');
@@ -204,6 +285,8 @@ describe('BankTxFiatRepublicService', () => {
       expect(fiatRepublicService.listPayments).toHaveBeenCalledWith(
         new Date('2026-08-01T00:00:00.000Z'),
         expect.any(Date),
+        100,
+        0,
       );
     });
   });

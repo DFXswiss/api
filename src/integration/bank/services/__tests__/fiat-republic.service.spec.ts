@@ -235,7 +235,7 @@ describe('FiatRepublicService', () => {
         throw httpError(status, 'INVALID_REQUEST_DATA');
       });
 
-      await expect(service.createPayee({} as never)).rejects.toBeInstanceOf(type);
+      await expect(service.createPayee({} as never, 'dfx-fr-payee-1')).rejects.toBeInstanceOf(type);
     });
 
     it('classifies 404 as not-found', async () => {
@@ -255,7 +255,7 @@ describe('FiatRepublicService', () => {
         throw httpError(status);
       });
 
-      const error: unknown = await service.createPayee({} as never).catch((e: unknown) => e);
+      const error: unknown = await service.createPayee({} as never, 'dfx-fr-payee-1').catch((e: unknown) => e);
       expect(error).toBeInstanceOf(Error);
       expect(error).not.toBeInstanceOf(FiatRepublicNotCreatedError);
       expect(error).not.toBeInstanceOf(FiatRepublicNotFoundError);
@@ -277,7 +277,7 @@ describe('FiatRepublicService', () => {
         });
       });
 
-      const error: unknown = await service.createPayee({} as never).catch((e: unknown) => e);
+      const error: unknown = await service.createPayee({} as never, 'dfx-fr-payee-1').catch((e: unknown) => e);
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).not.toContain('DE89370400440532013000');
       expect((error as Error).message).toContain('INVALID_REQUEST_DATA');
@@ -403,20 +403,27 @@ describe('FiatRepublicService', () => {
     });
 
     it('creates, reads and verifies a payee', async () => {
-      await service.createPayee({
-        type: FiatRepublicPayeeType.PERSON,
-        name: 'Synthetic Person',
-        currency: 'EUR',
-        address: { line1: 'a', city: 'b', postalCode: 'c', country: 'DE' },
-        bankDetails: { iban: 'DE00' },
-      });
+      await service.createPayee(
+        {
+          type: FiatRepublicPayeeType.PERSON,
+          name: 'Synthetic Person',
+          currency: 'EUR',
+          address: { line1: 'a', city: 'b', postalCode: 'c', country: 'DE' },
+          bankDetails: { iban: 'DE00' },
+        },
+        'dfx-fr-payee-1',
+      );
       await service.getPayee('pye_synthetic');
       await service.verifyPayee('pye_synthetic');
       await service.reviewPayeeVerification('pvn_synthetic', true);
       await service.getPayeeVerification('pvn_synthetic');
 
       const calls = apiCalls();
-      expect(calls[0]).toMatchObject({ url: `${CREDENTIALS.baseUrl}/payees`, method: 'POST' });
+      expect(calls[0]).toMatchObject({
+        url: `${CREDENTIALS.baseUrl}/payees`,
+        method: 'POST',
+        headers: { 'Idempotency-Key': 'dfx-fr-payee-1' },
+      });
       expect(calls[1].url).toBe(`${CREDENTIALS.baseUrl}/payees/pye_synthetic`);
       expect(calls[2]).toMatchObject({
         url: `${CREDENTIALS.baseUrl}/payees/pye_synthetic/verification`,

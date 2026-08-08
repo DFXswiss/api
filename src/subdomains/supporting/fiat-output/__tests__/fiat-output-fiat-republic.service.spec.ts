@@ -39,6 +39,7 @@ function output(overrides: Partial<FiatOutput> = {}): FiatOutput {
     isReadyDate: new Date('2026-08-01T00:00:00.000Z'),
     isComplete: false,
     created: new Date('2026-08-01T00:00:00.000Z'),
+    updated: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
   });
 }
@@ -476,6 +477,58 @@ describe('FiatOutputFiatRepublicService', () => {
       await service.checkFiatRepublicPaymentStatus();
 
       expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('leaves a freshly reserved row alone while its transmission may still be in flight', async () => {
+      // The transmission reserves the row and then spends up to the HTTP timeout inside
+      // createPayment. Looking it up in that window would find nothing and release the claim,
+      // letting a second attempt start against a payment that is already on its way.
+      fiatOutputRepo.find.mockResolvedValue([output({ fiatRepublicCustomId: 'DFX-FO-42', updated: new Date() })]);
+
+      await service.checkFiatRepublicPaymentStatus();
+
+      expect(fiatRepublicService.findPaymentByReference).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('does not hold back a freshly updated row that already carries a payment id', async () => {
+      fiatOutputRepo.find.mockResolvedValue([
+        output({
+          fiatRepublicCustomId: 'DFX-FO-42',
+          fiatRepublicPaymentId: 'pmt_synthetic',
+          isTransmittedDate: new Date(),
+          updated: new Date(),
+        }),
+      ]);
+      fiatRepublicService.getPayment.mockResolvedValue(payment() as never);
+
+      await service.checkFiatRepublicPaymentStatus();
+
+      expect(fiatRepublicService.getPayment).toHaveBeenCalled();
+    });
+
+    it('does not hold back a freshly updated row that already carries a status', async () => {
+      fiatOutputRepo.find.mockResolvedValue([
+        output({
+          fiatRepublicCustomId: 'DFX-FO-42',
+          fiatRepublicPaymentStatus: FiatRepublicPaymentStatus.PROCESSING,
+          updated: new Date(),
+        }),
+      ]);
+      fiatRepublicService.findPaymentByReference.mockResolvedValue(payment() as never);
+
+      await service.checkFiatRepublicPaymentStatus();
+
+      expect(fiatRepublicService.findPaymentByReference).toHaveBeenCalled();
+    });
+
+    it('does not hold back a row without an update timestamp', async () => {
+      fiatOutputRepo.find.mockResolvedValue([output({ fiatRepublicCustomId: 'DFX-FO-42', updated: undefined })]);
+      fiatRepublicService.findPaymentByReference.mockResolvedValue(payment() as never);
+
+      await service.checkFiatRepublicPaymentStatus();
+
+      expect(fiatRepublicService.findPaymentByReference).toHaveBeenCalled();
     });
 
     it('reads the payment directly when its id is known', async () => {

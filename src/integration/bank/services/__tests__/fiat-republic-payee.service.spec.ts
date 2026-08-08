@@ -143,14 +143,19 @@ describe('FiatRepublicPayeeService', () => {
       fiatRepublicService.createPayee.mockResolvedValue(payeeResponse() as never);
 
       await expect(service.getOrCreatePayee(request())).resolves.toBe('pye_synthetic');
-      expect(fiatRepublicService.createPayee).toHaveBeenCalledWith({
-        endUserId: 'eus_synthetic',
-        type: FiatRepublicPayeeType.PERSON,
-        name: 'Synthetic Person',
-        currency: 'EUR',
-        address: ADDRESS,
-        bankDetails: { iban: 'DE89370400440532013000', bic: 'SYNTDEFF' },
-      });
+      expect(fiatRepublicService.createPayee).toHaveBeenCalledWith(
+        {
+          endUserId: 'eus_synthetic',
+          type: FiatRepublicPayeeType.PERSON,
+          name: 'Synthetic Person',
+          currency: 'EUR',
+          address: ADDRESS,
+          bankDetails: { iban: 'DE89370400440532013000', bic: 'SYNTDEFF' },
+        },
+        // Derived from the claim row, so a retry after an ambiguous failure resolves to the
+        // original payee instead of creating a second one.
+        'dfx-fr-payee-3',
+      );
       expect(payeeRepo.update).toHaveBeenCalledWith(3, {
         payeeId: 'pye_synthetic',
         status: FiatRepublicPayeeStatus.ACTIVE,
@@ -164,6 +169,7 @@ describe('FiatRepublicPayeeService', () => {
 
       expect(fiatRepublicService.createPayee).toHaveBeenCalledWith(
         expect.objectContaining({ bankDetails: { iban: 'DE89370400440532013000' } }),
+        'dfx-fr-payee-3',
       );
     });
 
@@ -174,6 +180,7 @@ describe('FiatRepublicPayeeService', () => {
 
       expect(fiatRepublicService.createPayee).toHaveBeenCalledWith(
         expect.objectContaining({ type: FiatRepublicPayeeType.BUSINESS }),
+        'dfx-fr-payee-3',
       );
     });
 
@@ -197,6 +204,18 @@ describe('FiatRepublicPayeeService', () => {
 
       await expect(service.getOrCreatePayee(request())).rejects.toBeInstanceOf(ServiceUnavailableException);
       expect(payeeRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('retries an ambiguous failure under the same idempotency key, never creating a second payee', async () => {
+      fiatRepublicService.createPayee.mockRejectedValueOnce(new Error('gateway timeout'));
+
+      await expect(service.getOrCreatePayee(request())).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      fiatRepublicService.createPayee.mockResolvedValue(payeeResponse() as never);
+      await expect(service.getOrCreatePayee(request())).resolves.toBe('pye_synthetic');
+
+      const keys = fiatRepublicService.createPayee.mock.calls.map(([, key]) => key);
+      expect(keys).toEqual(['dfx-fr-payee-3', 'dfx-fr-payee-3']);
     });
 
     it('keeps the claim row on a non-Error create failure', async () => {

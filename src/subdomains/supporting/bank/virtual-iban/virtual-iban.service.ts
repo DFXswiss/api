@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -340,15 +341,17 @@ export class VirtualIbanService {
 
   /**
    * The IP Fiat Republic requires on an end user ("where the user signed up on your platform"). Read
-   * with a targeted query rather than by loading the users relation: only one column of one row is
-   * needed, and threading it down from the controller would cross four layers for a single value.
+   * as a projection off the oldest user of this account rather than by loading the users relation:
+   * only one column of one row is needed, and threading it down from the controller would cross four
+   * layers for a single value.
    */
   private async getSignupIp(userDataId: number): Promise<string | undefined> {
-    const rows = (await this.dataSource.query(
-      `SELECT "ip" FROM "user" WHERE "userDataId" = $1 AND "ip" IS NOT NULL AND "ip" <> '' ORDER BY "id" ASC LIMIT 1`,
-      [userDataId],
-    )) as { ip: string }[];
-    return rows?.[0]?.ip;
+    const user = await this.dataSource.getRepository(User).findOne({
+      where: { userData: { id: userDataId }, ip: Not(IsNull()) },
+      order: { id: 'ASC' },
+      select: { id: true, ip: true },
+    });
+    return user?.ip?.trim() || undefined;
   }
 
   /**

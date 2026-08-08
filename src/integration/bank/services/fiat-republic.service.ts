@@ -179,8 +179,16 @@ export class FiatRepublicService {
 
   // --- PAYEE --- //
 
-  async createPayee(request: FiatRepublicCreatePayeeRequest): Promise<FiatRepublicPayeeResponse> {
-    return this.callApi<FiatRepublicPayeeResponse>('payees', 'POST', request);
+  /**
+   * Creates a payee. The idempotency key is mandatory, not optional: an ambiguous failure would
+   * otherwise let a retry — or a second concurrent payout to the same beneficiary — create a
+   * duplicate payee, splitting one customer's beneficiaries across two objects.
+   */
+  async createPayee(
+    request: FiatRepublicCreatePayeeRequest,
+    idempotencyKey: string,
+  ): Promise<FiatRepublicPayeeResponse> {
+    return this.callApi<FiatRepublicPayeeResponse>('payees', 'POST', request, idempotencyKey);
   }
 
   async getPayee(payeeId: string): Promise<FiatRepublicPayeeResponse> {

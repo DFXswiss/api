@@ -27,6 +27,11 @@ import { FiatOutputRepository } from './fiat-output.repository';
 const MAX_REFERENCE_LENGTH = 140;
 /** How far back the recovery lookup searches for a payment whose create outcome is unknown. */
 const RECOVERY_LOOKUP_OVERLAP_DAYS = 2;
+/**
+ * How long a freshly reserved row is left alone by the status job. Comfortably above the client's
+ * 30s HTTP timeout, so a transmission still in flight is never mistaken for one that never happened.
+ */
+const TRANSMISSION_GRACE_MINUTES = 5;
 
 /** Where a payout leaves from: the customer's own named sub-account, or DFX's master account. */
 interface FiatRepublicPayoutSource {
@@ -185,6 +190,14 @@ export class FiatOutputFiatRepublicService {
   // --- STATUS --- //
 
   private async checkPayment(entity: FiatOutput): Promise<void> {
+    // A row reserved moments ago may have a createPayment call in flight right now (up to the
+    // client's 30s HTTP timeout). Looking it up would correctly find nothing yet — and releasing the
+    // claim on that basis would let the minutely transmission start a second attempt while the first
+    // is still open. Fiat Republic's idempotency key stops that from becoming a double transfer, but
+    // the second attempt carries a fresh single-use payee verification and would be rejected for a
+    // payload mismatch. So leave a freshly reserved row to the next hourly pass.
+    if (this.isReservationInFlight(entity)) return;
+
     const payment = await this.resolvePayment(entity);
     if (!payment) return;
 
@@ -247,6 +260,19 @@ export class FiatOutputFiatRepublicService {
       { id: entity.id, fiatRepublicCustomId: entity.fiatRepublicCustomId, isTransmittedDate: IsNull() },
       { fiatRepublicCustomId: null, fiatRepublicPaymentId: null, fiatRepublicError: null },
     );
+  }
+
+  /**
+   * True while a row's reservation is young enough that its transmission may still be in flight.
+   * `updated` is the anchor because reserving the row is the last write before the money-moving call,
+   * and the grace period is well above the client's HTTP timeout. A row that already carries a
+   * payment id or a status is past that call and is never held back.
+   */
+  private isReservationInFlight(entity: FiatOutput): boolean {
+    if (entity.isTransmittedDate || entity.fiatRepublicPaymentId || entity.fiatRepublicPaymentStatus) return false;
+    if (!entity.updated) return false;
+
+    return entity.updated > Util.minutesBefore(TRANSMISSION_GRACE_MINUTES);
   }
 
   private getStatusUpdate(payment: FiatRepublicPaymentResponse, entity: FiatOutput): Partial<FiatOutput> {
