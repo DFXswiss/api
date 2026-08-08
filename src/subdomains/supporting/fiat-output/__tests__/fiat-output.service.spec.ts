@@ -1,5 +1,6 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { BadRequestException } from '@nestjs/common';
+import { SELF_DECLARED_DEPS_METADATA } from '@nestjs/common/constants';
 
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import {
@@ -13,6 +14,7 @@ import {
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomVirtualIban } from '../../bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
 
+import { PayInStatus } from '../../payin/entities/crypto-input.entity';
 import { createCustomFiatOutput } from '../__mocks__/fiat-output.entity.mock';
 import { CreateFiatOutputDto } from '../dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from '../dto/update-fiat-output.dto';
@@ -29,6 +31,11 @@ describe('FiatOutputService', () => {
   let virtualIbanService: DeepMocked<FiatOutputServiceConstructor[8]>;
   let buyCryptoRepo: DeepMocked<FiatOutputServiceConstructor[3]>;
   let fiatRepublicService: DeepMocked<FiatOutputServiceConstructor[9]>;
+  let buyFiatRepo: DeepMocked<FiatOutputServiceConstructor[1]>;
+  let bankTxService: DeepMocked<FiatOutputServiceConstructor[2]>;
+  let bankTxReturnService: DeepMocked<FiatOutputServiceConstructor[4]>;
+  let bankTxRepeatService: DeepMocked<FiatOutputServiceConstructor[5]>;
+  let sellRepo: DeepMocked<FiatOutputServiceConstructor[7]>;
 
   beforeEach(() => {
     fiatOutputRepo = createMock<FiatOutputServiceConstructor[0]>();
@@ -36,18 +43,23 @@ describe('FiatOutputService', () => {
     virtualIbanService = createMock<FiatOutputServiceConstructor[8]>();
     buyCryptoRepo = createMock<FiatOutputServiceConstructor[3]>();
     fiatRepublicService = createMock<FiatOutputServiceConstructor[9]>();
+    buyFiatRepo = createMock<FiatOutputServiceConstructor[1]>();
+    bankTxService = createMock<FiatOutputServiceConstructor[2]>();
+    bankTxReturnService = createMock<FiatOutputServiceConstructor[4]>();
+    bankTxRepeatService = createMock<FiatOutputServiceConstructor[5]>();
+    sellRepo = createMock<FiatOutputServiceConstructor[7]>();
     // Not released by default: createMock's auto-mocked methods return a truthy proxy, so the flag has
     // to be pinned off explicitly for the pre-integration behaviour to be what the tests observe.
     jest.spyOn(fiatRepublicService, 'isPayoutRoutingEnabled').mockReturnValue(false);
     service = new FiatOutputService(
       fiatOutputRepo,
-      createMock<FiatOutputServiceConstructor[1]>(),
-      createMock<FiatOutputServiceConstructor[2]>(),
+      buyFiatRepo,
+      bankTxService,
       buyCryptoRepo,
-      createMock<FiatOutputServiceConstructor[4]>(),
-      createMock<FiatOutputServiceConstructor[5]>(),
+      bankTxReturnService,
+      bankTxRepeatService,
       bankService,
-      createMock<FiatOutputServiceConstructor[7]>(),
+      sellRepo,
       virtualIbanService,
       fiatRepublicService,
     );
@@ -401,6 +413,414 @@ describe('FiatOutputService', () => {
         'Missing required creditor fields',
       );
       expect(buyCryptoRepo.existsBy).not.toHaveBeenCalled();
+    });
+  });
+  describe('create', () => {
+    const creditor = {
+      currency: 'EUR',
+      amount: 100.005,
+      name: 'Synthetic Person',
+      address: 'Street',
+      zip: '0000',
+      city: 'City',
+      country: 'DE',
+      iban: 'DE89370400440532013000',
+    };
+
+    function dto(overrides: Partial<CreateFiatOutputDto> = {}): CreateFiatOutputDto {
+      return { type: FiatOutputType.MANUAL, ...creditor, ...overrides } as CreateFiatOutputDto;
+    }
+
+    beforeEach(() => {
+      fiatOutputRepo.create.mockImplementation((values) => createCustomFiatOutput(values as never));
+      fiatOutputRepo.save.mockImplementation(async (entity) => entity as FiatOutput);
+      fiatOutputRepo.exists.mockResolvedValue(false);
+    });
+
+    it('rounds the amount to a readable fiat amount and defaults isInstant off', async () => {
+      const created = await service.create(dto());
+
+      expect(created.amount).toBe(100.01);
+      expect(created.isInstant).toBe(false);
+    });
+
+    it.each([
+      ['buyCryptoId', { buyCryptoId: 7 }],
+      ['buyFiatId', { buyFiatId: 7 }],
+      ['bankTxReturnId', { bankTxReturnId: 7 }],
+      ['bankTxRepeatId', { bankTxRepeatId: 7 }],
+    ])('refuses a second output for the same %s and type', async (_name, link) => {
+      fiatOutputRepo.exists.mockResolvedValue(true);
+
+      await expect(service.create(dto(link))).rejects.toThrow('FiatOutput already exists');
+    });
+
+    it('links the buy-fiat and rejects an unconfirmed crypto input', async () => {
+      buyFiatRepo.findOneBy.mockResolvedValue({
+        id: 7,
+        cryptoInput: { status: PayInStatus.COMPLETED },
+      } as never);
+
+      await expect(service.create(dto({ type: FiatOutputType.BUY_FIAT, buyFiatId: 7 }))).rejects.toThrow(
+        'CryptoInput not confirmed',
+      );
+    });
+
+    it('accepts a buy-fiat whose crypto input is still in flight', async () => {
+      buyFiatRepo.findOneBy.mockResolvedValue({ id: 7, cryptoInput: { status: PayInStatus.CREATED } } as never);
+
+      const created = await service.create(dto({ type: FiatOutputType.BUY_FIAT, buyFiatId: 7 }));
+
+      expect(created.buyFiats?.[0]?.id).toBe(7);
+    });
+
+    it('refuses a buy-fiat that does not exist', async () => {
+      buyFiatRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.create(dto({ buyFiatId: 7 }))).rejects.toThrow('BuyFiat not found');
+    });
+
+    it('links the buy-crypto refund', async () => {
+      buyCryptoRepo.findOneBy.mockResolvedValue({ id: 8 } as never);
+
+      const created = await service.create(dto({ buyCryptoId: 8 }));
+
+      expect(created.buyCrypto?.id).toBe(8);
+    });
+
+    it('refuses a buy-crypto that does not exist', async () => {
+      buyCryptoRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.create(dto({ buyCryptoId: 8 }))).rejects.toThrow('BuyCrypto not found');
+    });
+
+    it('links the bank-tx return', async () => {
+      bankTxReturnService.getBankTxReturn.mockResolvedValue({ id: 9 } as never);
+
+      const created = await service.create(dto({ bankTxReturnId: 9 }));
+
+      expect(created.bankTxReturn?.id).toBe(9);
+    });
+
+    it('refuses a bank-tx return that does not exist', async () => {
+      bankTxReturnService.getBankTxReturn.mockResolvedValue(null);
+
+      await expect(service.create(dto({ bankTxReturnId: 9 }))).rejects.toThrow('BankTxReturn not found');
+    });
+
+    it('links the bank-tx repeat', async () => {
+      bankTxRepeatService.getBankTxRepeat.mockResolvedValue({ id: 10 } as never);
+
+      const created = await service.create(dto({ bankTxRepeatId: 10 }));
+
+      expect(created.bankTxRepeat?.id).toBe(10);
+    });
+
+    it('refuses a bank-tx repeat that does not exist', async () => {
+      bankTxRepeatService.getBankTxRepeat.mockResolvedValue(null);
+
+      await expect(service.create(dto({ bankTxRepeatId: 10 }))).rejects.toThrow('BankTxRepeat not found');
+    });
+
+    it('resolves the bank from an explicitly assigned account IBAN', async () => {
+      bankService.getBankByIban.mockResolvedValue(olkyEUR);
+
+      const created = await service.create(dto({ accountIban: olkyEUR.iban }));
+
+      expect(created.bank).toBe(olkyEUR);
+    });
+
+    it('refuses an account IBAN that belongs to no bank of ours', async () => {
+      bankService.getBankByIban.mockResolvedValue(undefined);
+
+      await expect(service.create(dto({ accountIban: 'UNKNOWN' }))).rejects.toThrow('No bank found for account IBAN');
+    });
+
+    it('allows instant only for an explicitly assigned Bank Frick EUR output', async () => {
+      bankService.getBankByIban.mockResolvedValue(frickEUR);
+
+      const created = await service.create(dto({ isInstant: true, accountIban: frickEUR.iban }));
+
+      expect(created.isInstant).toBe(true);
+    });
+
+    it.each([
+      ['the output currency is not EUR', { currency: 'CHF', accountIban: frickEUR.iban }, frickEUR],
+      ['the bank is not Bank Frick', { accountIban: olkyEUR.iban }, olkyEUR],
+      ['the Bank Frick row is not the EUR one', { accountIban: frickCHF.iban }, frickCHF],
+    ])('refuses instant when %s', async (_name, overrides, bank) => {
+      bankService.getBankByIban.mockResolvedValue(bank);
+
+      await expect(service.create(dto({ isInstant: true, ...overrides }))).rejects.toThrow(
+        'Instant requires an explicitly assigned Bank Frick EUR output',
+      );
+    });
+
+    it.each(['currency', 'amount', 'name', 'address', 'zip', 'city', 'country', 'iban'])(
+      'refuses an output missing %s',
+      async (field) => {
+        await expect(service.create(dto({ [field]: undefined } as never))).rejects.toThrow(
+          `Missing required creditor fields: ${field}`,
+        );
+      },
+    );
+
+    it('treats a blank creditor field as missing', async () => {
+      await expect(service.create(dto({ name: '   ' }))).rejects.toThrow('Missing required creditor fields: name');
+    });
+  });
+
+  describe('createInternal', () => {
+    beforeEach(() => {
+      fiatOutputRepo.create.mockImplementation((values) => createCustomFiatOutput(values as never));
+      fiatOutputRepo.save.mockImplementation(async (entity) => entity as FiatOutput);
+    });
+
+    const userData = {
+      completeName: 'Synthetic Person',
+      address: { street: 'Street', houseNumber: '1', zip: '0000', city: 'City', country: { symbol: 'DE' } },
+    };
+
+    function buyFiat(overrides = {}): never {
+      return {
+        userData,
+        sell: { iban: 'DE89370400440532013000' },
+        outputAsset: { name: 'EUR' },
+        outputAmount: 100,
+        ...overrides,
+      } as never;
+    }
+
+    it('derives the creditor data from the seller account', async () => {
+      const created = await service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat()] }, 1);
+
+      expect(created).toMatchObject({
+        currency: 'EUR',
+        amount: 100,
+        name: 'Synthetic Person',
+        iban: 'DE89370400440532013000',
+        country: 'DE',
+      });
+    });
+
+    it('sums the output amounts of every buy-fiat on the output', async () => {
+      const created = await service.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats: [buyFiat(), buyFiat({ outputAmount: 50 })] },
+        1,
+      );
+
+      expect(created.amount).toBe(150);
+    });
+
+    it('treats a buy-fiat without an output amount as zero rather than failing', async () => {
+      const created = await service.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats: [buyFiat({ outputAmount: undefined })] },
+        1,
+      );
+
+      expect(created.amount).toBe(0);
+    });
+
+    it('prefers the IBAN of the payment link payout route over the sell route', async () => {
+      sellRepo.findOneBy.mockResolvedValue({ iban: 'LU116060002000005040' } as never);
+      const withRoute = buyFiat({
+        paymentLinkPayment: { link: { linkConfigObj: { payoutRouteId: 5 } } },
+      });
+
+      const created = await service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [withRoute] }, 1);
+
+      expect(created.iban).toBe('LU116060002000005040');
+    });
+
+    it('keeps the sell IBAN when the configured payout route no longer exists', async () => {
+      sellRepo.findOneBy.mockResolvedValue(null);
+      const withRoute = buyFiat({
+        paymentLinkPayment: { link: { linkConfigObj: { payoutRouteId: 5 } } },
+      });
+
+      const created = await service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [withRoute] }, 1);
+
+      expect(created.iban).toBe('DE89370400440532013000');
+    });
+
+    it('derives nothing when the buy-fiat carries no account', async () => {
+      await expect(
+        service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat({ userData: undefined })] }, 1),
+      ).rejects.toThrow('Failed to create fiat output for BuyFiat 1: Missing required creditor fields');
+    });
+
+    it('uses the creditor data it is handed instead of deriving any', async () => {
+      const created = await service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat()] }, 1, false, {
+        currency: 'CHF',
+        amount: 42,
+        name: 'Explicit Person',
+        address: 'Other Street',
+        zip: '1111',
+        city: 'Other City',
+        country: 'CH',
+        iban: 'CH9300762011623852957',
+      });
+
+      expect(created).toMatchObject({ currency: 'CHF', amount: 42, name: 'Explicit Person' });
+      expect(sellRepo.findOneBy).not.toHaveBeenCalled();
+    });
+
+    it('names the output it could not create when the creditor data is incomplete', async () => {
+      await expect(service.createInternal(FiatOutputType.MANUAL, {}, 42, false, { currency: 'EUR' })).rejects.toThrow(
+        'Failed to create fiat output for Manual 42: Missing required creditor fields',
+      );
+    });
+
+    it('marks the output for the report when asked', async () => {
+      const created = await service.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat()] }, 1, true);
+
+      expect(created.reportCreated).toBe(false);
+    });
+
+    it('writes through the supplied entity manager so it joins the caller transaction', async () => {
+      const repo = {
+        create: jest.fn().mockImplementation((values) => createCustomFiatOutput(values as never)),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+      const manager = { getRepository: jest.fn().mockReturnValue(repo) };
+
+      await service.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats: [buyFiat()] },
+        1,
+        false,
+        undefined,
+        manager as never,
+      );
+
+      expect(repo.save).toHaveBeenCalled();
+      expect(fiatOutputRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    beforeEach(() => {
+      fiatOutputRepo.findOneBy.mockResolvedValue(createCustomFiatOutput({ id: 1 }));
+      fiatOutputRepo.save.mockImplementation(async (entity) => entity as FiatOutput);
+    });
+
+    it('refuses an output that does not exist', async () => {
+      fiatOutputRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.update(1, {} as UpdateFiatOutputDto)).rejects.toThrow('FiatOutput not found');
+    });
+
+    it('links the bank transaction', async () => {
+      const bankTxRepo = { findOneBy: jest.fn().mockResolvedValue({ id: 5 }) };
+      bankTxService.getBankTxRepo.mockReturnValue(bankTxRepo as never);
+
+      const updated = await service.update(1, { bankTxId: 5 } as UpdateFiatOutputDto);
+
+      expect(updated.bankTx?.id).toBe(5);
+    });
+
+    it('refuses a bank transaction that does not exist', async () => {
+      bankTxService.getBankTxRepo.mockReturnValue({ findOneBy: jest.fn().mockResolvedValue(null) } as never);
+
+      await expect(service.update(1, { bankTxId: 5 } as UpdateFiatOutputDto)).rejects.toThrow('BankTx not found');
+    });
+
+    it('resolves the bank from a newly assigned account IBAN', async () => {
+      bankService.getBankByIban.mockResolvedValue(olkyEUR);
+
+      const updated = await service.update(1, { accountIban: olkyEUR.iban } as UpdateFiatOutputDto);
+
+      expect(updated.bank).toBe(olkyEUR);
+    });
+
+    it('refuses an account IBAN that belongs to no bank of ours', async () => {
+      bankService.getBankByIban.mockResolvedValue(undefined);
+
+      await expect(service.update(1, { accountIban: 'UNKNOWN' } as UpdateFiatOutputDto)).rejects.toThrow(
+        'No bank found for account IBAN',
+      );
+    });
+
+    it('rounds a new amount to a readable fiat amount', async () => {
+      const updated = await service.update(1, { amount: 100.005 } as UpdateFiatOutputDto);
+
+      expect(updated.amount).toBe(100.01);
+    });
+
+    it('leaves the amount alone when the update does not carry one', async () => {
+      const updated = await service.update(1, { info: 'note' } as UpdateFiatOutputDto);
+
+      expect(updated.amount).toBeUndefined();
+    });
+  });
+
+  describe('delete', () => {
+    it('refuses an output that does not exist', async () => {
+      fiatOutputRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.delete(1)).rejects.toThrow('FiatOutput not found');
+    });
+
+    it('refuses to delete an output a buy-fiat still points at', async () => {
+      fiatOutputRepo.findOne.mockResolvedValue(createCustomFiatOutput({ id: 1, buyFiats: [{ id: 2 } as never] }));
+
+      await expect(service.delete(1)).rejects.toThrow('FiatOutput remaining buyFiat');
+      expect(fiatOutputRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes an output nothing points at', async () => {
+      fiatOutputRepo.findOne.mockResolvedValue(createCustomFiatOutput({ id: 1, buyFiats: [] }));
+
+      await service.delete(1);
+
+      expect(fiatOutputRepo.delete).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('getFiatOutputByKey', () => {
+    function queryBuilder() {
+      const qb: Record<string, jest.Mock> = {};
+      for (const method of ['select', 'leftJoinAndSelect', 'where']) qb[method] = jest.fn(() => qb);
+      qb.getOne = jest.fn().mockResolvedValue(createCustomFiatOutput({ id: 1 }));
+      return qb;
+    }
+
+    it('scopes a plain key to the fiat output itself', async () => {
+      const qb = queryBuilder();
+      fiatOutputRepo.createQueryBuilder.mockReturnValue(qb as never);
+
+      await expect(service.getFiatOutputByKey('id', 1)).resolves.toMatchObject({ id: 1 });
+      expect(qb.where).toHaveBeenCalledWith('fiatOutput.id = :param', { param: 1 });
+    });
+
+    it('leaves a qualified key untouched so a joined relation can be addressed', async () => {
+      const qb = queryBuilder();
+      fiatOutputRepo.createQueryBuilder.mockReturnValue(qb as never);
+
+      await service.getFiatOutputByKey('userData.id', 7);
+
+      expect(qb.where).toHaveBeenCalledWith('userData.id = :param', { param: 7 });
+    });
+  });
+  // `@Inject(forwardRef(() => X))` arguments are lazy thunks Nest only calls while resolving the graph;
+  // constructing the service directly never runs them. A broken (circular) import makes one resolve to
+  // undefined, which surfaces as an opaque boot failure — resolving them here turns that into a failing
+  // test instead.
+  describe('constructor forward references', () => {
+    it('resolves every forward reference to a real class', () => {
+      const deps: { index: number; param: unknown }[] =
+        Reflect.getMetadata(SELF_DECLARED_DEPS_METADATA, FiatOutputService) ?? [];
+      const forwardRefs = deps.filter(
+        (dep): dep is { index: number; param: { forwardRef: () => unknown } } =>
+          typeof (dep.param as { forwardRef?: unknown })?.forwardRef === 'function',
+      );
+      expect(forwardRefs.length).toBeGreaterThan(0);
+
+      for (const dep of forwardRefs) {
+        expect(dep.param.forwardRef()).toBeDefined();
+      }
     });
   });
 });
