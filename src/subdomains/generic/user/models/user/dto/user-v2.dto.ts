@@ -33,6 +33,7 @@ export const PhoneCallStatusMapper: {
   [PhoneCallStatus.FAILED]: UserPhoneCallStatus.FAILED,
   [PhoneCallStatus.COMPLETED]: UserPhoneCallStatus.COMPLETED,
   [PhoneCallStatus.SUSPICIOUS]: UserPhoneCallStatus.FAILED,
+  [PhoneCallStatus.USER_REVOKE_DECISION]: undefined,
 };
 
 export class VolumesDto {

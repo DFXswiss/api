@@ -79,7 +79,7 @@ export class AmlHelperService {
       errors.push(
         entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
           ? AmlError.USER_DATA_FAILED_CALL
-          : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+          : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
             ? AmlError.USER_DATA_REJECTED_CALL
             : AmlError.TRADE_APPROVAL_DATE_MISSING,
       );
@@ -100,7 +100,7 @@ export class AmlHelperService {
       errors.push(
         entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
           ? AmlError.USER_DATA_FAILED_CALL
-          : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+          : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
             ? AmlError.USER_DATA_REJECTED_CALL
             : AmlError.REFERRAL_NO_TRADE_HISTORY,
       );
@@ -130,7 +130,7 @@ export class AmlHelperService {
         errors.push(
           entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+            : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
               ? AmlError.USER_DATA_REJECTED_CALL
               : AmlError.IP_PHONE_VERIFICATION_NEEDED,
         );
@@ -259,7 +259,7 @@ export class AmlHelperService {
         errors.push(
           entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+            : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
               ? AmlError.USER_DATA_REJECTED_CALL
               : AmlError.IP_COUNTRY_MISMATCH,
         );
@@ -285,7 +285,7 @@ export class AmlHelperService {
         errors.push(
           entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+            : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
               ? AmlError.USER_DATA_REJECTED_CALL
               : AmlError.PHONE_VERIFICATION_NEEDED,
         );
@@ -541,7 +541,7 @@ export class AmlHelperService {
           errors.push(
             entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
               ? AmlError.USER_DATA_FAILED_CALL
-              : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+              : entity.userData.hasRejectedCall && !entity.userData.phoneCallAccepted
                 ? AmlError.USER_DATA_REJECTED_CALL
                 : AmlError.PHONE_VERIFICATION_NEEDED,
           );
