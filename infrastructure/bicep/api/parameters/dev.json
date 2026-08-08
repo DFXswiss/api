@@ -446,6 +446,12 @@
     "fixerApiKey": {
       "value": "xxx"
     },
+    "denarioPriceUrl": {
+      "value": ""
+    },
+    "denarioPriceApiKey": {
+      "value": "xxx"
+    },
     "sepaToolsUser": {
       "value": "xxx"
     },
