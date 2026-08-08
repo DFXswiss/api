@@ -54,7 +54,7 @@ function safeStringify(value: unknown): string {
   try {
     return String(value);
   } catch {
-    return '<unstringifiable rejection reason>';
+    return '<unstringifiable value>';
   }
 }
 

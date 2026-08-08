@@ -123,17 +123,6 @@ describe('handleUncaughtException', () => {
     expect(exitFn).toHaveBeenCalledTimes(1);
   });
 
-  it('logs a non-Error rejection with its value, distinguishable from an exception', () => {
-    const { deps, errorFn, exitFn } = createDeps();
-
-    handleUnhandledRejection('plain failure', deps);
-
-    const logged = errorFn.mock.calls[0][1] as Error;
-    expect(logged).toBeInstanceOf(Error);
-    expect(logged.message).toBe('Non-Error rejection: plain failure');
-    expect(exitFn).toHaveBeenCalledTimes(1);
-  });
-
   it('logs a non-Error exception with its value, distinguishable from a rejection', () => {
     const { deps, errorFn, exitFn } = createDeps();
 
@@ -143,6 +132,15 @@ describe('handleUncaughtException', () => {
     expect(logged).toBeInstanceOf(Error);
     expect(logged.message).toBe('Non-Error exception: plain failure');
     expect(exitFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the value it could not stringify without calling it a rejection', () => {
+    const { deps, errorFn } = createDeps();
+
+    handleUncaughtException(createUnstringifiable(), deps);
+
+    const logged = errorFn.mock.calls[0][1] as Error;
+    expect(logged.message).toBe('Non-Error exception: <unstringifiable value>');
   });
 
   it('does not throw and exits for a number', () => {
@@ -178,6 +176,17 @@ describe('handleUncaughtException', () => {
 });
 
 describe('handleUnhandledRejection', () => {
+  it('logs a non-Error rejection with its value, distinguishable from an exception', () => {
+    const { deps, errorFn, exitFn } = createDeps();
+
+    handleUnhandledRejection('plain failure', deps);
+
+    const logged = errorFn.mock.calls[0][1] as Error;
+    expect(logged).toBeInstanceOf(Error);
+    expect(logged.message).toBe('Non-Error rejection: plain failure');
+    expect(exitFn).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the process alive for a tolerated Spark constructor name', () => {
     const { deps, errorFn, exitFn } = createDeps();
     const error = new SparkNetworkError('network blip');
