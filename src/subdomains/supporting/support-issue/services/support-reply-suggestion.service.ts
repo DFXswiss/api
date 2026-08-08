@@ -41,11 +41,16 @@ export class SupportReplySuggestionService {
     // and a lock on rows that do not exist yet cannot order the two inserts. Without it the issue
     // ends up with two suggestions marked Pending, one of them stranded in that state forever.
     const [entity, latestMessageId] = await this.suggestionRepo.manager.transaction(async (manager) => {
-      await manager
+      // The issue is checked again here, under the lock: the check above happens before the
+      // transaction, so only this one can still be true when the suggestion is inserted. Without it
+      // an issue that disappeared in between would surface as a foreign key violation instead of a
+      // 404.
+      const lockedIssue = await manager
         .createQueryBuilder(SupportIssue, 'issue')
         .where('issue.id = :issueId', { issueId })
         .setLock('pessimistic_write', undefined, ['issue'])
         .getOne();
+      if (!lockedIssue) throw new NotFoundException('Support issue not found');
 
       // The newest message is resolved INSIDE the lock. Read before it, a customer message arriving
       // in between would leave the suggestion bound to a message that is no longer the newest — and
@@ -66,7 +71,7 @@ export class SupportReplySuggestionService {
       // memory, so leaving it to the database default would answer the submission with an empty state.
       const saved = await manager.save(
         manager.create(SupportReplySuggestion, {
-          issue,
+          issue: lockedIssue,
           message: latestMessage,
           text: dto.text,
           authorId,

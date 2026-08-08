@@ -167,7 +167,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 438 | 13 | find | `BankTxReturn` | `subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts:137` | `BankTxReturnService.update` |
 | 434 | 15 | find | `LimitRequest` | `subdomains/supporting/support-issue/services/limit-request.service.ts:120` | `LimitRequestService.getUserLimitRequests` |
 | 433 | 12 | find | `BankTx` | `subdomains/core/accounting/services/consumers/bank-tx.consumer.ts:106` | `BankTxConsumer.processForward` |
-| 429 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:157` | `SupportReplySuggestionService.getLatestMessage` |
+| 429 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:162` | `SupportReplySuggestionService.getLatestMessage` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:478` | `SupportIssueService.closeIssue` |
 | 428 | 15 | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:628` | `SupportIssueService.getIssueMessages` |
 | 427 | 13 | find | `CustodyOrder` | `subdomains/core/custody/services/custody-order.service.ts:281` | `CustodyOrderService.confirmOrder` |
@@ -585,7 +585,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | 33 | 0 | find | `Asset` | `shared/models/asset/asset.service.ts:169` | `AssetService.getEvmAssetsWithoutDecimals` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:106` | `DashboardReconciliationService.getReconciliation` |
 | 33 | 0 | find | `Asset` | `subdomains/supporting/dashboard/dashboard-reconciliation.service.ts:377` | `DashboardReconciliationService.getExchangeFlows` |
-| 33 | 2 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:85` | `SupportReplySuggestionService.getPendingSuggestion` |
+| 33 | 2 | find | `SupportReplySuggestion` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:90` | `SupportReplySuggestionService.getPendingSuggestion` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:274` | `PaymentLinkPaymentService.getPaymentByExternalId` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:280` | `PaymentLinkPaymentService.getMostRecentPayment` |
 | 32 | 1 | find | `PaymentLinkPayment` | `subdomains/core/payment-link/services/payment-link-payment.service.ts:415` | `PaymentLinkPaymentService.deliverToConnectedDevices` |
@@ -1214,7 +1214,7 @@ Sorted by measured columns, largest first. `—` means not measurable, not zero.
 | — | — | find | `—` | `subdomains/supporting/support-issue/services/support-issue.service.ts:92` | `SupportIssueService.getSupportIssueClerkForAccount` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:633` | `SupportIssueService.getIssueFile` |
 | — | — | find | `SupportMessage` | `subdomains/supporting/support-issue/services/support-issue.service.ts:648` | `SupportIssueService.getUserIssues` |
-| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:45` | `SupportReplySuggestionService.createSuggestion` |
-| — | — | find | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:54` | `SupportReplySuggestionService.createSuggestion` |
-| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:127` | `SupportReplySuggestionService.handleSuggestion` |
+| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:49` | `SupportReplySuggestionService.createSuggestion` |
+| — | — | find | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:59` | `SupportReplySuggestionService.createSuggestion` |
+| — | — | query-builder (no select) | `—` | `subdomains/supporting/support-issue/services/support-reply-suggestion.service.ts:132` | `SupportReplySuggestionService.handleSuggestion` |
 | — | — | find | `—` | `subdomains/core/buy-crypto/process/services/buy-crypto-batch.service.ts:589` | `BuyCryptoBatchService.orderMissingLiquidity` |

@@ -169,6 +169,17 @@ describe('SupportReplySuggestionService', () => {
       );
     });
 
+    // The check before the transaction cannot speak for the moment of the insert; only the one under
+    // the lock can, and it is the one that decides.
+    it('fails when the issue is gone by the time the lock is taken', async () => {
+      queryBuilder.getOne.mockResolvedValue(null);
+
+      await expect(service.createSuggestion(ISSUE_ID, { text: 'Answer' }, AUTHOR_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockManager.save).not.toHaveBeenCalled();
+    });
+
     it('fails when the issue has no message to answer', async () => {
       mockManager.findOne.mockResolvedValue(null);
 
