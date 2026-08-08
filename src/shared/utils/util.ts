@@ -13,7 +13,9 @@ export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
 
-type CryptoAlgorithm = 'md5' | 'sha256' | 'sha384' | 'sha512';
+// sha1 is here only because Fiat Republic's webhook signature scheme prescribes a sha1 body digest
+// (the authentication itself is the HMAC-SHA256 over that digest) — never pick it for new hashing.
+type CryptoAlgorithm = 'md5' | 'sha1' | 'sha256' | 'sha384' | 'sha512';
 
 /** Postgres INTEGER / SERIAL upper bound (positive ids only). */
 export const PG_INTEGER_MAX = 2_147_483_647;
